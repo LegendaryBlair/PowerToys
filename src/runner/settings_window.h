@@ -35,6 +35,7 @@ enum class ESettingsWindowNames
     AdvancedPaste,
     NewPlus,
     CmdPal,
+    ClipPing,
     ZoomIt,
     PowerDisplay,
     GrabAndMove,

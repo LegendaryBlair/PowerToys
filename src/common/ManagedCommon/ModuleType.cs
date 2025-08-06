@@ -11,6 +11,7 @@ namespace ManagedCommon
         AlwaysOnTop,
         Awake,
         ColorPicker,
+        ClipPing,
         CmdPal,
         CropAndLock,
         CursorWrap,

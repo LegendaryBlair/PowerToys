@@ -63,6 +63,8 @@ namespace PowerToys
             static String WorkspacesHotkeyEvent();
             static String PowerToysRunnerTerminateSettingsEvent();
             static String ShowCmdPalEvent();
+            static String ClipPingExitEvent();
+            static String ClipPingShowOverlayEvent();
             static String TogglePowerDisplayEvent();
             static String TerminatePowerDisplayEvent();
             static String AutoDisablePowerDisplayEvent();
@@ -81,4 +83,3 @@ namespace PowerToys
         }
     }
 }
-

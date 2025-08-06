@@ -44,6 +44,7 @@ namespace Common.UI
             AdvancedPaste,
             NewPlus,
             CmdPal,
+            ClipPing,
             ZoomIt,
             PowerDisplay,
         }
@@ -114,6 +115,8 @@ namespace Common.UI
                     return "NewPlus";
                 case SettingsWindow.CmdPal:
                     return "CmdPal";
+                case SettingsWindow.ClipPing:
+                    return "ClipPing";
                 case SettingsWindow.ZoomIt:
                     return "ZoomIt";
                 case SettingsWindow.PowerDisplay:
