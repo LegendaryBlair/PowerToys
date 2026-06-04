@@ -15,11 +15,13 @@ namespace PowerDisplay.Cli.Commands;
 public static class ListCommand
 {
     public static async Task<int> RunAsync(
-        MonitorManager monitorManager,
+        IMonitorManager monitorManager,
+        IReadOnlySet<string> hiddenMonitorIds,
         ICliOutput output,
         CancellationToken cancellationToken)
     {
         var monitors = await monitorManager.DiscoverMonitorsAsync(cancellationToken);
+        monitors = MonitorFiltering.ExcludeHidden(monitors, hiddenMonitorIds);
 
         var entries = new List<CliListMonitor>(monitors.Count);
         foreach (var m in monitors)

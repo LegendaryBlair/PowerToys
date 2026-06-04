@@ -23,7 +23,7 @@ namespace PowerDisplay.Common.Services
     /// Monitor manager for unified control of all monitors
     /// No interface abstraction - KISS principle (only one implementation needed)
     /// </summary>
-    public partial class MonitorManager : IDisposable
+    public partial class MonitorManager : IDisposable, IMonitorManager
     {
         private readonly List<Monitor> _monitors = new();
         private readonly Dictionary<string, Monitor> _monitorLookup = new();

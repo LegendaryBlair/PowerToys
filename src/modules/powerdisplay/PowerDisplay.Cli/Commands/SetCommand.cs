@@ -20,7 +20,8 @@ namespace PowerDisplay.Cli.Commands;
 public static class SetCommand
 {
     public static async Task<int> RunAsync(
-        MonitorManager monitorManager,
+        IMonitorManager monitorManager,
+        IReadOnlySet<string> hiddenMonitorIds,
         SetCommandInputs inputs,
         ICliOutput output,
         CancellationToken cancellationToken)
@@ -58,6 +59,7 @@ public static class SetCommand
         }
 
         var monitors = await monitorManager.DiscoverMonitorsAsync(cancellationToken);
+        monitors = MonitorFiltering.ExcludeHidden(monitors, hiddenMonitorIds);
         var resolution = MonitorResolver.Resolve(monitors, inputs.MonitorNumber, inputs.MonitorId);
 
         if (resolution.Warning is not null)
@@ -253,7 +255,7 @@ public static class SetCommand
     };
 
     private static async Task<int> ApplyContinuousAsync(
-        MonitorManager monitorManager,
+        IMonitorManager monitorManager,
         Monitor monitor,
         CliMonitorRef monitorRef,
         string settingName,
@@ -261,7 +263,7 @@ public static class SetCommand
         bool supportsCheck,
         int beforeValue,
         string unsupportedReason,
-        Func<MonitorManager, string, int, CancellationToken, Task<MonitorOperationResult>> apply,
+        Func<IMonitorManager, string, int, CancellationToken, Task<MonitorOperationResult>> apply,
         ICliOutput output,
         CancellationToken cancellationToken)
     {
@@ -322,7 +324,7 @@ public static class SetCommand
     }
 
     private static async Task<int> ApplyDiscreteAsync(
-        MonitorManager monitorManager,
+        IMonitorManager monitorManager,
         Monitor monitor,
         CliMonitorRef monitorRef,
         string settingName,
@@ -332,7 +334,7 @@ public static class SetCommand
         int beforeValue,
         IReadOnlyList<int>? supportedValues,
         string unsupportedReason,
-        Func<MonitorManager, string, int, CancellationToken, Task<MonitorOperationResult>> apply,
+        Func<IMonitorManager, string, int, CancellationToken, Task<MonitorOperationResult>> apply,
         ICliOutput output,
         CancellationToken cancellationToken)
     {
@@ -393,7 +395,7 @@ public static class SetCommand
     }
 
     private static async Task<int> ApplyOrientationAsync(
-        MonitorManager monitorManager,
+        IMonitorManager monitorManager,
         Monitor monitor,
         CliMonitorRef monitorRef,
         string raw,

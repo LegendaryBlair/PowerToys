@@ -17,13 +17,15 @@ namespace PowerDisplay.Cli.Commands;
 public static class CapabilitiesCommand
 {
     public static async Task<int> RunAsync(
-        MonitorManager monitorManager,
+        IMonitorManager monitorManager,
+        IReadOnlySet<string> hiddenMonitorIds,
         int? monitorNumber,
         string? monitorId,
         ICliOutput output,
         CancellationToken cancellationToken)
     {
         var monitors = await monitorManager.DiscoverMonitorsAsync(cancellationToken);
+        monitors = MonitorFiltering.ExcludeHidden(monitors, hiddenMonitorIds);
         var resolution = MonitorResolver.Resolve(monitors, monitorNumber, monitorId);
 
         if (resolution.Warning is not null)

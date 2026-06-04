@@ -34,7 +34,8 @@ public static class GetCommand
     ];
 
     public static async Task<int> RunAsync(
-        MonitorManager monitorManager,
+        IMonitorManager monitorManager,
+        IReadOnlySet<string> hiddenMonitorIds,
         int? monitorNumber,
         string? monitorId,
         string? settingFilter,
@@ -42,6 +43,7 @@ public static class GetCommand
         CancellationToken cancellationToken)
     {
         var monitors = await monitorManager.DiscoverMonitorsAsync(cancellationToken);
+        monitors = MonitorFiltering.ExcludeHidden(monitors, hiddenMonitorIds);
 
         // No selector → emit every discovered monitor with its settings. This is the
         // "show me everything" shape; scripts that want a single monitor pass -n/-i.
