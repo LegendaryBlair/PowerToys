@@ -275,17 +275,18 @@ The `orientation` setting's `raw` value is in **degrees** (0, 90, 180, or 270), 
 
 ```json
 {
-  "version": "1.0",
   "ok": true,
+  "version": "1.0",
   "command": "capabilities",
-  "monitor": { "number": 1, "id": "...", "name": "Dell U2723QE", "method": "DDC/CI" },
-  "mccs": "2.2",
+  "monitor": { "number": 1, "id": "\\\\?\\DISPLAY#DELD1A8#...", "name": "Dell U2723QE", "method": "DDC/CI" },
+  "communicationMethod": "DDC/CI",
   "model": "U2723QE",
+  "mccsVersion": "2.2",
   "vcpCodes": [
-    { "code": "0x10", "name": "Brightness", "type": "continuous" },
-    { "code": "0x60", "name": "Input Source", "type": "discrete",
-      "values": [{ "name": "HDMI-1", "vcp": "0x11" }, { "name": "DisplayPort-1", "vcp": "0x0F" }] }
-  ]
+    { "code": "0x10", "name": "Brightness", "continuous": true },
+    { "code": "0x60", "name": "Input Source", "continuous": false, "discreteValues": ["HDMI-1 (0x11)", "DisplayPort-1 (0x0F)", "USB-C (0x1B)"] }
+  ],
+  "rawCapabilities": "(raw MCCS string)"
 }
 ```
 
