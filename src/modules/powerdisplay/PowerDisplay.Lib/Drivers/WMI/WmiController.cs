@@ -289,6 +289,8 @@ namespace PowerDisplay.Common.Drivers.WMI
                                 GdiDeviceName = gdiDeviceName,
                             };
 
+                            monitor.ReadValues |= MonitorReadFlags.Brightness;
+
                             monitors.Add(monitor);
                         }
                         catch (Exception ex)

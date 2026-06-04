@@ -450,6 +450,7 @@ namespace PowerDisplay.Common.Drivers.DDC
             if (TryGetVcpFeature(handle, VcpCodeInputSource, monitor.Id, out uint current, out uint _))
             {
                 monitor.CurrentInputSource = (int)current;
+                monitor.ReadValues |= MonitorReadFlags.InputSource;
             }
         }
 
@@ -461,6 +462,7 @@ namespace PowerDisplay.Common.Drivers.DDC
             if (TryGetVcpFeature(handle, VcpCodeSelectColorPreset, monitor.Id, out uint current, out uint _))
             {
                 monitor.CurrentColorTemperature = (int)current;
+                monitor.ReadValues |= MonitorReadFlags.ColorTemperature;
             }
         }
 
@@ -472,6 +474,7 @@ namespace PowerDisplay.Common.Drivers.DDC
             if (TryGetVcpFeature(handle, VcpCodePowerMode, monitor.Id, out uint current, out uint _))
             {
                 monitor.CurrentPowerState = (int)current;
+                monitor.ReadValues |= MonitorReadFlags.PowerState;
             }
         }
 
@@ -486,6 +489,7 @@ namespace PowerDisplay.Common.Drivers.DDC
                 monitor.BrightnessVcpMax = (int)max;
                 var brightnessInfo = new VcpFeatureValue((int)current, 0, (int)max);
                 monitor.CurrentBrightness = brightnessInfo.ToPercentage();
+                monitor.ReadValues |= MonitorReadFlags.Brightness;
             }
         }
 
@@ -500,6 +504,7 @@ namespace PowerDisplay.Common.Drivers.DDC
                 monitor.ContrastVcpMax = (int)max;
                 var contrastInfo = new VcpFeatureValue((int)current, 0, (int)max);
                 monitor.CurrentContrast = contrastInfo.ToPercentage();
+                monitor.ReadValues |= MonitorReadFlags.Contrast;
             }
         }
 
@@ -514,6 +519,7 @@ namespace PowerDisplay.Common.Drivers.DDC
                 monitor.VolumeVcpMax = (int)max;
                 var volumeInfo = new VcpFeatureValue((int)current, 0, (int)max);
                 monitor.CurrentVolume = volumeInfo.ToPercentage();
+                monitor.ReadValues |= MonitorReadFlags.Volume;
             }
         }
 
