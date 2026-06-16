@@ -311,7 +311,7 @@ public class SetCommandTests
     {
         // Monitor advertises VCP 0xD6 but only the On (0x01) value — Off (DPM)/0x04 is unsupported.
         // The value check must run BEFORE the confirmation gate, so the user gets the real exit 3
-        // instead of being asked to --confirm-power-off for a value the monitor can never accept.
+        // instead of being asked to --confirm-power-off for a value that the monitor can never accept.
         var onlyOn = new[] { 0x01 };
         var mm = new FakeMonitorManager(PowerStateMonitor(onlyOn));
         var output = new CapturingOutput();

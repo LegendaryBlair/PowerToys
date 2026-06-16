@@ -185,6 +185,7 @@ CAPTURECHANGED
 CARETBLINKING
 carlos
 Carlseibert
+caseinsensitive
 caub
 CBN
 cch
@@ -434,6 +435,7 @@ downsampling
 downscale
 DPICHANGED
 DPIs
+dpm
 DPMS
 DPSAPI
 DQTAT
@@ -504,6 +506,7 @@ EREOF
 EResize
 ERRORIMAGE
 ERRORTITLE
+esac
 esrp
 etd
 ETDT
@@ -676,6 +679,7 @@ hcursor
 hcwhite
 hdc
 HDEVNOTIFY
+hdmi
 hdr
 HDROP
 hdwwiz
@@ -1251,6 +1255,7 @@ NTSTATUS
 NTSYSAPI
 nullability
 NULLCURSOR
+nullid
 nullonfailure
 nullref
 numberbox
@@ -1313,6 +1318,7 @@ PARENTRELATIVEFORADDRESSBAR
 PARENTRELATIVEFORUI
 PARENTRELATIVEPARSING
 parray
+parseable
 PARTIALCONFIRMATIONDIALOGTITLE
 PATCOPY
 PATHMUSTEXIST
@@ -1968,6 +1974,7 @@ unittests
 UNLEN
 UNORM
 unparsable
+unparseable
 unremapped
 Unsend
 untriaged
