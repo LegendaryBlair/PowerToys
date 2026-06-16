@@ -5,9 +5,14 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using System.Windows.Threading;
+using Common.UI;
 using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Telemetry;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using PowerToys.Interop;
 using ShortcutGuide.Models;
 using ShortcutGuide.ShortcutGuideXAML;
 using ShortcutGuide.Telemetry;
@@ -39,6 +44,7 @@ namespace ShortcutGuide
             MainWindow = new MainWindow();
             TaskBarWindow = new TaskbarWindow();
             MainWindow.Activate();
+            MainWindow.AppWindow.Hide();
             MainWindow.Closed += (_, _) =>
             {
                 PowerToysTelemetry.Log.WriteEvent(new ShortcutGuideSessionEvent(
@@ -46,6 +52,21 @@ namespace ShortcutGuide
                     MainWindow.CloseType));
                 TaskBarWindow.Close();
             };
+
+            NativeEventWaiter.WaitForEventLoop(
+                Constants.ShortcutGuideTriggerEvent(),
+                () =>
+                {
+                    if (MainWindow.AppWindow.IsVisible)
+                    {
+                        MainWindow.AppWindow.Hide();
+                        return;
+                    }
+
+                    MainWindow.AppWindow.Show();
+                },
+                Dispatcher.CurrentDispatcher,
+                CancellationToken.None);
         }
 
         private void LoadData()

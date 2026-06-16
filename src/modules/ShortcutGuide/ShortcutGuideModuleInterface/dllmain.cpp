@@ -33,13 +33,13 @@ public:
         exitEvent = CreateEvent(nullptr, false, false, CommonSharedConstants::SHORTCUT_GUIDE_EXIT_EVENT);
         if (!exitEvent)
         {
-            Logger::warn(L"Failed to create {} event. {}", CommonSharedConstants::SHORTCUT_GUIDE_EXIT_EVENT, get_last_error_or_default(GetLastError()));
+            Logger::warn(
+                L"Failed to create {} event. {}",
+                CommonSharedConstants::SHORTCUT_GUIDE_EXIT_EVENT,
+                get_last_error_or_default(GetLastError()));
         }
 
         triggerEvent = CreateEvent(nullptr, false, false, CommonSharedConstants::SHORTCUT_GUIDE_TRIGGER_EVENT);
-        triggerEventWaiter.start(CommonSharedConstants::SHORTCUT_GUIDE_TRIGGER_EVENT, [this](DWORD) {
-            OnHotkeyEx();
-        });
 
         InitSettings();
     }
@@ -145,19 +145,15 @@ public:
             return;
         }
 
-        if (IsProcessActive())
+        if (!IsProcessActive())
         {
-            TerminateProcess(m_hProcess, 0);
-            return;
+            StartProcess();
         }
 
-        if (m_hProcess)
+        if (!SetEvent(triggerEvent))
         {
-            CloseHandle(m_hProcess);
-            m_hProcess = nullptr;
+            Logger::error(L"Failed to set trigger event. {}", get_last_error_or_default(GetLastError()));
         }
-
-        StartProcess();
     }
 
     virtual void send_settings_telemetry() override
