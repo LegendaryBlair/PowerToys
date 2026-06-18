@@ -113,7 +113,6 @@ azman
 azureaiinference
 azureinference
 azureopenai
-Backlight
 backticks
 Badflags
 Badmode
@@ -474,7 +473,6 @@ DWMWINDOWATTRIBUTE
 DWMWINDOWMAXIMIZEDCHANGE
 DWORDLONG
 dworigin
-DWRITE
 dxgi
 Dxva
 eab
@@ -1002,7 +1000,6 @@ luid
 lusrmgr
 LVDS
 LWA
-LWIN
 LZero
 MAGTRANSFORM
 makeappx
@@ -1212,7 +1209,6 @@ nonclient
 NONCLIENTMETRICSW
 NONELEVATED
 nonspace
-nonstd
 NOOWNERZORDER
 NOPARENTNOTIFY
 NOPREFIX
@@ -1428,7 +1424,6 @@ Prefixer
 Premul
 prependpath
 prepopulate
-Prereq
 prevhost
 previewer
 PREVIEWHANDLERFRAMEINFO
@@ -1977,6 +1972,7 @@ unparsable
 unparseable
 unremapped
 Unsend
+Unsubscribes
 untriaged
 unvirtualized
 unwide
@@ -2006,7 +2002,6 @@ valuegenerator
 VARTYPE
 vbcscompiler
 vcamp
-VCENTER
 vcgtq
 VCINSTALLDIR
 vcp
@@ -2044,7 +2039,6 @@ vorrq
 VOS
 vpaddlq
 vqsubq
-VREDRAW
 vreinterpretq
 VSC
 VSCBD
