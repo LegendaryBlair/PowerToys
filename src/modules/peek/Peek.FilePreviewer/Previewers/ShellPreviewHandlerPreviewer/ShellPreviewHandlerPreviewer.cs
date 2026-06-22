@@ -200,10 +200,27 @@ namespace Peek.FilePreviewer.Previewers
                     }
                     else if (previewHandler is IInitializeWithItem initWithItem)
                     {
-                        var hr = PInvoke_FilePreviewer.SHCreateItemFromParsingName(FileItem.Path, null, typeof(IShellItem).GUID, out var item);
-                        Marshal.ThrowExceptionForHR(hr);
+                        object? item = null;
+                        try
+                        {
+                            var hr = PInvoke_FilePreviewer.SHCreateItemFromParsingName(FileItem.Path, null, typeof(IShellItem).GUID, out item);
+                            Marshal.ThrowExceptionForHR(hr);
 
-                        initWithItem.Initialize((IShellItem)item, STGM_READ);
+                            initWithItem.Initialize((IShellItem)item, STGM_READ);
+                        }
+                        finally
+                        {
+                            if (item != null)
+                            {
+                                try
+                                {
+                                    Marshal.FinalReleaseComObject(item);
+                                }
+                                catch
+                                {
+                                }
+                            }
+                        }
                     }
                     else if (previewHandler is IInitializeWithFile initWithFile)
                     {
@@ -246,6 +263,12 @@ namespace Peek.FilePreviewer.Previewers
                     }
                     catch
                     {
+                    }
+
+                    if (fileStream != null)
+                    {
+                        fileStream.Dispose();
+                        fileStream = null;
                     }
                 }
             }
