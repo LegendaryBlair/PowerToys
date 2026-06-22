@@ -221,7 +221,7 @@ namespace Peek.UI
                 // Keep teardown best-effort: one failure must not skip later cleanup
                 // or prevent the CLI/-FilePath exit-after-close contract.
                 TryRunUninitializeStep(this.Restore, "Restore");
-                TryRunUninitializeStep(() => _ = this.Hide(), "Hide");
+                TryRunUninitializeStep(() => this.Hide(), "Hide");
                 TryRunUninitializeStep(ViewModel.Uninitialize, nameof(ViewModel.Uninitialize));
                 TryRunUninitializeStep(() => ViewModel.ScalingFactor = 1, nameof(ViewModel.ScalingFactor));
                 TryRunUninitializeStep(() => this.Content.KeyUp -= Content_KeyUp, nameof(Content_KeyUp));
