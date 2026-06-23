@@ -18,13 +18,7 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
         [STAThread]
         public static void Main(string[] args)
         {
-            try
-            {
-                System.IO.Directory.SetCurrentDirectory(AppContext.BaseDirectory);
-            }
-            catch
-            {
-            }
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
 
             ApplicationConfiguration.Initialize();
             Logger.InitializeLogger("\\FileExplorer_localLow\\SvgThumbnails\\logs", true);

@@ -23,13 +23,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         [STAThread]
         public static void Main(string[] args)
         {
-            try
-            {
-                System.IO.Directory.SetCurrentDirectory(AppContext.BaseDirectory);
-            }
-            catch
-            {
-            }
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
 
             ApplicationConfiguration.Initialize();
             if (args != null)
