@@ -224,7 +224,7 @@ public class ColorPickerEndToEndTests : UITestBase
             try
             {
                 var peer = overlay.Find(By.AccessibilityId("ColorHexAutomationPeer"), timeoutMS: 2_000);
-                overlayHex = peer.Name;
+                overlayHex = peer.HelpText;
                 TestContext.WriteLine($"Overlay HEX (from automation peer): '{overlayHex}'");
             }
             catch (Exception ex)

@@ -293,15 +293,7 @@ public sealed class SessionHelper
     /// </summary>
     public static bool RestartScope(PowerToysModule scope, TimeSpan timeout)
     {
-        var processName = GetProcessName(scope);
-        WindowControl.TryKillProcess(processName);
-
-        var killDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-        while (DateTime.UtcNow < killDeadline && Process.GetProcessesByName(processName).Length > 0)
-        {
-            Thread.Sleep(150);
-        }
-
+        KillScopeProcessesAndWait(scope);
         return EnsureRunning(scope, timeout);
     }
 

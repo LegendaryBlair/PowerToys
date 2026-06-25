@@ -36,6 +36,8 @@
                 <TextBlock
                     x:Name="ColorHexAutomationPeer"
                     AutomationProperties.AutomationId="ColorHexAutomationPeer"
+                    AutomationProperties.HelpText="{Binding ColorText}"
+                    AutomationProperties.Name=""
                     IsHitTestVisible="False"
                     Opacity="0"
                     Text="{Binding ColorText}" />

@@ -21,8 +21,9 @@ sections are kept as the rationale/record.
 | 5 — Pipeline diagnostics | ✅ Done (pipeline-gated) | new `ScreenCapture.cs`, `ScreenRecording.cs`, `DisplayHelper.cs`; wired in `UITestBase` |
 | 6 — Editor-scope launch audit | ✅ Documented | per-scope launch model in `ModuleConfigData.cs` (`PowerToysModule` doc) |
 
-Framework/test-only change — no product code touched. Harness + both `.Next` consumers
-(`ColorPicker.UITests`, `Settings.UITests`) build clean (exit 0).
+Framework/test harness change, with one product XAML UIA hook in Color Picker so tests can read
+the displayed HEX value. Harness + both `.Next` consumers (`ColorPicker.UITests`,
+`Settings.UITests`) build clean (exit 0).
 
 ## Current `.Next` init flow (baseline)
 

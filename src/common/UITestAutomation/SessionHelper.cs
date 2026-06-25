@@ -364,11 +364,17 @@ namespace Microsoft.PowerToys.UITest
         {
             // Reuse an already-running WinAppDriver — one started once per job by the pipeline
             // ("Start WinAppDriver" step), or by an earlier test in this assembly — instead of killing
-            // and relaunching it. Only spin up a fresh instance when nothing is listening on :4723.
-            if (IsWinAppDriverListening())
+            // and relaunching it. Only reuse the listener when a WinAppDriver process owns it.
+            var existingWinAppDriver = Process.GetProcessesByName("WinAppDriver").FirstOrDefault();
+            if (existingWinAppDriver is not null)
             {
-                SessionHelper.appDriver ??= Process.GetProcessesByName("WinAppDriver").FirstOrDefault();
-                return;
+                if (IsWinAppDriverListening())
+                {
+                    SessionHelper.appDriver = existingWinAppDriver;
+                    return;
+                }
+
+                existingWinAppDriver.Dispose();
             }
 
             var winAppDriverProcessInfo = new ProcessStartInfo
@@ -421,13 +427,21 @@ namespace Microsoft.PowerToys.UITest
             var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
             while (DateTime.UtcNow < deadline)
             {
-                if (IsWinAppDriverListening())
+                if (SessionHelper.appDriver is { HasExited: false } && IsWinAppDriverListening())
                 {
                     return;
                 }
 
                 System.Threading.Thread.Sleep(500);
             }
+
+            var processState = SessionHelper.appDriver is null
+                ? "not started"
+                : SessionHelper.appDriver.HasExited
+                    ? $"exited with code {SessionHelper.appDriver.ExitCode}"
+                    : "running";
+            throw new TimeoutException(
+                $"WinAppDriver did not start listening on 127.0.0.1:4723 within {timeoutMs}ms; process state: {processState}.");
         }
 
         private void KillPowerToysProcesses()
