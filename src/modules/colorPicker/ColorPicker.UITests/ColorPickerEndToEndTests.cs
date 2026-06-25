@@ -59,35 +59,15 @@ public class ColorPickerEndToEndTests : UITestBase
 
     private void RunTest()
     {
-        // -- 1. Navigate via the utilities stack on the right of the dashboard ----------------
-        // The Dashboard's right-side ModuleList renders each utility as a clickable SettingsCard
-        // whose header is a TextBlock with the module's Label (e.g. "Color Picker"). The
-        // SettingsCard itself isn't surfaced by name "Color Picker" in winappcli's search — only
-        // its inner TextBlock label is — and the TextBlock has no InvokePattern (the click is
-        // handled by the SettingsCard's OnSettingsCardClick).
-        //
-        // A "Color Picker" search returns 4 elements: the Quick-Access tile (Button) and its
-        // label (TextBlock with invokableAncestor) on the left, plus the utility-stack label
-        // (TextBlock) and ToggleSwitch on the right. We pick the rightmost TextBlock (largest
-        // X coordinate) — that's the utility-stack label — and mouse-click it (winapp ui click
-        // uses real mouse simulation, which triggers the ancestor SettingsCard's click).
-        var matches = Session.FindAll<Element>(By.Name("Color Picker"));
-        TestContext.WriteLine($"'Color Picker' search returned {matches.Count} elements:");
-        foreach (var m in matches)
+        // -- 1. Navigate to the Color Picker page using stable, localization-independent
+        // NavigationViewItem AutomationIds from ShellPage.xaml.
+        if (!Session.Has(By.AccessibilityId("ColorPickerNavItem"), 500))
         {
-            TestContext.WriteLine($"  [{m.ControlType,-10}] class='{m.ClassName}' at ({m.X},{m.Y}) {m.Width}x{m.Height} sel='{m.Selector}'");
+            Find<NavigationViewItem>(By.AccessibilityId("SystemToolsNavItem")).Click(msPostAction: 500);
         }
 
-        var utilityItem = matches
-            .Where(m => m.ClassName.Equals("TextBlock", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(m => m.X)
-            .FirstOrDefault();
-        Assert.IsNotNull(
-            utilityItem,
-            "Could not find a 'Color Picker' TextBlock to click. Is the dashboard visible? See element dump above.");
-        TestContext.WriteLine($"Clicking utility-stack 'Color Picker' TextBlock at x={utilityItem!.X}, y={utilityItem.Y}");
-        utilityItem.MouseClick(msPostAction: 800);
-        TestContext.WriteLine("Navigated to Color Picker page (clicked utility-stack item).");
+        Find<NavigationViewItem>(By.AccessibilityId("ColorPickerNavItem"), timeoutMS: 5_000).Click(msPostAction: 800);
+        TestContext.WriteLine("Navigated to Color Picker page.");
 
         // -- 2. Find the page-level enable toggle ---------------------------------------------
         // After navigation, the dashboard is gone and the page's enable toggle is the only
@@ -369,6 +349,13 @@ public class ColorPickerEndToEndTests : UITestBase
                 "shift" => Key.Shift,
                 "alt" => Key.Alt,
                 _ when part.Length == 1 && part[0] >= 'a' && part[0] <= 'z' =>
+                    (Key)Enum.Parse(typeof(Key), part.ToUpperInvariant()),
+                _ when part.Length == 1 && part[0] >= '0' && part[0] <= '9' =>
+                    (Key)Enum.Parse(typeof(Key), $"Num{part}", ignoreCase: true),
+                _ when part.Length is 2 or 3 &&
+                       part[0] == 'f' &&
+                       int.TryParse(part[1..], out var functionKey) &&
+                       functionKey is >= 1 and <= 12 =>
                     (Key)Enum.Parse(typeof(Key), part.ToUpperInvariant()),
                 _ => null,
             };

@@ -37,6 +37,7 @@ namespace Microsoft.Settings.UITests;
 /// </para>
 /// </remarks>
 [TestClass]
+[DoNotParallelize]
 public sealed class SettingsNavigationSmokeTests : UITestBase
 {
     // (ParentGroupSlug | null, NavItemSlug). Mirrors the live hierarchy in ShellPage.xaml.
@@ -150,4 +151,3 @@ public sealed class SettingsNavigationSmokeTests : UITestBase
 
     private readonly record struct NavigationCase(string? ParentGroupSlug, string NavItemSlug);
 }
-
