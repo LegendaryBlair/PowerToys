@@ -345,15 +345,14 @@ public class Element
         return r.ExitCode == 0;
     }
 
-    /// <summary>Find a descendant matching <paramref name="by"/>, scoped under this element via its slug.</summary>
+    /// <summary>Find an element matching <paramref name="by"/> on the owning session target.</summary>
     public T Find<T>(By by, int timeoutMS = 5000)
         where T : Element, new()
     {
         EnsureBound();
 
-        // winappcli scopes a search beneath an element by passing the parent's selector to inspect.
-        // For most cases (within the same window) the global search is fine and faster; if you need
-        // strict scoping under a subtree, use a slug By that prefixes with the parent's slug.
+        // This intentionally uses the session-level search for parity with the legacy helper shape.
+        // Re-find with a more specific selector when a query must be constrained to a subtree.
         return Owner!.FindUnder<T>(by, timeoutMS);
     }
 

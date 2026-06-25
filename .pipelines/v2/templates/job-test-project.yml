@@ -234,15 +234,18 @@ jobs:
         Write-Host "##[group]Run UI tests: $base"
         Push-Location $dir
         try {
+          $exitCode = 1
           if (Test-Path $exe) {
             & $exe --report-trx --results-directory $resultsDir
+            $exitCode = $LASTEXITCODE
           } elseif (Test-Path $dll) {
             & dotnet $dll --report-trx --results-directory $resultsDir
+            $exitCode = $LASTEXITCODE
           } else {
             Write-Warning "No runner (exe/dll) found for $base in $dir"
           }
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "UI tests reported failures for $base (exit $LASTEXITCODE)"
+          if ($exitCode -ne 0) {
+            Write-Warning "UI tests reported failures for $base (exit $exitCode)"
             $failed++
           }
         } finally {

@@ -63,6 +63,7 @@ public static class ClipboardHelper
                 }
             });
             thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
             thread.Start();
             thread.Join(TimeSpan.FromSeconds(5));
         }
