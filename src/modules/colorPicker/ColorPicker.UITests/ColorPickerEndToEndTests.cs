@@ -38,6 +38,14 @@ public class ColorPickerEndToEndTests : UITestBase
     {
     }
 
+    protected override IReadOnlyList<string> StaleProcessNames { get; } = new[]
+    {
+        "PowerToys",
+        "PowerToys.Settings",
+        "PowerToys.FancyZonesEditor",
+        "PowerToys.ColorPickerUI",
+    };
+
     [TestMethod]
     [TestCategory("ColorPicker")]
     [TestCategory("winappcli-POC")]
@@ -73,7 +81,7 @@ public class ColorPickerEndToEndTests : UITestBase
         // After navigation, the dashboard is gone and the page's enable toggle is the only
         // "Color Picker" ToggleSwitch in the tree. The ToggleSwitch wrapper pins
         // ClassName="ToggleSwitch" so the search is unambiguous.
-        var toggle = Find<ToggleSwitch>(By.Name("Color Picker"));
+        var toggle = Find<ToggleSwitch>(By.AccessibilityId("Toggle_ColorPicker"));
         var initialIsOn = toggle.IsOn;
         TestContext.WriteLine($"Initial toggle state: IsOn={initialIsOn}");
 

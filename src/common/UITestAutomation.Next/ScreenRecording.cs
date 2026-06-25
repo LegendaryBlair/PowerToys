@@ -24,7 +24,7 @@ internal sealed class ScreenRecording : IDisposable
     private static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
 
     [DllImport("user32.dll")]
-    private static extern IntPtr ReleaseDC(IntPtr hWnd, IntPtr hDC);
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
