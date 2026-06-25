@@ -136,7 +136,10 @@ public static class WinappCli
         var stderrTask = p.StandardError.ReadToEndAsync();
 
         var timeout = ResolveInvokeTimeout(args);
-        if (!p.WaitForExit((int)timeout.TotalMilliseconds))
+        var timeoutMilliseconds = timeout.TotalMilliseconds >= int.MaxValue
+            ? int.MaxValue
+            : (int)timeout.TotalMilliseconds;
+        if (!p.WaitForExit(timeoutMilliseconds))
         {
             try
             {

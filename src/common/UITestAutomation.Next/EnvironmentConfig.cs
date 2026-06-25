@@ -29,7 +29,7 @@ public static class EnvironmentConfig
     private static readonly Lazy<string?> PlatformValue = new(() =>
         Environment.GetEnvironmentVariable("platform"));
 
-    /// <summary>True when running in CI/CD (the <c>platform</c> env var is set).</summary>
+    /// <summary>True when running in CI/CD (<c>platform</c> is set or <c>TF_BUILD</c> is true).</summary>
     public static bool IsInPipeline => InPipeline.Value;
 
     /// <summary>True when tests should target the installed PowerToys build (<c>useInstallerForTest</c>).</summary>

@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
-using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Microsoft.PowerToys.UITest.Next;
@@ -314,58 +313,30 @@ public sealed class SessionHelper
 
         while (DateTime.UtcNow < deadline)
         {
-            var r = WinappCli.Invoke("ui", "list-windows", "--json");
-            if (r.Success && !string.IsNullOrEmpty(r.StdOut))
+            Session? processFallback = null;
+            foreach (var w in WindowsFinder.ListByApp(processName))
             {
-                try
+                if (w.Hwnd == 0)
                 {
-                    using var doc = JsonDocument.Parse(r.StdOut);
-                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                    {
-                        Session? processFallback = null;
-
-                        foreach (var w in doc.RootElement.EnumerateArray())
-                        {
-                            var pn = w.TryGetProperty("processName", out var pnEl) ? (pnEl.GetString() ?? string.Empty) : string.Empty;
-                            var title = w.TryGetProperty("title", out var tEl) ? (tEl.GetString() ?? string.Empty) : string.Empty;
-                            var hwnd = w.TryGetProperty("hwnd", out var hwndEl) && hwndEl.ValueKind == JsonValueKind.Number ? hwndEl.GetInt64() : 0L;
-                            var pid = w.TryGetProperty("processId", out var pidEl) && pidEl.ValueKind == JsonValueKind.Number ? pidEl.GetInt32() : 0;
-
-                            if (hwnd == 0)
-                            {
-                                continue;
-                            }
-
-                            // Strict title match wins immediately — disambiguates from sibling
-                            // windows owned by the same process (e.g. Settings + PopupHost).
-                            if (!string.IsNullOrEmpty(expectedTitle) &&
-                                title.Contains(expectedTitle, StringComparison.OrdinalIgnoreCase))
-                            {
-                                return new Session(scope, hwnd, title, pid, pn);
-                            }
-
-                            // Track the first process-name match as a fallback for modules where no
-                            // expected title is configured.
-                            if (processFallback is null &&
-                                !string.IsNullOrEmpty(processName) &&
-                                pn.Contains(processName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                processFallback = new Session(scope, hwnd, title, pid, pn);
-                            }
-                        }
-
-                        // No title match yet — only fall back to the process match if the module
-                        // really has no expected title configured.
-                        if (string.IsNullOrEmpty(expectedTitle) && processFallback is not null)
-                        {
-                            return processFallback;
-                        }
-                    }
+                    continue;
                 }
-                catch
+
+                // Strict title match wins immediately — disambiguates from sibling windows owned by
+                // the same process (e.g. Settings + PopupHost).
+                if (!string.IsNullOrEmpty(expectedTitle) &&
+                    w.Title.Contains(expectedTitle, StringComparison.OrdinalIgnoreCase))
                 {
-                    // Bad JSON during startup — keep polling.
+                    return new Session(scope, w.Hwnd, w.Title, w.ProcessId, w.ProcessName);
                 }
+
+                processFallback ??= new Session(scope, w.Hwnd, w.Title, w.ProcessId, w.ProcessName);
+            }
+
+            // No title match yet — only fall back to the process match if the module really has no
+            // expected title configured.
+            if (string.IsNullOrEmpty(expectedTitle) && processFallback is not null)
+            {
+                return processFallback;
             }
 
             Thread.Sleep(250);
