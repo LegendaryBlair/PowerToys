@@ -8,8 +8,6 @@
 
 #include <common/logger/logger.h>
 
-#include <vector>
-
 #include <wincrypt.h>
 #include <wintrust.h>
 #include <softpub.h>
@@ -57,64 +55,14 @@ namespace updating
 
     namespace
     {
-        // Extracts the leaf signer certificate from the file's embedded Authenticode
-        // signature and returns true only when its Organization (O) is "Microsoft Corporation".
-        bool installer_signed_by_microsoft(const std::wstring& installerPath)
+        // Returns true only when the leaf signer certificate selected by WinVerifyTrust has
+        // Organization (O) set to "Microsoft Corporation".
+        bool installer_signed_by_microsoft(PCCERT_CONTEXT certContext)
         {
-            HCERTSTORE hStore = nullptr;
-            HCRYPTMSG hMsg = nullptr;
-
-            if (!CryptQueryObject(CERT_QUERY_OBJECT_FILE,
-                                  installerPath.c_str(),
-                                  CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED,
-                                  CERT_QUERY_FORMAT_FLAG_BINARY,
-                                  0,
-                                  nullptr,
-                                  nullptr,
-                                  nullptr,
-                                  &hStore,
-                                  &hMsg,
-                                  nullptr))
-            {
-                return false;
-            }
-
-            auto closeQuery = wil::scope_exit([&] {
-                if (hMsg)
-                {
-                    CryptMsgClose(hMsg);
-                }
-                if (hStore)
-                {
-                    CertCloseStore(hStore, 0);
-                }
-            });
-
-            DWORD signerInfoSize = 0;
-            if (!CryptMsgGetParam(hMsg, CMSG_SIGNER_CERT_INFO_PARAM, 0, nullptr, &signerInfoSize) || signerInfoSize == 0)
-            {
-                return false;
-            }
-
-            std::vector<BYTE> signerInfo(signerInfoSize);
-            if (!CryptMsgGetParam(hMsg, CMSG_SIGNER_CERT_INFO_PARAM, 0, signerInfo.data(), &signerInfoSize))
-            {
-                return false;
-            }
-
-            auto certInfo = reinterpret_cast<CERT_INFO*>(signerInfo.data());
-            PCCERT_CONTEXT certContext = CertFindCertificateInStore(hStore,
-                                                                    X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-                                                                    0,
-                                                                    CERT_FIND_SUBJECT_CERT,
-                                                                    certInfo,
-                                                                    nullptr);
             if (!certContext)
             {
                 return false;
             }
-
-            auto freeCert = wil::scope_exit([&] { CertFreeCertificateContext(certContext); });
 
             // Match on the certificate's Organization (O) field rather than the simple display
             // name (which is the CN and can legitimately vary, e.g. ".NET"). PowerToys is signed
@@ -156,8 +104,10 @@ namespace updating
 
         const LONG status = WinVerifyTrust(static_cast<HWND>(INVALID_HANDLE_VALUE), &actionGuid, &trustData);
 
-        trustData.dwStateAction = WTD_STATEACTION_CLOSE;
-        WinVerifyTrust(static_cast<HWND>(INVALID_HANDLE_VALUE), &actionGuid, &trustData);
+        auto closeTrust = wil::scope_exit([&] {
+            trustData.dwStateAction = WTD_STATEACTION_CLOSE;
+            WinVerifyTrust(static_cast<HWND>(INVALID_HANDLE_VALUE), &actionGuid, &trustData);
+        });
 
         if (status != ERROR_SUCCESS)
         {
@@ -165,7 +115,11 @@ namespace updating
             return false;
         }
 
-        if (!installer_signed_by_microsoft(installerPath))
+        const auto providerData = WTHelperProvDataFromStateData(trustData.hWVTStateData);
+        const auto signer = providerData ? WTHelperGetProvSignerFromChain(providerData, 0, FALSE, 0) : nullptr;
+        const auto signerCert = (signer && signer->csCertChain > 0 && signer->pasCertChain) ? signer->pasCertChain[0].pCert : nullptr;
+
+        if (!installer_signed_by_microsoft(signerCert))
         {
             Logger::error(L"Installer '{}' passed Authenticode trust verification, but its expected Microsoft Corporation signer organization could not be confirmed; refusing to run it elevated", installerPath);
             return false;

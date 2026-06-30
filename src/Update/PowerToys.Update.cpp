@@ -244,7 +244,9 @@ bool InstallNewVersionStage2(std::wstring installer_path)
     std::error_code updatesDirError;
     const fs::path normalizedInstaller = fs::weakly_canonical(requestedInstaller, installerPathError);
     const fs::path normalizedUpdatesDir = fs::weakly_canonical(updatesDir, updatesDirError);
-    if (installerPathError || updatesDirError || normalizedInstaller.parent_path() != normalizedUpdatesDir)
+    std::error_code installerParentError;
+    const bool installerIsInUpdatesDir = fs::equivalent(normalizedInstaller.parent_path(), normalizedUpdatesDir, installerParentError);
+    if (installerPathError || updatesDirError || installerParentError || !installerIsInUpdatesDir)
     {
         Logger::error(L"Stage 2 installer path is outside the updates directory: {}", installer_path);
         return false;
