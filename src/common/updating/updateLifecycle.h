@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cwctype>
 #include <filesystem>
 #include <string>
 
@@ -81,6 +83,18 @@ namespace updating
             return false;
         }
 
-        return true;
+        std::wstring lowerName = name;
+        std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::towlower);
+
+        const bool hasExpectedPrefix =
+            lowerName.starts_with(L"powertoyssetup-") ||
+            lowerName.starts_with(L"powertoysusersetup-");
+        const bool hasExpectedSuffix =
+            lowerName.ends_with(L"-x64.exe") ||
+            lowerName.ends_with(L"-arm64.exe") ||
+            lowerName.ends_with(L"-x64.msi") ||
+            lowerName.ends_with(L"-arm64.msi");
+
+        return hasExpectedPrefix && hasExpectedSuffix;
     }
 }

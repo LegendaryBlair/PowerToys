@@ -232,15 +232,65 @@ bool InstallNewVersionStage1(fs::path installer)
 
 bool InstallNewVersionStage2(std::wstring installer_path)
 {
-    std::transform(begin(installer_path), end(installer_path), begin(installer_path), ::towlower);
+    const fs::path updatesDir = updating::get_pending_updates_path();
+    const fs::path requestedInstaller{ installer_path };
+    if (!updating::IsSafeDownloadedInstallerFilename(requestedInstaller.filename().wstring()))
+    {
+        Logger::error(L"Stage 2 received an unexpected installer filename: {}", requestedInstaller.filename().wstring());
+        return false;
+    }
+
+    std::error_code installerPathError;
+    std::error_code updatesDirError;
+    const fs::path normalizedInstaller = fs::weakly_canonical(requestedInstaller, installerPathError);
+    const fs::path normalizedUpdatesDir = fs::weakly_canonical(updatesDir, updatesDirError);
+    std::error_code installerParentError;
+    const bool installerIsInUpdatesDir = fs::equivalent(normalizedInstaller.parent_path(), normalizedUpdatesDir, installerParentError);
+    if (installerPathError || updatesDirError || installerParentError || !installerIsInUpdatesDir)
+    {
+        Logger::error(L"Stage 2 installer path is outside the updates directory: {}", installer_path);
+        return false;
+    }
+
+    installer_path = (updatesDir / requestedInstaller.filename()).wstring();
+
+    std::wstring installerExtension = normalizedInstaller.extension().wstring();
+    std::transform(installerExtension.begin(), installerExtension.end(), installerExtension.begin(), ::towlower);
+
+    // Security: the installer was downloaded into a user-writable directory
+    // (%LOCALAPPDATA%\Microsoft\PowerToys\Updates). Stage 2 runs elevated, so executing the
+    // installer without verifying it would let a local, non-elevated attacker swap in a
+    // malicious installer between download and execution (TOCTOU) and gain elevation.
+    //
+    // Open the installer denying write/delete sharing so it cannot be replaced from under us,
+    // then verify it is Authenticode-signed by Microsoft. The handle is kept open across the
+    // launch so the verified bytes are the bytes that run.
+    wil::unique_hfile installerFile{ CreateFileW(installer_path.c_str(),
+                                                 GENERIC_READ,
+                                                 FILE_SHARE_READ,
+                                                 nullptr,
+                                                 OPEN_EXISTING,
+                                                 FILE_ATTRIBUTE_NORMAL,
+                                                 nullptr) };
+    if (!installerFile)
+    {
+        Logger::error(L"Couldn't open the downloaded installer for verification: {}", installer_path);
+        return false;
+    }
+
+    if (!updating::verify_installer_trust(installer_path, installerFile.get()))
+    {
+        Logger::error(L"Aborting update: downloaded installer failed trust verification and will not be executed elevated");
+        return false;
+    }
 
     bool success = true;
 
-    if (installer_path.ends_with(L".msi"))
+    if (installerExtension == L".msi")
     {
         success = MsiInstallProductW(installer_path.data(), nullptr) == ERROR_SUCCESS;
     }
-    else
+    else if (installerExtension == L".exe")
     {
         // If it's not .msi, then it's a wix bootstrapper
         SHELLEXECUTEINFOW sei{ sizeof(sei) };
@@ -261,6 +311,11 @@ bool InstallNewVersionStage2(std::wstring installer_path)
             success = exitCode == 0;
             CloseHandle(sei.hProcess);
         }
+    }
+    else
+    {
+        Logger::error(L"Stage 2 received an unsupported installer extension: {}", installerExtension);
+        return false;
     }
 
     if (!success)

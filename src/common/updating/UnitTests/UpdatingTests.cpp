@@ -732,5 +732,13 @@ namespace UpdatingUnitTests
         {
             Assert::IsFalse(updating::IsSafeDownloadedInstallerFilename(L"setup..name.exe"));
         }
+
+        TEST_METHOD(UnexpectedBareFilenamesAreRejected)
+        {
+            Assert::IsFalse(updating::IsSafeDownloadedInstallerFilename(L"setup.exe"));
+            Assert::IsFalse(updating::IsSafeDownloadedInstallerFilename(L"PowerToysSetup-0.95.0-x64.txt"));
+            Assert::IsFalse(updating::IsSafeDownloadedInstallerFilename(L"PowerToysSetup-0.95.0-x86.exe"));
+            Assert::IsFalse(updating::IsSafeDownloadedInstallerFilename(L"PowerToys-0.95.0-x64.exe"));
+        }
     };
 }
