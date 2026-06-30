@@ -3,6 +3,7 @@
 #include <string>
 #include <optional>
 
+#include <Windows.h>
 #include <winrt/Windows.Foundation.h>
 #include <common/version/helper.h>
 
@@ -23,5 +24,5 @@ namespace updating
     // write/delete to other processes; it is passed to WinVerifyTrust so the exact bytes that
     // were verified are the bytes that get executed, fully closing the time-of-check /
     // time-of-use window.
-    bool verify_installer_trust(const std::wstring& installerPath, void* verifiedFileHandle = nullptr);
+    bool verify_installer_trust(const std::wstring& installerPath, HANDLE verifiedFileHandle = nullptr);
 }

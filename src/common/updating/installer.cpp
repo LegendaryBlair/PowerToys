@@ -83,7 +83,7 @@ namespace updating
         }
     }
 
-    bool verify_installer_trust(const std::wstring& installerPath, void* verifiedFileHandle)
+    bool verify_installer_trust(const std::wstring& installerPath, HANDLE verifiedFileHandle)
     {
         WINTRUST_FILE_INFO fileInfo{};
         fileInfo.cbStruct = sizeof(fileInfo);
