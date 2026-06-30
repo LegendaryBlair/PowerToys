@@ -250,7 +250,7 @@ bool InstallNewVersionStage2(std::wstring installer_path)
         return false;
     }
 
-    installer_path = normalizedInstaller.wstring();
+    installer_path = (updatesDir / requestedInstaller.filename()).wstring();
 
     std::wstring installerExtension = normalizedInstaller.extension().wstring();
     std::transform(installerExtension.begin(), installerExtension.end(), installerExtension.begin(), ::towlower);

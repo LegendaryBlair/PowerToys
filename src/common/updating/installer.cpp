@@ -167,7 +167,7 @@ namespace updating
 
         if (!installer_signed_by_microsoft(installerPath))
         {
-            Logger::error(L"Installer '{}' is Authenticode-signed but not by Microsoft Corporation; refusing to run it elevated", installerPath);
+            Logger::error(L"Installer '{}' passed Authenticode trust verification, but its expected Microsoft Corporation signer organization could not be confirmed; refusing to run it elevated", installerPath);
             return false;
         }
 
