@@ -345,6 +345,12 @@ public sealed partial class ExtensionGalleryViewModel : ObservableObject, IDispo
         bool refreshInstalledExtensions = false,
         bool refreshWinGetCatalogs = false)
     {
+        List<ExtensionGalleryItemViewModel> snapshot;
+        lock (_entriesLock)
+        {
+            snapshot = [.. _allEntries];
+        }
+
         try
         {
             var allInstalledExtensions = new List<IExtensionWrapper>();
@@ -367,12 +373,6 @@ public sealed partial class ExtensionGalleryViewModel : ObservableObject, IDispo
                     .Select(e => e.PackageFamilyName)
                     .Where(pfn => !string.IsNullOrEmpty(pfn)),
                 StringComparer.OrdinalIgnoreCase);
-
-            List<ExtensionGalleryItemViewModel> snapshot = [];
-            lock (_entriesLock)
-            {
-                snapshot = [.. _allEntries];
-            }
 
             foreach (var entry in snapshot)
             {
@@ -420,12 +420,6 @@ public sealed partial class ExtensionGalleryViewModel : ObservableObject, IDispo
 
             try
             {
-                List<ExtensionGalleryItemViewModel> snapshot = [];
-                lock (_entriesLock)
-                {
-                    snapshot = [.. _allEntries];
-                }
-
                 var wingetIds = snapshot
                     .Select(entry => entry.WinGetId)
                     .Where(static id => !string.IsNullOrWhiteSpace(id))
@@ -477,12 +471,6 @@ public sealed partial class ExtensionGalleryViewModel : ObservableObject, IDispo
         {
             try
             {
-                List<ExtensionGalleryItemViewModel> snapshot = [];
-                lock (_entriesLock)
-                {
-                    snapshot = [.. _allEntries];
-                }
-
                 var storeIdsToLookup = snapshot
                     .Where(e => !e.IsInstalledStateKnown && !string.IsNullOrWhiteSpace(e.StoreId))
                     .Select(e => e.StoreId!)
