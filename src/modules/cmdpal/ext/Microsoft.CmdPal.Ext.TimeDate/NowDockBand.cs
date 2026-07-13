@@ -17,7 +17,6 @@ internal sealed partial class NowDockBand : ListItem, IDisposable
     // command itself
     public override IconInfo Icon => new(string.Empty);
 
-    private readonly Action? _onUpdated;
     private readonly Func<DateTime> _clock;
     private readonly ClockUpdateService _clockUpdateService;
     private readonly bool _ownsClockUpdateService;
@@ -34,10 +33,9 @@ internal sealed partial class NowDockBand : ListItem, IDisposable
 
     internal CopyTextCommand CopyDateCommand => _copyDateCommand;
 
-    internal NowDockBand(bool timeWithSeconds = false, Action? onUpdated = null, Func<DateTime>? clock = null, ClockUpdateService? clockUpdateService = null)
+    internal NowDockBand(bool timeWithSeconds = false, Func<DateTime>? clock = null, ClockUpdateService? clockUpdateService = null)
     {
         _timeWithSeconds = timeWithSeconds;
-        _onUpdated = onUpdated;
         _clock = clock ?? (() => DateTime.Now);
         _clockUpdateService = clockUpdateService ?? new ClockUpdateService();
         _ownsClockUpdateService = clockUpdateService is null;
@@ -62,8 +60,8 @@ internal sealed partial class NowDockBand : ListItem, IDisposable
         _clockUpdateService.SetRequiresSecondUpdates(this, _timeWithSeconds);
     }
 
-    internal NowDockBand(IDockClockSettings settings, ICommand allClocksPage, Action? onUpdated = null, Func<DateTime>? clock = null, ClockUpdateService? clockUpdateService = null)
-        : this(false, onUpdated, clock, clockUpdateService)
+    internal NowDockBand(IDockClockSettings settings, ICommand allClocksPage, Func<DateTime>? clock = null, ClockUpdateService? clockUpdateService = null)
+        : this(false, clock, clockUpdateService)
     {
         _allClocksPage = allClocksPage;
         UpdateSettings(settings);
@@ -124,8 +122,6 @@ internal sealed partial class NowDockBand : ListItem, IDisposable
         Subtitle = dateString;
         _copyTimeCommand.Text = timeString;
         _copyDateCommand.Text = dateString;
-
-        _onUpdated?.Invoke(); // Must remain last — ViewModel reads Title/Subtitle via GetItems() on callback
     }
 
     private string GetTitle(DateTime now) => _settings is null
