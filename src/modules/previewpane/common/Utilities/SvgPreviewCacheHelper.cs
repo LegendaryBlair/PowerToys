@@ -72,12 +72,29 @@ namespace Common.Utilities
                 TryDelete(tempFilePath);
             }
 
-            EvictOldEntries(directory);
+            EvictOldEntries(directory, cacheFilePath);
 
-            return File.Exists(cacheFilePath) && new FileInfo(cacheFilePath).Length > 0;
+            return CacheFileIsUsable(cacheFilePath);
         }
 
-        private static void EvictOldEntries(string cacheFolder)
+        /// <summary>
+        /// Returns whether the cache file exists and is non-empty, never throwing (a deleted/evicted file
+        /// between checks must not surface as an exception that aborts the preview/thumbnail).
+        /// </summary>
+        internal static bool CacheFileIsUsable(string cacheFilePath)
+        {
+            try
+            {
+                var info = new FileInfo(cacheFilePath);
+                return info.Exists && info.Length > 0;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static void EvictOldEntries(string cacheFolder, string protectedFilePath)
         {
             try
             {
@@ -87,9 +104,19 @@ namespace Common.Utilities
                     return;
                 }
 
-                foreach (var file in files.OrderByDescending(f => f.LastWriteTimeUtc).Skip(MaxCacheEntries))
+                var protectedName = Path.GetFileName(protectedFilePath);
+
+                // Order newest-first with a deterministic tie-breaker (name) so files sharing an identical
+                // LastWriteTimeUtc are ordered stably, and never evict the file that was just written.
+                foreach (var file in files
+                    .OrderByDescending(f => f.LastWriteTimeUtc)
+                    .ThenByDescending(f => f.Name, StringComparer.Ordinal)
+                    .Skip(MaxCacheEntries))
                 {
-                    TryDelete(file.FullName);
+                    if (!string.Equals(file.Name, protectedName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        TryDelete(file.FullName);
+                    }
                 }
             }
             catch (Exception)

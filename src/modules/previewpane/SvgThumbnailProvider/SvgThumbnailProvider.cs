@@ -188,7 +188,7 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
                     var cacheFolder = Path.Combine(_webView2UserDataFolder, "SvgPreviewCache");
                     var cacheFilePath = SvgPreviewCacheHelper.GetCacheFilePath(cacheFolder, cacheKey);
 
-                    if (!File.Exists(cacheFilePath) || new FileInfo(cacheFilePath).Length == 0)
+                    if (!SvgPreviewCacheHelper.CacheFileIsUsable(cacheFilePath))
                     {
                         if (!SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, SvgContents))
                         {
