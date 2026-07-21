@@ -35,7 +35,8 @@ namespace Common.Utilities
 
         internal static string GetCacheFilePath(string cacheRootFolder, string cacheKey)
         {
-            Directory.CreateDirectory(cacheRootFolder);
+            // Pure path composition: directory creation is left to WriteCacheFileAtomic so that a failure
+            // to create the folder cannot throw here and short-circuit the caller's in-memory fallback.
             return Path.Combine(cacheRootFolder, $"{cacheKey}.html");
         }
 
