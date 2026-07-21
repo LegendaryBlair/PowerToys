@@ -18,15 +18,16 @@ namespace Common.Utilities
         internal static string BuildCacheKey(params string[] cacheInputs)
         {
             // Hash incrementally so multi-MB SVG inputs are not first concatenated into one large
-            // intermediate string (which would allocate the StringBuilder buffer, its ToString(), and
-            // the UTF-8 byte[] all at once).
+            // intermediate string. Each input is length-prefixed so that inputs which themselves contain
+            // the delimiter cannot produce an ambiguous byte stream (e.g. ["a\nb", ""] vs ["a", "b\n"]),
+            // which would otherwise collide and reuse the wrong cached preview.
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            var separator = new[] { (byte)'\n' };
 
             foreach (var input in cacheInputs)
             {
-                hash.AppendData(Encoding.UTF8.GetBytes(input ?? string.Empty));
-                hash.AppendData(separator);
+                var bytes = Encoding.UTF8.GetBytes(input ?? string.Empty);
+                hash.AppendData(BitConverter.GetBytes(bytes.Length));
+                hash.AppendData(bytes);
             }
 
             return Convert.ToHexString(hash.GetHashAndReset());
@@ -44,9 +45,16 @@ namespace Common.Utilities
         /// zero-length cache file. The content is written to a unique temp file and then moved into place.
         /// After a successful write the cache folder is trimmed to <see cref="MaxCacheEntries"/> entries.
         /// </summary>
-        internal static void WriteCacheFileAtomic(string cacheFilePath, string content)
+        /// <returns><c>true</c> if the cache file exists and is non-empty after the call; otherwise <c>false</c>
+        /// so the caller can fall back to rendering the content in-memory instead of navigating a missing file.</returns>
+        internal static bool WriteCacheFileAtomic(string cacheFilePath, string content)
         {
             var directory = Path.GetDirectoryName(cacheFilePath);
+            if (string.IsNullOrEmpty(directory))
+            {
+                return false;
+            }
+
             Directory.CreateDirectory(directory);
 
             var tempFilePath = Path.Combine(directory, $"{Guid.NewGuid():N}.tmp");
@@ -63,6 +71,8 @@ namespace Common.Utilities
             }
 
             EvictOldEntries(directory);
+
+            return File.Exists(cacheFilePath) && new FileInfo(cacheFilePath).Length > 0;
         }
 
         private static void EvictOldEntries(string cacheFolder)

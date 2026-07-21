@@ -125,5 +125,19 @@ namespace SvgPreviewHandlerUnitTests
             // Assert
             Assert.AreNotEqual(firstKey, secondKey);
         }
+
+        [TestMethod]
+        public void BuildCacheKeyShouldNotCollideForAmbiguousDelimiterInputs()
+        {
+            // Arrange - two different input tuples that would produce the same byte stream if inputs
+            // were joined by a delimiter without length-prefixing.
+            var firstKey = SvgPreviewCacheHelper.BuildCacheKey("a\nb", string.Empty);
+
+            // Act
+            var secondKey = SvgPreviewCacheHelper.BuildCacheKey("a", "b\n");
+
+            // Assert
+            Assert.AreNotEqual(firstKey, secondKey);
+        }
     }
 }

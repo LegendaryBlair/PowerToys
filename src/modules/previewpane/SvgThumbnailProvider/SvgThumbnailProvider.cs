@@ -190,7 +190,13 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
 
                     if (!File.Exists(cacheFilePath) || new FileInfo(cacheFilePath).Length == 0)
                     {
-                        SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, SvgContents);
+                        if (!SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, SvgContents))
+                        {
+                            // Cache write did not materialize (e.g. IO contention) — render the content
+                            // directly rather than navigating to a missing file (which would be blank).
+                            _browser.NavigateToString(SvgContents);
+                            return;
+                        }
                     }
 
                     _localFileURI = new Uri(cacheFilePath);

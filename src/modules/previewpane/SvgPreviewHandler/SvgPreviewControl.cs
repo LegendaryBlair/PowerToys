@@ -2,6 +2,7 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
@@ -256,10 +257,10 @@ namespace Microsoft.PowerToys.PreviewHandler.Svg
                         "v1",
                         VirtualHostName,
                         svgData,
-                        _settings.ColorMode.ToString(),
-                        _settings.ThemeColor.ToArgb().ToString(),
-                        _settings.SolidColor.ToArgb().ToString(),
-                        _settings.CheckeredShade.ToString());
+                        _settings.ColorMode.ToString(CultureInfo.InvariantCulture),
+                        _settings.ThemeColor.ToArgb().ToString(CultureInfo.InvariantCulture),
+                        _settings.SolidColor.ToArgb().ToString(CultureInfo.InvariantCulture),
+                        _settings.CheckeredShade.ToString(CultureInfo.InvariantCulture));
 
                     var cacheFolder = Path.Combine(_webView2UserDataFolder, "Cache");
                     var cacheFilePath = SvgPreviewCacheHelper.GetCacheFilePath(cacheFolder, cacheKey);
@@ -267,7 +268,14 @@ namespace Microsoft.PowerToys.PreviewHandler.Svg
                     if (!File.Exists(cacheFilePath) || new FileInfo(cacheFilePath).Length == 0)
                     {
                         string generatedPreview = _previewGenerator.GeneratePreview(svgData);
-                        SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, generatedPreview);
+                        if (!SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, generatedPreview))
+                        {
+                            // Cache write did not materialize (e.g. IO contention) — render the generated
+                            // content directly rather than navigating to a missing file (which would be blank).
+                            _browser.NavigateToString(generatedPreview);
+                            Controls.Add(_browser);
+                            return;
+                        }
                     }
 
                     _localFileURI = new Uri(cacheFilePath);
