@@ -190,7 +190,7 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
 
                     if (!File.Exists(cacheFilePath) || new FileInfo(cacheFilePath).Length == 0)
                     {
-                        File.WriteAllText(cacheFilePath, SvgContents);
+                        SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, SvgContents);
                     }
 
                     _localFileURI = new Uri(cacheFilePath);
@@ -339,7 +339,9 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
         }
 
         /// <summary>
-        /// Cleanup the previously created tmp html files from svg files bigger than 2MB.
+        /// Ensures the WebView2 user data folder exists. Cached thumbnail HTML is persisted under its
+        /// "Cache" subfolder and evicted by <see cref="SvgPreviewCacheHelper"/>, so no per-thumbnail
+        /// cleanup happens here anymore.
         /// </summary>
         private void EnsureWebView2UserDataFolder()
         {
