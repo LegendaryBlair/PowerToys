@@ -185,7 +185,7 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
                     }
 
                     var cacheKey = SvgPreviewCacheHelper.BuildCacheKey("v1", VirtualHostName, SvgContents);
-                    var cacheFolder = Path.Combine(_webView2UserDataFolder, "Cache");
+                    var cacheFolder = Path.Combine(_webView2UserDataFolder, "SvgPreviewCache");
                     var cacheFilePath = SvgPreviewCacheHelper.GetCacheFilePath(cacheFolder, cacheKey);
 
                     if (!File.Exists(cacheFilePath) || new FileInfo(cacheFilePath).Length == 0)
@@ -346,7 +346,7 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
 
         /// <summary>
         /// Ensures the WebView2 user data folder exists. Cached thumbnail HTML is persisted under its
-        /// "Cache" subfolder and evicted by <see cref="SvgPreviewCacheHelper"/>, so no per-thumbnail
+        /// "SvgPreviewCache" subfolder and evicted by <see cref="SvgPreviewCacheHelper"/>, so no per-thumbnail
         /// cleanup happens here anymore.
         /// </summary>
         private void EnsureWebView2UserDataFolder()

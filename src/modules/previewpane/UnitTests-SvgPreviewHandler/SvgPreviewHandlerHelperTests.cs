@@ -2,6 +2,8 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Globalization;
+using System.IO;
 using System.Text;
 
 using Common.Utilities;
@@ -138,6 +140,75 @@ namespace SvgPreviewHandlerUnitTests
 
             // Assert
             Assert.AreNotEqual(firstKey, secondKey);
+        }
+
+        [TestMethod]
+        public void WriteCacheFileAtomicShouldWriteContentAndReturnTrue()
+        {
+            var folder = Path.Combine(Path.GetTempPath(), "SvgCacheTest_" + Path.GetRandomFileName());
+            try
+            {
+                var filePath = SvgPreviewCacheHelper.GetCacheFilePath(folder, "key1");
+
+                var result = SvgPreviewCacheHelper.WriteCacheFileAtomic(filePath, "<html>content</html>");
+
+                Assert.IsTrue(result);
+                Assert.IsTrue(File.Exists(filePath));
+                Assert.AreEqual("<html>content</html>", File.ReadAllText(filePath));
+            }
+            finally
+            {
+                if (Directory.Exists(folder))
+                {
+                    Directory.Delete(folder, true);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void WriteCacheFileAtomicShouldOverwriteExistingEntry()
+        {
+            var folder = Path.Combine(Path.GetTempPath(), "SvgCacheTest_" + Path.GetRandomFileName());
+            try
+            {
+                var filePath = SvgPreviewCacheHelper.GetCacheFilePath(folder, "key1");
+
+                SvgPreviewCacheHelper.WriteCacheFileAtomic(filePath, "first");
+                SvgPreviewCacheHelper.WriteCacheFileAtomic(filePath, "second");
+
+                Assert.AreEqual("second", File.ReadAllText(filePath));
+            }
+            finally
+            {
+                if (Directory.Exists(folder))
+                {
+                    Directory.Delete(folder, true);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void WriteCacheFileAtomicShouldEvictOldEntriesBeyondLimit()
+        {
+            var folder = Path.Combine(Path.GetTempPath(), "SvgCacheTest_" + Path.GetRandomFileName());
+            try
+            {
+                for (int i = 0; i < 210; i++)
+                {
+                    var filePath = SvgPreviewCacheHelper.GetCacheFilePath(folder, "key" + i.ToString(CultureInfo.InvariantCulture));
+                    SvgPreviewCacheHelper.WriteCacheFileAtomic(filePath, "content" + i.ToString(CultureInfo.InvariantCulture));
+                }
+
+                var remaining = Directory.GetFiles(folder, "*.html").Length;
+                Assert.IsTrue(remaining <= 200, "Expected at most 200 cached files after eviction, found " + remaining.ToString(CultureInfo.InvariantCulture) + ".");
+            }
+            finally
+            {
+                if (Directory.Exists(folder))
+                {
+                    Directory.Delete(folder, true);
+                }
+            }
         }
     }
 }

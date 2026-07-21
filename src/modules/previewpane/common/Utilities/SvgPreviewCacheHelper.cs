@@ -64,9 +64,11 @@ namespace Common.Utilities
                 File.WriteAllText(tempFilePath, content);
                 File.Move(tempFilePath, cacheFilePath, overwrite: true);
             }
-            catch (IOException)
+            catch (Exception)
             {
-                // Another instance produced the same cache entry concurrently; drop our temp copy.
+                // Any failure (IO contention, access denied, path too long, ...) must not leave a temp file
+                // behind and must let the caller fall back to in-memory rendering, so swallow, clean up,
+                // and report success via the file-existence check below.
                 TryDelete(tempFilePath);
             }
 

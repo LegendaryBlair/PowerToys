@@ -262,7 +262,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Svg
                         _settings.SolidColor.ToArgb().ToString(CultureInfo.InvariantCulture),
                         _settings.CheckeredShade.ToString(CultureInfo.InvariantCulture));
 
-                    var cacheFolder = Path.Combine(_webView2UserDataFolder, "Cache");
+                    var cacheFolder = Path.Combine(_webView2UserDataFolder, "SvgPreviewCache");
                     var cacheFilePath = SvgPreviewCacheHelper.GetCacheFilePath(cacheFolder, cacheKey);
 
                     if (!File.Exists(cacheFilePath) || new FileInfo(cacheFilePath).Length == 0)
@@ -330,7 +330,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Svg
 
         /// <summary>
         /// Ensures the WebView2 user data folder exists. Cached preview HTML is persisted under its
-        /// "Cache" subfolder and evicted by <see cref="SvgPreviewCacheHelper"/>, so no per-preview
+        /// "SvgPreviewCache" subfolder and evicted by <see cref="SvgPreviewCacheHelper"/>, so no per-preview
         /// cleanup happens here anymore.
         /// </summary>
         private void EnsureWebView2UserDataFolder()
