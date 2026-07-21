@@ -107,17 +107,16 @@ namespace Common.Utilities
 
                 var protectedName = Path.GetFileName(protectedFilePath);
 
-                // Order newest-first with a deterministic tie-breaker (name) so files sharing an identical
-                // LastWriteTimeUtc are ordered stably, and never evict the file that was just written.
+                // Exclude the just-written file from the eviction set (it must never be deleted), order the
+                // rest newest-first with a deterministic name tie-breaker, and keep only (MaxCacheEntries - 1)
+                // of them so the folder total (protected + kept) stays at exactly MaxCacheEntries.
                 foreach (var file in files
+                    .Where(f => !string.Equals(f.Name, protectedName, StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(f => f.LastWriteTimeUtc)
                     .ThenByDescending(f => f.Name, StringComparer.Ordinal)
-                    .Skip(MaxCacheEntries))
+                    .Skip(MaxCacheEntries - 1))
                 {
-                    if (!string.Equals(file.Name, protectedName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        TryDelete(file.FullName);
-                    }
+                    TryDelete(file.FullName);
                 }
             }
             catch (Exception)
