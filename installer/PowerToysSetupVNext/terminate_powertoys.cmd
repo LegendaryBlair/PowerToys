@@ -7,7 +7,7 @@ tasklist /FI "IMAGENAME eq PowerToys.exe" 2>NUL | find /I "PowerToys.exe" >NUL
 if errorlevel 1 exit /b 0
 
 @REM We loop here until PowerToys.exe is no longer running. We can't use the /F flag inside the loop,
-@REM because it doesn't give the application an opportunity to clean up. Instead we send WM_CLOSE
+@REM because a forced kill does not let PowerToys.exe clean up first. Instead we send WM_CLOSE
 @REM (taskkill without /F), which is caught by the message loops in PowerToys.exe, closing its windows
 @REM one by one. We re-check with tasklist each iteration rather than trusting taskkill's exit code,
 @REM so a transient failure (e.g. "Access is denied") is not mistaken for "process not found".
