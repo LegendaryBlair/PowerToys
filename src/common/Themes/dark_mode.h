@@ -3,8 +3,10 @@
 
 // Lightweight helpers for opting native Win32 popup menus into the
 // system dark / light theme. Built on top of undocumented uxtheme.dll
-// ordinals (SetPreferredAppMode / ShouldAppsUseDarkMode / FlushMenuThemes)
-// that ship with Windows 10 1903+ and Windows 11.
+// ordinals (SetPreferredAppMode / FlushMenuThemes) that ship with
+// Windows 10 1903+ and Windows 11. The current dark/light decision follows
+// the system theme via ThemeHelpers::GetSystemTheme() so it stays in sync
+// with the tray icon and the runner's theme-change handler.
 struct DarkMode
 {
     // Loads the uxtheme.dll ordinals (idempotent) and applies the current
