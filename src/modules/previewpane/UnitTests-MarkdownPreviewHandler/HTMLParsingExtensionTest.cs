@@ -197,5 +197,37 @@ namespace PreviewPaneUnitTests
             const string expected = "<p><img src=\"#\" class=\"img-fluid\" alt=\"text\" /></p>\n";
             Assert.AreEqual(expected, html);
         }
+
+        [TestMethod]
+        public void MarkdownHtmlRewritesLocalRawHtmlImageDoubleQuoted()
+        {
+            string md = "<img src=\"images/test.png\">";
+            string html = Microsoft.PowerToys.FilePreviewCommon.MarkdownHelper.MarkdownHtml(md, "light", @"C:\docs\file.md", () => { }, allowLocalImages: true, allowedBasePath: @"C:\docs");
+            StringAssert.Contains(html, "src=\"https://localmdimages/images/test.png\"");
+        }
+
+        [TestMethod]
+        public void MarkdownHtmlRewritesLocalRawHtmlImageSingleQuoted()
+        {
+            string md = "<img src='images/test.png'>";
+            string html = Microsoft.PowerToys.FilePreviewCommon.MarkdownHelper.MarkdownHtml(md, "light", @"C:\docs\file.md", () => { }, allowLocalImages: true, allowedBasePath: @"C:\docs");
+            StringAssert.Contains(html, "src='https://localmdimages/images/test.png'");
+        }
+
+        [TestMethod]
+        public void MarkdownHtmlBlocksRemoteRawHtmlImageRegardlessOfQuoteStyle()
+        {
+            bool doubleBlocked = false;
+            string doubleQuoted = Microsoft.PowerToys.FilePreviewCommon.MarkdownHelper.MarkdownHtml("<img src=\"http://example.com/remote.png\">", "light", @"C:\docs\file.md", () => { doubleBlocked = true; }, allowLocalImages: true, allowedBasePath: @"C:\docs");
+
+            bool singleBlocked = false;
+            string singleQuoted = Microsoft.PowerToys.FilePreviewCommon.MarkdownHelper.MarkdownHtml("<img src='http://example.com/remote.png'>", "light", @"C:\docs\file.md", () => { singleBlocked = true; }, allowLocalImages: true, allowedBasePath: @"C:\docs");
+
+            // Both must be blocked; a single-quoted src must not slip past the rewrite.
+            Assert.IsTrue(doubleBlocked);
+            Assert.IsFalse(doubleQuoted.Contains("http://example.com/remote.png"), "double-quoted remote src should be blocked");
+            Assert.IsTrue(singleBlocked);
+            Assert.IsFalse(singleQuoted.Contains("http://example.com/remote.png"), "single-quoted remote src should be blocked");
+        }
     }
 }

@@ -195,7 +195,9 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                                 {
                                     try
                                     {
-                                        var imageStream = new MemoryStream(File.ReadAllBytes(imagePath));
+                                        // Stream directly from disk rather than buffering the whole image
+                                        // in memory; WebView2 reads and disposes the stream.
+                                        var imageStream = File.OpenRead(imagePath);
                                         e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + GetImageContentType(imagePath));
                                         return;
                                     }
@@ -359,9 +361,6 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         }
 
         /// <summary>
-        /// Callback when image is blocked by extension.
-        /// </summary>
-        /// <summary>
         /// Returns the HTTP Content-Type for an image file based on its extension.
         /// </summary>
         /// <param name="imagePath">Path of the image file.</param>
@@ -383,6 +382,9 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
             };
         }
 
+        /// <summary>
+        /// Callback when an image is blocked by the parsing extension.
+        /// </summary>
         private void ImagesBlockedCallBack()
         {
             _infoBarDisplayed = true;

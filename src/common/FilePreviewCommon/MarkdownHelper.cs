@@ -53,15 +53,17 @@ namespace Microsoft.PowerToys.FilePreviewCommon
             if (allowLocalImages)
             {
                 // Rewrite src attributes of raw HTML <img> tags with the same path validation as the
-                // Markdig AST layer. Markdown images were already rewritten there (to the virtual host
-                // URL or "#") and pass through unchanged; everything else is either validated and
-                // rewritten or blocked.
+                // Markdig AST layer. Both double- and single-quoted src values are handled (the quote
+                // char is captured and matched with a backreference) so a single-quoted src cannot bypass
+                // validation. Markdown images were already rewritten there (to the virtual host URL or "#")
+                // and pass through unchanged; everything else is either validated and rewritten or blocked.
                 parsedMarkdown = Regex.Replace(
                     parsedMarkdown,
-                    @"(<img\b[^>]*?\ssrc\s*=\s*"")([^""]+)("")",
+                    @"(<img\b[^>]*?\ssrc\s*=\s*)([""'])(.*?)\2",
                     m =>
                     {
-                        string src = m.Groups[2].Value;
+                        string quote = m.Groups[2].Value;
+                        string src = m.Groups[3].Value;
 
                         if (src == "#" || src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase))
                         {
@@ -70,11 +72,11 @@ namespace Microsoft.PowerToys.FilePreviewCommon
 
                         if (HTMLParsingExtension.TryGetLocalImageVirtualUrl(src, extension.FilePath, extension.AllowedBasePath, out string? virtualUrl))
                         {
-                            return m.Groups[1].Value + virtualUrl + m.Groups[3].Value;
+                            return m.Groups[1].Value + quote + virtualUrl + quote;
                         }
 
                         imagesBlockedCallBack();
-                        return m.Groups[1].Value + "#" + m.Groups[3].Value;
+                        return m.Groups[1].Value + quote + "#" + quote;
                     },
                     RegexOptions.IgnoreCase);
             }
