@@ -20,11 +20,9 @@ namespace
     };
 
     using fnSetPreferredAppMode = PreferredAppMode(WINAPI*)(PreferredAppMode appMode);
-    using fnShouldAppsUseDarkMode = bool(WINAPI*)();
     using fnFlushMenuThemes = void(WINAPI*)();
 
     fnSetPreferredAppMode pSetPreferredAppMode = nullptr;
-    fnShouldAppsUseDarkMode pShouldAppsUseDarkMode = nullptr;
     fnFlushMenuThemes pFlushMenuThemes = nullptr;
 
     std::once_flag init_flag;
@@ -48,8 +46,6 @@ namespace
 
         pSetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
             GetProcAddress(hUxTheme, MAKEINTRESOURCEA(135)));
-        pShouldAppsUseDarkMode = reinterpret_cast<fnShouldAppsUseDarkMode>(
-            GetProcAddress(hUxTheme, MAKEINTRESOURCEA(132)));
         pFlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
             GetProcAddress(hUxTheme, MAKEINTRESOURCEA(136)));
     }
@@ -84,11 +80,9 @@ void DarkMode::Refresh()
 
 bool DarkMode::IsDarkModeEnabled()
 {
-    if (pShouldAppsUseDarkMode)
-    {
-        return pShouldAppsUseDarkMode();
-    }
-
+    // Follow the *system* theme — the same signal the tray icon and the theme-change handler use —
+    // rather than uxtheme's ShouldAppsUseDarkMode() (app theme). Otherwise, when Windows is set to a
+    // custom mode where app and system themes differ, the menu would theme differently from the icon.
     return ThemeHelpers::GetSystemTheme() == Theme::Dark;
 }
 
