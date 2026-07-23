@@ -20,6 +20,9 @@ for /l %%x in (1, 1, 100) do (
     ping -n 2 127.0.0.1 >NUL 2>NUL
 )
 
-@REM Force kill if graceful close failed after all attempts
+@REM Force kill if graceful close failed after all attempts, then report the real outcome so a
+@REM genuine failure to close (e.g. a permissions issue even for /F) isn't hidden behind exit code 0.
 taskkill /F /IM PowerToys.exe 1>NUL 2>NUL
-exit /b 0
+tasklist /FI "IMAGENAME eq PowerToys.exe" 2>NUL | find /I "PowerToys.exe" >NUL
+if errorlevel 1 exit /b 0
+exit /b 1
