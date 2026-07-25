@@ -53,17 +53,20 @@ namespace Microsoft.PowerToys.FilePreviewCommon
             if (allowLocalImages)
             {
                 // Rewrite src attributes of raw HTML <img> tags with the same path validation as the
-                // Markdig AST layer. Both double- and single-quoted src values are handled (the quote
-                // char is captured and matched with a backreference) so a single-quoted src cannot bypass
-                // validation. Markdown images were already rewritten there (to the virtual host URL or "#")
-                // and pass through unchanged; everything else is either validated and rewritten or blocked.
+                // Markdig AST layer. Markdown images were already rewritten there (to the virtual host
+                // URL or "#") and pass through unchanged; everything else is either validated and
+                // rewritten or blocked.
+                // Matches double-quoted, single-quoted and unquoted src values, so that every form
+                // an author can write is validated the same way. Unquoted values are re-emitted
+                // quoted, which is equivalent HTML.
                 parsedMarkdown = Regex.Replace(
                     parsedMarkdown,
-                    @"(<img\b[^>]*?\ssrc\s*=\s*)([""'])(.*?)\2",
+                    @"(<img\b[^>]*?\ssrc\s*=\s*)(?:(""|')(.+?)\2|([^\s""'>]+))",
                     m =>
                     {
-                        string quote = m.Groups[2].Value;
-                        string src = m.Groups[3].Value;
+                        bool isQuoted = m.Groups[2].Success;
+                        string quote = isQuoted ? m.Groups[2].Value : "\"";
+                        string src = isQuoted ? m.Groups[3].Value : m.Groups[4].Value;
 
                         if (src == "#" || src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase))
                         {
