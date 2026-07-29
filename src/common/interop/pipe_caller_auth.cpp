@@ -40,14 +40,16 @@ namespace interop_auth
                                    nullptr);
             if (h == INVALID_HANDLE_VALUE)
             {
-                return path;
+                // Fail closed: at an auth boundary an un-canonicalizable path must not fall back to a
+                // raw (possibly non-canonical) string that could slip past the directory-prefix check.
+                return {};
             }
             wchar_t buf[1024] = {};
             DWORD len = GetFinalPathNameByHandleW(h, buf, ARRAYSIZE(buf), FILE_NAME_NORMALIZED);
             CloseHandle(h);
             if (len == 0 || len >= ARRAYSIZE(buf))
             {
-                return path;
+                return {};
             }
             std::wstring result(buf, len);
             if (result.rfind(L"\\\\?\\", 0) == 0)
@@ -70,6 +72,12 @@ namespace interop_auth
                 return false;
             }
             std::wstring dir = ToLower(CanonicalizePath(directory));
+            if (dir.empty())
+            {
+                // Canonicalization of the expected directory failed — fail closed rather than treat an
+                // empty prefix as matching every path.
+                return false;
+            }
             if (!dir.empty() && dir.back() != L'\\')
             {
                 dir.push_back(L'\\');
@@ -99,7 +107,9 @@ namespace interop_auth
             }
             wchar_t name[256] = {};
             const DWORD n = CertGetNameStringW(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nullptr, name, ARRAYSIZE(name));
-            return n > 1 && wcsstr(name, L"Microsoft Corporation") != nullptr;
+            // Case-insensitive: certificate display names can vary in casing, and this is only a
+            // secondary check on top of the machine-root Authenticode chain in ChainsToMachineRoot.
+            return n > 1 && wcsstr(ToLower(name).c_str(), L"microsoft corporation") != nullptr;
         }
 
         // Anchor the signer's chain in the LOCAL MACHINE root store only (HCCE_LOCAL_MACHINE) rather than
@@ -428,8 +438,13 @@ namespace interop_auth
         }
 
         const unsigned long long createTime = ProcessCreationKey(process);
+        // If the process creation time is unavailable, the (pid, createTime) pair is no longer a
+        // reliable per-instance identity (a recycled PID with createTime==0 would collide), so do not
+        // trust or populate the cache for this call — verify fresh instead.
+        const bool cacheable = (createTime != 0);
         const CacheKey key{ pid, createTime, HashPolicy(policy) };
 
+        if (cacheable)
         {
             std::scoped_lock lock(g_cacheMutex);
             const auto it = g_cache.find(key);
@@ -500,6 +515,7 @@ namespace interop_auth
         res.accepted = accepted;
         res.reasonCode = reason;
 
+        if (cacheable)
         {
             std::scoped_lock lock(g_cacheMutex);
             EvictLocked();

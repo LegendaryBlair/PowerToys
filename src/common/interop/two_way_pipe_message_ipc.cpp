@@ -58,6 +58,9 @@ void TwoWayPipeMessageIPC::TwoWayPipeMessageIPCImpl::send(std::wstring msg)
 
 void TwoWayPipeMessageIPC::TwoWayPipeMessageIPCImpl::start(HANDLE _restricted_pipe_token)
 {
+    // The parameterless-policy overload means "no caller authentication". Clear any policy a prior
+    // start(token, policy) may have set so an enabled policy cannot linger across a stop/restart.
+    caller_policy = {};
     output_queue_thread = std::thread(&TwoWayPipeMessageIPCImpl::consume_output_queue_thread, this);
     input_queue_thread = std::thread(&TwoWayPipeMessageIPCImpl::consume_input_queue_thread, this);
     input_pipe_thread = std::thread(&TwoWayPipeMessageIPCImpl::start_named_pipe_server, this, _restricted_pipe_token);
@@ -66,7 +69,9 @@ void TwoWayPipeMessageIPC::TwoWayPipeMessageIPCImpl::start(HANDLE _restricted_pi
 void TwoWayPipeMessageIPC::TwoWayPipeMessageIPCImpl::start(HANDLE _restricted_pipe_token, const interop_auth::CallerPolicy& _caller_policy)
 {
     caller_policy = _caller_policy;
-    start(_restricted_pipe_token);
+    output_queue_thread = std::thread(&TwoWayPipeMessageIPCImpl::consume_output_queue_thread, this);
+    input_queue_thread = std::thread(&TwoWayPipeMessageIPCImpl::consume_input_queue_thread, this);
+    input_pipe_thread = std::thread(&TwoWayPipeMessageIPCImpl::start_named_pipe_server, this, _restricted_pipe_token);
 }
 
 void TwoWayPipeMessageIPC::TwoWayPipeMessageIPCImpl::end()
