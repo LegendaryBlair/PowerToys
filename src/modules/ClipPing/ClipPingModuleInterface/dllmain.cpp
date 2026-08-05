@@ -152,6 +152,11 @@ public:
             ResetEvent(m_exit_event_handle);
         }
 
+        if (m_show_overlay_event_handle)
+        {
+            ResetEvent(m_show_overlay_event_handle);
+        }
+
         unsigned long powertoys_pid = GetCurrentProcessId();
         std::wstring executable_args;
         executable_args.append(std::to_wstring(powertoys_pid));
