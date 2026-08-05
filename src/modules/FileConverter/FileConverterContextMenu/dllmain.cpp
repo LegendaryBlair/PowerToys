@@ -26,6 +26,7 @@ namespace fc_constants = winrt::PowerToys::FileConverter::Constants;
 namespace
 {
     constexpr DWORD PIPE_CONNECT_TIMEOUT_MS = 1000;
+    constexpr size_t MAX_PIPE_PAYLOAD_BYTES = 1024 * 1024;
 
     enum class FormatGroup
     {
@@ -366,6 +367,11 @@ namespace
         catch (...)
         {
             return winrt::to_hresult();
+        }
+
+        if (payload.size() > MAX_PIPE_PAYLOAD_BYTES)
+        {
+            return HRESULT_FROM_WIN32(ERROR_BUFFER_OVERFLOW);
         }
 
         const std::wstring pipe_name = GetPipeNameForCurrentSession();
