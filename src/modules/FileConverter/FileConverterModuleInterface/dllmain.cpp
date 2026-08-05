@@ -130,13 +130,14 @@ namespace
     std::optional<std::filesystem::path> FindLatestContextMenuPackage(const std::filesystem::path& context_menu_path)
     {
         const std::filesystem::path stable_package_path = context_menu_path / CONTEXT_MENU_PACKAGE_FILE_NAME;
-        if (std::filesystem::exists(stable_package_path))
+        std::error_code ec;
+        if (std::filesystem::exists(stable_package_path, ec) && !ec)
         {
             return stable_package_path;
         }
 
         std::vector<std::filesystem::path> candidate_packages;
-        std::error_code ec;
+        ec.clear();
         for (std::filesystem::directory_iterator it(context_menu_path, ec); !ec && it != std::filesystem::directory_iterator(); it.increment(ec))
         {
             if (!it->is_regular_file(ec))
@@ -496,7 +497,8 @@ namespace
 
         const std::filesystem::path module_path = get_module_folderpath(reinterpret_cast<HMODULE>(&__ImageBase));
         const std::filesystem::path context_menu_path = module_path / L"WinUI3Apps";
-        if (!std::filesystem::exists(context_menu_path))
+        std::error_code ec;
+        if (!std::filesystem::exists(context_menu_path, ec) || ec)
         {
             return;
         }

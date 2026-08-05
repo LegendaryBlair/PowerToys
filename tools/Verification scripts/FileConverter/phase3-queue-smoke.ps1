@@ -59,11 +59,15 @@ $jobs = @(
 
 try {
     $null = Wait-Job -Job $jobs -Timeout 45
-    $jobs | Receive-Job -ErrorAction SilentlyContinue | Write-Host
+    $jobErrors = @()
+    $jobs | Receive-Job -ErrorAction SilentlyContinue -ErrorVariable +jobErrors | Write-Host
 
     $incomplete = @($jobs | Where-Object { $_.State -ne "Completed" })
-    if ($incomplete.Count -gt 0) {
-        $details = $incomplete | ForEach-Object { "$($_.Name)=$($_.State): $($_.JobStateInfo.Reason)" }
+    if ($incomplete.Count -gt 0 -or $jobErrors.Count -gt 0) {
+        $details = @(
+            $incomplete | ForEach-Object { "$($_.Name)=$($_.State): $($_.JobStateInfo.Reason)" }
+            $jobErrors | ForEach-Object { $_.ToString() }
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
         throw "One or more context-menu invocations failed: $($details -join '; ')"
     }
 }
