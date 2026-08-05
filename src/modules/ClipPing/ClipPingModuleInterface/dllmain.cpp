@@ -60,7 +60,17 @@ public:
         app_key = L"ClipPing";
         LoggerHelpers::init_logger(app_key, L"ModuleInterface", "ClipPing");
         m_exit_event_handle = CreateDefaultEvent(CommonSharedConstants::CLIPPING_EXIT_EVENT);
+        if (!m_exit_event_handle)
+        {
+            Logger::error(L"Failed to create {} event. {}", CommonSharedConstants::CLIPPING_EXIT_EVENT, get_last_error_or_default(GetLastError()));
+        }
+
         m_show_overlay_event_handle = CreateDefaultEvent(CommonSharedConstants::CLIPPING_SHOW_OVERLAY_EVENT);
+        if (!m_show_overlay_event_handle)
+        {
+            Logger::error(L"Failed to create {} event. {}", CommonSharedConstants::CLIPPING_SHOW_OVERLAY_EVENT, get_last_error_or_default(GetLastError()));
+        }
+
         init_settings();
     };
 
@@ -137,7 +147,10 @@ public:
         // Log telemetry
         Trace::Enable(true);
 
-        ResetEvent(m_exit_event_handle);
+        if (m_exit_event_handle)
+        {
+            ResetEvent(m_exit_event_handle);
+        }
 
         unsigned long powertoys_pid = GetCurrentProcessId();
         std::wstring executable_args;
@@ -188,7 +201,10 @@ public:
         }
 
         // Tell the ClipPing process to exit.
-        SetEvent(m_exit_event_handle);
+        if (m_exit_event_handle)
+        {
+            SetEvent(m_exit_event_handle);
+        }
 
         if (m_hProcess)
         {

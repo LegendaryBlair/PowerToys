@@ -2,8 +2,6 @@
 // Microsoft Visual C++ generated include file.
 // Used by ClipPingModuleInterface.rc
 //
-#define IDS_CLIPPING_NAME 101
-
 #define FILE_DESCRIPTION "PowerToys ClipPing Module"
 #define INTERNAL_NAME "PowerToys.ClipPingModuleInterface"
 #define ORIGINAL_FILENAME "PowerToys.ClipPingModuleInterface.dll"

@@ -73,7 +73,6 @@
     <PackageReference Include="Microsoft.Web.WebView2" />
     <!-- HACK: CmdPal uses CommunityToolkit.Common directly. Align the version. -->
     <PackageReference Include="CommunityToolkit.Common" />
-    <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
 
   <!-- 
