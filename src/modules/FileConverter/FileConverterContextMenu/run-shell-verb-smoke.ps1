@@ -4,10 +4,51 @@ param(
     [string]$ExpectedOutputFileName = "sample_converted.png",
     [string]$VerbName = "Convert to...",
     [int]$InvokeTimeoutMs = 20000,
-    [int]$OutputWaitTimeoutMs = 10000
+    [int]$OutputWaitTimeoutMs = 10000,
+    [switch]$InvokeInCurrentProcess
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $InvokeInCurrentProcess)
+{
+    $hostExecutable = (Get-Process -Id $PID).Path
+    $arguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "`"$PSCommandPath`"",
+        "-TestDirectory",
+        "`"$TestDirectory`"",
+        "-InputFileName",
+        "`"$InputFileName`"",
+        "-ExpectedOutputFileName",
+        "`"$ExpectedOutputFileName`"",
+        "-VerbName",
+        "`"$VerbName`"",
+        "-InvokeTimeoutMs",
+        $InvokeTimeoutMs.ToString(),
+        "-OutputWaitTimeoutMs",
+        $OutputWaitTimeoutMs.ToString(),
+        "-InvokeInCurrentProcess"
+    )
+
+    $process = Start-Process -FilePath $hostExecutable -ArgumentList $arguments -NoNewWindow -PassThru
+    $processTimeoutMs = $InvokeTimeoutMs + $OutputWaitTimeoutMs + 5000
+    if (-not $process.WaitForExit($processTimeoutMs))
+    {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "Shell verb smoke process timed out after $processTimeoutMs ms."
+    }
+
+    if ($process.ExitCode -ne 0)
+    {
+        throw "Shell verb smoke process failed with exit code $($process.ExitCode)."
+    }
+
+    return
+}
 
 $resolvedTestDir = (Resolve-Path -LiteralPath $TestDirectory).Path
 $outputPath = Join-Path $resolvedTestDir $ExpectedOutputFileName
