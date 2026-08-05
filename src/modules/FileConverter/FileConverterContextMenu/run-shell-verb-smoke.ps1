@@ -9,11 +9,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$resolvedTestDir = (Resolve-Path $TestDirectory).Path
+$resolvedTestDir = (Resolve-Path -LiteralPath $TestDirectory).Path
 $outputPath = Join-Path $resolvedTestDir $ExpectedOutputFileName
-if (Test-Path $outputPath)
+if (Test-Path -LiteralPath $outputPath)
 {
-    Remove-Item $outputPath -Force
+    Remove-Item -LiteralPath $outputPath -Force
 }
 
 $code = @"
@@ -270,7 +270,10 @@ public static class FileConverterExplorerCommandRunner
 }
 "@
 
-Add-Type -TypeDefinition $code -Language CSharp
+if ($null -eq ("ShellVerbRunner" -as [type]))
+{
+    Add-Type -TypeDefinition $code -Language CSharp
+}
 function Resolve-TargetSubCommandLabel([string]$ExpectedOutputName, [string]$RequestedVerb)
 {
     if (-not [string]::IsNullOrWhiteSpace($RequestedVerb) -and $RequestedVerb -ne "Convert to...")
@@ -313,17 +316,17 @@ if ($invokeResult -ne "Invoked")
 
 $waited = 0
 $step = 250
-while ($waited -lt $OutputWaitTimeoutMs -and -not (Test-Path $outputPath))
+while ($waited -lt $OutputWaitTimeoutMs -and -not (Test-Path -LiteralPath $outputPath))
 {
     Start-Sleep -Milliseconds $step
     $waited += $step
 }
 
-if (-not (Test-Path $outputPath))
+if (-not (Test-Path -LiteralPath $outputPath))
 {
     throw "Output file was not created: $outputPath"
 }
 
-$item = Get-Item $outputPath
+$item = Get-Item -LiteralPath $outputPath
 Write-Host "Created: $($item.FullName)"
 Write-Host "Size: $($item.Length)"

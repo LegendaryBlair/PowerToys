@@ -1,6 +1,5 @@
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path,
-    [int]$PipeConnectTimeoutMs = 2000,
     [int]$PerCaseTimeoutMs = 6000,
     [switch]$LeavePowerToysRunning
 )
@@ -27,68 +26,15 @@ function Start-PowerToys {
 
     $running = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
     if ($null -eq $running) {
-        throw "PowerToys process exited before pipe checks."
+        throw "PowerToys process exited before context-menu checks."
     }
 
     return $running
 }
 
-function Send-PipePayload {
-    param(
-        [string]$PipeSimpleName,
-        [string]$Payload,
-        [int]$ConnectTimeoutMs,
-        [int]$Attempts = 30,
-        [int]$RetryDelayMs = 100
-    )
-
-    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
-        $client = [System.IO.Pipes.NamedPipeClientStream]::new(
-            ".",
-            $PipeSimpleName,
-            [System.IO.Pipes.PipeDirection]::Out
-        )
-
-        try {
-            $client.Connect($ConnectTimeoutMs)
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($Payload)
-            $client.Write($bytes, 0, $bytes.Length)
-            $client.Flush()
-            return
-        }
-        catch {
-            if ($attempt -eq $Attempts) {
-                throw "Failed to send payload to pipe '$PipeSimpleName' after $Attempts attempts. Ensure File Converter is enabled in PowerToys Settings. $($_.Exception.Message)"
-            }
-
-            Start-Sleep -Milliseconds $RetryDelayMs
-        }
-        finally {
-            $client.Dispose()
-        }
-    }
-}
-
-function Wait-ForFile {
-    param(
-        [string]$Path,
-        [int]$TimeoutMs
-    )
-
-    $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        if (Test-Path -LiteralPath $Path) {
-            return $true
-        }
-
-        Start-Sleep -Milliseconds 100
-    }
-
-    return (Test-Path -LiteralPath $Path)
-}
-
 $powerToysExe = Join-Path $RepoRoot "x64\Debug\PowerToys.exe"
 $sampleDir = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest"
+$shellVerbSmoke = Join-Path $RepoRoot "src\modules\FileConverter\FileConverterContextMenu\run-shell-verb-smoke.ps1"
 $sourcePath = Join-Path $sampleDir "sample.bmp"
 $baseName = "sample_converted"
 
@@ -96,18 +42,20 @@ if (-not (Test-Path -LiteralPath $sourcePath)) {
     throw "Sample input file not found at: $sourcePath"
 }
 
-$escapedInput = $sourcePath -replace "\\", "\\\\"
+if (-not (Test-Path -LiteralPath $shellVerbSmoke)) {
+    throw "Shell verb smoke script not found at: $shellVerbSmoke"
+}
 
 $cases = @(
-    @{ Name = "png";  Destination = "png";  Extension = ".png";  Required = $true },
-    @{ Name = "jpg";  Destination = "jpg";  Extension = ".jpg";  Required = $true },
-    @{ Name = "jpeg"; Destination = "jpeg"; Extension = ".jpg";  Required = $true },
-    @{ Name = "bmp";  Destination = "bmp";  Extension = ".bmp";  Required = $true },
-    @{ Name = "tif";  Destination = "tif";  Extension = ".tiff"; Required = $true },
-    @{ Name = "tiff"; Destination = "tiff"; Extension = ".tiff"; Required = $true },
-    @{ Name = "webp"; Destination = "webp"; Extension = ".webp"; Required = $false },
-    @{ Name = "heic"; Destination = "heic"; Extension = ".heic"; Required = $false },
-    @{ Name = "heif"; Destination = "heif"; Extension = ".heic"; Required = $false }
+    @{ Name = "png";  Label = "PNG";  Extension = ".png";  Required = $true },
+    @{ Name = "jpg";  Label = "JPG";  Extension = ".jpg";  Required = $true },
+    @{ Name = "jpeg"; Label = "JPEG"; Extension = ".jpg";  Required = $true },
+    @{ Name = "bmp";  Label = "BMP";  Extension = ".bmp";  Required = $true },
+    @{ Name = "tif";  Label = "TIFF"; Extension = ".tiff"; Required = $true },
+    @{ Name = "tiff"; Label = "TIFF"; Extension = ".tiff"; Required = $true },
+    @{ Name = "webp"; Label = "WebP"; Extension = ".webp"; Required = $false },
+    @{ Name = "heic"; Label = "HEIC"; Extension = ".heic"; Required = $false },
+    @{ Name = "heif"; Label = "HEIF"; Extension = ".heic"; Required = $false }
 )
 
 $results = @()
@@ -115,18 +63,33 @@ $results = @()
 foreach ($case in $cases) {
     Stop-PowerToysProcesses
     $pt = Start-PowerToys -ExePath $powerToysExe
-    $pipeSimpleName = "powertoys_fileconverter_$($pt.SessionId)"
 
     $outputPath = Join-Path $sampleDir ($baseName + $case.Extension)
-    Remove-Item -LiteralPath $outputPath -ErrorAction SilentlyContinue
+    try {
+        & $shellVerbSmoke `
+            -TestDirectory $sampleDir `
+            -InputFileName (Split-Path -Leaf $sourcePath) `
+            -ExpectedOutputFileName (Split-Path -Leaf $outputPath) `
+            -VerbName $case.Label `
+            -OutputWaitTimeoutMs $PerCaseTimeoutMs
+        $created = Test-Path -LiteralPath $outputPath
+    }
+    catch {
+        $created = $false
+        if ($case.Required) {
+            if (-not $LeavePowerToysRunning) {
+                Stop-PowerToysProcesses
+            }
 
-    $payload = ('{{"action":"FormatConvert","destination":"{0}","files":["{1}"]}}' -f $case.Destination, $escapedInput)
-    Send-PipePayload -PipeSimpleName $pipeSimpleName -Payload $payload -ConnectTimeoutMs $PipeConnectTimeoutMs
+            throw
+        }
 
-    $created = Wait-ForFile -Path $outputPath -TimeoutMs $PerCaseTimeoutMs
+        Write-Warning "Optional destination '$($case.Label)' is unavailable: $($_.Exception.Message)"
+    }
+
     $results += [PSCustomObject]@{
         Name = $case.Name
-        Destination = $case.Destination
+        Destination = $case.Label
         Output = $outputPath
         Created = $created
         Required = $case.Required
@@ -137,7 +100,7 @@ foreach ($case in $cases) {
             Stop-PowerToysProcesses
         }
 
-        throw "Phase 6 matrix smoke failed for required destination '$($case.Destination)'. Expected output '$outputPath'."
+        throw "Phase 6 matrix smoke failed for required destination '$($case.Label)'. Expected output '$outputPath'."
     }
 
     if (-not $LeavePowerToysRunning) {
@@ -147,27 +110,27 @@ foreach ($case in $cases) {
 
 Stop-PowerToysProcesses
 $pt = Start-PowerToys -ExePath $powerToysExe
-$pipeSimpleName = "powertoys_fileconverter_$($pt.SessionId)"
-
-$preUnsupportedFiles = @(
-    Get-ChildItem -LiteralPath $sampleDir -Filter ($baseName + ".*") -File -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty Name
-)
-$unsupportedPayload = ('{{"action":"FormatConvert","destination":"gif","files":["{0}"]}}' -f $escapedInput)
-Send-PipePayload -PipeSimpleName $pipeSimpleName -Payload $unsupportedPayload -ConnectTimeoutMs $PipeConnectTimeoutMs
-Start-Sleep -Milliseconds 1500
-$postUnsupportedFiles = @(
-    Get-ChildItem -LiteralPath $sampleDir -Filter ($baseName + ".*") -File -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty Name
-)
-$newUnsupportedFiles = @($postUnsupportedFiles | Where-Object { $_ -notin $preUnsupportedFiles })
+$unsupportedOutput = Join-Path $sampleDir ($baseName + ".gif")
+Remove-Item -LiteralPath $unsupportedOutput -ErrorAction SilentlyContinue
+$unsupportedRejected = $false
+try {
+    & $shellVerbSmoke `
+        -TestDirectory $sampleDir `
+        -InputFileName (Split-Path -Leaf $sourcePath) `
+        -ExpectedOutputFileName (Split-Path -Leaf $unsupportedOutput) `
+        -VerbName "GIF" `
+        -OutputWaitTimeoutMs 1000
+}
+catch {
+    $unsupportedRejected = $true
+}
 
 if (-not $LeavePowerToysRunning) {
     Stop-PowerToysProcesses
 }
 
-if ($newUnsupportedFiles.Count -gt 0) {
-    throw "Phase 6 matrix smoke failed. Unsupported destination 'gif' unexpectedly created output: $($newUnsupportedFiles -join ', ')."
+if (-not $unsupportedRejected -or (Test-Path -LiteralPath $unsupportedOutput)) {
+    throw "Phase 6 matrix smoke failed. Unsupported destination 'GIF' was available or created output."
 }
 
 $requiredPassed = ($results | Where-Object { $_.Required -and $_.Created }).Count

@@ -77,24 +77,10 @@ if (-not (Test-Path -LiteralPath $sampleInput)) {
     throw "Sample input file not found at: $sampleInput"
 }
 
-$escapedInput = $sampleInput -replace "\\", "\\\\"
-
 $cases = @(
     [pscustomobject]@{
-        Name = "invalid-json"
-        Payload = "not-json"
-    },
-    [pscustomobject]@{
-        Name = "missing-files"
-        Payload = '{"action":"FormatConvert","destination":"png"}'
-    },
-    [pscustomobject]@{
-        Name = "wrong-action"
-        Payload = ('{{"action":"NoOp","destination":"png","files":["{0}"]}}' -f $escapedInput)
-    },
-    [pscustomobject]@{
-        Name = "bad-files-array"
-        Payload = '{"action":"FormatConvert","destination":"png","files":[123,""]}'
+        Name = "untrusted-valid-request"
+        Payload = ('{{"action":"FormatConvert","destination":"png","files":["{0}"]}}' -f ($sampleInput -replace "\\", "\\\\"))
     }
 )
 
@@ -139,11 +125,11 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
     }
 }
 
-"Negative FileConverter Pipe Smoke Results"
+"Untrusted FileConverter Pipe Client Results"
 $results | Format-Table -AutoSize | Out-String
 
 if (Test-Path -LiteralPath $runnerLog) {
-    $interesting = Select-String -Path $runnerLog -Pattern "File Converter|malformed request|skipped|conversion failed" -CaseSensitive:$false -ErrorAction SilentlyContinue
+    $interesting = Select-String -LiteralPath $runnerLog -Pattern "File Converter|malformed request|skipped|conversion failed" -CaseSensitive:$false -ErrorAction SilentlyContinue
     if ($interesting) {
         "Recent listener diagnostics from runner.log"
         $interesting | Select-Object -Last 20 | ForEach-Object { $_.Line }
@@ -162,9 +148,9 @@ if (-not $LeavePowerToysRunning) {
 
 $failed = @($results | Where-Object { -not $_.Passed })
 if ($failed.Count -gt 0) {
-    Write-Error "One or more negative smoke cases failed."
+    Write-Error "The untrusted PowerShell pipe client was not rejected."
     exit 1
 }
 
-"All negative smoke cases passed."
+"Untrusted PowerShell pipe client was rejected."
 exit 0

@@ -1,6 +1,5 @@
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path,
-    [int]$PipeConnectTimeoutMs = 2000,
     [switch]$LeavePowerToysRunning
 )
 
@@ -12,47 +11,11 @@ function Stop-PowerToysProcesses {
         Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
-function Send-PipePayload {
-    param(
-        [string]$PipeSimpleName,
-        [string]$Payload,
-        [int]$ConnectTimeoutMs,
-        [int]$Attempts = 30,
-        [int]$RetryDelayMs = 100
-    )
-
-    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
-        $client = [System.IO.Pipes.NamedPipeClientStream]::new(
-            ".",
-            $PipeSimpleName,
-            [System.IO.Pipes.PipeDirection]::Out
-        )
-
-        try {
-            $client.Connect($ConnectTimeoutMs)
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($Payload)
-            $client.Write($bytes, 0, $bytes.Length)
-            $client.Flush()
-            return
-        }
-        catch {
-            if ($attempt -eq $Attempts) {
-                throw "Failed to send payload to pipe '$PipeSimpleName' after $Attempts attempts. Ensure File Converter is enabled in PowerToys Settings. $($_.Exception.Message)"
-            }
-
-            Start-Sleep -Milliseconds $RetryDelayMs
-        }
-        finally {
-            $client.Dispose()
-        }
-    }
-}
-
 $powerToysExe = Join-Path $RepoRoot "x64\Debug\PowerToys.exe"
 $sampleDir = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest"
+$shellVerbSmoke = Join-Path $RepoRoot "src\modules\FileConverter\FileConverterContextMenu\run-shell-verb-smoke.ps1"
 $input1 = Join-Path $sampleDir "sample.bmp"
 $input2 = Join-Path $sampleDir "sample2.bmp"
-$missing = Join-Path $sampleDir "missing-does-not-exist.bmp"
 $output1 = Join-Path $sampleDir "sample_converted.png"
 $output2 = Join-Path $sampleDir "sample2_converted.png"
 
@@ -64,32 +27,48 @@ if (-not (Test-Path -LiteralPath $input1)) {
     throw "Sample input file not found at: $input1"
 }
 
+if (-not (Test-Path -LiteralPath $shellVerbSmoke)) {
+    throw "Shell verb smoke script not found at: $shellVerbSmoke"
+}
+
 Copy-Item -LiteralPath $input1 -Destination $input2 -Force
 Remove-Item -LiteralPath $output1, $output2 -ErrorAction SilentlyContinue
 
 Stop-PowerToysProcesses
 $pt = Start-Process -FilePath $powerToysExe -PassThru
 Start-Sleep -Milliseconds 250
-$pt = Get-Process -Id $pt.Id -ErrorAction Stop
-$pipeSimpleName = "powertoys_fileconverter_$($pt.SessionId)"
+$null = Get-Process -Id $pt.Id -ErrorAction Stop
 
-$escapedInput1 = $input1 -replace "\\", "\\\\"
-$escapedInput2 = $input2 -replace "\\", "\\\\"
-$escapedMissing = $missing -replace "\\", "\\\\"
+$invocations = @(
+    @{ Input = (Split-Path -Leaf $input1); Output = (Split-Path -Leaf $output1) },
+    @{ Input = (Split-Path -Leaf $input2); Output = (Split-Path -Leaf $output2) }
+)
 
-$payload1 = ('{{"action":"FormatConvert","destination":"png","files":["{0}","{1}"]}}' -f $escapedInput1, $escapedMissing)
-$payload2 = ('{{"action":"FormatConvert","destination":"png","files":["{0}"]}}' -f $escapedInput2)
-
-Send-PipePayload -PipeSimpleName $pipeSimpleName -Payload $payload1 -ConnectTimeoutMs $PipeConnectTimeoutMs
-Send-PipePayload -PipeSimpleName $pipeSimpleName -Payload $payload2 -ConnectTimeoutMs $PipeConnectTimeoutMs
-
-$deadline = [DateTime]::UtcNow.AddSeconds(10)
-while ([DateTime]::UtcNow -lt $deadline) {
-    if ((Test-Path -LiteralPath $output1) -and (Test-Path -LiteralPath $output2)) {
-        break
+$jobs = @(
+    foreach ($invocation in $invocations) {
+        Start-Job -ScriptBlock {
+            param($ScriptPath, $TestDirectory, $InputName, $OutputName)
+            & $ScriptPath `
+                -TestDirectory $TestDirectory `
+                -InputFileName $InputName `
+                -ExpectedOutputFileName $OutputName `
+                -VerbName "PNG"
+        } -ArgumentList $shellVerbSmoke, $sampleDir, $invocation.Input, $invocation.Output
     }
+)
 
-    Start-Sleep -Milliseconds 100
+try {
+    $null = Wait-Job -Job $jobs -Timeout 45
+    $jobs | Receive-Job -ErrorAction SilentlyContinue | Write-Host
+
+    $incomplete = @($jobs | Where-Object { $_.State -ne "Completed" })
+    if ($incomplete.Count -gt 0) {
+        $details = $incomplete | ForEach-Object { "$($_.Name)=$($_.State): $($_.JobStateInfo.Reason)" }
+        throw "One or more context-menu invocations failed: $($details -join '; ')"
+    }
+}
+finally {
+    $jobs | Remove-Job -Force -ErrorAction SilentlyContinue
 }
 
 $ok1 = Test-Path -LiteralPath $output1
