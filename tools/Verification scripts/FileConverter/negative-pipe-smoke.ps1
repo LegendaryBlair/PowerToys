@@ -41,6 +41,9 @@ function Send-PipePayload {
         [int]$Attempts
     )
 
+    $connected = $false
+    $written = $false
+
     for ($i = 0; $i -lt $Attempts; $i++) {
         $client = [System.IO.Pipes.NamedPipeClientStream]::new(
             ".",
@@ -50,28 +53,36 @@ function Send-PipePayload {
 
         try {
             $client.Connect($ConnectTimeoutMs)
+            $connected = $true
 
             $bytes = [System.Text.Encoding]::UTF8.GetBytes($Payload)
             $client.Write($bytes, 0, $bytes.Length)
-            return $true
+            $written = $true
         }
         catch {
-            if ($i -lt ($Attempts - 1)) {
+            if (-not $connected -and $i -lt ($Attempts - 1)) {
                 Start-Sleep -Milliseconds 100
             }
         }
         finally {
             $client.Dispose()
         }
+
+        if ($connected) {
+            break
+        }
     }
 
-    return $false
+    return [pscustomobject]@{
+        Connected = $connected
+        Written = $written
+    }
 }
 
 $powerToysExe = Join-Path $RepoRoot "x64\Debug\PowerToys.exe"
 $sampleInput = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\sample.bmp"
 $outputFile = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\sample_converted.png"
-$runnerLog = Join-Path $RepoRoot "src\runner\x64\Debug\runner.log"
+$runnerLog = Join-Path $env:LOCALAPPDATA "Microsoft\PowerToys\RunnerLogs\runner-log.log"
 
 if (-not (Test-Path -LiteralPath $sampleInput)) {
     throw "Sample input file not found at: $sampleInput"
@@ -97,7 +108,7 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
         Remove-Item -LiteralPath $outputFile -Force
     }
 
-    $sent = Send-PipePayload `
+    $sendResult = Send-PipePayload `
         -PipeSimpleName $pipeSimpleName `
         -Payload $case.Payload `
         -ConnectTimeoutMs $PipeConnectTimeoutMs `
@@ -115,9 +126,10 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
 
     $results += [pscustomobject]@{
         Case = $case.Name
-        SentToPipe = $sent
+        PipeConnected = $sendResult.Connected
+        PayloadWritten = $sendResult.Written
         OutputCreated = $createdOutput
-        Passed = ($sent -and -not $createdOutput)
+        Passed = ($sendResult.Connected -and -not $createdOutput)
     }
 
     if (-not $LeavePowerToysRunning -or $caseIndex -lt ($cases.Count - 1)) {
@@ -148,7 +160,7 @@ if (-not $LeavePowerToysRunning) {
 
 $failed = @($results | Where-Object { -not $_.Passed })
 if ($failed.Count -gt 0) {
-    Write-Error "The untrusted PowerShell pipe client was not rejected."
+    Write-Error "The untrusted PowerShell pipe client did not connect or was not rejected."
     exit 1
 }
 
