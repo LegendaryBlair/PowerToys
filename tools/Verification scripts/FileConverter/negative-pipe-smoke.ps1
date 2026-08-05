@@ -115,10 +115,45 @@ function Get-NewLogContent {
     }
 }
 
+function Find-FileConverterModuleLog {
+    param(
+        [string]$LogRoot,
+        [DateTime]$UpdatedAfterUtc,
+        [int]$TimeoutMs = 5000
+    )
+
+    $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
+    do {
+        if (Test-Path -LiteralPath $LogRoot) {
+            $logFile = Get-ChildItem -LiteralPath $LogRoot -Directory -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTimeUtc -Descending |
+                ForEach-Object {
+                    $candidate = Join-Path $_.FullName "log.log"
+                    if (Test-Path -LiteralPath $candidate) {
+                        $candidateFile = Get-Item -LiteralPath $candidate
+                        if ($candidateFile.LastWriteTimeUtc -ge $UpdatedAfterUtc) {
+                            $candidateFile
+                        }
+                    }
+                } |
+                Select-Object -First 1
+
+            if ($null -ne $logFile) {
+                return $logFile.FullName
+            }
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw "FileConverter ModuleInterface log was not updated under '$LogRoot'. Ensure File Converter is enabled in PowerToys Settings."
+}
+
 $powerToysExe = Join-Path $RepoRoot "x64\Debug\PowerToys.exe"
 $sampleInput = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\sample.bmp"
 $outputFile = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\sample_converted.png"
-$runnerLog = Join-Path $env:LOCALAPPDATA "Microsoft\PowerToys\RunnerLogs\runner-log.log"
+$moduleLogRoot = Join-Path $env:LOCALAPPDATA "Microsoft\PowerToys\FileConverter\ModuleInterface\Logs"
+$moduleLog = $null
 
 if (-not (Test-Path -LiteralPath $sampleInput)) {
     throw "Sample input file not found at: $sampleInput"
@@ -137,15 +172,17 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
     $case = $cases[$caseIndex]
 
     Stop-PowerToysProcesses
+    $powerToysStartUtc = [DateTime]::UtcNow.AddSeconds(-1)
     $pt = Start-PowerToys -ExePath $powerToysExe
     $pipeSimpleName = "powertoys_fileconverter_$($pt.SessionId)"
+    $moduleLog = Find-FileConverterModuleLog -LogRoot $moduleLogRoot -UpdatedAfterUtc $powerToysStartUtc
 
     if (Test-Path -LiteralPath $outputFile) {
         Remove-Item -LiteralPath $outputFile -Force
     }
 
-    $logOffset = if (Test-Path -LiteralPath $runnerLog) {
-        (Get-Item -LiteralPath $runnerLog).Length
+    $logOffset = if (Test-Path -LiteralPath $moduleLog) {
+        (Get-Item -LiteralPath $moduleLog).Length
     }
     else {
         0
@@ -160,7 +197,7 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
     $rejectionObserved = $false
     $deadline = [DateTime]::UtcNow.AddSeconds(2)
     while ([DateTime]::UtcNow -lt $deadline) {
-        $newLogContent = Get-NewLogContent -Path $runnerLog -Offset $logOffset
+        $newLogContent = Get-NewLogContent -Path $moduleLog -Offset $logOffset
         $rejectionObserved = $newLogContent -match "Rejected unauthenticated File Converter pipe client"
         if ($rejectionObserved -or (Test-Path -LiteralPath $outputFile)) {
             break
@@ -191,18 +228,18 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
 "Untrusted FileConverter Pipe Client Results"
 $results | Format-Table -AutoSize | Out-String
 
-if (Test-Path -LiteralPath $runnerLog) {
-    $interesting = Select-String -LiteralPath $runnerLog -Pattern "File Converter|malformed request|skipped|conversion failed" -CaseSensitive:$false -ErrorAction SilentlyContinue
+if ($null -ne $moduleLog -and (Test-Path -LiteralPath $moduleLog)) {
+    $interesting = Select-String -LiteralPath $moduleLog -Pattern "File Converter|malformed request|skipped|conversion failed" -CaseSensitive:$false -ErrorAction SilentlyContinue
     if ($interesting) {
-        "Recent listener diagnostics from runner.log"
+        "Recent listener diagnostics from the FileConverter ModuleInterface log"
         $interesting | Select-Object -Last 20 | ForEach-Object { $_.Line }
     }
     else {
-        "No matching listener diagnostics found in runner.log."
+        "No matching listener diagnostics found in the FileConverter ModuleInterface log."
     }
 }
 else {
-    "runner.log not found; diagnostics may be routed through ETW."
+    "FileConverter ModuleInterface log not found."
 }
 
 if (-not $LeavePowerToysRunning) {
