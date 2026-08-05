@@ -22,7 +22,7 @@ namespace ClipPing;
 
 public partial class App : Application, IDisposable
 {
-    private static readonly SettingsUtils ModuleSettings = new();
+    private static readonly SettingsUtils ModuleSettings = SettingsUtils.Default;
     private readonly FileSystemWatcher _fileSystemWatcher;
     private readonly ETWTrace _etwTrace = new();
     private ClipPingSettings _currentSettings;

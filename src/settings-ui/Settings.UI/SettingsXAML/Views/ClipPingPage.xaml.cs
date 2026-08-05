@@ -11,13 +11,13 @@ using PowerToys.Interop;
 
 namespace Microsoft.PowerToys.Settings.UI.Views
 {
-    public sealed partial class ClipPingPage : Page, IRefreshablePage
+    public sealed partial class ClipPingPage : NavigablePage, IRefreshablePage
     {
         private ClipPingViewModel ViewModel { get; }
 
         public ClipPingPage()
         {
-            var settingsUtils = new SettingsUtils();
+            var settingsUtils = SettingsUtils.Default;
             ViewModel = new ClipPingViewModel(
                 settingsUtils,
                 SettingsRepository<GeneralSettings>.GetInstance(settingsUtils),
