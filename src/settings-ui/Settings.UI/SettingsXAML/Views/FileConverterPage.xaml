@@ -13,7 +13,7 @@
 
     <controls:SettingsPageControl
         x:Uid="FileConverter"
-        ModuleImageSource="ms-appx:///Assets/Settings/Modules/PT.png">
+        ModuleImageSource="ms-appx:///Assets/Settings/Modules/FileConverter.png">
         <controls:SettingsPageControl.ModuleContent>
             <StackPanel ChildrenTransitions="{StaticResource SettingsCardsAnimations}" Orientation="Vertical">
                 <tkcontrols:SettingsCard
