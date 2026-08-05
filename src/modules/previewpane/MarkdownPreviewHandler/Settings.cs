@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 using Microsoft.PowerToys.Settings.UI.Library;
@@ -67,7 +68,19 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
             {
                 return ModuleSettings.GetSettings<PowerPreviewSettings>(PowerPreviewSettings.ModuleName).Properties.EnableMdLocalImages;
             }
-            catch (FileNotFoundException)
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
             {
                 return false;
             }
