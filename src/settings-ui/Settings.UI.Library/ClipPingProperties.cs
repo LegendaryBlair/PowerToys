@@ -9,9 +9,11 @@ namespace Microsoft.PowerToys.Settings.UI.Library
 {
     public class ClipPingProperties
     {
+        public const string DefaultOverlayColor = "#FF0000";
+
         public ClipPingProperties()
         {
-            OverlayColor = new StringProperty("#FF0000");
+            OverlayColor = new StringProperty(DefaultOverlayColor);
         }
 
         public StringProperty OverlayColor { get; set; }

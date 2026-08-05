@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -165,7 +166,6 @@ public partial class App : Application, IDisposable
 
         if (hwnd == IntPtr.Zero)
         {
-            Logger.LogInfo("Overlay hidden because there is no active window.");
             return;
         }
 
@@ -213,19 +213,25 @@ public partial class App : Application, IDisposable
 
         double scale = 96.0 / dpi;
 
-        var rawColor = _currentSettings.Properties.OverlayColor;
+        var color = ParseOverlayColor(_currentSettings.Properties.OverlayColor.Value);
 
-        // Convert #RRGGBB to Windows.UI.Color
-        var color = Windows.UI.Color.FromArgb(
-            255,
-            Convert.ToByte(rawColor.Value.Substring(1, 2), 16),
-            Convert.ToByte(rawColor.Value.Substring(3, 2), 16),
-            Convert.ToByte(rawColor.Value.Substring(5, 2), 16));
-
+        // DWM and WinUIEx Move use physical screen pixels, while SetWindowSize uses DIPs.
         var target = new Rect(rect.Left, rect.Top, windowWidth * scale, windowHeight * scale);
 
         Logger.LogDebug($"Showing overlay at {target} with color {color}.");
 
         GetOverlay()?.Show(target, color);
+    }
+
+    private static Windows.UI.Color ParseOverlayColor(string? value)
+    {
+        if (value is { Length: 7 } &&
+            value[0] == '#' &&
+            uint.TryParse(value.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
+        {
+            return Windows.UI.Color.FromArgb(255, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
+        }
+
+        return Windows.UI.Color.FromArgb(255, 255, 0, 0);
     }
 }

@@ -5,6 +5,7 @@
 
 #include <common/logger/logger.h>
 #include <common/utils/logger_helper.h>
+#include <common/utils/gpo.h>
 #include <common/utils/resources.h>
 #include <common/utils/winapi_error.h>
 
@@ -80,6 +81,11 @@ public:
     const wchar_t* get_key() override
     {
         return app_key.c_str();
+    }
+
+    powertoys_gpo::gpo_rule_configured_t gpo_policy_enabled_configuration() override
+    {
+        return powertoys_gpo::getConfiguredClipPingEnabledValue();
     }
 
     // Return JSON with the configuration options.
@@ -171,13 +177,15 @@ public:
         // Tell the ClipPing process to exit.
         SetEvent(m_exit_event_handle);
 
-        // Wait for 1.5 seconds for the process to end correctly and stop etw tracer
-        WaitForSingleObject(m_hProcess, 1500);
-
-        // If process is still running, terminate it
         if (m_hProcess)
         {
-            TerminateProcess(m_hProcess, 0);
+            // Wait for 1.5 seconds for the process to end correctly and stop etw tracer.
+            if (WaitForSingleObject(m_hProcess, 1500) == WAIT_TIMEOUT)
+            {
+                TerminateProcess(m_hProcess, 0);
+            }
+
+            CloseHandle(m_hProcess);
             m_hProcess = nullptr;
         }
     }

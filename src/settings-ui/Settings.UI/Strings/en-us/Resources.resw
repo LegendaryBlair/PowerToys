@@ -6393,4 +6393,7 @@ Text uses the current drawing color.</value>
   <data name="ClipPing_OverlayBorder.Content" xml:space="preserve">
     <value>Border</value>
   </data>
+  <data name="LearnMore_ClipPing.Text" xml:space="preserve">
+    <value>Learn more about ClipPing</value>
+  </data>
 </root>
