@@ -897,6 +897,9 @@ public:
 
     const wchar_t* get_name() override
     {
+        std::call_once(m_name_initialization, [this] {
+            m_name = LoadLocalizedString(L"FileConverter_App_Name", MODULE_NAME_FALLBACK);
+        });
         return m_name.c_str();
     }
 
@@ -973,6 +976,7 @@ public:
 
 private:
     bool m_enabled = false;
+    std::once_flag m_name_initialization;
     std::wstring m_name;
     std::wstring m_key = MODULE_KEY;
     FileConverterPipeOrchestrator m_pipe_orchestrator;
