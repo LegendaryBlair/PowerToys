@@ -27,6 +27,7 @@ extern "C" IMAGE_DOS_HEADER __ImageBase;
 namespace
 {
     constexpr DWORD PIPE_CONNECT_TIMEOUT_MS = 1000;
+    constexpr DWORD PIPE_RETRY_DELAY_MS = 50;
     constexpr size_t MAX_PIPE_PAYLOAD_BYTES = 1024 * 1024;
 
     enum class FormatGroup
@@ -374,23 +375,64 @@ namespace
         }
 
         const std::wstring pipe_name = GetPipeNameForCurrentSession();
-        if (!WaitNamedPipeW(pipe_name.c_str(), PIPE_CONNECT_TIMEOUT_MS))
-        {
-            return HRESULT_FROM_WIN32(GetLastError());
-        }
+        const ULONGLONG deadline = GetTickCount64() + PIPE_CONNECT_TIMEOUT_MS;
+        HANDLE pipe_handle = INVALID_HANDLE_VALUE;
+        DWORD connect_error = ERROR_FILE_NOT_FOUND;
 
-        HANDLE pipe_handle = CreateFileW(
-            pipe_name.c_str(),
-            GENERIC_WRITE,
-            0,
-            nullptr,
-            OPEN_EXISTING,
-            0,
-            nullptr);
+        while (GetTickCount64() < deadline)
+        {
+            pipe_handle = CreateFileW(
+                pipe_name.c_str(),
+                GENERIC_WRITE,
+                0,
+                nullptr,
+                OPEN_EXISTING,
+                0,
+                nullptr);
+
+            if (pipe_handle != INVALID_HANDLE_VALUE)
+            {
+                break;
+            }
+
+            connect_error = GetLastError();
+            if (connect_error != ERROR_PIPE_BUSY && connect_error != ERROR_FILE_NOT_FOUND)
+            {
+                return HRESULT_FROM_WIN32(connect_error);
+            }
+
+            const ULONGLONG now = GetTickCount64();
+            if (now >= deadline)
+            {
+                break;
+            }
+
+            const DWORD remaining_ms = static_cast<DWORD>(deadline - now);
+            if (connect_error == ERROR_PIPE_BUSY)
+            {
+                if (!WaitNamedPipeW(pipe_name.c_str(), remaining_ms))
+                {
+                    connect_error = GetLastError();
+                    if (connect_error == ERROR_SEM_TIMEOUT)
+                    {
+                        break;
+                    }
+
+                    if (connect_error != ERROR_PIPE_BUSY && connect_error != ERROR_FILE_NOT_FOUND)
+                    {
+                        return HRESULT_FROM_WIN32(connect_error);
+                    }
+                }
+            }
+            else
+            {
+                Sleep((std::min)(PIPE_RETRY_DELAY_MS, remaining_ms));
+            }
+        }
 
         if (pipe_handle == INVALID_HANDLE_VALUE)
         {
-            return HRESULT_FROM_WIN32(GetLastError());
+            return HRESULT_FROM_WIN32(connect_error);
         }
 
         DWORD bytes_written = 0;
