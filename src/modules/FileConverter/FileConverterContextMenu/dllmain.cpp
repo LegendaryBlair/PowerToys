@@ -273,11 +273,6 @@ namespace
         }
 
         group = ExtensionToGroup(extension);
-        if (group == FormatGroup::Unknown)
-        {
-            return false;
-        }
-
 #pragma warning(suppress : 26812)
         PERCEIVED perceived_type = PERCEIVED_TYPE_UNSPECIFIED;
         PERCEIVEDFLAG perceived_flags = PERCEIVEDFLAG_UNDEFINED;
@@ -300,7 +295,9 @@ namespace
                 return false;
             }
 
-            if (destination_group.has_value() && source_group == destination_group.value())
+            if (destination_group.has_value() &&
+                source_group != FormatGroup::Unknown &&
+                source_group == destination_group.value())
             {
                 return false;
             }
