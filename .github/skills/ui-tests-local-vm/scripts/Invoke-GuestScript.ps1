@@ -13,20 +13,19 @@ mutating guest state (package registration, staged runtime files, registry, proc
 The scriptblock to run in the guest. Its output is returned to the host.
 
 .PARAMETER WinRmPort
-Host loopback WinRM port mapped to the guest (Win11 scaffold default 15987 HTTPS; Win10 15985 HTTP).
+Host loopback WinRM port mapped to the guest (scaffold default 15986 HTTPS).
 
 .PARAMETER UseHttp
-Use http:// (unencrypted Basic) instead of https:// — the older Win10 manual scheme. The guest's
-WSMan client must already allow Basic/unencrypted (the Win10 controller path configures this).
+Use http:// with Negotiate authentication instead of the default HTTPS/Basic connection.
 
 .EXAMPLE
-./Invoke-GuestScript.ps1 -WinRmPort 15987 -CredentialPath "$env:LOCALAPPDATA\PowerToysUiTestVm-Win11\admin.credential.xml" -ScriptBlock {
+./Invoke-GuestScript.ps1 -WinRmPort 15986 -CredentialPath "$env:LOCALAPPDATA\PowerToysUiTestVm-Win11\admin.credential.xml" -ScriptBlock {
     Get-AppxPackage *ImageResizerContextMenu* | Select-Object -Expand Name
 }
 
 .EXAMPLE
 # Neutralize a sparse package to reproduce CI's unsigned/classic scenario.
-./Invoke-GuestScript.ps1 -WinRmPort 15987 -CredentialPath $cred -ScriptBlock {
+./Invoke-GuestScript.ps1 -WinRmPort 15986 -CredentialPath $cred -ScriptBlock {
     Get-AppxPackage -AllUsers *ImageResizerContextMenu* | ForEach-Object { Remove-AppxPackage -Package $_.PackageFullName -AllUsers }
     Rename-Item C:\PowerToysUiTestRun\PowerToys\WinUI3Apps\ImageResizerContextMenuPackage.msix -NewName ImageResizerContextMenuPackage.msix.disabled
 }
@@ -35,7 +34,7 @@ WSMan client must already allow Basic/unencrypted (the Win10 controller path con
 param(
     [Parameter(Mandatory)][scriptblock]$ScriptBlock,
     [object[]]$ArgumentList = @(),
-    [int]$WinRmPort = 15987,
+    [int]$WinRmPort = 15986,
     [switch]$UseHttp,
     [string]$CredentialPath = (Join-Path $env:LOCALAPPDATA 'PowerToysUiTestVm-Win11\admin.credential.xml')
 )
@@ -46,13 +45,19 @@ if (-not (Test-Path $CredentialPath)) {
 }
 $credential = Import-Clixml $CredentialPath
 
-if ($UseHttp) {
-    $session = New-PSSession -ConnectionUri "http://127.0.0.1:$WinRmPort/wsman" -Authentication Basic -Credential $credential
+$scheme = if ($UseHttp) { 'http' } else { 'https' }
+$authentication = if ($UseHttp) { 'Negotiate' } else { 'Basic' }
+$sessionOption = if ($UseHttp) {
+    New-PSSessionOption
 }
 else {
-    $sessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
-    $session = New-PSSession -ConnectionUri "https://127.0.0.1:$WinRmPort/wsman" -Authentication Basic -Credential $credential -SessionOption $sessionOption
+    New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
 }
+$session = New-PSSession `
+    -ConnectionUri "${scheme}://127.0.0.1:$WinRmPort/wsman" `
+    -Authentication $authentication `
+    -Credential $credential `
+    -SessionOption $sessionOption
 
 try {
     Invoke-Command -Session $session -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList

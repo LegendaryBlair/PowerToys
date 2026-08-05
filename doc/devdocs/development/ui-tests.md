@@ -12,12 +12,12 @@ Two repository skills cover the complete implementation and validation loop:
 - [UI-tests migration skill](../../../.github/skills/ui-tests-migration/SKILL.md): create new
   `.Next` test projects, port legacy WinAppDriver tests, design stable selectors/waits/lifecycle, and
   prepare tests for CI.
-- [Windows Sandbox UI-tests skill](../../../.github/skills/windows-sandbox-ui-tests/SKILL.md): enable
-  and launch Windows Sandbox, package current build/test artifacts, execute tests in a clean
-  interactive desktop, collect TRX/logs/screenshots, compare revisions, and tear down automatically.
+- [Local VM UI-tests skill](../../../.github/skills/ui-tests-local-vm/SKILL.md): scaffold and reuse
+  persistent dockur/windows VMs, stage current build/test artifacts, execute tests in an interactive
+  standard-user desktop, and collect TRX/logs/screenshots.
 
-For new or migrated tests, use both skills. Build first, then use Windows Sandbox as the default live
-agentic loop: run one deterministic test, diagnose and fix it, and finally widen to the module suite.
+For new or migrated tests, use both skills. Build first, then use a local VM for the live agentic
+loop: run one deterministic test, diagnose and fix it, and finally widen to the module suite.
 
 ## Before running tests
 
@@ -71,82 +71,41 @@ a larger value for a module or project-wide run.
 
 - Run tests in the Test Explorer (`Test > Test Explorer` or `Ctrl+E, T`).
 
-## Running `.Next` tests in Windows Sandbox
+## Running `.Next` tests in a local VM
 
-Windows Sandbox provides a disposable interactive desktop and clean user profile. It is the preferred
-local environment for the agentic creation/migration loop because it reveals first-run, profile,
-Explorer, WebView2, foreground, and process-lifecycle assumptions without changing the host profile.
+The local-VM workflow uses persistent dockur/windows guests on Docker Desktop with WSL2/KVM. It keeps
+PowerToys and the tests off the host while providing a real interactive standard-user desktop for
+Explorer, hotkeys, WebView2, foreground input, and visual checks.
 
-### Enable Sandbox
-
-From an elevated PowerShell window:
+Scaffold the VM outside the repository:
 
 ```pwsh
-Enable-WindowsOptionalFeature `
-  -Online `
-  -FeatureName Containers-DisposableClientVM `
-  -All `
-  -NoRestart
+pwsh .github\skills\ui-tests-local-vm\scripts\Initialize-LocalVm.ps1 `
+  -DestinationRoot X:\PowerToysUiTestVm
 ```
 
-Reboot if requested. Verify `wsb.exe`, the Store Sandbox package, and Start AppID as described in the
-[Sandbox skill setup reference](../../../.github/skills/windows-sandbox-ui-tests/references/setup.md).
-
-### Run the agentic loop
-
-Create a dedicated exchange containing zipped test output, PowerToys runtime, winappcli, a private
-.NET runtime, the guest template, and optional signed WebView2 installer. Do not map the repository or
-run tests directly from a mapped folder; extract archives to guest-local storage.
-
-Stage those archives before invoking the controller; see the
-[agentic loop payload steps](../../../.github/skills/windows-sandbox-ui-tests/references/agentic-loop.md).
+Follow the [setup reference](../../../.github/skills/ui-tests-local-vm/references/setup.md) to create
+the untracked `.env`, start the VM, and save the DPAPI-protected administrator credential. Stage the
+test output, PowerToys runtime, winappcli, and matching .NET runtime as described in the
+[agentic loop reference](../../../.github/skills/ui-tests-local-vm/references/agentic-loop.md), then
+run a focused test:
 
 ```pwsh
-$exchange = 'C:\Temp\PowerToysSandbox\<Module>'
-pwsh .github\skills\windows-sandbox-ui-tests\scripts\Invoke-SandboxUiTest.ps1 `
-  -ExchangeRoot $exchange `
+pwsh .github\skills\ui-tests-local-vm\scripts\Invoke-LocalVmUiTest.ps1 `
+  -VmRoot X:\PowerToysUiTestVm `
+  -ExchangeRoot X:\PowerToysUiTestVm\shared\PowerToysUiTests\<Module> `
   -TestExecutable '<Module>.UITests.Next.exe' `
-  -Filter 'TestCategory=<Module>' `
-  -Platform x64Win11 `
+  -Filter 'Name=<focused-test>' `
+  -Platform x64Win10 `
   -BuildLabel (git rev-parse HEAD) `
-  -CleanupProcess 'PowerToys.<Module>.UI' `
-  -ProcessorAffinityMask 0x3 `
-  -DesktopWidth 1920 `
-  -DesktopHeight 1080 `
-  -InstallWebView2
+  -SuiteTimeout 15m `
+  -TimeoutMinutes 25 `
+  -ReuseStagedPayload
 ```
 
-The controller launches Sandbox through its registered Start-menu AppID, waits for the interactive
-`WDAGUtilityAccount` login, dynamically shares the lean exchange, runs as `ExistingLogin`, streams
-progress, returns `status.json` and TRX artifacts, and stops the exact guest in `finally`.
-
-By default, the guest runner and its directly launched descendants (the test host, PowerToys,
-winappcli, and module processes) are limited to logical processors 0 and 1 with affinity mask `0x3`.
-Pass another mask to select a different CPU set or `0` to disable affinity limiting. Sandbox has no
-supported vCPU-count/VM-affinity setting; changing host `WindowsSandboxServer.exe` affinity does not
-throttle guest execution. The mask selects guest vCPUs and limits process concurrency; it does not
-pin the Sandbox VM to those same numbered host CPUs.
-
-Sandbox has no direct resolution configuration. After login, the controller measures guest pixels,
-resizes the host Sandbox window, and verifies 1920x1080 by default before dispatching tests. Set both
-desktop dimensions to `0` to disable this behavior.
-
-For a fast edit/build/rerun loop, retain the first guest with `-KeepSandbox`. After rebuilding, replace
-only the changed archive in the exchange and rerun with the returned `SandboxId`,
-`-ReuseSandboxId`, and `-ReuseStagedPayload`. Per-component hashes refresh only changed tests,
-product, winappcli, or .NET files; unchanged SDK/runtime payloads and WebView2 stay staged. No guest
-service is required because `wsb share` and `wsb exec` provide the file and command channels. Use a
-fresh Sandbox for final clean-profile validation.
-
-Timeouts are independently adjustable. The Sandbox controller defaults to a two-hour guest suite and
-a 150-minute host deadline so broad project runs can complete. Tighten both for focused/module runs,
-or increase both for a known longer suite; the host deadline must include startup, staging, execution,
-and result export. WebView/Monaco tests need WebView2 provisioning. Verified resolution does not
-eliminate DPI/theme/renderer/compositor differences, so preserve visual baselines/thresholds and use
-the matching CI/VM environment for final pixel sign-off.
-
-See the complete [agentic loop](../../../.github/skills/windows-sandbox-ui-tests/references/agentic-loop.md)
-and [troubleshooting guide](../../../.github/skills/windows-sandbox-ui-tests/references/troubleshooting.md).
+Use Windows 10 for the baseline pass and a separate Windows 11 VM for behavior that explicitly
+depends on Windows 11, such as the tier-1 Explorer context menu. The VM remains running for fast
+iteration; restore a known baseline or recreate its volume before claiming clean-profile coverage.
 
 ## Running tests in pipeline
 

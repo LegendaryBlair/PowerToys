@@ -34,6 +34,7 @@ public class PeekFilePreviewTests : UITestBase
     private static object? originalAppsUseLightThemeValue;
     private static RegistryValueKind originalAppsUseLightThemeValueKind;
     private static bool restoreAppsUseLightTheme;
+    private static readonly IDisposable OriginalPeekSettings = SettingsConfigHelper.PreserveModuleSettings("Peek");
 
     public PeekFilePreviewTests()
         : base(PowerToysModule.PowerToysSettings, WindowSize.Small_Vertical, enableModules: new[] { "Peek" })
@@ -74,15 +75,15 @@ public class PeekFilePreviewTests : UITestBase
     }
 
     [ClassCleanup]
-    public static void RestoreAppTheme()
+    public static void RestoreSettingsAndAppTheme()
     {
-        if (!restoreAppsUseLightTheme)
-        {
-            return;
-        }
-
         try
         {
+            if (!restoreAppsUseLightTheme)
+            {
+                return;
+            }
+
             using var key = Registry.CurrentUser.CreateSubKey(PersonalizeRegistryPath);
             if (appsUseLightThemeValueExisted)
             {
@@ -95,6 +96,10 @@ public class PeekFilePreviewTests : UITestBase
         }
         catch
         {
+        }
+        finally
+        {
+            OriginalPeekSettings.Dispose();
         }
     }
 

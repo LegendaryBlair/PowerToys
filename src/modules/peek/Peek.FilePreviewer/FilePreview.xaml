@@ -27,6 +27,7 @@
             Height="1"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
+            AutomationProperties.AccessibilityView="Raw"
             AutomationProperties.AutomationId="PreviewStateAutomationPeer"
             IsHitTestVisible="False"
             Opacity="0"

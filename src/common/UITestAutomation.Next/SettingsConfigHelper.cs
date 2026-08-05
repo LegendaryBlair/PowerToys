@@ -62,6 +62,22 @@ public static class SettingsConfigHelper
     private static string GlobalSettingsPath => Path.Combine(PowerToysSettingsRoot, "settings.json");
 
     /// <summary>
+    /// Capture a module's settings file so a UI-test class can restore it during class cleanup.
+    /// </summary>
+    public static IDisposable PreserveModuleSettings(string moduleName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
+        return PreserveSettingsFile(Path.Combine(PowerToysSettingsRoot, moduleName, "settings.json"));
+    }
+
+    internal static IDisposable PreserveSettingsFile(string settingsPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(settingsPath);
+        var existed = File.Exists(settingsPath);
+        return new SettingsFileRestoreScope(settingsPath, existed, existed ? File.ReadAllText(settingsPath) : null);
+    }
+
+    /// <summary>
     /// Enable exactly the named modules in the global <c>settings.json</c> and disable every other
     /// known or already-listed module. Module names are the keys under <c>"enabled"</c>
     /// (e.g. "FancyZones", "ColorPicker", "Peek"). Creates the file and keys when missing.
@@ -180,5 +196,29 @@ public static class SettingsConfigHelper
         updateSettingsAction(settings);
 
         File.WriteAllText(settingsPath, settings.ToJsonString(Indented));
+    }
+
+    private sealed class SettingsFileRestoreScope(string settingsPath, bool existed, string? content) : IDisposable
+    {
+        private bool disposed;
+
+        public void Dispose()
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            if (existed)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+                File.WriteAllText(settingsPath, content!);
+            }
+            else
+            {
+                File.Delete(settingsPath);
+            }
+        }
     }
 }

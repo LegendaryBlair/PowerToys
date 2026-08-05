@@ -118,6 +118,7 @@ public sealed class ImageResizerEndToEndTests : UITestBase
             AssertContextMenuPresence(explorer, new[] { fixture }, expected: false);
 
             toggle = SetModuleEnabled(toggle, true);
+            contextMenuExplorerRefreshed = false;
             explorer = OpenExplorer(folder);
             AssertContextMenuPresence(explorer, new[] { fixture }, expected: true);
         }
@@ -712,7 +713,8 @@ public sealed class ImageResizerEndToEndTests : UITestBase
 
     // Both context-menu handlers are registered at runtime when the module is enabled (the classic
     // registry-COM handler always, plus the modern sparse-MSIX package on signed builds). An
-    // Explorer that was already running only surfaces them after the shell restarts, so do it once.
+    // Explorer that was already running only surfaces them after the shell restarts, so do it once
+    // for each registration state exercised by the test.
     private static void EnsureContextMenuHandlerLoaded()
     {
         if (contextMenuExplorerRefreshed)

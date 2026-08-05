@@ -81,4 +81,50 @@ public class SettingsConfigHelperTests
         Assert.IsFalse(enabled["ExistingFutureModule"]!.GetValue<bool>());
         Assert.IsTrue(enabled["RequestedFutureModule"]!.GetValue<bool>());
     }
+
+    [TestMethod]
+    public void PreserveSettingsFileRestoresExistingContent()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"UITestAutomation.Next-{Guid.NewGuid():N}");
+        var settingsPath = Path.Combine(directory, "settings.json");
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(settingsPath, "original");
+
+            using (SettingsConfigHelper.PreserveSettingsFile(settingsPath))
+            {
+                File.WriteAllText(settingsPath, "changed");
+            }
+
+            Assert.AreEqual("original", File.ReadAllText(settingsPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void PreserveSettingsFileRemovesFileCreatedDuringScope()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"UITestAutomation.Next-{Guid.NewGuid():N}");
+        var settingsPath = Path.Combine(directory, "settings.json");
+
+        try
+        {
+            using (SettingsConfigHelper.PreserveSettingsFile(settingsPath))
+            {
+                Directory.CreateDirectory(directory);
+                File.WriteAllText(settingsPath, "created");
+            }
+
+            Assert.IsFalse(File.Exists(settingsPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }

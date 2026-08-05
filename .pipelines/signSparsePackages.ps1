@@ -15,12 +15,13 @@ Run this on the test agent AFTER the build is downloaded/installed and BEFORE Po
 module. For every package it:
   1. reads the manifest Publisher subject,
   2. ensures a self-signed code-signing certificate with that exact subject exists,
-  3. force-trusts that certificate (LocalMachine + CurrentUser Root and TrustedPeople), and
+  3. force-trusts that certificate in LocalMachine Root and LocalMachine/CurrentUser TrustedPeople,
   4. signs the package with signtool.
 
 This asserts NO security -- it is a test-only trust anchor for validating normal app usage. It only
 signs packages that are not already validly signed (unless -Force), so real framework packages
-(VCLibs, WindowsAppSDK) are left untouched.
+(VCLibs, WindowsAppSDK) are left untouched. Trust entries are not removed automatically, so use this
+only on disposable CI agents or isolated test VMs.
 
 .PARAMETER PackageRoot
 One or more folders to search recursively for sparse packages. Missing folders are skipped, so you
@@ -32,6 +33,10 @@ Filename patterns to sign. Defaults to *.msix and *.appx.
 
 .PARAMETER Force
 Re-sign even packages that already carry a valid signature.
+
+.PARAMETER RequireSuccess
+Fail when no matching package can be signed and trusted. Use this for UI tests that require a sparse
+package instead of a classic fallback.
 
 .EXAMPLE
 .\signSparsePackages.ps1 -PackageRoot "$env:ProgramFiles\PowerToys\WinUI3Apps"
@@ -47,7 +52,9 @@ param(
     [Parameter()]
     [string[]]$Include = @('*.msix', '*.appx'),
 
-    [switch]$Force
+    [switch]$Force,
+
+    [switch]$RequireSuccess
 )
 
 $ErrorActionPreference = 'Stop'
@@ -200,6 +207,10 @@ function Get-TrustedSigningCert {
     Import-CertTrust -CerPath $cerPath -Thumbprint $cert.Thumbprint -StorePath 'Cert:\LocalMachine\TrustedPeople' -Optional | Out-Null
     Import-CertTrust -CerPath $cerPath -Thumbprint $cert.Thumbprint -StorePath 'Cert:\CurrentUser\TrustedPeople' -Optional | Out-Null
     if (-not $rootTrusted) {
+        if ($RequireSuccess) {
+            throw "Could not establish machine root trust for '$Subject'. Run the signing step elevated."
+        }
+
         Write-Warning "Could not establish machine root trust for '$Subject' (run elevated). Signed packages may not register."
     }
 
@@ -223,16 +234,23 @@ foreach ($root in $PackageRoot) {
 $packages = $packages | Sort-Object FullName -Unique
 
 if (-not $packages) {
-    Write-Host "No packages found under: $($PackageRoot -join ', ')"
+    $message = "No packages matching '$($Include -join ', ')' were found under: $($PackageRoot -join ', ')"
+    if ($RequireSuccess) {
+        throw $message
+    }
+
+    Write-Host $message
     return
 }
 
 $signed = 0
+$valid = 0
 foreach ($pkg in $packages) {
     if (-not $Force) {
         $existing = Get-AuthenticodeSignature -FilePath $pkg.FullName
         if ($existing.Status -eq 'Valid') {
             Write-Host "Already validly signed, skipping: $($pkg.Name)"
+            $valid++
             continue
         }
     }
@@ -240,6 +258,10 @@ foreach ($pkg in $packages) {
     $publisher = $null
     try { $publisher = Get-PackagePublisher -PackagePath $pkg.FullName } catch { }
     if (-not $publisher) {
+        if ($RequireSuccess) {
+            throw "No manifest publisher was found in required package '$($pkg.FullName)'."
+        }
+
         Write-Host "No manifest publisher, skipping: $($pkg.Name)"
         continue
     }
@@ -248,6 +270,10 @@ foreach ($pkg in $packages) {
     Write-Host "Signing $($pkg.Name)  (Publisher: $publisher)"
     & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint $pkg.FullName
     if ($LASTEXITCODE -ne 0) {
+        if ($RequireSuccess) {
+            throw "signtool failed for required package '$($pkg.FullName)' (exit $LASTEXITCODE)."
+        }
+
         Write-Warning "signtool failed for $($pkg.Name) (exit $LASTEXITCODE)"
         continue
     }
@@ -255,10 +281,18 @@ foreach ($pkg in $packages) {
     $verify = Get-AuthenticodeSignature -FilePath $pkg.FullName
     if ($verify.Status -eq 'Valid') {
         $signed++
+        $valid++
     }
     else {
+        if ($RequireSuccess) {
+            throw "Signature was not valid after signing required package '$($pkg.FullName)': $($verify.Status)."
+        }
+
         Write-Warning "Signature not Valid after signing $($pkg.Name): $($verify.Status)"
     }
 }
 
 Write-Host "Signed $signed package(s) with a trusted test certificate."
+if ($RequireSuccess -and $valid -eq 0) {
+    throw "No required sparse package was validly signed and trusted."
+}

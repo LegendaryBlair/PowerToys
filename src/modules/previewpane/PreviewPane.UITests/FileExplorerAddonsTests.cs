@@ -55,6 +55,7 @@ public class FileExplorerAddonsTests : UITestBase
     };
 
     private static readonly object ExplorerPreparationLock = new();
+    private static readonly IDisposable OriginalFileExplorerSettings = SettingsConfigHelper.PreserveModuleSettings("File Explorer");
     private static List<SandboxThumbnailRegistration>? sandboxThumbnailRegistrations;
     private static bool explorerPrepared;
 
@@ -114,17 +115,24 @@ public class FileExplorerAddonsTests : UITestBase
     [ClassCleanup]
     public static void CleanupClass()
     {
-        if (sandboxThumbnailRegistrations is null)
+        try
         {
-            return;
-        }
+            if (sandboxThumbnailRegistrations is null)
+            {
+                return;
+            }
 
-        for (var index = sandboxThumbnailRegistrations.Count - 1; index >= 0; index--)
+            for (var index = sandboxThumbnailRegistrations.Count - 1; index >= 0; index--)
+            {
+                sandboxThumbnailRegistrations[index].Dispose();
+            }
+
+            sandboxThumbnailRegistrations = null;
+        }
+        finally
         {
-            sandboxThumbnailRegistrations[index].Dispose();
+            OriginalFileExplorerSettings.Dispose();
         }
-
-        sandboxThumbnailRegistrations = null;
     }
 
     [TestInitialize]
