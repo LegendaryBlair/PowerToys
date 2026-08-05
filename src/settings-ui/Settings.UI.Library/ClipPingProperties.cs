@@ -14,12 +14,13 @@ namespace Microsoft.PowerToys.Settings.UI.Library
         public ClipPingProperties()
         {
             OverlayColor = new StringProperty(DefaultOverlayColor);
+            OverlayType = ClipPingOverlay.Top;
         }
 
         public StringProperty OverlayColor { get; set; }
 
         public ClipPingOverlay OverlayType { get; set; }
 
-        public string ToJsonString() => JsonSerializer.Serialize(this);
+        public string ToJsonString() => JsonSerializer.Serialize(this, SettingsSerializationContext.Default.ClipPingProperties);
     }
 }

@@ -102,6 +102,18 @@ namespace ViewModelTests
             CollectionAssert.Contains(changedProperties, nameof(ClipPingViewModel.IsEnabledGpoConfigured));
         }
 
+        [TestMethod]
+        public void ClipPingProperties_ShouldSerializeDefaultOverlayType()
+        {
+            var properties = new ClipPingProperties();
+
+            var json = properties.ToJsonString();
+            var deserializedProperties = JsonSerializer.Deserialize(json, SettingsSerializationContext.Default.ClipPingProperties);
+
+            Assert.IsNotNull(deserializedProperties);
+            Assert.AreEqual(ClipPingOverlay.Top, deserializedProperties.OverlayType);
+        }
+
         private ClipPingViewModel CreateViewModel(Func<string, int> ipcCallback = null)
         {
             var generalSettingsUtils = new Mock<SettingsUtils>(new FileSystem(), null);
