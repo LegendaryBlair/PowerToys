@@ -51,10 +51,10 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private void InitializeEnabledValue()
         {
             _enabledGpoRuleConfiguration = GPOWrapper.GetConfiguredClipPingEnabledValue();
-            if (_enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled)
+            _enabledStateIsGpoConfigured = _enabledGpoRuleConfiguration == GpoRuleConfigured.Disabled || _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled;
+            if (_enabledStateIsGpoConfigured)
             {
                 // Get the enabled state from GPO.
-                _enabledStateIsGpoConfigured = true;
                 _isEnabled = _enabledGpoRuleConfiguration == GpoRuleConfigured.Enabled;
             }
             else
@@ -139,6 +139,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         {
             InitializeEnabledValue();
             OnPropertyChanged(nameof(IsEnabled));
+            OnPropertyChanged(nameof(IsEnabledGpoConfigured));
         }
     }
 }

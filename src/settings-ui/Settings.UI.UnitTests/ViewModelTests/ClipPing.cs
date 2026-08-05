@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.Text.Json;
 
@@ -80,6 +81,25 @@ namespace ViewModelTests
                     ClipPingSettings.ModuleName,
                     It.IsAny<string>()),
                 Times.Once);
+        }
+
+        [TestMethod]
+        public void RefreshEnabledState_ShouldNotifyEnabledAndGpoState()
+        {
+            var viewModel = CreateViewModel();
+            var changedProperties = new List<string>();
+            viewModel.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName != null)
+                {
+                    changedProperties.Add(args.PropertyName);
+                }
+            };
+
+            viewModel.RefreshEnabledState();
+
+            CollectionAssert.Contains(changedProperties, nameof(ClipPingViewModel.IsEnabled));
+            CollectionAssert.Contains(changedProperties, nameof(ClipPingViewModel.IsEnabledGpoConfigured));
         }
 
         private ClipPingViewModel CreateViewModel(Func<string, int> ipcCallback = null)
