@@ -182,16 +182,19 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                             // Runtime 150+ no longer serves UNC/network paths through
                             // SetVirtualHostNameToFolderMapping, so the image bytes are read here
                             // after re-validating the resolved path against the allowed base path.
-                            if (_allowLocalImages && e.Request.Uri.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase))
+                            if (_allowLocalImages &&
+                                e.ResourceContext == CoreWebView2WebResourceContext.Image &&
+                                e.Request.Uri.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase))
                             {
                                 Stream imageStream = null;
                                 try
                                 {
-                                    if (FilePreviewCommon.HTMLParsingExtension.TryOpenVirtualImage(e.Request.Uri, _allowedBasePath, out imageStream, out string imagePath))
+                                    if (FilePreviewCommon.HTMLParsingExtension.TryOpenVirtualImage(e.Request.Uri, _allowedBasePath, out imageStream, out string imagePath) &&
+                                        FilePreviewCommon.HTMLParsingExtension.TryGetImageContentType(imagePath, out string contentType))
                                     {
                                         // Stream directly from disk rather than buffering the whole image
                                         // in memory; WebView2 reads and disposes the stream.
-                                        e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + GetImageContentType(imagePath) + "\r\n");
+                                        e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + contentType + "\r\n");
                                         imageStream = null;
                                         return;
                                     }
@@ -350,28 +353,6 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
             {
                 _infoBar.Width = Width;
             }
-        }
-
-        /// <summary>
-        /// Returns the HTTP Content-Type for an image file based on its extension.
-        /// </summary>
-        /// <param name="imagePath">Path of the image file.</param>
-        /// <returns>The content type string.</returns>
-        private static string GetImageContentType(string imagePath)
-        {
-            return Path.GetExtension(imagePath).ToUpperInvariant() switch
-            {
-                ".PNG" => "image/png",
-                ".JPG" or ".JPEG" => "image/jpeg",
-                ".GIF" => "image/gif",
-                ".BMP" => "image/bmp",
-                ".WEBP" => "image/webp",
-                ".SVG" => "image/svg+xml",
-                ".ICO" => "image/x-icon",
-                ".TIF" or ".TIFF" => "image/tiff",
-                ".AVIF" => "image/avif",
-                _ => "application/octet-stream",
-            };
         }
 
         /// <summary>

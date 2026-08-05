@@ -68,7 +68,14 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                         string quote = isQuoted ? m.Groups[2].Value : "\"";
                         string src = isQuoted ? m.Groups[3].Value : m.Groups[4].Value;
 
-                        if (src == "#" || src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase))
+                        if (src == "#")
+                        {
+                            return m.Value;
+                        }
+
+                        if (src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase) &&
+                            HTMLParsingExtension.TryResolveVirtualUrl(src, extension.AllowedBasePath, out string? resolvedPath) &&
+                            HTMLParsingExtension.TryGetImageContentType(resolvedPath, out _))
                         {
                             return m.Value;
                         }

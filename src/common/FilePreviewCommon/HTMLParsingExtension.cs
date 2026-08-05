@@ -104,6 +104,32 @@ namespace Microsoft.PowerToys.FilePreviewCommon
         }
 
         /// <summary>
+        /// Gets the HTTP content type for a supported image path.
+        /// </summary>
+        /// <param name="imagePath">Path of the image file.</param>
+        /// <param name="contentType">The image content type on success.</param>
+        /// <returns>True if the file extension is a supported image type.</returns>
+        public static bool TryGetImageContentType(string? imagePath, [NotNullWhen(true)] out string? contentType)
+        {
+            string extension = Path.GetExtension(imagePath) ?? string.Empty;
+            contentType = extension.ToUpperInvariant() switch
+            {
+                ".PNG" => "image/png",
+                ".JPG" or ".JPEG" => "image/jpeg",
+                ".GIF" => "image/gif",
+                ".BMP" => "image/bmp",
+                ".WEBP" => "image/webp",
+                ".SVG" => "image/svg+xml",
+                ".ICO" => "image/x-icon",
+                ".TIF" or ".TIFF" => "image/tiff",
+                ".AVIF" => "image/avif",
+                _ => null,
+            };
+
+            return contentType != null;
+        }
+
+        /// <summary>
         /// Validates that a local image URL resolves to a path inside the allowed base path and
         /// computes the corresponding virtual host URL. Returns false for remote URLs, URI schemes
         /// (data:, javascript:, file:, ...), path traversal outside the base path and malformed paths.
@@ -133,6 +159,11 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                 string basePath = Path.GetFullPath(effectiveBasePath);
                 string decodedUrl = Uri.UnescapeDataString(url);
                 string resolvedPath = Path.GetFullPath(Path.Combine(markdownDirectory, decodedUrl));
+                if (!TryGetImageContentType(resolvedPath, out _))
+                {
+                    return false;
+                }
+
                 string relativePath = Path.GetRelativePath(basePath, resolvedPath);
 
                 if (relativePath == "." || relativePath == ".." ||

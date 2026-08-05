@@ -180,6 +180,7 @@ namespace PreviewPaneUnitTests
         [DataRow("..%2Fsecret.png", @"C:\docs", @"C:\docs")]
         [DataRow("..%5Csecret.png", @"C:\docs", @"C:\docs")]
         [DataRow("C%3A%5Cother%5Csecret.png", @"C:\docs", @"C:\docs")]
+        [DataRow("secret.txt", @"C:\docs", @"C:\docs")]
         [DataRow("", @"C:\docs", @"C:\docs")]
         [DataRow("image.png", "", @"C:\docs")]
         [DataRow("image.png", "docs", @"C:\docs")]
@@ -227,6 +228,7 @@ namespace PreviewPaneUnitTests
         [DataRow("<img src='images/test.png' />")]
         [DataRow("<img src=images/test.png />")]
         [DataRow("<img alt=\"x\" SRC = \"images/test.png\" />")]
+        [DataRow("<img src=\"https://localmdimages/images/test.png\" />")]
         public void RawHtmlImageIsRewrittenForEveryQuoteStyle(string mdString)
         {
             string html = Microsoft.PowerToys.FilePreviewCommon.MarkdownHelper.MarkdownHtml(
@@ -241,6 +243,8 @@ namespace PreviewPaneUnitTests
         [DataRow("<img src=https://example.com/track.png />")]
         [DataRow("<img src='../secret.png' />")]
         [DataRow("<img src='data:image/png;base64,iVBORw0KGgo=' />")]
+        [DataRow("<img src='https://localmdimages/..%2Fsecret.png' />")]
+        [DataRow("<img src='https://localmdimages/secret.txt' />")]
         public void RawHtmlImageIsBlockedForEveryQuoteStyle(string mdString)
         {
             int blockedCount = 0;
