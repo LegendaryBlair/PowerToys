@@ -190,6 +190,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                                         // in memory. The wrapper closes at EOF, and the control retains it
                                         // as a fallback until the next preview or control disposal.
                                         e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + contentType + "\r\n");
+                                        _imageResponseStreams.RemoveAll(stream => !stream.CanRead);
                                         _imageResponseStreams.Add(imageStream);
                                         imageStream = null;
                                         return;

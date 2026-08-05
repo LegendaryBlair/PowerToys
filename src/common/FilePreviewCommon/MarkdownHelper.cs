@@ -50,44 +50,47 @@ namespace Microsoft.PowerToys.FilePreviewCommon
             MarkdownPipeline pipeline = pipelineBuilder.Build();
             string parsedMarkdown = Markdown.ToHtml(fileContent, pipeline);
 
-            // Rewrite src attributes of raw HTML <img> tags with the same path validation as the
-            // Markdig AST layer. When local images are disabled, every source is blocked. When they
-            // are enabled, only supported images inside the allowed base path pass through.
-            // Matches double-quoted, single-quoted and unquoted src values, so that every form
-            // an author can write is validated the same way. Unquoted values are re-emitted
-            // quoted, which is equivalent HTML.
-            parsedMarkdown = Regex.Replace(
-                parsedMarkdown,
-                @"(<img\b[^>]*?\ssrc\s*=\s*)(?:(""|')(.+?)\2|([^\s""'>]+))",
-                m =>
-                {
-                    bool isQuoted = m.Groups[2].Success;
-                    string quote = isQuoted ? m.Groups[2].Value : "\"";
-                    string src = isQuoted ? m.Groups[3].Value : m.Groups[4].Value;
-
-                    if (src == "#")
+            if (parsedMarkdown.Contains("<img", StringComparison.OrdinalIgnoreCase))
+            {
+                // Rewrite src attributes of raw HTML <img> tags with the same path validation as the
+                // Markdig AST layer. When local images are disabled, every source is blocked. When they
+                // are enabled, only supported images inside the allowed base path pass through.
+                // Matches double-quoted, single-quoted and unquoted src values, so that every form
+                // an author can write is validated the same way. Unquoted values are re-emitted
+                // quoted, which is equivalent HTML.
+                parsedMarkdown = Regex.Replace(
+                    parsedMarkdown,
+                    @"(<img\b[^>]*?\ssrc\s*=\s*)(?:(""|')(.+?)\2|([^\s""'>]+))",
+                    m =>
                     {
-                        return m.Value;
-                    }
+                        bool isQuoted = m.Groups[2].Success;
+                        string quote = isQuoted ? m.Groups[2].Value : "\"";
+                        string src = isQuoted ? m.Groups[3].Value : m.Groups[4].Value;
 
-                    if (allowLocalImages &&
-                        src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase) &&
-                        HTMLParsingExtension.TryResolveVirtualUrl(src, extension.AllowedBasePath, out string? resolvedPath) &&
-                        HTMLParsingExtension.TryGetImageContentType(resolvedPath, out _))
-                    {
-                        return m.Value;
-                    }
+                        if (src == "#")
+                        {
+                            return m.Value;
+                        }
 
-                    if (allowLocalImages &&
-                        HTMLParsingExtension.TryGetLocalImageVirtualUrl(src, extension.FilePath, extension.AllowedBasePath, out string? virtualUrl))
-                    {
-                        return m.Groups[1].Value + quote + virtualUrl + quote;
-                    }
+                        if (allowLocalImages &&
+                            src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase) &&
+                            HTMLParsingExtension.TryResolveVirtualUrl(src, extension.AllowedBasePath, out string? resolvedPath) &&
+                            HTMLParsingExtension.TryGetImageContentType(resolvedPath, out _))
+                        {
+                            return m.Value;
+                        }
 
-                    imagesBlockedCallBack();
-                    return m.Groups[1].Value + quote + "#" + quote;
-                },
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                        if (allowLocalImages &&
+                            HTMLParsingExtension.TryGetLocalImageVirtualUrl(src, extension.FilePath, extension.AllowedBasePath, out string? virtualUrl))
+                        {
+                            return m.Groups[1].Value + quote + virtualUrl + quote;
+                        }
+
+                        imagesBlockedCallBack();
+                        return m.Groups[1].Value + quote + "#" + quote;
+                    },
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            }
 
             string markdownHTML = $"{htmlHeader}{parsedMarkdown}{HtmlFooter}";
             return markdownHTML;
