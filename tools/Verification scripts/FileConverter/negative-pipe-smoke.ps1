@@ -79,6 +79,42 @@ function Send-PipePayload {
     }
 }
 
+function Get-NewLogContent {
+    param(
+        [string]$Path,
+        [long]$Offset
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return ""
+    }
+
+    $stream = [System.IO.FileStream]::new(
+        $Path,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::ReadWrite
+    )
+
+    try {
+        if ($Offset -gt $stream.Length) {
+            $Offset = 0
+        }
+
+        $null = $stream.Seek($Offset, [System.IO.SeekOrigin]::Begin)
+        $reader = [System.IO.StreamReader]::new($stream)
+        try {
+            return $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 $powerToysExe = Join-Path $RepoRoot "x64\Debug\PowerToys.exe"
 $sampleInput = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\sample.bmp"
 $outputFile = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\sample_converted.png"
@@ -108,14 +144,28 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
         Remove-Item -LiteralPath $outputFile -Force
     }
 
+    $logOffset = if (Test-Path -LiteralPath $runnerLog) {
+        (Get-Item -LiteralPath $runnerLog).Length
+    }
+    else {
+        0
+    }
+
     $sendResult = Send-PipePayload `
         -PipeSimpleName $pipeSimpleName `
         -Payload $case.Payload `
         -ConnectTimeoutMs $PipeConnectTimeoutMs `
         -Attempts $SendAttempts
 
+    $rejectionObserved = $false
     $deadline = [DateTime]::UtcNow.AddSeconds(2)
-    while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path -LiteralPath $outputFile)) {
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $newLogContent = Get-NewLogContent -Path $runnerLog -Offset $logOffset
+        $rejectionObserved = $newLogContent -match "Rejected unauthenticated File Converter pipe client"
+        if ($rejectionObserved -or (Test-Path -LiteralPath $outputFile)) {
+            break
+        }
+
         Start-Sleep -Milliseconds 50
     }
 
@@ -128,8 +178,9 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
         Case = $case.Name
         PipeConnected = $sendResult.Connected
         PayloadWritten = $sendResult.Written
+        RejectionLogged = $rejectionObserved
         OutputCreated = $createdOutput
-        Passed = ($sendResult.Connected -and -not $createdOutput)
+        Passed = ($sendResult.Connected -and $rejectionObserved -and -not $createdOutput)
     }
 
     if (-not $LeavePowerToysRunning -or $caseIndex -lt ($cases.Count - 1)) {

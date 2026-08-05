@@ -12,6 +12,37 @@
 
 namespace
 {
+    class OutputFileCleanup
+    {
+    public:
+        explicit OutputFileCleanup(const std::wstring& path) :
+            m_path(path)
+        {
+        }
+
+        ~OutputFileCleanup()
+        {
+            if (m_armed)
+            {
+                DeleteFileW(m_path.c_str());
+            }
+        }
+
+        void Arm()
+        {
+            m_armed = true;
+        }
+
+        void Release()
+        {
+            m_armed = false;
+        }
+
+    private:
+        const std::wstring& m_path;
+        bool m_armed = false;
+    };
+
     std::wstring LoadLocalizedString(std::wstring_view key, std::wstring_view fallback)
     {
         try
@@ -240,6 +271,7 @@ namespace file_converter
             return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_ReadPixelFormatFailed", L"Failed reading source pixel format."), hr) };
         }
 
+        OutputFileCleanup output_cleanup(output_path);
         Microsoft::WRL::ComPtr<IWICStream> output_stream;
         hr = factory->CreateStream(&output_stream);
         if (FAILED(hr))
@@ -252,6 +284,7 @@ namespace file_converter
         {
             return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_OpenOutputFailed", L"Failed opening output path."), hr) };
         }
+        output_cleanup.Arm();
 
         Microsoft::WRL::ComPtr<IWICBitmapEncoder> encoder;
         hr = factory->CreateEncoder(ContainerFormatFor(format), nullptr, &encoder);
@@ -339,6 +372,7 @@ namespace file_converter
             return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CommitEncoderFailed", L"Failed committing encoder."), hr) };
         }
 
+        output_cleanup.Release();
         return { S_OK, L"" };
     }
 }

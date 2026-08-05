@@ -358,6 +358,16 @@ namespace
             return E_INVALIDARG;
         }
 
+        std::string payload;
+        try
+        {
+            payload = BuildFormatConvertPayload(paths, target->destination);
+        }
+        catch (...)
+        {
+            return winrt::to_hresult();
+        }
+
         const std::wstring pipe_name = GetPipeNameForCurrentSession();
         if (!WaitNamedPipeW(pipe_name.c_str(), PIPE_CONNECT_TIMEOUT_MS))
         {
@@ -377,8 +387,6 @@ namespace
         {
             return HRESULT_FROM_WIN32(GetLastError());
         }
-
-        const std::string payload = BuildFormatConvertPayload(paths, target->destination);
 
         DWORD bytes_written = 0;
         const BOOL write_result = WriteFile(
