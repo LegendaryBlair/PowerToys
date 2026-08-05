@@ -530,6 +530,11 @@ namespace
                 return E_POINTER;
             }
 
+            if (celt != 1 && pcelt_fetched == nullptr)
+            {
+                return E_POINTER;
+            }
+
             ULONG fetched = 0;
             if (pcelt_fetched != nullptr)
             {
