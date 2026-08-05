@@ -184,28 +184,21 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                             // after re-validating the resolved path against the allowed base path.
                             if (_allowLocalImages && e.Request.Uri.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase))
                             {
-                                if (FilePreviewCommon.HTMLParsingExtension.TryResolveVirtualUrl(e.Request.Uri, _allowedBasePath, out string imagePath) && File.Exists(imagePath))
+                                Stream imageStream = null;
+                                try
                                 {
-                                    Stream imageStream = null;
-                                    try
+                                    if (FilePreviewCommon.HTMLParsingExtension.TryOpenVirtualImage(e.Request.Uri, _allowedBasePath, out imageStream, out string imagePath))
                                     {
                                         // Stream directly from disk rather than buffering the whole image
                                         // in memory; WebView2 reads and disposes the stream.
-                                        imageStream = File.OpenRead(imagePath);
                                         e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + GetImageContentType(imagePath) + "\r\n");
                                         imageStream = null;
                                         return;
                                     }
-                                    catch (IOException)
-                                    {
-                                    }
-                                    catch (UnauthorizedAccessException)
-                                    {
-                                    }
-                                    finally
-                                    {
-                                        imageStream?.Dispose();
-                                    }
+                                }
+                                finally
+                                {
+                                    imageStream?.Dispose();
                                 }
 
                                 e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", null);

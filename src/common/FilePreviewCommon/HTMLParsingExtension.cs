@@ -5,6 +5,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Runtime.InteropServices;
 
 using Markdig;
 using Markdig.Extensions.Figures;
@@ -13,6 +14,7 @@ using Markdig.Renderers;
 using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using Microsoft.Win32.SafeHandles;
 
 namespace Microsoft.PowerToys.FilePreviewCommon
 {
@@ -24,12 +26,33 @@ namespace Microsoft.PowerToys.FilePreviewCommon
     /// <summary>
     /// Markdig Extension to process html nodes in markdown AST.
     /// </summary>
-    public class HTMLParsingExtension : IMarkdownExtension
+    public partial class HTMLParsingExtension : IMarkdownExtension
     {
+        private const uint GenericRead = 0x80000000;
+        private const uint FileShareRead = 0x00000001;
+        private const uint FileShareWrite = 0x00000002;
+        private const uint FileShareDelete = 0x00000004;
+        private const uint OpenExisting = 3;
+        private const uint FileAttributeNormal = 0x00000080;
+        private const uint FileFlagBackupSemantics = 0x02000000;
+
         /// <summary>
         /// Callback if extension blocks external images.
         /// </summary>
         private readonly ImagesBlockedCallBack imagesBlockedCallBack;
+
+        [LibraryImport("kernel32.dll", EntryPoint = "CreateFileW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+        private static partial SafeFileHandle CreateFileHandle(
+            string fileName,
+            uint desiredAccess,
+            uint shareMode,
+            nint securityAttributes,
+            uint creationDisposition,
+            uint flagsAndAttributes,
+            nint templateFile);
+
+        [LibraryImport("kernel32.dll", EntryPoint = "GetFinalPathNameByHandleW", SetLastError = true)]
+        private static unsafe partial uint GetFinalPathNameByHandle(SafeFileHandle fileHandle, char* filePath, uint filePathLength, uint flags);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="HTMLParsingExtension"/> class.
@@ -207,6 +230,139 @@ namespace Microsoft.PowerToys.FilePreviewCommon
             {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Opens a virtual-host image after resolving the final file-system paths for both the
+        /// allowed base directory and the image handle. This prevents junctions and symbolic links
+        /// inside the allowed tree from redirecting the request outside that tree.
+        /// </summary>
+        /// <param name="requestUri">The request URL, expected on the localmdimages virtual host.</param>
+        /// <param name="allowedBasePath">Base path the resolved file must be contained in.</param>
+        /// <param name="imageStream">The opened image stream on success. The caller owns the stream.</param>
+        /// <param name="resolvedPath">The final resolved file path on success.</param>
+        /// <returns>True if the image was opened and its final path is contained in the final base path.</returns>
+        public static bool TryOpenVirtualImage(
+            string? requestUri,
+            string? allowedBasePath,
+            [NotNullWhen(true)] out Stream? imageStream,
+            [NotNullWhen(true)] out string? resolvedPath)
+        {
+            imageStream = null;
+            resolvedPath = null;
+
+            if (!TryResolveVirtualUrl(requestUri, allowedBasePath, out string? candidatePath) ||
+                string.IsNullOrEmpty(allowedBasePath))
+            {
+                return false;
+            }
+
+            const uint ShareMode = FileShareRead | FileShareWrite | FileShareDelete;
+            using SafeFileHandle baseHandle = CreateFileHandle(
+                allowedBasePath,
+                0,
+                ShareMode,
+                0,
+                OpenExisting,
+                FileFlagBackupSemantics,
+                0);
+
+            if (baseHandle.IsInvalid)
+            {
+                return false;
+            }
+
+            SafeFileHandle? imageHandle = null;
+            try
+            {
+                imageHandle = CreateFileHandle(
+                    candidatePath,
+                    GenericRead,
+                    ShareMode,
+                    0,
+                    OpenExisting,
+                    FileAttributeNormal,
+                    0);
+
+                if (imageHandle.IsInvalid ||
+                    !TryGetFinalPath(baseHandle, out string? finalBasePath) ||
+                    !TryGetFinalPath(imageHandle, out string? finalImagePath))
+                {
+                    return false;
+                }
+
+                string containmentCheck = Path.GetRelativePath(finalBasePath, finalImagePath);
+                if (containmentCheck == "." || containmentCheck == ".." ||
+                    containmentCheck.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+                    containmentCheck.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal) ||
+                    Path.IsPathRooted(containmentCheck))
+                {
+                    return false;
+                }
+
+                imageStream = new FileStream(imageHandle, FileAccess.Read);
+                imageHandle = null;
+                resolvedPath = finalImagePath;
+                return true;
+            }
+            catch (PathTooLongException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+            catch (NotSupportedException)
+            {
+                return false;
+            }
+            finally
+            {
+                imageHandle?.Dispose();
+            }
+        }
+
+        private static unsafe bool TryGetFinalPath(SafeFileHandle fileHandle, [NotNullWhen(true)] out string? finalPath)
+        {
+            finalPath = null;
+            char[] buffer = new char[512];
+
+            uint pathLength;
+            fixed (char* bufferPointer = buffer)
+            {
+                pathLength = GetFinalPathNameByHandle(fileHandle, bufferPointer, (uint)buffer.Length, 0);
+            }
+
+            if (pathLength == 0)
+            {
+                return false;
+            }
+
+            if (pathLength >= (uint)buffer.Length)
+            {
+                buffer = new char[checked((int)pathLength + 1)];
+                fixed (char* bufferPointer = buffer)
+                {
+                    pathLength = GetFinalPathNameByHandle(fileHandle, bufferPointer, (uint)buffer.Length, 0);
+                }
+
+                if (pathLength == 0 || pathLength >= (uint)buffer.Length)
+                {
+                    return false;
+                }
+            }
+
+            finalPath = new string(buffer, 0, (int)pathLength);
+            return true;
         }
 
         /// <inheritdoc/>

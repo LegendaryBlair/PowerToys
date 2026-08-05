@@ -81,7 +81,7 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                         imagesBlockedCallBack();
                         return m.Groups[1].Value + quote + "#" + quote;
                     },
-                    RegexOptions.IgnoreCase);
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             }
 
             string markdownHTML = $"{htmlHeader}{parsedMarkdown}{HtmlFooter}";

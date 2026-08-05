@@ -130,6 +130,39 @@ namespace PreviewPaneUnitTests
             Assert.AreEqual(@"C:\docs\images\my #image.png", resolvedPath);
         }
 
+        [TestMethod]
+        public void TryOpenVirtualImageOpensContainedFile()
+        {
+            string basePath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PowerToys-MarkdownPreview-" + System.Guid.NewGuid());
+            string imageDirectory = System.IO.Path.Combine(basePath, "images");
+            string imagePath = System.IO.Path.Combine(imageDirectory, "my #image.png");
+
+            try
+            {
+                System.IO.Directory.CreateDirectory(imageDirectory);
+                System.IO.File.WriteAllText(imagePath, "image-content");
+
+                bool generated = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryGetLocalImageVirtualUrl(
+                    "images/my #image.png", basePath, basePath, out string virtualUrl);
+                bool opened = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryOpenVirtualImage(
+                    virtualUrl, basePath, out System.IO.Stream imageStream, out string resolvedPath);
+
+                Assert.IsTrue(generated);
+                Assert.IsTrue(opened);
+                using (imageStream)
+                using (var reader = new System.IO.StreamReader(imageStream))
+                {
+                    Assert.AreEqual("image-content", reader.ReadToEnd());
+                }
+
+                StringAssert.EndsWith(resolvedPath, @"\images\my #image.png");
+            }
+            finally
+            {
+                System.IO.Directory.Delete(basePath, true);
+            }
+        }
+
         [DataTestMethod]
         [DataRow("http://example.com/a.png", @"C:\docs", @"C:\docs")]
         [DataRow("https://example.com/a.png", @"C:\docs", @"C:\docs")]
