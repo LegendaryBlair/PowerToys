@@ -287,12 +287,12 @@ function Resolve-TargetSubCommandLabel([string]$ExpectedOutputName, [string]$Req
     switch ($extension)
     {
         ".png" { return "PNG" }
-        ".jpg" { return "JPG" }
+        ".jpg" { return "JPEG" }
         ".jpeg" { return "JPEG" }
         ".bmp" { return "BMP" }
         ".tif" { return "TIFF" }
         ".tiff" { return "TIFF" }
-        ".heic" { return "HEIC" }
+        ".heic" { return "HEIF" }
         ".heif" { return "HEIF" }
         ".webp" { return "WebP" }
         default { return "PNG" }

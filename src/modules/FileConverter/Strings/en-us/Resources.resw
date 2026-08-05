@@ -26,9 +26,6 @@
   <data name="FileConverter_ContextMenu_Format_Png" xml:space="preserve">
     <value>PNG</value>
   </data>
-  <data name="FileConverter_ContextMenu_Format_Jpg" xml:space="preserve">
-    <value>JPG</value>
-  </data>
   <data name="FileConverter_ContextMenu_Format_Jpeg" xml:space="preserve">
     <value>JPEG</value>
   </data>
@@ -37,9 +34,6 @@
   </data>
   <data name="FileConverter_ContextMenu_Format_Tiff" xml:space="preserve">
     <value>TIFF</value>
-  </data>
-  <data name="FileConverter_ContextMenu_Format_Heic" xml:space="preserve">
-    <value>HEIC</value>
   </data>
   <data name="FileConverter_ContextMenu_Format_Heif" xml:space="preserve">
     <value>HEIF</value>

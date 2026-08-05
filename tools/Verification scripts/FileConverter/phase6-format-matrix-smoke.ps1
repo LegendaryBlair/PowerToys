@@ -48,14 +48,11 @@ if (-not (Test-Path -LiteralPath $shellVerbSmoke)) {
 
 $cases = @(
     @{ Name = "png";  Label = "PNG";  Extension = ".png";  Required = $true },
-    @{ Name = "jpg";  Label = "JPG";  Extension = ".jpg";  Required = $true },
     @{ Name = "jpeg"; Label = "JPEG"; Extension = ".jpg";  Required = $true },
     @{ Name = "bmp";  Label = "BMP";  Extension = ".bmp";  Required = $true },
-    @{ Name = "tif";  Label = "TIFF"; Extension = ".tiff"; Required = $true },
     @{ Name = "tiff"; Label = "TIFF"; Extension = ".tiff"; Required = $true },
-    @{ Name = "webp"; Label = "WebP"; Extension = ".webp"; Required = $false },
-    @{ Name = "heic"; Label = "HEIC"; Extension = ".heic"; Required = $false },
-    @{ Name = "heif"; Label = "HEIF"; Extension = ".heic"; Required = $false }
+    @{ Name = "heif"; Label = "HEIF"; Extension = ".heic"; Required = $false },
+    @{ Name = "webp"; Label = "WebP"; Extension = ".webp"; Required = $false }
 )
 
 $results = @()
