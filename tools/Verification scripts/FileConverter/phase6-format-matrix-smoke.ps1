@@ -37,6 +37,7 @@ $sampleDir = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest"
 $shellVerbSmoke = Join-Path $RepoRoot "src\modules\FileConverter\FileConverterContextMenu\run-shell-verb-smoke.ps1"
 $sourcePath = Join-Path $sampleDir "sample.bmp"
 $baseName = "sample_converted"
+$sourceFileName = Split-Path -Leaf $sourcePath
 
 if (-not (Test-Path -LiteralPath $sourcePath)) {
     throw "Sample input file not found at: $sourcePath"
@@ -47,12 +48,12 @@ if (-not (Test-Path -LiteralPath $shellVerbSmoke)) {
 }
 
 $cases = @(
-    @{ Name = "png";  Label = "PNG";  Extension = ".png";  Required = $true },
-    @{ Name = "jpeg"; Label = "JPEG"; Extension = ".jpg";  Required = $true },
-    @{ Name = "bmp";  Label = "BMP";  Extension = ".bmp";  Required = $true },
-    @{ Name = "tiff"; Label = "TIFF"; Extension = ".tiff"; Required = $true },
-    @{ Name = "heif"; Label = "HEIF"; Extension = ".heic"; Required = $false },
-    @{ Name = "webp"; Label = "WebP"; Extension = ".webp"; Required = $false }
+    @{ Name = "png";  Label = "PNG";  InputFileName = $sourceFileName; OutputFileName = "$baseName.png"; Required = $true },
+    @{ Name = "jpeg"; Label = "JPEG"; InputFileName = $sourceFileName; OutputFileName = "$baseName.jpg"; Required = $true },
+    @{ Name = "bmp";  Label = "BMP";  InputFileName = "$baseName.png"; OutputFileName = "${baseName}_converted.bmp"; Required = $true },
+    @{ Name = "tiff"; Label = "TIFF"; InputFileName = $sourceFileName; OutputFileName = "$baseName.tiff"; Required = $true },
+    @{ Name = "heif"; Label = "HEIF"; InputFileName = $sourceFileName; OutputFileName = "$baseName.heic"; Required = $false },
+    @{ Name = "webp"; Label = "WebP"; InputFileName = $sourceFileName; OutputFileName = "$baseName.webp"; Required = $false }
 )
 
 $results = @()
@@ -61,11 +62,16 @@ foreach ($case in $cases) {
     Stop-PowerToysProcesses
     $pt = Start-PowerToys -ExePath $powerToysExe
 
-    $outputPath = Join-Path $sampleDir ($baseName + $case.Extension)
+    $caseSourcePath = Join-Path $sampleDir $case.InputFileName
+    if (-not (Test-Path -LiteralPath $caseSourcePath)) {
+        throw "Phase 6 matrix source was not created for '$($case.Label)': $caseSourcePath"
+    }
+
+    $outputPath = Join-Path $sampleDir $case.OutputFileName
     try {
         & $shellVerbSmoke `
             -TestDirectory $sampleDir `
-            -InputFileName (Split-Path -Leaf $sourcePath) `
+            -InputFileName $case.InputFileName `
             -ExpectedOutputFileName (Split-Path -Leaf $outputPath) `
             -VerbName $case.Label `
             -OutputWaitTimeoutMs $PerCaseTimeoutMs
