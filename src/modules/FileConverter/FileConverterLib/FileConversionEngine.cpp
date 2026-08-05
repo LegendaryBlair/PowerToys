@@ -294,7 +294,8 @@ namespace file_converter
             hr = format_converter->CanConvert(pixel_format, target_pixel_format, &can_convert);
             if (FAILED(hr) || !can_convert)
             {
-                return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_UnsupportedPixelConversion", L"Source pixel format cannot be converted to target pixel format."), FAILED(hr) ? hr : E_FAIL) };
+                const HRESULT conversion_hr = FAILED(hr) ? hr : WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT;
+                return { conversion_hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_UnsupportedPixelConversion", L"Source pixel format cannot be converted to target pixel format."), conversion_hr) };
             }
 
             hr = format_converter->Initialize(source_frame.Get(), target_pixel_format, WICBitmapDitherTypeNone, nullptr, 0.0f, WICBitmapPaletteTypeCustom);

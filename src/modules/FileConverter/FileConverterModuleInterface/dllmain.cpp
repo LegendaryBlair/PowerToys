@@ -676,6 +676,16 @@ namespace
 
         void WorkerLoop()
         {
+            try
+            {
+                winrt::init_apartment(winrt::apartment_type::multi_threaded);
+            }
+            catch (const winrt::hresult_error& error)
+            {
+                Logger::error(L"File Converter worker failed to initialize WinRT. Error={}", error.code().value);
+                return;
+            }
+
             while (true)
             {
                 std::string payload;
@@ -701,6 +711,8 @@ namespace
 
                 ProcessPayload(payload);
             }
+
+            winrt::uninit_apartment();
         }
 
         void ListenerLoop()
