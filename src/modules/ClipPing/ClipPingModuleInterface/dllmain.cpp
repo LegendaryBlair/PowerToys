@@ -140,7 +140,7 @@ public:
     }
 
     // Enable the powertoy
-    void enable()
+    void enable() override
     {
         m_enabled = true;
 
@@ -183,7 +183,7 @@ public:
     }
 
     // Disable the powertoy
-    void disable()
+    void disable() override
     {
         m_enabled = false;
         Disable(true);
@@ -231,8 +231,7 @@ void ClipPingModuleInterface::init_settings()
     try
     {
         // Load and parse the settings file for this PowerToy.
-        PowerToysSettings::PowerToyValues settings =
-            PowerToysSettings::PowerToyValues::load_from_settings_file(ClipPingModuleInterface::get_name());
+        (void)PowerToysSettings::PowerToyValues::load_from_settings_file(ClipPingModuleInterface::get_name());
     }
     catch (std::exception&)
     {

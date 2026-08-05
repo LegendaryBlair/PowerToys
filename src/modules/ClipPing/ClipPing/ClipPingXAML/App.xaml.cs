@@ -63,7 +63,6 @@ public partial class App : Application, IDisposable
                 return overlayType;
             }
 
-            Logger.LogWarning($"Unknown overlay type: {_currentSettings.Properties.OverlayType}. Defaulting to TopOverlay.");
             return typeof(TopOverlay);
         }
     }
@@ -178,7 +177,6 @@ public partial class App : Application, IDisposable
 
         if (hr != 0)
         {
-            Logger.LogWarning($"Could not get the foreground window attributes (hwnd: {hwnd:x2}, hr: {hr:x2}).");
             return;
         }
 
@@ -187,7 +185,6 @@ public partial class App : Application, IDisposable
 
         if (windowWidth <= 0 || windowHeight <= 0)
         {
-            Logger.LogWarning($"The foreground window has zero or negative size: {rect}.");
             return;
         }
 
