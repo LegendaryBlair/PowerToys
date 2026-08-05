@@ -326,7 +326,16 @@ namespace
         }
 
         winrt_json::JsonObject json_payload;
-        if (!winrt_json::JsonObject::TryParse(winrt::to_hstring(payload), json_payload))
+        bool parsed = false;
+        try
+        {
+            parsed = winrt_json::JsonObject::TryParse(winrt::to_hstring(payload), json_payload);
+        }
+        catch (...)
+        {
+        }
+
+        if (!parsed)
         {
             rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_INVALIDJSON, L"invalid JSON");
             return false;
