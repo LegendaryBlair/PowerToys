@@ -108,6 +108,9 @@ namespace PreviewPaneUnitTests
         [DataRow("../test.png", @"\\server\share\sub", @"\\server\share", "https://localmdimages/test.png")]
         [DataRow("images/my image.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/my%20image.png")]
         [DataRow("images/hash#image.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/hash%23image.png")]
+        [DataRow("images/my%20image.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/my%20image.png")]
+        [DataRow("images/hash%23image.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/hash%23image.png")]
+        [DataRow("images/percent%2520image.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/percent%2520image.png")]
         public void TryGetLocalImageVirtualUrlAllowsContainedPaths(string url, string markdownDirectory, string basePath, string expectedVirtualUrl)
         {
             bool result = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryGetLocalImageVirtualUrl(url, markdownDirectory, basePath, out string virtualUrl);
@@ -174,6 +177,9 @@ namespace PreviewPaneUnitTests
         [DataRow(@"C:\other\secret.png", @"C:\docs", @"C:\docs")]
         [DataRow(@"C:\docsBackup\secret.png", @"C:\docs", @"C:\docs")]
         [DataRow(@"\\server\share2\secret.png", @"\\server\share\sub", @"\\server\share")]
+        [DataRow("..%2Fsecret.png", @"C:\docs", @"C:\docs")]
+        [DataRow("..%5Csecret.png", @"C:\docs", @"C:\docs")]
+        [DataRow("C%3A%5Cother%5Csecret.png", @"C:\docs", @"C:\docs")]
         [DataRow("", @"C:\docs", @"C:\docs")]
         [DataRow("image.png", "", @"C:\docs")]
         [DataRow("image.png", "docs", @"C:\docs")]

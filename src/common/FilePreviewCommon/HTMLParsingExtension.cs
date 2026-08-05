@@ -131,7 +131,8 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                 }
 
                 string basePath = Path.GetFullPath(effectiveBasePath);
-                string resolvedPath = Path.GetFullPath(Path.Combine(markdownDirectory, url));
+                string decodedUrl = Uri.UnescapeDataString(url);
+                string resolvedPath = Path.GetFullPath(Path.Combine(markdownDirectory, decodedUrl));
                 string relativePath = Path.GetRelativePath(basePath, resolvedPath);
 
                 if (relativePath == "." || relativePath == ".." ||
