@@ -238,8 +238,9 @@ $exe = "<repo>\x64\Debug\tests\<Module>.UITests.Next\net10.0-windows10.0.26100.0
 - **Do NOT invent assertions** for a vague sign-off item. If a checklist line has no observable
   pass/fail signal, implement what you can and leave a clearly-marked `TestContext.WriteLine` note
   (or skip with an explanation) rather than asserting on something you can't actually read.
-- **Do NOT introduce new third-party NuGet dependencies.** The `.Next` harness is intentionally
-  dependency-free (MSTest only). Use the Win32-based helpers it already ships.
+- **Do NOT introduce new third-party NuGet dependencies in module test projects.** Reuse the helpers
+  and approved dependencies centralized in `UITestAutomation.Next`; raise any new shared dependency
+  for maintainer review instead of adding it directly to a suite.
 - **Do NOT retry a toggle hotkey blindly.** Once any target window appears, wait for initialization;
   resending the chord may close a healthy window. Restart only after a terminal readiness failure.
 - **Do NOT replace or weaken visual baselines before proving capture is correct.** Foreground HWND,
