@@ -113,7 +113,7 @@ function Find-SignTool {
 # Microsoft.Windows.SDK.BuildTools NuGet package (cached in TEMP across runs). Best-effort.
 function Get-SignToolFromNuget {
     try {
-        $index = Invoke-RestMethod 'https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/index.json' -UseBasicParsing
+        $index = Invoke-RestMethod 'https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/index.json'
         $version = @($index.versions | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })[-1]
         if (-not $version) { return $null }
 
@@ -121,7 +121,7 @@ function Get-SignToolFromNuget {
         if (-not (Get-ChildItem -Path $dest -Recurse -Filter 'signtool.exe' -File -ErrorAction SilentlyContinue)) {
             Write-Host "signtool not found on the agent; fetching Windows SDK BuildTools $version from NuGet."
             $nupkg = Join-Path $env:TEMP "sdk-buildtools-$version.zip"
-            Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/$version/microsoft.windows.sdk.buildtools.$version.nupkg" -OutFile $nupkg -UseBasicParsing
+            Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/$version/microsoft.windows.sdk.buildtools.$version.nupkg" -OutFile $nupkg
             Expand-Archive -Path $nupkg -DestinationPath $dest -Force
             Remove-Item $nupkg -Force -ErrorAction SilentlyContinue
         }

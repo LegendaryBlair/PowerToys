@@ -188,7 +188,7 @@ jobs:
   - pwsh: |
       $modulesRaw = '${{ join(';', parameters.uiTestModules) }}'
       $requiresImageResizerPackage = [string]::IsNullOrWhiteSpace($modulesRaw) -or
-        (($modulesRaw -split ';') | Where-Object { $_ -like '*ImageResizer*' })
+        ((($modulesRaw -split ';') | Where-Object { $_ -like '*ImageResizer*' }).Count -gt 0)
       $include = if ($requiresImageResizerPackage) {
         @('ImageResizerContextMenuPackage.msix')
       } else {
