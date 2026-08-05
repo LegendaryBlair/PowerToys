@@ -981,6 +981,11 @@ public:
         return m_enabled;
     }
 
+    bool is_enabled_by_default() const override
+    {
+        return false;
+    }
+
 private:
     bool m_enabled = false;
     std::once_flag m_name_initialization;
