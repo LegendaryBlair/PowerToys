@@ -30,6 +30,18 @@ namespace
         return std::wstring{ fallback };
     }
 
+    std::wstring FormatLocalizedString(std::wstring format, std::wstring_view argument)
+    {
+        constexpr std::wstring_view placeholder = L"{0}";
+        const size_t position = format.find(placeholder);
+        if (position != std::wstring::npos)
+        {
+            format.replace(position, placeholder.size(), argument);
+        }
+
+        return format;
+    }
+
     GUID ContainerFormatFor(file_converter::ImageFormat format)
     {
         switch (format)
@@ -139,7 +151,9 @@ namespace
         {
             if (IsMissingCodecHresult(hr))
             {
-                const std::wstring error = LoadLocalizedString(L"FileConverter_Engine_NoEncoderInstalled", L"No WIC encoder is installed for destination format '") + ExtensionFor(format) + L"'.";
+                const std::wstring error = FormatLocalizedString(
+                    LoadLocalizedString(L"FileConverter_Engine_NoEncoderInstalled", L"No WIC encoder is installed for destination format '{0}'."),
+                    ExtensionFor(format));
                 return { HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED), error };
             }
 

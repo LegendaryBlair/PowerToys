@@ -86,7 +86,7 @@
     <value>WIC factory is null.</value>
   </data>
   <data name="FileConverter_Engine_NoEncoderInstalled" xml:space="preserve">
-    <value>No WIC encoder is installed for destination format '</value>
+    <value>No WIC encoder is installed for destination format '{0}'.</value>
   </data>
   <data name="FileConverter_Engine_CoInitializeFailed" xml:space="preserve">
     <value>CoInitializeEx failed.</value>
