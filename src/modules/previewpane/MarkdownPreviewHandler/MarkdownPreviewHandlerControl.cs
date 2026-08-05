@@ -192,7 +192,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                                         // Stream directly from disk rather than buffering the whole image
                                         // in memory; WebView2 reads and disposes the stream.
                                         imageStream = File.OpenRead(imagePath);
-                                        e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + GetImageContentType(imagePath));
+                                        e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + GetImageContentType(imagePath) + "\r\n");
                                         imageStream = null;
                                         return;
                                     }

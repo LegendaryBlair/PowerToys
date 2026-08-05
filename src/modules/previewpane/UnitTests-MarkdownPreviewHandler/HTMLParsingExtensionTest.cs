@@ -142,6 +142,9 @@ namespace PreviewPaneUnitTests
         [DataRow(@"C:\docsBackup\secret.png", @"C:\docs", @"C:\docs")]
         [DataRow(@"\\server\share2\secret.png", @"\\server\share\sub", @"\\server\share")]
         [DataRow("", @"C:\docs", @"C:\docs")]
+        [DataRow("image.png", "", @"C:\docs")]
+        [DataRow("image.png", "docs", @"C:\docs")]
+        [DataRow("image.png", @"C:\docs", "docs")]
         public void TryGetLocalImageVirtualUrlBlocksUnsafeUrls(string url, string markdownDirectory, string basePath)
         {
             bool result = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryGetLocalImageVirtualUrl(url, markdownDirectory, basePath, out string virtualUrl);

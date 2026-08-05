@@ -94,14 +94,20 @@ namespace Microsoft.PowerToys.FilePreviewCommon
         {
             virtualUrl = null;
 
-            if (!IsLocalImage(url))
+            if (!IsLocalImage(url) || string.IsNullOrEmpty(markdownDirectory))
             {
                 return false;
             }
 
             try
             {
-                string basePath = Path.GetFullPath(string.IsNullOrEmpty(allowedBasePath) ? markdownDirectory : allowedBasePath);
+                string effectiveBasePath = string.IsNullOrEmpty(allowedBasePath) ? markdownDirectory : allowedBasePath;
+                if (!Path.IsPathFullyQualified(markdownDirectory) || !Path.IsPathFullyQualified(effectiveBasePath))
+                {
+                    return false;
+                }
+
+                string basePath = Path.GetFullPath(effectiveBasePath);
                 string resolvedPath = Path.GetFullPath(Path.Combine(markdownDirectory, url));
                 string relativePath = Path.GetRelativePath(basePath, resolvedPath);
 

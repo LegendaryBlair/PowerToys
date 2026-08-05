@@ -79,7 +79,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Some online images have been blocked. Only local and network images from the document's folder are shown..
+        ///   Looks up a localized string similar to Some images have been blocked. Only local images from the document's folder and images on the same network share are shown..
         /// </summary>
         internal static string RemoteImagesBlockedInfoText {
             get {
