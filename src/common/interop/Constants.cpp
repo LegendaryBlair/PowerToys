@@ -253,11 +253,11 @@ namespace winrt::PowerToys::Interop::implementation
     }
     hstring Constants::ClipPingExitEvent()
     {
-        return CommonSharedConstants::CLIPPING_EXIT_EVENT;
+        return CommonSharedConstants::CLIP_PING_EXIT_EVENT;
     }
     hstring Constants::ClipPingShowOverlayEvent()
     {
-        return CommonSharedConstants::CLIPPING_SHOW_OVERLAY_EVENT;
+        return CommonSharedConstants::CLIP_PING_SHOW_OVERLAY_EVENT;
     }
     hstring Constants::TogglePowerDisplayEvent()
     {

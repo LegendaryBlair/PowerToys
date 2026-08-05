@@ -59,16 +59,16 @@ public:
         app_name = L"ClipPing";
         app_key = L"ClipPing";
         LoggerHelpers::init_logger(app_key, L"ModuleInterface", "ClipPing");
-        m_exit_event_handle = CreateDefaultEvent(CommonSharedConstants::CLIPPING_EXIT_EVENT);
+        m_exit_event_handle = CreateDefaultEvent(CommonSharedConstants::CLIP_PING_EXIT_EVENT);
         if (!m_exit_event_handle)
         {
-            Logger::error(L"Failed to create {} event. {}", CommonSharedConstants::CLIPPING_EXIT_EVENT, get_last_error_or_default(GetLastError()));
+            Logger::error(L"Failed to create {} event. {}", CommonSharedConstants::CLIP_PING_EXIT_EVENT, get_last_error_or_default(GetLastError()));
         }
 
-        m_show_overlay_event_handle = CreateDefaultEvent(CommonSharedConstants::CLIPPING_SHOW_OVERLAY_EVENT);
+        m_show_overlay_event_handle = CreateDefaultEvent(CommonSharedConstants::CLIP_PING_SHOW_OVERLAY_EVENT);
         if (!m_show_overlay_event_handle)
         {
-            Logger::error(L"Failed to create {} event. {}", CommonSharedConstants::CLIPPING_SHOW_OVERLAY_EVENT, get_last_error_or_default(GetLastError()));
+            Logger::error(L"Failed to create {} event. {}", CommonSharedConstants::CLIP_PING_SHOW_OVERLAY_EVENT, get_last_error_or_default(GetLastError()));
         }
 
         init_settings();

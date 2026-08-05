@@ -13,7 +13,14 @@ public static class NativeEventWaiter
 {
     public static void WaitForEvents(params (string EventName, Action Callback)[] events)
     {
-        var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        ArgumentNullException.ThrowIfNull(events);
+        if (events.Length == 0)
+        {
+            throw new ArgumentException("At least one event must be provided.", nameof(events));
+        }
+
+        var dispatcherQueue = DispatcherQueue.GetForCurrentThread()
+            ?? throw new InvalidOperationException("NativeEventWaiter must be started from a thread with a DispatcherQueue.");
         var t = new Thread(() =>
         {
             var eventHandles = new WaitHandle[events.Length];
