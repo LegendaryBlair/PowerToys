@@ -168,7 +168,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                         _browser.CoreWebView2.Settings.IsScriptEnabled = false;
                         _browser.CoreWebView2.Settings.IsWebMessageEnabled = false;
 
-                        // Don't load any resources except virtual host mapped ones.
+                        // Allow only the generated local HTML document and validated localmdimages requests.
                         _browser.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
                         _browser.CoreWebView2.WebResourceRequested += (object sender, CoreWebView2WebResourceRequestedEventArgs e) =>
                         {
