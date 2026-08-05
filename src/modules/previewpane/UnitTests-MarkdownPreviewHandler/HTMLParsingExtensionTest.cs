@@ -106,12 +106,28 @@ namespace PreviewPaneUnitTests
         [DataRow(@"C:\docs\images\test.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/test.png")]
         [DataRow("images/test.png", @"\\server\share\sub\dir", @"\\server\share", "https://localmdimages/sub/dir/images/test.png")]
         [DataRow("../test.png", @"\\server\share\sub", @"\\server\share", "https://localmdimages/test.png")]
+        [DataRow("images/my image.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/my%20image.png")]
+        [DataRow("images/hash#image.png", @"C:\docs", @"C:\docs", "https://localmdimages/images/hash%23image.png")]
         public void TryGetLocalImageVirtualUrlAllowsContainedPaths(string url, string markdownDirectory, string basePath, string expectedVirtualUrl)
         {
             bool result = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryGetLocalImageVirtualUrl(url, markdownDirectory, basePath, out string virtualUrl);
 
             Assert.IsTrue(result);
             Assert.AreEqual(expectedVirtualUrl, virtualUrl);
+        }
+
+        [TestMethod]
+        public void LocalImageVirtualUrlRoundTripsReservedCharacters()
+        {
+            bool generated = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryGetLocalImageVirtualUrl(
+                "images/my #image.png", @"C:\docs", @"C:\docs", out string virtualUrl);
+            bool resolved = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryResolveVirtualUrl(
+                virtualUrl, @"C:\docs", out string resolvedPath);
+
+            Assert.IsTrue(generated);
+            Assert.AreEqual("https://localmdimages/images/my%20%23image.png", virtualUrl);
+            Assert.IsTrue(resolved);
+            Assert.AreEqual(@"C:\docs\images\my #image.png", resolvedPath);
         }
 
         [DataTestMethod]

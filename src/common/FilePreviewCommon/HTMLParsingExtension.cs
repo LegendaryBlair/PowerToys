@@ -113,7 +113,13 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                     return false;
                 }
 
-                virtualUrl = "https://localmdimages/" + relativePath.Replace('\\', '/');
+                string[] pathSegments = relativePath.Replace('\\', '/').Split('/');
+                for (int i = 0; i < pathSegments.Length; i++)
+                {
+                    pathSegments[i] = Uri.EscapeDataString(pathSegments[i]);
+                }
+
+                virtualUrl = "https://localmdimages/" + string.Join("/", pathSegments);
                 return true;
             }
             catch (ArgumentException)
