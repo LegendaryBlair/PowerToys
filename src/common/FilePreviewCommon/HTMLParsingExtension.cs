@@ -164,7 +164,8 @@ namespace Microsoft.PowerToys.FilePreviewCommon
             try
             {
                 var uri = new Uri(requestUri);
-                if (!string.Equals(uri.Host, "localmdimages", StringComparison.OrdinalIgnoreCase))
+                if (uri.Scheme != Uri.UriSchemeHttps ||
+                    !string.Equals(uri.Host, "localmdimages", StringComparison.OrdinalIgnoreCase))
                 {
                     return false;
                 }

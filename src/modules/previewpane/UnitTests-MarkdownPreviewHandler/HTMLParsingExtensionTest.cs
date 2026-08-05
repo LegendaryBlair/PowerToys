@@ -170,6 +170,8 @@ namespace PreviewPaneUnitTests
         [DataRow("https://localmdimages/.." + "%5C" + "secret.png", @"C:\docs")]
         [DataRow("https://localmdimages/C" + "%3A%5C" + "other" + "%5C" + "secret.png", @"C:\docs")]
         [DataRow("https://example.com/images/test.png", @"C:\docs")]
+        [DataRow("http://localmdimages/images/test.png", @"C:\docs")]
+        [DataRow("file://localmdimages/images/test.png", @"C:\docs")]
         [DataRow("https://localmdimages/", @"C:\docs")]
         [DataRow("not a url", @"C:\docs")]
         [DataRow("", @"C:\docs")]
