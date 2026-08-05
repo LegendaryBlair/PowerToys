@@ -23,7 +23,7 @@ function Start-PowerToys {
     }
 
     $proc = Start-Process -FilePath $ExePath -PassThru
-    Wait-Process -Id $proc.Id -Timeout 2 -ErrorAction SilentlyContinue | Out-Null
+    Start-Sleep -Milliseconds 250
 
     $running = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
     if ($null -eq $running) {

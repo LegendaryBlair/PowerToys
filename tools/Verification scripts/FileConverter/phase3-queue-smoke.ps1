@@ -56,16 +56,16 @@ $missing = Join-Path $sampleDir "missing-does-not-exist.bmp"
 $output1 = Join-Path $sampleDir "sample_converted.png"
 $output2 = Join-Path $sampleDir "sample2_converted.png"
 
-if (-not (Test-Path $powerToysExe)) {
+if (-not (Test-Path -LiteralPath $powerToysExe)) {
     throw "PowerToys executable not found at: $powerToysExe"
 }
 
-if (-not (Test-Path $input1)) {
+if (-not (Test-Path -LiteralPath $input1)) {
     throw "Sample input file not found at: $input1"
 }
 
 Copy-Item -LiteralPath $input1 -Destination $input2 -Force
-Remove-Item $output1, $output2 -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $output1, $output2 -ErrorAction SilentlyContinue
 
 Stop-PowerToysProcesses
 $pt = Start-Process -FilePath $powerToysExe -PassThru
@@ -85,15 +85,15 @@ Send-PipePayload -PipeSimpleName $pipeSimpleName -Payload $payload2 -ConnectTime
 
 $deadline = [DateTime]::UtcNow.AddSeconds(10)
 while ([DateTime]::UtcNow -lt $deadline) {
-    if ((Test-Path $output1) -and (Test-Path $output2)) {
+    if ((Test-Path -LiteralPath $output1) -and (Test-Path -LiteralPath $output2)) {
         break
     }
 
     Start-Sleep -Milliseconds 100
 }
 
-$ok1 = Test-Path $output1
-$ok2 = Test-Path $output2
+$ok1 = Test-Path -LiteralPath $output1
+$ok2 = Test-Path -LiteralPath $output2
 
 if (-not $LeavePowerToysRunning) {
     Stop-PowerToysProcesses

@@ -18,12 +18,12 @@ function Start-PowerToys {
         [string]$ExePath
     )
 
-    if (-not (Test-Path $ExePath)) {
+    if (-not (Test-Path -LiteralPath $ExePath)) {
         throw "PowerToys executable not found at: $ExePath"
     }
 
     $proc = Start-Process -FilePath $ExePath -PassThru
-    Wait-Process -Id $proc.Id -Timeout 2 -ErrorAction SilentlyContinue | Out-Null
+    Start-Sleep -Milliseconds 250
 
     $running = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
     if ($null -eq $running) {
@@ -73,7 +73,7 @@ $sampleInput = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\
 $outputFile = Join-Path $RepoRoot "x64\Debug\WinUI3Apps\FileConverterSmokeTest\sample_converted.png"
 $runnerLog = Join-Path $RepoRoot "src\runner\x64\Debug\runner.log"
 
-if (-not (Test-Path $sampleInput)) {
+if (-not (Test-Path -LiteralPath $sampleInput)) {
     throw "Sample input file not found at: $sampleInput"
 }
 
@@ -107,8 +107,8 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
     $pt = Start-PowerToys -ExePath $powerToysExe
     $pipeSimpleName = "powertoys_fileconverter_$($pt.SessionId)"
 
-    if (Test-Path $outputFile) {
-        Remove-Item $outputFile -Force
+    if (Test-Path -LiteralPath $outputFile) {
+        Remove-Item -LiteralPath $outputFile -Force
     }
 
     $sent = Send-PipePayload `
@@ -118,13 +118,13 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
         -Attempts $SendAttempts
 
     $deadline = [DateTime]::UtcNow.AddSeconds(2)
-    while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path $outputFile)) {
+    while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path -LiteralPath $outputFile)) {
         Start-Sleep -Milliseconds 50
     }
 
-    $createdOutput = Test-Path $outputFile
+    $createdOutput = Test-Path -LiteralPath $outputFile
     if ($createdOutput) {
-        Remove-Item $outputFile -Force
+        Remove-Item -LiteralPath $outputFile -Force
     }
 
     $results += [pscustomobject]@{
@@ -142,7 +142,7 @@ for ($caseIndex = 0; $caseIndex -lt $cases.Count; $caseIndex++) {
 "Negative FileConverter Pipe Smoke Results"
 $results | Format-Table -AutoSize | Out-String
 
-if (Test-Path $runnerLog) {
+if (Test-Path -LiteralPath $runnerLog) {
     $interesting = Select-String -Path $runnerLog -Pattern "File Converter|malformed request|skipped|conversion failed" -CaseSensitive:$false -ErrorAction SilentlyContinue
     if ($interesting) {
         "Recent listener diagnostics from runner.log"

@@ -626,6 +626,12 @@ namespace
 
         void EnqueuePayload(std::string payload)
         {
+            if (payload.size() > MAX_PIPE_PAYLOAD_BYTES)
+            {
+                Logger::warn(L"File Converter dropped a payload because it exceeds the maximum payload size.");
+                return;
+            }
+
             bool queued = false;
             {
                 std::scoped_lock lock(m_queue_mutex);
