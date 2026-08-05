@@ -68,6 +68,19 @@ public:
     void destroy() override
     {
         Disable(false);
+
+        if (m_exit_event_handle)
+        {
+            CloseHandle(m_exit_event_handle);
+            m_exit_event_handle = nullptr;
+        }
+
+        if (m_show_overlay_event_handle)
+        {
+            CloseHandle(m_show_overlay_event_handle);
+            m_show_overlay_event_handle = nullptr;
+        }
+
         delete this;
     }
 
@@ -132,7 +145,7 @@ public:
 
         SHELLEXECUTEINFOW sei{ sizeof(sei) };
         sei.fMask = { SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI };
-        sei.lpFile = L"WinUI3Apps\\Powertoys.ClipPing.exe";
+        sei.lpFile = L"WinUI3Apps\\PowerToys.ClipPing.exe";
         sei.nShow = SW_SHOWNORMAL;
         sei.lpParameters = executable_args.data();
         if (ShellExecuteExW(&sei) == false)

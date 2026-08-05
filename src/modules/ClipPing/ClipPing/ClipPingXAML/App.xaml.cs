@@ -218,8 +218,6 @@ public partial class App : Application, IDisposable
         // DWM and WinUIEx Move use physical screen pixels, while SetWindowSize uses DIPs.
         var target = new Rect(rect.Left, rect.Top, windowWidth * scale, windowHeight * scale);
 
-        Logger.LogDebug($"Showing overlay at {target} with color {color}.");
-
         GetOverlay()?.Show(target, color);
     }
 
