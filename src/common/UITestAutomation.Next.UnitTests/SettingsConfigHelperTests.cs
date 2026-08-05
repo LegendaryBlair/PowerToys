@@ -1,0 +1,130 @@
+// Copyright (c) Microsoft Corporation
+// The Microsoft Corporation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System.Text.Json.Nodes;
+using Microsoft.PowerToys.UITest.Next;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace Microsoft.PowerToys.UITestAutomationNext.UnitTests;
+
+[TestClass]
+public class SettingsConfigHelperTests
+{
+    private static readonly string[] ExpectedModuleNames =
+    [
+        "AdvancedPaste",
+        "AlwaysOnTop",
+        "Awake",
+        "CmdNotFound",
+        "CmdPal",
+        "ColorPicker",
+        "CropAndLock",
+        "CursorWrap",
+        "EnvironmentVariables",
+        "FancyZones",
+        "File Explorer Preview",
+        "File Locksmith",
+        "FindMyMouse",
+        "GrabAndMove",
+        "Hosts",
+        "Image Resizer",
+        "Keyboard Manager",
+        "LightSwitch",
+        "Measure Tool",
+        "MouseHighlighter",
+        "MouseJump",
+        "MousePointerCrosshairs",
+        "MouseWithoutBorders",
+        "NewPlus",
+        "Peek",
+        "PowerDisplay",
+        "PowerRename",
+        "PowerToys Run",
+        "QuickAccent",
+        "RegistryPreview",
+        "Shortcut Guide",
+        "TextExtractor",
+        "Workspaces",
+        "ZoomIt",
+    ];
+
+    [TestMethod]
+    public void ConfigureGlobalModuleSettingsSeedsExactFreshProfileBaseline()
+    {
+        var root = new JsonObject();
+
+        SettingsConfigHelper.ConfigureGlobalModuleSettings(root, "Image Resizer");
+
+        var enabled = root["enabled"]!.AsObject();
+        CollectionAssert.AreEquivalent(ExpectedModuleNames, enabled.Select(property => property.Key).ToArray());
+        foreach (var moduleName in ExpectedModuleNames)
+        {
+            Assert.AreEqual(moduleName == "Image Resizer", enabled[moduleName]!.GetValue<bool>(), moduleName);
+        }
+    }
+
+    [TestMethod]
+    public void ConfigureGlobalModuleSettingsHandlesUnknownModuleKeys()
+    {
+        var root = new JsonObject
+        {
+            ["enabled"] = new JsonObject
+            {
+                ["ExistingFutureModule"] = true,
+            },
+        };
+
+        SettingsConfigHelper.ConfigureGlobalModuleSettings(root, "RequestedFutureModule");
+
+        var enabled = root["enabled"]!.AsObject();
+        Assert.IsFalse(enabled["ExistingFutureModule"]!.GetValue<bool>());
+        Assert.IsTrue(enabled["RequestedFutureModule"]!.GetValue<bool>());
+    }
+
+    [TestMethod]
+    public void PreserveSettingsFileRestoresExistingContent()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"UITestAutomation.Next-{Guid.NewGuid():N}");
+        var settingsPath = Path.Combine(directory, "settings.json");
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(settingsPath, "original");
+
+            using (SettingsConfigHelper.PreserveSettingsFile(settingsPath))
+            {
+                File.WriteAllText(settingsPath, "changed");
+            }
+
+            Assert.AreEqual("original", File.ReadAllText(settingsPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void PreserveSettingsFileRemovesFileCreatedDuringScope()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"UITestAutomation.Next-{Guid.NewGuid():N}");
+        var settingsPath = Path.Combine(directory, "settings.json");
+
+        try
+        {
+            using (SettingsConfigHelper.PreserveSettingsFile(settingsPath))
+            {
+                Directory.CreateDirectory(directory);
+                File.WriteAllText(settingsPath, "created");
+            }
+
+            Assert.IsFalse(File.Exists(settingsPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+}

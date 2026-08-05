@@ -1,8 +1,37 @@
 # UI tests framework
 
- A specialized UI test framework for PowerToys that makes it easy to write UI tests for PowerToys modules or settings. Let's start writing UI tests!
+PowerToys provides UI-test frameworks for modules and Settings. New tests should use
+`Microsoft.PowerToys.UITest.Next`, which drives Windows UI Automation through `winappcli` and runs as
+a Microsoft.Testing.Platform executable. The legacy `Microsoft.PowerToys.UITest` framework uses
+WinAppDriver/Selenium and remains documented for existing suites and migration baselines.
 
-## Before running tests  
+## Agent-assisted workflows
+
+Two repository skills cover the complete implementation and validation loop:
+
+- [UI-tests migration skill](../../../.github/skills/ui-tests-migration/SKILL.md): create new
+  `.Next` test projects, port legacy WinAppDriver tests, design stable selectors/waits/lifecycle, and
+  prepare tests for CI.
+- [Local VM UI-tests skill](../../../.github/skills/ui-tests-local-vm/SKILL.md): scaffold and reuse
+  persistent dockur/windows VMs, stage current build/test artifacts, execute tests in an interactive
+  standard-user desktop, and collect TRX/logs/screenshots.
+
+For new or migrated tests, use both skills. Build first, then use a local VM for the live agentic
+loop: run one deterministic test, diagnose and fix it, and finally widen to the module suite.
+
+## Before running tests
+
+### `.Next` tests
+
+- Build the PowerToys runtime and `.UITests.Next` test executable.
+- Install the pinned `winappcli` runtime or set `WINAPP_CLI_PATH`. The pipeline helper is
+  `.pipelines/InstallWinAppCli.ps1`.
+- Use a live interactive desktop. UIA, foreground input, Explorer, hotkeys, and rendering do not work
+  in session 0.
+- Exit an existing PowerToys instance before a host-desktop run. The harness owns the runner and
+  module lifecycle.
+
+### Legacy tests
 
 - Install Windows Application Driver v1.2.1 from https://github.com/microsoft/WinAppDriver/releases/tag/v1.2.1 to the default directory (`C:\Program Files (x86)\Windows Application Driver`)
 
@@ -10,11 +39,73 @@
 
 ## Running tests
 
+### `.Next` tests
+
+Build the focused project with the repository script, then run the produced Microsoft.Testing.Platform
+executable directly:
+
+```pwsh
+tools\build\build.cmd `
+  -Path src\modules\<Module>\Tests\<Module>.UITests.Next `
+  -Platform x64 `
+  -Configuration Debug
+
+$exe = 'x64\Debug\tests\<Module>.UITests.Next\net10.0-windows10.0.26100.0\<Module>.UITests.Next.exe'
+& $exe `
+  --filter 'TestCategory=<Module>' `
+  --report-trx `
+  --report-trx-filename module.trx `
+  --results-directory .\TestResults\<Module> `
+  --timeout 7m
+```
+
+Use explicit filter properties such as `Name=`, `Name~`, `FullyQualifiedName~`, or `TestCategory=`.
+A bare display name can select zero tests. The `7m` timeout above is a focused-filter example; choose
+a larger value for a module or project-wide run.
+
+### Legacy tests
+
 - Exit PowerToys if it's running.
 
 - Open `PowerToys.slnx` in Visual Studio and build the solution.
 
 - Run tests in the Test Explorer (`Test > Test Explorer` or `Ctrl+E, T`).
+
+## Running `.Next` tests in a local VM
+
+The local-VM workflow uses persistent dockur/windows guests on Docker Desktop with WSL2/KVM. It keeps
+PowerToys and the tests off the host while providing a real interactive standard-user desktop for
+Explorer, hotkeys, WebView2, foreground input, and visual checks.
+
+Scaffold the VM outside the repository:
+
+```pwsh
+pwsh .github\skills\ui-tests-local-vm\scripts\Initialize-LocalVm.ps1 `
+  -DestinationRoot X:\PowerToysUiTestVm
+```
+
+Follow the [setup reference](../../../.github/skills/ui-tests-local-vm/references/setup.md) to create
+the untracked `.env`, start the VM, and save the DPAPI-protected administrator credential. Stage the
+test output, PowerToys runtime, winappcli, and matching .NET runtime as described in the
+[agentic loop reference](../../../.github/skills/ui-tests-local-vm/references/agentic-loop.md), then
+run a focused test:
+
+```pwsh
+pwsh .github\skills\ui-tests-local-vm\scripts\Invoke-LocalVmUiTest.ps1 `
+  -VmRoot X:\PowerToysUiTestVm `
+  -ExchangeRoot X:\PowerToysUiTestVm\shared\PowerToysUiTests\<Module> `
+  -TestExecutable '<Module>.UITests.Next.exe' `
+  -Filter 'Name=<focused-test>' `
+  -Platform x64Win10 `
+  -BuildLabel (git rev-parse HEAD) `
+  -SuiteTimeout 15m `
+  -TimeoutMinutes 25 `
+  -ReuseStagedPayload
+```
+
+Use Windows 10 for the baseline pass and a separate Windows 11 VM for behavior that explicitly
+depends on Windows 11, such as the tier-1 Explorer context menu. The VM remains running for fast
+iteration; restore a known baseline or recreate its volume before claiming clean-profile coverage.
 
 ## Running tests in pipeline
 
@@ -68,6 +159,14 @@ The PowerToys UI test pipeline provides flexible options for building and testin
 - Pipeline: https://microsoft.visualstudio.com/Dart/_build?definitionId=161438&_a=summary
 
 ## How to add the first UI tests for your modules
+
+Use the [UI-tests migration skill](../../../.github/skills/ui-tests-migration/SKILL.md) for new
+`.Next` projects and ports. It contains the current executable project scaffold, API mapping, naming,
+CI-stability checklist, and validated examples.
+
+The project sample below describes the **legacy WinAppDriver framework** and is retained for existing
+legacy suites. Do not use it as the starting point for a new `.Next` project.
+
 - Follow the naming convention: ![{ModuleFolder}/Tests/{ModuleName}-{TestType(Fuzz/UI/Unit)}Tests](images/uitests/naming.png)
 - Create a new project and add the following references to the project file. Change the OutputPath to your own module's path.
   ```
