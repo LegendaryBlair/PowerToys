@@ -226,14 +226,14 @@ try {
     Copy-Item -Path $contextMenuDll -Destination $stagedComDll -Force
 
     $makeAppx = Get-MakeAppxPath
-    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $timestampedPackage = Join-Path $outDir "FileConverterContextMenuPackage.$timestamp.msix"
+    $timestamp = Get-Date -Format "yyyy-MM-dd-HH-mm-ss"
+    $versionedPackage = Join-Path $outDir "FileConverterContextMenuPackage.$timestamp.msix"
     $stablePackage = Join-Path $outDir "FileConverterContextMenuPackage.msix"
 
     Write-Host "Using MakeAppx:" $makeAppx
-    Write-Host "Packaging to:" $timestampedPackage
+    Write-Host "Packaging to:" $versionedPackage
 
-    & $makeAppx pack /d $stagingRoot /p $timestampedPackage /nv
+    & $makeAppx pack /d $stagingRoot /p $versionedPackage /nv
     if ($LASTEXITCODE -ne 0) {
         throw "MakeAppx packaging failed with exit code $LASTEXITCODE."
     }
@@ -248,9 +248,9 @@ try {
 
         $signTool = Get-SignToolPath
         Write-Host "Using SignTool:" $signTool
-        & $signTool sign /fd SHA256 /sha1 $cert.Thumbprint /s My $timestampedPackage
+        & $signTool sign /fd SHA256 /sha1 $cert.Thumbprint /s My $versionedPackage
         if ($LASTEXITCODE -ne 0) {
-            throw "SignTool failed for $timestampedPackage with exit code $LASTEXITCODE."
+            throw "SignTool failed for $versionedPackage with exit code $LASTEXITCODE."
         }
     }
 
@@ -258,8 +258,8 @@ try {
         $registerSucceeded = $false
         if (-not $UseLooseRegister) {
             try {
-                Write-Host "Registering sparse package from MSIX:" $timestampedPackage
-                Add-AppxPackage -Path $timestampedPackage -ExternalLocation $outDir -ForceUpdateFromAnyVersion
+                Write-Host "Registering sparse package from MSIX:" $versionedPackage
+                Add-AppxPackage -Path $versionedPackage -ExternalLocation $outDir -ForceUpdateFromAnyVersion
                 $registerSucceeded = $true
             }
             catch {
@@ -274,7 +274,7 @@ try {
     }
 
     try {
-        Copy-Item -Path $timestampedPackage -Destination $stablePackage -Force -ErrorAction Stop
+        Copy-Item -Path $versionedPackage -Destination $stablePackage -Force -ErrorAction Stop
         Write-Host "Updated stable package:" $stablePackage
 
         if ($SignPackage -or $RegisterPackage) {
@@ -305,7 +305,7 @@ try {
         $installed | Select-Object Name, PackageFullName, Publisher, Version, InstallLocation | Format-Table -AutoSize
     }
 
-    Write-Host "Timestamped package ready:" $timestampedPackage
+    Write-Host "Versioned package ready:" $versionedPackage
 }
 finally {
     Remove-Item -Path $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue

@@ -272,6 +272,7 @@ commandnotfound
 commandpalette
 commoncontrols
 compmgmt
+COMPONENTNOTFOUND
 COMPOSITIONDISABLED
 COMPOSITIONFULL
 CONFIGW
@@ -564,6 +565,7 @@ fffffffzzz
 FFh
 Figma
 figma
+fileconverter
 FILEEXPLORER
 fileexploreraddons
 fileexplorerpreview
@@ -1997,6 +1999,7 @@ uninstalls
 Uniquifies
 unitconverter
 unittests
+UNKNOWNIMAGEFORMAT
 UNLEN
 UNORM
 unparsable
@@ -2114,6 +2117,7 @@ wekyb
 wft
 wgpocpl
 wic
+WINCODEC
 wifi
 wikimedia
 wikipedia
