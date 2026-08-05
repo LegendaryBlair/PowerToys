@@ -124,15 +124,9 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                 _markdownDirectory = Path.GetDirectoryName(filePath) ?? string.Empty;
 
                 _allowedBasePath = _markdownDirectory;
-                if (_markdownDirectory.StartsWith(@"\\", StringComparison.Ordinal))
+                if (_markdownDirectory.StartsWith(@"\\", StringComparison.Ordinal) && Path.GetPathRoot(_markdownDirectory) is string shareRoot)
                 {
-                    string trimmed = _markdownDirectory.Substring(2);
-                    int firstSep = trimmed.IndexOf('\\');
-                    int secondSep = firstSep >= 0 ? trimmed.IndexOf('\\', firstSep + 1) : -1;
-                    if (secondSep >= 0)
-                    {
-                        _allowedBasePath = string.Concat(@"\\", trimmed.AsSpan(0, secondSep));
-                    }
+                    _allowedBasePath = shareRoot;
                 }
 
                 string fileText = File.ReadAllText(filePath);

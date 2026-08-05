@@ -23,7 +23,7 @@ After changing the registry value, restart PowerToys for the setting to take eff
 2. Copy `src/gpo/assets/en-US/PowerToys.adml` to `C:\Windows\PolicyDefinitions\en-US\`
 3. Open `gpedit.msc`
 4. Navigate to: Computer Configuration > Administrative Templates > PowerToys > File Explorer Preview
-5. Find "Markdown preview: Show local images - Configure enabled state"
+5. Find "Markdown preview: Show images from local and network sources"
 6. Set to Enabled, Disabled, or Not Configured
 
 ## Expected Behavior Matrix

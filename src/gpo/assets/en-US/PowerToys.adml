@@ -262,7 +262,7 @@ If you don't configure this policy, the user will be able to control the setting
       <string id="MarkdownAllowLocalImages">Markdown preview: Show images from local and network sources</string>
       <string id="MarkdownAllowLocalImagesDescription">This policy configures whether images from local and network (UNC) sources should be displayed in Markdown file previews.
 
-If you enable this setting, images from the document's folder and network shares will always be shown and the user won't be able to disable it.
+If you enable this setting, images from the document's folder and, for documents on a network share, images within that same share root will always be shown. The user won't be able to disable it.
 
 If you disable this setting, all images will be blocked and the user won't be able to enable local image rendering.
 
