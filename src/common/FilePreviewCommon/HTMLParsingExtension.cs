@@ -32,6 +32,7 @@ namespace Microsoft.PowerToys.FilePreviewCommon
         private const uint FileShareRead = 0x00000001;
         private const uint FileShareWrite = 0x00000002;
         private const uint FileShareDelete = 0x00000004;
+        private const uint FileReadAttributes = 0x00000080;
         private const uint OpenExisting = 3;
         private const uint FileAttributeNormal = 0x00000080;
         private const uint FileFlagBackupSemantics = 0x02000000;
@@ -292,7 +293,7 @@ namespace Microsoft.PowerToys.FilePreviewCommon
             const uint ShareMode = FileShareRead | FileShareWrite | FileShareDelete;
             using SafeFileHandle baseHandle = CreateFileHandle(
                 allowedBasePath,
-                0,
+                FileReadAttributes,
                 ShareMode,
                 0,
                 OpenExisting,

@@ -258,6 +258,20 @@ namespace PreviewPaneUnitTests
             Assert.IsFalse(html.Contains("base64"), "data URI must not survive the rewrite");
         }
 
+        [DataTestMethod]
+        [DataRow("<img src=\"data:image/png;base64,iVBORw0KGgo=\" />", "data:image/png;base64,iVBORw0KGgo=")]
+        [DataRow("<img src='images/test.png' />", "images/test.png")]
+        [DataRow("<img src=\"https://localmdimages/images/test.png\" />", "https://localmdimages/images/test.png")]
+        public void RawHtmlImageIsBlockedWhenLocalImagesAreDisabled(string mdString, string blockedSource)
+        {
+            int blockedCount = 0;
+            string html = Microsoft.PowerToys.FilePreviewCommon.MarkdownHelper.MarkdownHtml(
+                mdString, "light", @"C:\docs\doc.md", () => { blockedCount++; }, false, @"C:\docs");
+
+            Assert.AreEqual(1, blockedCount);
+            Assert.IsFalse(html.Contains(blockedSource));
+        }
+
         [TestMethod]
         public void ExtensionRewritesLocalImageToVirtualHostWhenLocalImagesAllowed()
         {
