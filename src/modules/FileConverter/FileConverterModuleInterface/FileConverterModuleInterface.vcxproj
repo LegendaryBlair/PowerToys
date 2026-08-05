@@ -40,6 +40,9 @@
     <None Include="..\Strings\en-us\Resources.resw" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="$(RepoRoot)src\common\interop\pipe_caller_auth.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(UsePrecompiledHeaders)' != 'false'">Create</PrecompiledHeader>

@@ -96,6 +96,12 @@ namespace
         return std::wstring(fc_constants::PipeNamePrefix) + std::to_wstring(session_id);
     }
 
+    bool IsBackendAvailable()
+    {
+        const std::wstring pipe_name = GetPipeNameForCurrentSession();
+        return WaitNamedPipeW(pipe_name.c_str(), 0) != FALSE;
+    }
+
     HRESULT GetSelectedPaths(IShellItemArray* selection, std::vector<std::wstring>& paths)
     {
         if (selection == nullptr)
@@ -386,7 +392,7 @@ namespace
                 return S_OK;
             }
 
-            if (CanConvertPaths(paths, m_spec.destination_group))
+            if (IsBackendAvailable() && CanConvertPaths(paths, m_spec.destination_group))
             {
                 *cmd_state = ECS_ENABLED;
             }
@@ -544,7 +550,7 @@ public:
             return S_OK;
         }
 
-        if (HasAnyAvailableDestination(paths))
+        if (IsBackendAvailable() && HasAnyAvailableDestination(paths))
         {
             *cmd_state = ECS_ENABLED;
         }
@@ -600,7 +606,9 @@ public:
         }
 
         std::vector<std::wstring> paths;
-        if (FAILED(GetSelectedPaths(m_data_object.Get(), paths)) || !HasAnyAvailableDestination(paths))
+        if (!IsBackendAvailable() ||
+            FAILED(GetSelectedPaths(m_data_object.Get(), paths)) ||
+            !HasAnyAvailableDestination(paths))
         {
             return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
         }

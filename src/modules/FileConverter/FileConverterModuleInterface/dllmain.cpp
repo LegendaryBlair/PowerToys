@@ -6,6 +6,7 @@
 #include <Constants.h>
 #include <FileConversionEngine.h>
 #include <common/SettingsAPI/settings_objects.h>
+#include <common/interop/pipe_caller_auth.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.ApplicationModel.Resources.h>
@@ -43,6 +44,21 @@ namespace
     constexpr wchar_t CONTEXT_MENU_PACKAGE_FILE_NAME[] = L"FileConverterContextMenuPackage.msix";
     constexpr wchar_t CONTEXT_MENU_PACKAGE_FILE_PREFIX[] = L"FileConverterContextMenuPackage";
     constexpr wchar_t CONTEXT_MENU_HANDLER_CLSID[] = L"{57EC18F5-24D5-4DC6-AE2E-9D0F7A39F8BA}";
+    constexpr size_t MAX_PIPE_PAYLOAD_BYTES = 1024 * 1024;
+    constexpr size_t MAX_PENDING_PAYLOADS = 64;
+
+    std::wstring GetWindowsDirectoryPath()
+    {
+        wchar_t path[MAX_PATH] = {};
+        const UINT length = GetWindowsDirectoryW(path, ARRAYSIZE(path));
+        if (length == 0 || length >= ARRAYSIZE(path))
+        {
+            return {};
+        }
+
+        return std::wstring(path, length);
+    }
+
     std::wstring LoadLocalizedString(std::wstring_view key, std::wstring_view fallback)
     {
         try
@@ -261,6 +277,13 @@ namespace
             const BOOL read_ok = ReadFile(pipe_handle, buffer, BUFFER_SIZE, &bytes_read, nullptr);
             if (bytes_read > 0)
             {
+                if (payload.size() > MAX_PIPE_PAYLOAD_BYTES - bytes_read)
+                {
+                    Logger::warn(L"File Converter rejected an oversized pipe payload.");
+                    payload.clear();
+                    break;
+                }
+
                 payload.append(buffer, bytes_read);
             }
 
@@ -501,6 +524,25 @@ namespace
                 return;
             }
 
+            m_caller_policy.enabled = true;
+            m_caller_policy.expectedDirectory = GetWindowsDirectoryPath();
+            m_caller_policy.allowedBasenames = { L"explorer.exe", L"dllhost.exe" };
+            m_caller_policy.requireMicrosoftSignature = true;
+            m_caller_policy.logReject = [](const interop_auth::AuthResult& result) {
+                Logger::warn(
+                    L"Rejected unauthenticated File Converter pipe client: pid={} image='{}' reason={}",
+                    result.pid,
+                    result.imagePath,
+                    result.reasonCode);
+            };
+
+            if (m_caller_policy.expectedDirectory.empty())
+            {
+                Logger::error(L"File Converter could not determine the Windows directory for pipe authentication.");
+                m_running.store(false);
+                return;
+            }
+
             m_pipe_name = pipe_name;
             m_listener_thread = std::thread(&FileConverterPipeOrchestrator::ListenerLoop, this);
             m_worker_thread = std::thread(&FileConverterPipeOrchestrator::WorkerLoop, this);
@@ -573,12 +615,24 @@ namespace
 
         void EnqueuePayload(std::string payload)
         {
+            bool queued = false;
             {
                 std::scoped_lock lock(m_queue_mutex);
-                m_pending_payloads.push(std::move(payload));
+                if (m_pending_payloads.size() < MAX_PENDING_PAYLOADS)
+                {
+                    m_pending_payloads.push(std::move(payload));
+                    queued = true;
+                }
             }
 
-            m_queue_cv.notify_one();
+            if (queued)
+            {
+                m_queue_cv.notify_one();
+            }
+            else
+            {
+                Logger::warn(L"File Converter dropped a pipe payload because the conversion queue is full.");
+            }
         }
 
         void ProcessPayload(const std::string& payload)
@@ -653,7 +707,7 @@ namespace
                 HANDLE pipe_handle = CreateNamedPipeW(
                     m_pipe_name.c_str(),
                     PIPE_ACCESS_INBOUND,
-                    PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+                    PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
                     PIPE_UNLIMITED_INSTANCES,
                     0,
                     4096,
@@ -675,6 +729,34 @@ namespace
                         std::this_thread::sleep_for(std::chrono::milliseconds(50));
                     }
 
+                    continue;
+                }
+
+                if (!m_running.load())
+                {
+                    DisconnectNamedPipe(pipe_handle);
+                    CloseHandle(pipe_handle);
+                    break;
+                }
+
+                ULONG client_session_id = 0;
+                DWORD server_session_id = 0;
+                const bool same_session =
+                    GetNamedPipeClientSessionId(pipe_handle, &client_session_id) &&
+                    ProcessIdToSessionId(GetCurrentProcessId(), &server_session_id) &&
+                    client_session_id == server_session_id;
+                const auto auth_result = same_session ?
+                                             interop_auth::AuthenticateClient(pipe_handle, m_caller_policy, m_caller_cache) :
+                                             interop_auth::AuthResult{};
+                if (!same_session || !auth_result.accepted)
+                {
+                    if (!same_session)
+                    {
+                        Logger::warn(L"Rejected File Converter pipe client from another session.");
+                    }
+
+                    DisconnectNamedPipe(pipe_handle);
+                    CloseHandle(pipe_handle);
                     continue;
                 }
 
@@ -704,6 +786,8 @@ namespace
         std::mutex m_queue_mutex;
         std::condition_variable m_queue_cv;
         std::queue<std::string> m_pending_payloads;
+        interop_auth::CallerPolicy m_caller_policy;
+        interop_auth::VerificationCache m_caller_cache;
     };
 }
 
