@@ -598,11 +598,17 @@ namespace
                 return;
             }
 
-            WakeListener();
             m_queue_cv.notify_all();
 
             if (m_listener_thread.joinable())
             {
+                const HANDLE listener_thread_handle = m_listener_thread.native_handle();
+                while (WaitForSingleObject(listener_thread_handle, 10) == WAIT_TIMEOUT)
+                {
+                    (void)CancelSynchronousIo(listener_thread_handle);
+                    (void)TryWakeListener();
+                }
+
                 m_listener_thread.join();
             }
 
@@ -634,11 +640,11 @@ namespace
         }
 
     private:
-        void WakeListener() const
+        bool TryWakeListener() const
         {
             if (m_pipe_name.empty())
             {
-                return;
+                return false;
             }
 
             HANDLE wake_handle = CreateFileW(
@@ -653,7 +659,10 @@ namespace
             if (wake_handle != INVALID_HANDLE_VALUE)
             {
                 CloseHandle(wake_handle);
+                return true;
             }
+
+            return false;
         }
 
         void EnqueuePayload(std::string payload)
