@@ -26,6 +26,7 @@ namespace Microsoft.PowerToys.FilePreviewCommon
         /// Markdown HTML footer.
         /// </summary>
         private static readonly string HtmlFooter = "</div></body></html>";
+        private static readonly TimeSpan RawHtmlImageRegexTimeout = TimeSpan.FromMilliseconds(250);
 
         public static string MarkdownHtml(string fileContent, string theme, string filePath, ImagesBlockedCallBack imagesBlockedCallBack, bool allowLocalImages = false, string? allowedBasePath = null)
         {
@@ -58,38 +59,47 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                 // Matches double-quoted, single-quoted and unquoted src values, so that every form
                 // an author can write is validated the same way. Unquoted values are re-emitted
                 // quoted, which is equivalent HTML.
-                parsedMarkdown = Regex.Replace(
-                    parsedMarkdown,
-                    @"(<img\b[^>]*?\ssrc\s*=\s*)(?:(""|')(.+?)\2|([^\s""'>]+))",
-                    m =>
-                    {
-                        bool isQuoted = m.Groups[2].Success;
-                        string quote = isQuoted ? m.Groups[2].Value : "\"";
-                        string src = isQuoted ? m.Groups[3].Value : m.Groups[4].Value;
-
-                        if (src == "#")
+                try
+                {
+                    parsedMarkdown = Regex.Replace(
+                        parsedMarkdown,
+                        @"(<img\b[^>]*?\ssrc\s*=\s*)(?:(""|')(.+?)\2|([^\s""'>]+))",
+                        m =>
                         {
-                            return m.Value;
-                        }
+                            bool isQuoted = m.Groups[2].Success;
+                            string quote = isQuoted ? m.Groups[2].Value : "\"";
+                            string src = isQuoted ? m.Groups[3].Value : m.Groups[4].Value;
 
-                        if (allowLocalImages &&
-                            src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase) &&
-                            HTMLParsingExtension.TryResolveVirtualUrl(src, extension.AllowedBasePath, out string? resolvedPath) &&
-                            HTMLParsingExtension.TryGetImageContentType(resolvedPath, out _))
-                        {
-                            return m.Value;
-                        }
+                            if (src == "#")
+                            {
+                                return m.Value;
+                            }
 
-                        if (allowLocalImages &&
-                            HTMLParsingExtension.TryGetLocalImageVirtualUrl(src, extension.FilePath, extension.AllowedBasePath, out string? virtualUrl))
-                        {
-                            return m.Groups[1].Value + quote + virtualUrl + quote;
-                        }
+                            if (allowLocalImages &&
+                                src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase) &&
+                                HTMLParsingExtension.TryResolveVirtualUrl(src, extension.AllowedBasePath, out string? resolvedPath) &&
+                                HTMLParsingExtension.TryGetImageContentType(resolvedPath, out _))
+                            {
+                                return m.Value;
+                            }
 
-                        imagesBlockedCallBack();
-                        return m.Groups[1].Value + quote + "#" + quote;
-                    },
-                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                            if (allowLocalImages &&
+                                HTMLParsingExtension.TryGetLocalImageVirtualUrl(src, extension.FilePath, extension.AllowedBasePath, out string? virtualUrl))
+                            {
+                                return m.Groups[1].Value + quote + virtualUrl + quote;
+                            }
+
+                            imagesBlockedCallBack();
+                            return m.Groups[1].Value + quote + "#" + quote;
+                        },
+                        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                        RawHtmlImageRegexTimeout);
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    imagesBlockedCallBack();
+                    parsedMarkdown = parsedMarkdown.Replace("<img", "&lt;img", StringComparison.OrdinalIgnoreCase);
+                }
             }
 
             string markdownHTML = $"{htmlHeader}{parsedMarkdown}{HtmlFooter}";

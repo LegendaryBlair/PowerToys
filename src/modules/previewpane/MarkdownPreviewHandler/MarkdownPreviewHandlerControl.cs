@@ -264,7 +264,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                         if (_infoBarDisplayed)
                         {
                             string message = _allowLocalImages
-                                ? Resources.RemoteImagesBlockedInfoText
+                                ? Resources.ImagesBlockedWithLocalImagesEnabledInfoText
                                 : Resources.BlockedImageInfoText;
                             _infoBar = GetTextBoxControl(message);
                             Resize += FormResized;
