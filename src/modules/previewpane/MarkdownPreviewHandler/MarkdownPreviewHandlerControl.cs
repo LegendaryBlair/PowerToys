@@ -5,7 +5,6 @@
 using System.IO.Abstractions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 
 using Common;
 using Microsoft.PowerToys.PreviewHandler.Markdown.Properties;
@@ -130,14 +129,6 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                 }
 
                 string fileText = File.ReadAllText(filePath);
-
-                if (!_allowLocalImages)
-                {
-                    if (Regex.IsMatch(fileText, @"<\s*img(?:\s|/?>)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
-                    {
-                        _infoBarDisplayed = true;
-                    }
-                }
 
                 string markdownHTML = FilePreviewCommon.MarkdownHelper.MarkdownHtml(fileText, Settings.GetTheme(), filePath, ImagesBlockedCallBack, _allowLocalImages, _allowedBasePath);
 

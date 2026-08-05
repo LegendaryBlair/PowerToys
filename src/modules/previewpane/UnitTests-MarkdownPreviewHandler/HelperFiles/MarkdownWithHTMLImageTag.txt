@@ -1,2 +1,2 @@
 ﻿## Something
-<IMG src="./a.jpg" \>
+<IMG src="./a.jpg">
