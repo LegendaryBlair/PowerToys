@@ -192,12 +192,14 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                             {
                                 if (FilePreviewCommon.HTMLParsingExtension.TryResolveVirtualUrl(e.Request.Uri, _allowedBasePath, out string imagePath) && File.Exists(imagePath))
                                 {
+                                    Stream imageStream = null;
                                     try
                                     {
                                         // Stream directly from disk rather than buffering the whole image
                                         // in memory; WebView2 reads and disposes the stream.
-                                        var imageStream = File.OpenRead(imagePath);
+                                        imageStream = File.OpenRead(imagePath);
                                         e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + GetImageContentType(imagePath));
+                                        imageStream = null;
                                         return;
                                     }
                                     catch (IOException)
@@ -205,6 +207,10 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                                     }
                                     catch (UnauthorizedAccessException)
                                     {
+                                    }
+                                    finally
+                                    {
+                                        imageStream?.Dispose();
                                     }
                                 }
 
