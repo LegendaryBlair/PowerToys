@@ -395,7 +395,14 @@ namespace
                 continue;
             }
 
-            request.files.push_back(file_path.c_str());
+            std::filesystem::path parsed_path{ file_path.c_str() };
+            if (!parsed_path.is_absolute())
+            {
+                ++request.skipped_entries;
+                continue;
+            }
+
+            request.files.push_back(parsed_path.wstring());
         }
 
         if (request.files.empty())

@@ -339,7 +339,7 @@ namespace
     {
         json::JsonObject payload;
         payload.Insert(fc_constants::JsonActionKey, json::JsonValue::CreateStringValue(fc_constants::ActionFormatConvert));
-        payload.Insert(fc_constants::JsonDestinationKey, json::JsonValue::CreateStringValue(destination.data()));
+        payload.Insert(fc_constants::JsonDestinationKey, json::JsonValue::CreateStringValue(winrt::hstring{ destination }));
 
         json::JsonArray files;
         for (const auto& path : paths)
