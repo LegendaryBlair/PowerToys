@@ -186,6 +186,13 @@ function Invoke-LooseRegistration {
     Copy-Item -Path $BuiltContextMenuDllPath -Destination (Join-Path $registerRoot "PowerToys.FileConverterContextMenu.dll") -Force
     Copy-Item -Path $AssetsSourcePath -Destination (Join-Path $registerRoot "Assets\\FileConverter") -Recurse -Force
 
+    $settingsExe = Join-Path $OutDir "PowerToys.Settings.exe"
+    if (-not (Test-Path $settingsExe)) {
+        throw "PowerToys.Settings.exe was not found at $settingsExe."
+    }
+
+    Copy-Item -Path $settingsExe -Destination (Join-Path $registerRoot "PowerToys.Settings.exe") -Force
+
     Add-AppxPackage -Register -Path (Join-Path $registerRoot "AppxManifest.xml") -ExternalLocation $registerRoot
     return $registerRoot
 }

@@ -63,6 +63,9 @@
   <data name="FileConverter_Error_UnsupportedAction" xml:space="preserve">
     <value>unsupported action</value>
   </data>
+  <data name="FileConverter_Error_DestinationNotString" xml:space="preserve">
+    <value>destination is not a string</value>
+  </data>
   <data name="FileConverter_Error_MissingFilesArray" xml:space="preserve">
     <value>missing files array</value>
   </data>

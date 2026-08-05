@@ -356,10 +356,13 @@ namespace
         if (json_payload.HasKey(fc_constants::JsonDestinationKey))
         {
             const auto destination_value = json_payload.GetNamedValue(fc_constants::JsonDestinationKey);
-            if (destination_value.ValueType() == winrt_json::JsonValueType::String)
+            if (destination_value.ValueType() != winrt_json::JsonValueType::String)
             {
-                destination = json_payload.GetNamedString(fc_constants::JsonDestinationKey).c_str();
+                rejection_reason = LoadLocalizedString(L"FileConverter_Error_DestinationNotString", L"destination is not a string");
+                return false;
             }
+
+            destination = json_payload.GetNamedString(fc_constants::JsonDestinationKey).c_str();
         }
 
         if (!json_payload.HasKey(fc_constants::JsonFilesKey))
