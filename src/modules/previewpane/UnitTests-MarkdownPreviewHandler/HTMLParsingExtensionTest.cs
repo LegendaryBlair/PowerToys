@@ -156,6 +156,7 @@ namespace PreviewPaneUnitTests
                 using (var reader = new System.IO.StreamReader(imageStream))
                 {
                     Assert.AreEqual("image-content", reader.ReadToEnd());
+                    Assert.IsFalse(imageStream.CanRead);
                 }
 
                 StringAssert.EndsWith(resolvedPath, @"\images\my #image.png");
@@ -164,6 +165,18 @@ namespace PreviewPaneUnitTests
             {
                 System.IO.Directory.Delete(basePath, true);
             }
+        }
+
+        [DataTestMethod]
+        [DataRow(null)]
+        [DataRow("")]
+        [DataRow("document.txt")]
+        public void TryGetImageContentTypeRejectsUnsupportedPaths(string imagePath)
+        {
+            bool result = Microsoft.PowerToys.FilePreviewCommon.HTMLParsingExtension.TryGetImageContentType(imagePath, out string contentType);
+
+            Assert.IsFalse(result);
+            Assert.IsNull(contentType);
         }
 
         [DataTestMethod]

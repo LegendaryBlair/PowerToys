@@ -2,6 +2,7 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -24,6 +25,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         private static readonly IFileSystem FileSystem = new FileSystem();
         private static readonly IPath Path = FileSystem.Path;
         private static readonly IFile File = FileSystem.File;
+        private readonly List<Stream> _imageResponseStreams = new List<Stream>();
 
         /// <summary>
         /// RichTextBox control to display if external images are blocked.
@@ -109,6 +111,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
             }
 
             FilePreviewCommon.Helper.CleanupTempDir(_webView2UserDataFolder);
+            DisposeImageResponseStreams();
 
             _infoBarDisplayed = false;
 
@@ -184,8 +187,10 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                                         FilePreviewCommon.HTMLParsingExtension.TryGetImageContentType(imagePath, out string contentType))
                                     {
                                         // Stream directly from disk rather than buffering the whole image
-                                        // in memory; WebView2 reads and disposes the stream.
+                                        // in memory. The wrapper closes at EOF, and the control retains it
+                                        // as a fallback until the next preview or control disposal.
                                         e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + contentType + "\r\n");
+                                        _imageResponseStreams.Add(imageStream);
                                         imageStream = null;
                                         return;
                                     }
@@ -352,6 +357,26 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         private void ImagesBlockedCallBack()
         {
             _infoBarDisplayed = true;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                DisposeImageResponseStreams();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private void DisposeImageResponseStreams()
+        {
+            foreach (Stream imageResponseStream in _imageResponseStreams)
+            {
+                imageResponseStream.Dispose();
+            }
+
+            _imageResponseStreams.Clear();
         }
     }
 }

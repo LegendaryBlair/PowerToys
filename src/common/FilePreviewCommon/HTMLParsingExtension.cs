@@ -112,7 +112,13 @@ namespace Microsoft.PowerToys.FilePreviewCommon
         /// <returns>True if the file extension is a supported image type.</returns>
         public static bool TryGetImageContentType(string? imagePath, [NotNullWhen(true)] out string? contentType)
         {
-            string extension = Path.GetExtension(imagePath) ?? string.Empty;
+            if (string.IsNullOrEmpty(imagePath))
+            {
+                contentType = null;
+                return false;
+            }
+
+            string extension = Path.GetExtension(imagePath);
             contentType = extension.ToUpperInvariant() switch
             {
                 ".PNG" => "image/png",
@@ -333,7 +339,7 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                     return false;
                 }
 
-                imageStream = new FileStream(imageHandle, FileAccess.Read);
+                imageStream = new AutoClosingReadStream(new FileStream(imageHandle, FileAccess.Read));
                 imageHandle = null;
                 resolvedPath = finalImagePath;
                 return true;
