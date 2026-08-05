@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <Import Project="$(RepoRoot)packages\Microsoft.Windows.CppWinRT.2.0.250303.1\build\native\Microsoft.Windows.CppWinRT.props" Condition="Exists('$(RepoRoot)packages\Microsoft.Windows.CppWinRT.2.0.250303.1\build\native\Microsoft.Windows.CppWinRT.props')" />
+  <Target Name="GenerateFileConverterResources" BeforeTargets="PrepareForBuild" Inputs="@(FileConverterResource);..\Strings\generate-resources.ps1" Outputs="$(IntDir)Generated Files\FileConverterResources.h;$(IntDir)Generated Files\FileConverterResources.rc">
+    <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -NoProfile -File &quot;$(MSBuildThisFileDirectory)..\Strings\generate-resources.ps1&quot; -SourceRoot &quot;$(MSBuildThisFileDirectory)..\Strings&quot; -OutputDirectory &quot;$(IntDir)Generated Files&quot;" />
+  </Target>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -26,7 +28,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>_WINDOWS;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(RepoRoot)src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)Generated Files;$(RepoRoot)src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -35,7 +37,7 @@
     <ClInclude Include="FileConversionEngine.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\Strings\en-us\Resources.resw" />
+    <FileConverterResource Include="..\Strings\**\Resources.resx" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -44,7 +46,4 @@
     <ClCompile Include="FileConversionEngine.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(RepoRoot)packages\Microsoft.Windows.CppWinRT.2.0.250303.1\build\native\Microsoft.Windows.CppWinRT.targets" Condition="Exists('$(RepoRoot)packages\Microsoft.Windows.CppWinRT.2.0.250303.1\build\native\Microsoft.Windows.CppWinRT.targets')" />
-  </ImportGroup>
 </Project>

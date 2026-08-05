@@ -5,11 +5,11 @@
 
 #include <Constants.h>
 #include <FileConversionEngine.h>
+#include <FileConverterResources.h>
 #include <common/SettingsAPI/settings_objects.h>
 #include <common/interop/pipe_caller_auth.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.ApplicationModel.Resources.h>
 #include <winrt/base.h>
 #include <common/logger/logger.h>
 #include <common/utils/logger_helper.h>
@@ -60,19 +60,17 @@ namespace
         return std::wstring(path, length);
     }
 
-    std::wstring LoadLocalizedString(std::wstring_view key, std::wstring_view fallback)
+    std::wstring LoadLocalizedString(UINT resource_id, std::wstring_view fallback)
     {
-        try
+        const wchar_t* value = nullptr;
+        const int length = LoadStringW(
+            reinterpret_cast<HMODULE>(&__ImageBase),
+            resource_id,
+            reinterpret_cast<wchar_t*>(&value),
+            0);
+        if (length > 0)
         {
-            static const auto loader = winrt::Windows::ApplicationModel::Resources::ResourceLoader::GetForViewIndependentUse(L"Resources");
-            const auto value = loader.GetString(winrt::hstring{ key });
-            if (!value.empty())
-            {
-                return value.c_str();
-            }
-        }
-        catch (...)
-        {
+            return std::wstring{ value, static_cast<size_t>(length) };
         }
 
         return std::wstring{ fallback };
@@ -323,34 +321,34 @@ namespace
 
         if (payload.empty())
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_EmptyPayload", L"empty payload");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_EMPTYPAYLOAD, L"empty payload");
             return false;
         }
 
         winrt_json::JsonObject json_payload;
         if (!winrt_json::JsonObject::TryParse(winrt::to_hstring(payload), json_payload))
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_InvalidJson", L"invalid JSON");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_INVALIDJSON, L"invalid JSON");
             return false;
         }
 
         if (!json_payload.HasKey(fc_constants::JsonActionKey))
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_MissingAction", L"missing action");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_MISSINGACTION, L"missing action");
             return false;
         }
 
         const auto action_value = json_payload.GetNamedValue(fc_constants::JsonActionKey);
         if (action_value.ValueType() != winrt_json::JsonValueType::String)
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_ActionNotString", L"action is not a string");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_ACTIONNOTSTRING, L"action is not a string");
             return false;
         }
 
         const auto action = json_payload.GetNamedString(fc_constants::JsonActionKey);
         if (_wcsicmp(action.c_str(), fc_constants::ActionFormatConvert) != 0)
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_UnsupportedAction", L"unsupported action");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_UNSUPPORTEDACTION, L"unsupported action");
             return false;
         }
 
@@ -360,7 +358,7 @@ namespace
             const auto destination_value = json_payload.GetNamedValue(fc_constants::JsonDestinationKey);
             if (destination_value.ValueType() != winrt_json::JsonValueType::String)
             {
-                rejection_reason = LoadLocalizedString(L"FileConverter_Error_DestinationNotString", L"destination is not a string");
+                rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_DESTINATIONNOTSTRING, L"destination is not a string");
                 return false;
             }
 
@@ -369,14 +367,14 @@ namespace
 
         if (!json_payload.HasKey(fc_constants::JsonFilesKey))
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_MissingFilesArray", L"missing files array");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_MISSINGFILESARRAY, L"missing files array");
             return false;
         }
 
         const auto files_value = json_payload.GetNamedValue(fc_constants::JsonFilesKey);
         if (files_value.ValueType() != winrt_json::JsonValueType::Array)
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_FilesNotArray", L"files is not an array");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_FILESNOTARRAY, L"files is not an array");
             return false;
         }
 
@@ -408,21 +406,21 @@ namespace
 
         if (request.files.empty())
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_NoValidPaths", L"no valid file paths");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_NOVALIDPATHS, L"no valid file paths");
             return false;
         }
 
         const auto parsed_format = ParseFormat(destination);
         if (!parsed_format.has_value())
         {
-            rejection_reason = LoadLocalizedString(L"FileConverter_Error_UnsupportedDestination", L"unsupported destination format");
+            rejection_reason = LoadLocalizedString(IDS_FILECONVERTER_ERROR_UNSUPPORTEDDESTINATION, L"unsupported destination format");
             return false;
         }
 
         const auto support = file_converter::IsOutputFormatSupported(parsed_format.value());
         if (FAILED(support.hr))
         {
-            rejection_reason = support.error_message.empty() ? LoadLocalizedString(L"FileConverter_Error_DestinationUnavailable", L"requested destination format is unavailable") : support.error_message;
+            rejection_reason = support.error_message.empty() ? LoadLocalizedString(IDS_FILECONVERTER_ERROR_DESTINATIONUNAVAILABLE, L"requested destination format is unavailable") : support.error_message;
             return false;
         }
 
@@ -898,7 +896,7 @@ public:
     const wchar_t* get_name() override
     {
         std::call_once(m_name_initialization, [this] {
-            m_name = LoadLocalizedString(L"FileConverter_App_Name", MODULE_NAME_FALLBACK);
+            m_name = LoadLocalizedString(IDS_FILECONVERTER_APP_NAME, MODULE_NAME_FALLBACK);
         });
         return m_name.c_str();
     }
@@ -912,7 +910,7 @@ public:
     {
         HINSTANCE hinstance = reinterpret_cast<HINSTANCE>(&__ImageBase);
         PowerToysSettings::Settings settings(hinstance, get_name());
-        settings.set_description(LoadLocalizedString(L"FileConverter_Settings_Description", L"Convert image files to common formats."));
+        settings.set_description(LoadLocalizedString(IDS_FILECONVERTER_SETTINGS_DESCRIPTION, L"Convert image files to common formats."));
         settings.set_overview_link(L"https://aka.ms/PowerToysOverview_FileConverter");
         settings.set_icon_key(L"pt-file-converter");
         return settings.serialize_to_buffer(buffer, buffer_size);

@@ -5,8 +5,8 @@
 
 #include <Constants.h>
 #include <FileConversionEngine.h>
+#include <FileConverterResources.h>
 #include <ShlObj.h>
-#include <winrt/Windows.ApplicationModel.Resources.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/base.h>
@@ -22,6 +22,7 @@
 using namespace Microsoft::WRL;
 namespace json = winrt::Windows::Data::Json;
 namespace fc_constants = winrt::PowerToys::FileConverter::Constants;
+extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 namespace
 {
@@ -41,7 +42,7 @@ namespace
 
     struct TargetFormatSpec
     {
-        const wchar_t* label_key;
+        UINT label_resource_id;
         const wchar_t* label_fallback;
         const wchar_t* destination;
         FormatGroup destination_group;
@@ -49,27 +50,25 @@ namespace
     };
 
     constexpr std::array<TargetFormatSpec, 6> TARGET_FORMATS = {
-        TargetFormatSpec{ L"FileConverter_ContextMenu_Format_Png", L"PNG", fc_constants::FormatPng, FormatGroup::Png, { 0x0a4200f1, 0x74e5, 0x4f59, { 0xbb, 0x5d, 0x79, 0x8a, 0xfa, 0xf8, 0x01, 0x10 } } },
-        TargetFormatSpec{ L"FileConverter_ContextMenu_Format_Jpeg", L"JPEG", fc_constants::FormatJpeg, FormatGroup::Jpeg, { 0x6d94f15d, 0xa2ba, 0x4912, { 0xa8, 0xf6, 0xe3, 0x89, 0xe0, 0xf8, 0x50, 0x76 } } },
-        TargetFormatSpec{ L"FileConverter_ContextMenu_Format_Bmp", L"BMP", fc_constants::FormatBmp, FormatGroup::Bmp, { 0x922d3030, 0x7fdb, 0x4de7, { 0x99, 0x39, 0x15, 0x95, 0x38, 0x0e, 0x81, 0x88 } } },
-        TargetFormatSpec{ L"FileConverter_ContextMenu_Format_Tiff", L"TIFF", fc_constants::FormatTiff, FormatGroup::Tiff, { 0x91fc7a8a, 0x34b9, 0x4ddf, { 0x86, 0xe8, 0x9f, 0xbb, 0x84, 0xf3, 0x55, 0x65 } } },
-        TargetFormatSpec{ L"FileConverter_ContextMenu_Format_Heif", L"HEIF", fc_constants::FormatHeif, FormatGroup::Heif, { 0x7fce9037, 0x12fe, 0x40af, { 0x88, 0x95, 0x6e, 0x7f, 0xe6, 0x29, 0x2b, 0x45 } } },
-        TargetFormatSpec{ L"FileConverter_ContextMenu_Format_Webp", L"WebP", fc_constants::FormatWebp, FormatGroup::Webp, { 0x5fce9315, 0x3d7b, 0x4372, { 0xac, 0x17, 0x35, 0x57, 0x91, 0xcd, 0x17, 0x61 } } },
+        TargetFormatSpec{ IDS_FILECONVERTER_CONTEXTMENU_FORMAT_PNG, L"PNG", fc_constants::FormatPng, FormatGroup::Png, { 0x0a4200f1, 0x74e5, 0x4f59, { 0xbb, 0x5d, 0x79, 0x8a, 0xfa, 0xf8, 0x01, 0x10 } } },
+        TargetFormatSpec{ IDS_FILECONVERTER_CONTEXTMENU_FORMAT_JPEG, L"JPEG", fc_constants::FormatJpeg, FormatGroup::Jpeg, { 0x6d94f15d, 0xa2ba, 0x4912, { 0xa8, 0xf6, 0xe3, 0x89, 0xe0, 0xf8, 0x50, 0x76 } } },
+        TargetFormatSpec{ IDS_FILECONVERTER_CONTEXTMENU_FORMAT_BMP, L"BMP", fc_constants::FormatBmp, FormatGroup::Bmp, { 0x922d3030, 0x7fdb, 0x4de7, { 0x99, 0x39, 0x15, 0x95, 0x38, 0x0e, 0x81, 0x88 } } },
+        TargetFormatSpec{ IDS_FILECONVERTER_CONTEXTMENU_FORMAT_TIFF, L"TIFF", fc_constants::FormatTiff, FormatGroup::Tiff, { 0x91fc7a8a, 0x34b9, 0x4ddf, { 0x86, 0xe8, 0x9f, 0xbb, 0x84, 0xf3, 0x55, 0x65 } } },
+        TargetFormatSpec{ IDS_FILECONVERTER_CONTEXTMENU_FORMAT_HEIF, L"HEIF", fc_constants::FormatHeif, FormatGroup::Heif, { 0x7fce9037, 0x12fe, 0x40af, { 0x88, 0x95, 0x6e, 0x7f, 0xe6, 0x29, 0x2b, 0x45 } } },
+        TargetFormatSpec{ IDS_FILECONVERTER_CONTEXTMENU_FORMAT_WEBP, L"WebP", fc_constants::FormatWebp, FormatGroup::Webp, { 0x5fce9315, 0x3d7b, 0x4372, { 0xac, 0x17, 0x35, 0x57, 0x91, 0xcd, 0x17, 0x61 } } },
     };
 
-    std::wstring LoadLocalizedString(std::wstring_view key, std::wstring_view fallback)
+    std::wstring LoadLocalizedString(UINT resource_id, std::wstring_view fallback)
     {
-        try
+        const wchar_t* value = nullptr;
+        const int length = LoadStringW(
+            reinterpret_cast<HMODULE>(&__ImageBase),
+            resource_id,
+            reinterpret_cast<wchar_t*>(&value),
+            0);
+        if (length > 0)
         {
-            static const auto loader = winrt::Windows::ApplicationModel::Resources::ResourceLoader::GetForViewIndependentUse(L"Resources");
-            const auto value = loader.GetString(winrt::hstring{ key });
-            if (!value.empty())
-            {
-                return value.c_str();
-            }
-        }
-        catch (...)
-        {
+            return std::wstring{ value, static_cast<size_t>(length) };
         }
 
         return std::wstring{ fallback };
@@ -77,13 +76,13 @@ namespace
 
     std::wstring GetContextMenuParentLabel()
     {
-        static const std::wstring label = LoadLocalizedString(L"FileConverter_ContextMenu_Entry", L"Convert to...");
+        static const std::wstring label = LoadLocalizedString(IDS_FILECONVERTER_CONTEXTMENU_ENTRY, L"Convert to...");
         return label;
     }
 
     std::wstring GetTargetFormatLabel(const TargetFormatSpec& spec)
     {
-        return LoadLocalizedString(spec.label_key, spec.label_fallback);
+        return LoadLocalizedString(spec.label_resource_id, spec.label_fallback);
     }
 
     std::wstring GetPipeNameForCurrentSession()
@@ -100,7 +99,12 @@ namespace
     bool IsBackendAvailable()
     {
         const std::wstring pipe_name = GetPipeNameForCurrentSession();
-        return WaitNamedPipeW(pipe_name.c_str(), 0) != FALSE;
+        if (WaitNamedPipeW(pipe_name.c_str(), 0))
+        {
+            return true;
+        }
+
+        return GetLastError() == ERROR_SEM_TIMEOUT;
     }
 
     std::optional<file_converter::ImageFormat> ToImageFormat(FormatGroup group)

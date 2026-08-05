@@ -5,10 +5,12 @@
 
 #include "FileConversionEngine.h"
 
-#include <winrt/Windows.ApplicationModel.Resources.h>
+#include <FileConverterResources.h>
 #include <wrl/client.h>
 
 #include <sstream>
+
+extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 namespace
 {
@@ -43,19 +45,17 @@ namespace
         bool m_armed = false;
     };
 
-    std::wstring LoadLocalizedString(std::wstring_view key, std::wstring_view fallback)
+    std::wstring LoadLocalizedString(UINT resource_id, std::wstring_view fallback)
     {
-        try
+        const wchar_t* value = nullptr;
+        const int length = LoadStringW(
+            reinterpret_cast<HMODULE>(&__ImageBase),
+            resource_id,
+            reinterpret_cast<wchar_t*>(&value),
+            0);
+        if (length > 0)
         {
-            static const auto loader = winrt::Windows::ApplicationModel::Resources::ResourceLoader::GetForViewIndependentUse(L"Resources");
-            const auto value = loader.GetString(winrt::hstring{ key });
-            if (!value.empty())
-            {
-                return value.c_str();
-            }
-        }
-        catch (...)
-        {
+            return std::wstring{ value, static_cast<size_t>(length) };
         }
 
         return std::wstring{ fallback };
@@ -173,7 +173,7 @@ namespace
     {
         if (factory == nullptr)
         {
-            return { E_POINTER, LoadLocalizedString(L"FileConverter_Engine_WicFactoryNull", L"WIC factory is null.") };
+            return { E_POINTER, LoadLocalizedString(IDS_FILECONVERTER_ENGINE_WICFACTORYNULL, L"WIC factory is null.") };
         }
 
         Microsoft::WRL::ComPtr<IWICBitmapEncoder> encoder_probe;
@@ -183,12 +183,12 @@ namespace
             if (IsMissingCodecHresult(hr))
             {
                 const std::wstring error = FormatLocalizedString(
-                    LoadLocalizedString(L"FileConverter_Engine_NoEncoderInstalled", L"No WIC encoder is installed for destination format '{0}'."),
+                    LoadLocalizedString(IDS_FILECONVERTER_ENGINE_NOENCODERINSTALLED, L"No WIC encoder is installed for destination format '{0}'."),
                     ExtensionFor(format));
                 return { HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED), error };
             }
 
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CreateEncoderFailed", L"Failed creating image encoder."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_CREATEENCODERFAILED, L"Failed creating image encoder."), hr) };
         }
 
         return { S_OK, L"" };
@@ -202,14 +202,14 @@ namespace file_converter
         ScopedCom com;
         if (FAILED(com.hr))
         {
-            return { com.hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CoInitializeFailed", L"CoInitializeEx failed."), com.hr) };
+            return { com.hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_COINITIALIZEFAILED, L"CoInitializeEx failed."), com.hr) };
         }
 
         Microsoft::WRL::ComPtr<IWICImagingFactory> factory;
         const HRESULT hr = CreateWicFactory(factory);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CreateWicFactoryFailed", L"Failed creating WIC factory."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_CREATEWICFACTORYFAILED, L"Failed creating WIC factory."), hr) };
         }
 
         return EnsureOutputEncoderAvailable(factory.Get(), format);
@@ -220,7 +220,7 @@ namespace file_converter
         ScopedCom com;
         if (FAILED(com.hr))
         {
-            return { com.hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CoInitializeFailed", L"CoInitializeEx failed."), com.hr) };
+            return { com.hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_COINITIALIZEFAILED, L"CoInitializeEx failed."), com.hr) };
         }
 
         Microsoft::WRL::ComPtr<IWICImagingFactory> factory;
@@ -228,7 +228,7 @@ namespace file_converter
 
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CreateWicFactoryFailed", L"Failed creating WIC factory."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_CREATEWICFACTORYFAILED, L"Failed creating WIC factory."), hr) };
         }
 
         const auto output_support = EnsureOutputEncoderAvailable(factory.Get(), format);
@@ -243,17 +243,17 @@ namespace file_converter
         {
             if (hr == WINCODEC_ERR_UNKNOWNIMAGEFORMAT || IsMissingCodecHresult(hr))
             {
-                return { hr, LoadLocalizedString(L"FileConverter_Engine_InputUnsupported", L"Input image format is not supported by installed WIC decoders.") };
+                return { hr, LoadLocalizedString(IDS_FILECONVERTER_ENGINE_INPUTUNSUPPORTED, L"Input image format is not supported by installed WIC decoders.") };
             }
 
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_OpenInputFailed", L"Failed opening input image."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_OPENINPUTFAILED, L"Failed opening input image."), hr) };
         }
 
         Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> source_frame;
         hr = decoder->GetFrame(0, &source_frame);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_ReadFirstFrameFailed", L"Failed reading first image frame."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_READFIRSTFRAMEFAILED, L"Failed reading first image frame."), hr) };
         }
 
         UINT width = 0;
@@ -261,14 +261,14 @@ namespace file_converter
         hr = source_frame->GetSize(&width, &height);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_ReadImageSizeFailed", L"Failed reading image size."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_READIMAGESIZEFAILED, L"Failed reading image size."), hr) };
         }
 
         WICPixelFormatGUID pixel_format = {};
         hr = source_frame->GetPixelFormat(&pixel_format);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_ReadPixelFormatFailed", L"Failed reading source pixel format."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_READPIXELFORMATFAILED, L"Failed reading source pixel format."), hr) };
         }
 
         OutputFileCleanup output_cleanup(output_path);
@@ -276,13 +276,13 @@ namespace file_converter
         hr = factory->CreateStream(&output_stream);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CreateStreamFailed", L"Failed creating WIC stream."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_CREATESTREAMFAILED, L"Failed creating WIC stream."), hr) };
         }
 
         hr = output_stream->InitializeFromFilename(output_path.c_str(), GENERIC_WRITE);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_OpenOutputFailed", L"Failed opening output path."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_OPENOUTPUTFAILED, L"Failed opening output path."), hr) };
         }
         output_cleanup.Arm();
 
@@ -290,13 +290,13 @@ namespace file_converter
         hr = factory->CreateEncoder(ContainerFormatFor(format), nullptr, &encoder);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CreateEncoderFailed", L"Failed creating image encoder."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_CREATEENCODERFAILED, L"Failed creating image encoder."), hr) };
         }
 
         hr = encoder->Initialize(output_stream.Get(), WICBitmapEncoderNoCache);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_InitEncoderFailed", L"Failed initializing encoder."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_INITENCODERFAILED, L"Failed initializing encoder."), hr) };
         }
 
         Microsoft::WRL::ComPtr<IWICBitmapFrameEncode> target_frame;
@@ -304,26 +304,26 @@ namespace file_converter
         hr = encoder->CreateNewFrame(&target_frame, &frame_properties);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CreateTargetFrameFailed", L"Failed creating target frame."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_CREATETARGETFRAMEFAILED, L"Failed creating target frame."), hr) };
         }
 
         hr = target_frame->Initialize(frame_properties.Get());
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_InitTargetFrameFailed", L"Failed initializing target frame."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_INITTARGETFRAMEFAILED, L"Failed initializing target frame."), hr) };
         }
 
         hr = target_frame->SetSize(width, height);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_SetTargetSizeFailed", L"Failed setting target size."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_SETTARGETSIZEFAILED, L"Failed setting target size."), hr) };
         }
 
         WICPixelFormatGUID target_pixel_format = pixel_format;
         hr = target_frame->SetPixelFormat(&target_pixel_format);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_SetTargetPixelFormatFailed", L"Failed setting target pixel format."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_SETTARGETPIXELFORMATFAILED, L"Failed setting target pixel format."), hr) };
         }
 
         Microsoft::WRL::ComPtr<IWICBitmapSource> source_for_write = source_frame;
@@ -334,7 +334,7 @@ namespace file_converter
             hr = factory->CreateFormatConverter(&format_converter);
             if (FAILED(hr))
             {
-                return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CreateFormatConverterFailed", L"Failed creating format converter."), hr) };
+                return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_CREATEFORMATCONVERTERFAILED, L"Failed creating format converter."), hr) };
             }
 
             BOOL can_convert = FALSE;
@@ -342,13 +342,13 @@ namespace file_converter
             if (FAILED(hr) || !can_convert)
             {
                 const HRESULT conversion_hr = FAILED(hr) ? hr : WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT;
-                return { conversion_hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_UnsupportedPixelConversion", L"Source pixel format cannot be converted to target pixel format."), conversion_hr) };
+                return { conversion_hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_UNSUPPORTEDPIXELCONVERSION, L"Source pixel format cannot be converted to target pixel format."), conversion_hr) };
             }
 
             hr = format_converter->Initialize(source_frame.Get(), target_pixel_format, WICBitmapDitherTypeNone, nullptr, 0.0f, WICBitmapPaletteTypeCustom);
             if (FAILED(hr))
             {
-                return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_InitFormatConverterFailed", L"Failed initializing format converter."), hr) };
+                return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_INITFORMATCONVERTERFAILED, L"Failed initializing format converter."), hr) };
             }
 
             source_for_write = format_converter;
@@ -357,19 +357,19 @@ namespace file_converter
         hr = target_frame->WriteSource(source_for_write.Get(), nullptr);
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_WriteTargetFrameFailed", L"Failed writing target frame."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_WRITETARGETFRAMEFAILED, L"Failed writing target frame."), hr) };
         }
 
         hr = target_frame->Commit();
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CommitTargetFrameFailed", L"Failed committing target frame."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_COMMITTARGETFRAMEFAILED, L"Failed committing target frame."), hr) };
         }
 
         hr = encoder->Commit();
         if (FAILED(hr))
         {
-            return { hr, HrMessage(LoadLocalizedString(L"FileConverter_Engine_CommitEncoderFailed", L"Failed committing encoder."), hr) };
+            return { hr, HrMessage(LoadLocalizedString(IDS_FILECONVERTER_ENGINE_COMMITENCODERFAILED, L"Failed committing encoder."), hr) };
         }
 
         output_cleanup.Release();

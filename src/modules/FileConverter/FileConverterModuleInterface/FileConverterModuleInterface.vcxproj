@@ -2,6 +2,9 @@
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(RepoRoot)packages\Microsoft.Windows.CppWinRT.2.0.250303.1\build\native\Microsoft.Windows.CppWinRT.props" Condition="Exists('$(RepoRoot)packages\Microsoft.Windows.CppWinRT.2.0.250303.1\build\native\Microsoft.Windows.CppWinRT.props')" />
+  <Target Name="GenerateFileConverterResources" BeforeTargets="PrepareForBuild" Inputs="@(FileConverterResource);..\Strings\generate-resources.ps1" Outputs="$(IntDir)Generated Files\FileConverterResources.h;$(IntDir)Generated Files\FileConverterResources.rc">
+    <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -NoProfile -File &quot;$(MSBuildThisFileDirectory)..\Strings\generate-resources.ps1&quot; -SourceRoot &quot;$(MSBuildThisFileDirectory)..\Strings&quot; -OutputDirectory &quot;$(IntDir)Generated Files&quot;" />
+  </Target>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -26,7 +29,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\FileConverterLib;$(RepoRoot)src\common\inc;$(RepoRoot)src\modules;$(RepoRoot)src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)Generated Files;..\FileConverterLib;$(RepoRoot)src\common\inc;$(RepoRoot)src\modules;$(RepoRoot)src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>windowscodecs.lib;ole32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -37,7 +40,7 @@
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\Strings\en-us\Resources.resw" />
+    <FileConverterResource Include="..\Strings\**\Resources.resx" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(RepoRoot)src\common\interop\pipe_caller_auth.cpp">
@@ -47,6 +50,9 @@
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(UsePrecompiledHeaders)' != 'false'">Create</PrecompiledHeader>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="$(IntDir)Generated Files\FileConverterResources.rc" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(RepoRoot)src\common\logger\logger.vcxproj">
