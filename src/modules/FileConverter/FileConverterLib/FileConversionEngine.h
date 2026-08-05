@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <winerror.h>
+
 #include <string>
 
 namespace file_converter

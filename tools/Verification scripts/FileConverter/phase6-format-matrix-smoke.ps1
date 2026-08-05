@@ -119,7 +119,12 @@ try {
         -OutputWaitTimeoutMs 1000
 }
 catch {
-    $unsupportedRejected = $true
+    if ($_.Exception.Message -match "Subcommand not found") {
+        $unsupportedRejected = $true
+    }
+    else {
+        throw "Unsupported destination check failed unexpectedly. $($_.Exception.Message)"
+    }
 }
 
 if (-not $LeavePowerToysRunning) {

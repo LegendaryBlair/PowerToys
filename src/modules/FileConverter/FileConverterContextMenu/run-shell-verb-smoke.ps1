@@ -34,17 +34,54 @@ if (-not $InvokeInCurrentProcess)
         "-InvokeInCurrentProcess"
     )
 
-    $process = Start-Process -FilePath $hostExecutable -ArgumentList $arguments -NoNewWindow -PassThru
-    $processTimeoutMs = $InvokeTimeoutMs + $OutputWaitTimeoutMs + 5000
-    if (-not $process.WaitForExit($processTimeoutMs))
-    {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        throw "Shell verb smoke process timed out after $processTimeoutMs ms."
-    }
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $hostExecutable
+    $startInfo.Arguments = $arguments -join " "
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
 
-    if ($process.ExitCode -ne 0)
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try
     {
-        throw "Shell verb smoke process failed with exit code $($process.ExitCode)."
+        if (-not $process.Start())
+        {
+            throw "Failed to start the isolated shell verb smoke process."
+        }
+
+        $standardOutputTask = $process.StandardOutput.ReadToEndAsync()
+        $standardErrorTask = $process.StandardError.ReadToEndAsync()
+        $processTimeoutMs = $InvokeTimeoutMs + $OutputWaitTimeoutMs + 5000
+        if (-not $process.WaitForExit($processTimeoutMs))
+        {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            $process.WaitForExit()
+            throw "Shell verb smoke process timed out after $processTimeoutMs ms."
+        }
+
+        $standardOutput = $standardOutputTask.GetAwaiter().GetResult().Trim()
+        $standardError = $standardErrorTask.GetAwaiter().GetResult().Trim()
+        if ($process.ExitCode -ne 0)
+        {
+            $details = @($standardError, $standardOutput) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            throw "Shell verb smoke process failed with exit code $($process.ExitCode). $($details -join [Environment]::NewLine)"
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($standardOutput))
+        {
+            Write-Host $standardOutput
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($standardError))
+        {
+            Write-Warning $standardError
+        }
+    }
+    finally
+    {
+        $process.Dispose()
     }
 
     return
