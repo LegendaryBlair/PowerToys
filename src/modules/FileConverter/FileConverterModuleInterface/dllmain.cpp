@@ -449,9 +449,17 @@ namespace
                 continue;
             }
 
-            std::filesystem::path output_path = input_path.parent_path() / input_path.stem();
-            output_path += L"_converted";
+            std::filesystem::path output_base = input_path.parent_path() / input_path.stem();
+            output_base += L"_converted";
+
+            std::filesystem::path output_path = output_base;
             output_path += output_extension;
+            for (size_t suffix = 2; std::filesystem::exists(output_path, ec) && !ec; ++suffix)
+            {
+                output_path = output_base;
+                output_path += L" (" + std::to_wstring(suffix) + L")";
+                output_path += output_extension;
+            }
 
             const auto conversion = file_converter::ConvertImageFile(input_path.wstring(), output_path.wstring(), request.format);
             if (conversion.succeeded())

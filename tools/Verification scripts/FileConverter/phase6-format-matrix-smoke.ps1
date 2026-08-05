@@ -58,7 +58,7 @@ function Send-PipePayload {
         }
         catch {
             if ($attempt -eq $Attempts) {
-                throw "Failed to send payload to pipe '$PipeSimpleName' after $Attempts attempts: $($_.Exception.Message)"
+                throw "Failed to send payload to pipe '$PipeSimpleName' after $Attempts attempts. Ensure File Converter is enabled in PowerToys Settings. $($_.Exception.Message)"
             }
 
             Start-Sleep -Milliseconds $RetryDelayMs

@@ -4,6 +4,7 @@
 #include "pch.h"
 
 #include <Constants.h>
+#include <FileConversionEngine.h>
 #include <ShlObj.h>
 #include <winrt/Windows.ApplicationModel.Resources.h>
 #include <winrt/Windows.Data.Json.h>
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cwctype>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -100,6 +102,57 @@ namespace
     {
         const std::wstring pipe_name = GetPipeNameForCurrentSession();
         return WaitNamedPipeW(pipe_name.c_str(), 0) != FALSE;
+    }
+
+    std::optional<file_converter::ImageFormat> ToImageFormat(FormatGroup group)
+    {
+        switch (group)
+        {
+        case FormatGroup::Png:
+            return file_converter::ImageFormat::Png;
+        case FormatGroup::Jpeg:
+            return file_converter::ImageFormat::Jpeg;
+        case FormatGroup::Bmp:
+            return file_converter::ImageFormat::Bmp;
+        case FormatGroup::Tiff:
+            return file_converter::ImageFormat::Tiff;
+        case FormatGroup::Heif:
+            return file_converter::ImageFormat::Heif;
+        case FormatGroup::Webp:
+            return file_converter::ImageFormat::Webp;
+        case FormatGroup::Unknown:
+        default:
+            return std::nullopt;
+        }
+    }
+
+    bool IsDestinationAvailable(FormatGroup group)
+    {
+        static std::mutex cache_mutex;
+        static std::array<std::optional<bool>, static_cast<size_t>(FormatGroup::Unknown)> availability_cache;
+
+        const auto format = ToImageFormat(group);
+        if (!format.has_value())
+        {
+            return false;
+        }
+
+        const size_t cache_index = static_cast<size_t>(group);
+        {
+            std::scoped_lock lock(cache_mutex);
+            if (availability_cache[cache_index].has_value())
+            {
+                return availability_cache[cache_index].value();
+            }
+        }
+
+        const bool available = file_converter::IsOutputFormatSupported(format.value()).succeeded();
+        {
+            std::scoped_lock lock(cache_mutex);
+            availability_cache[cache_index] = available;
+        }
+
+        return available;
     }
 
     HRESULT GetSelectedPaths(IShellItemArray* selection, std::vector<std::wstring>& paths)
@@ -257,7 +310,8 @@ namespace
     {
         for (const auto& spec : TARGET_FORMATS)
         {
-            if (CanConvertPaths(paths, spec.destination_group))
+            if (IsDestinationAvailable(spec.destination_group) &&
+                CanConvertPaths(paths, spec.destination_group))
             {
                 return true;
             }
@@ -392,7 +446,9 @@ namespace
                 return S_OK;
             }
 
-            if (IsBackendAvailable() && CanConvertPaths(paths, m_spec.destination_group))
+            if (IsBackendAvailable() &&
+                IsDestinationAvailable(m_spec.destination_group) &&
+                CanConvertPaths(paths, m_spec.destination_group))
             {
                 *cmd_state = ECS_ENABLED;
             }
@@ -625,7 +681,8 @@ public:
         for (size_t i = 0; i < TARGET_FORMATS.size(); ++i)
         {
             const auto& format = TARGET_FORMATS[i];
-            if (!CanConvertPaths(paths, format.destination_group))
+            if (!IsDestinationAvailable(format.destination_group) ||
+                !CanConvertPaths(paths, format.destination_group))
             {
                 continue;
             }
