@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <cwctype>
 #include <filesystem>
+#include <future>
 #include <mutex>
 #include <optional>
 #include <queue>
@@ -528,11 +529,11 @@ namespace
     class FileConverterPipeOrchestrator
     {
     public:
-        void Start(const std::wstring& pipe_name)
+        bool Start(const std::wstring& pipe_name)
         {
             if (m_running.exchange(true))
             {
-                return;
+                return true;
             }
 
             m_caller_policy.enabled = true;
@@ -551,12 +552,36 @@ namespace
             {
                 Logger::error(L"File Converter could not determine the Windows directory for pipe authentication.");
                 m_running.store(false);
-                return;
+                return false;
             }
 
             m_pipe_name = pipe_name;
-            m_listener_thread = std::thread(&FileConverterPipeOrchestrator::ListenerLoop, this);
-            m_worker_thread = std::thread(&FileConverterPipeOrchestrator::WorkerLoop, this);
+            try
+            {
+                std::promise<HRESULT> worker_initialization;
+                auto worker_initialization_result = worker_initialization.get_future();
+                m_worker_thread = std::thread(&FileConverterPipeOrchestrator::WorkerLoop, this, std::move(worker_initialization));
+
+                if (FAILED(worker_initialization_result.get()))
+                {
+                    Stop();
+                    return false;
+                }
+
+                m_listener_thread = std::thread(&FileConverterPipeOrchestrator::ListenerLoop, this);
+                return true;
+            }
+            catch (const std::exception& error)
+            {
+                Logger::error("File Converter failed to start its pipe threads. Error={}", error.what());
+            }
+            catch (...)
+            {
+                Logger::error(L"File Converter failed to start its pipe threads.");
+            }
+
+            Stop();
+            return false;
         }
 
         void Stop()
@@ -688,17 +713,21 @@ namespace
             }
         }
 
-        void WorkerLoop()
+        void WorkerLoop(std::promise<HRESULT> initialization_result)
         {
             try
             {
                 winrt::init_apartment(winrt::apartment_type::multi_threaded);
             }
-            catch (const winrt::hresult_error& error)
+            catch (...)
             {
-                Logger::error(L"File Converter worker failed to initialize WinRT. Error={}", error.code().value);
+                const HRESULT error = winrt::to_hresult();
+                Logger::error(L"File Converter worker failed to initialize WinRT. Error={}", error);
+                initialization_result.set_value(error);
                 return;
             }
+
+            initialization_result.set_value(S_OK);
 
             while (true)
             {
@@ -723,7 +752,14 @@ namespace
                     m_pending_payloads.pop();
                 }
 
-                ProcessPayload(payload);
+                try
+                {
+                    ProcessPayload(payload);
+                }
+                catch (...)
+                {
+                    Logger::error(L"File Converter failed to process a queued request. Error={}", winrt::to_hresult());
+                }
             }
 
             winrt::uninit_apartment();
@@ -872,7 +908,14 @@ public:
             return;
         }
 
-        m_pipe_orchestrator.EnqueueActionPayload(winrt::to_string(action));
+        try
+        {
+            m_pipe_orchestrator.EnqueueActionPayload(winrt::to_string(action));
+        }
+        catch (...)
+        {
+            Logger::error(L"File Converter failed to queue a custom action. Error={}", winrt::to_hresult());
+        }
     }
 
     void enable() override
@@ -884,7 +927,12 @@ public:
 
         EnsureContextMenuPackageRegistered();
         EnsureContextMenuRuntimeRegistered();
-        m_pipe_orchestrator.Start(GetPipeNameForCurrentSession());
+        if (!m_pipe_orchestrator.Start(GetPipeNameForCurrentSession()))
+        {
+            UnregisterContextMenuRuntime();
+            return;
+        }
+
         m_enabled = true;
     }
 

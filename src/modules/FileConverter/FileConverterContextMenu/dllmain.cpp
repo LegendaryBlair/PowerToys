@@ -464,20 +464,28 @@ namespace
             return S_OK;
         }
 
-        IFACEMETHODIMP Invoke(_In_opt_ IShellItemArray* selection, _In_opt_ IBindCtx*)
+        IFACEMETHODIMP Invoke(_In_opt_ IShellItemArray* selection, _In_opt_ IBindCtx*) noexcept
         {
-            if (selection == nullptr)
+            try
             {
-                return S_OK;
-            }
+                if (selection == nullptr)
+                {
+                    return E_INVALIDARG;
+                }
 
-            std::vector<std::wstring> paths;
-            if (SUCCEEDED(GetSelectedPaths(selection, paths)))
+                std::vector<std::wstring> paths;
+                const HRESULT selection_result = GetSelectedPaths(selection, paths);
+                if (FAILED(selection_result))
+                {
+                    return selection_result;
+                }
+
+                return SendFormatConvertRequest(paths, m_spec.destination);
+            }
+            catch (...)
             {
-                (void)SendFormatConvertRequest(paths, m_spec.destination);
+                return winrt::to_hresult();
             }
-
-            return S_OK;
         }
 
         IFACEMETHODIMP GetFlags(_Out_ EXPCMDFLAGS* flags)
@@ -728,40 +736,52 @@ public:
         return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, static_cast<USHORT>(m_context_menu_target_indexes.size()));
     }
 
-    IFACEMETHODIMP InvokeCommand(CMINVOKECOMMANDINFO* invoke_info)
+    IFACEMETHODIMP InvokeCommand(CMINVOKECOMMANDINFO* invoke_info) noexcept
     {
-        if (invoke_info == nullptr || m_data_object == nullptr)
+        try
         {
-            return S_OK;
-        }
+            if (invoke_info == nullptr || m_data_object == nullptr)
+            {
+                return E_INVALIDARG;
+            }
 
-        if (!IS_INTRESOURCE(invoke_info->lpVerb))
+            if (!IS_INTRESOURCE(invoke_info->lpVerb))
+            {
+                return E_INVALIDARG;
+            }
+
+            const UINT command_index = LOWORD(invoke_info->lpVerb);
+            if (command_index >= m_context_menu_target_indexes.size())
+            {
+                return E_INVALIDARG;
+            }
+
+            const size_t target_index = m_context_menu_target_indexes[command_index];
+            if (target_index >= TARGET_FORMATS.size())
+            {
+                return E_INVALIDARG;
+            }
+
+            const auto& target = TARGET_FORMATS[target_index];
+
+            std::vector<std::wstring> paths;
+            const HRESULT selection_result = GetSelectedPaths(m_data_object.Get(), paths);
+            if (FAILED(selection_result))
+            {
+                return selection_result;
+            }
+
+            if (!CanConvertPaths(paths, target.destination_group))
+            {
+                return E_INVALIDARG;
+            }
+
+            return SendFormatConvertRequest(paths, target.destination);
+        }
+        catch (...)
         {
-            return S_OK;
+            return winrt::to_hresult();
         }
-
-        const UINT command_index = LOWORD(invoke_info->lpVerb);
-        if (command_index >= m_context_menu_target_indexes.size())
-        {
-            return S_OK;
-        }
-
-        const size_t target_index = m_context_menu_target_indexes[command_index];
-        if (target_index >= TARGET_FORMATS.size())
-        {
-            return S_OK;
-        }
-
-        const auto& target = TARGET_FORMATS[target_index];
-
-        std::vector<std::wstring> paths;
-        if (FAILED(GetSelectedPaths(m_data_object.Get(), paths)) || !CanConvertPaths(paths, target.destination_group))
-        {
-            return S_OK;
-        }
-
-        (void)SendFormatConvertRequest(paths, target.destination);
-        return S_OK;
     }
 
     IFACEMETHODIMP GetCommandString(UINT_PTR, UINT, UINT*, LPSTR, UINT)
