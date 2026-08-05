@@ -139,8 +139,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
 
                 if (!_allowLocalImages)
                 {
-                    Regex imageTagRegex = new Regex(@"<[ ]*img.*>");
-                    if (imageTagRegex.IsMatch(fileText))
+                    if (Regex.IsMatch(fileText, @"<\s*img(?:\s|/?>)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
                     {
                         _infoBarDisplayed = true;
                     }

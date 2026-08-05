@@ -585,7 +585,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         }
 
         // Used to disable the toggle when the setting is forced by GPO (enabled or disabled).
-        public bool MDLocalImagesIsGPOConfigured
+        public bool MDLocalImagesIsGpoConfigured
         {
             get
             {

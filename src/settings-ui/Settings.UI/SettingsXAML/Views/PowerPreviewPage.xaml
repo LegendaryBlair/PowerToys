@@ -145,7 +145,7 @@
                             <tkcontrols:SettingsCard x:Uid="FileExplorerPreview_ToggleSwitch_Preview_MD_LocalImages" IsEnabled="{x:Bind ViewModel.MDRenderIsEnabled, Mode=OneWay}">
                                 <ToggleSwitch
                                     x:Uid="ToggleSwitch"
-                                    IsEnabled="{x:Bind ViewModel.MDLocalImagesIsGPOConfigured, Mode=OneWay, Converter={StaticResource BoolNegationConverter}}"
+                                    IsEnabled="{x:Bind ViewModel.MDLocalImagesIsGpoConfigured, Mode=OneWay, Converter={StaticResource BoolNegationConverter}}"
                                     IsOn="{x:Bind ViewModel.MDLocalImagesIsEnabled, Mode=TwoWay}" />
                             </tkcontrols:SettingsCard>
                             <tkcontrols:SettingsCard
@@ -153,14 +153,14 @@
                                 HorizontalContentAlignment="Stretch"
                                 Background="{ThemeResource InfoBarInformationalSeverityBackgroundBrush}"
                                 ContentAlignment="Vertical"
-                                Visibility="{x:Bind ViewModel.MDLocalImagesIsGPOConfigured, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                                Visibility="{x:Bind ViewModel.MDLocalImagesIsGpoConfigured, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <InfoBar
                                     x:Uid="GPO_SettingIsManaged"
                                     Background="Transparent"
                                     BorderBrush="Transparent"
                                     IsClosable="False"
                                     IsOpen="True"
-                                    IsTabStop="{x:Bind ViewModel.MDLocalImagesIsGPOConfigured, Mode=OneWay}"
+                                    IsTabStop="{x:Bind ViewModel.MDLocalImagesIsGpoConfigured, Mode=OneWay}"
                                     Severity="Informational">
                                     <InfoBar.IconSource>
                                         <FontIconSource FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE72E;" />
