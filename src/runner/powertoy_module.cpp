@@ -3,7 +3,10 @@
 #include "centralized_kb_hook.h"
 #include "centralized_hotkeys.h"
 #include <common/logger/logger.h>
+#include <common/utils/process_path.h>
 #include <common/utils/winapi_error.h>
+
+#include <filesystem>
 
 std::map<std::wstring, PowertoyModule>& modules()
 {
@@ -13,7 +16,11 @@ std::map<std::wstring, PowertoyModule>& modules()
 
 PowertoyModule load_powertoy(const std::wstring_view filename)
 {
-    auto handle = winrt::check_pointer(LoadLibraryW(filename.data()));
+    const std::wstring module_name(filename);
+    const std::filesystem::path module_path = std::filesystem::path(get_module_folderpath()) / std::filesystem::path(module_name);
+    HMODULE handle = LoadLibraryExW(module_path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+
+    handle = winrt::check_pointer(handle);
     auto create = reinterpret_cast<powertoy_create_func>(GetProcAddress(handle, "powertoy_create"));
     if (!create)
     {
