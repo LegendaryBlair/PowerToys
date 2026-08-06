@@ -258,6 +258,27 @@ public partial class MainListPageResultFactoryTests
     }
 
     [TestMethod]
+    public void Merge_AllFallbackTitlesClearedConcurrently_ResultHasNoDanglingSeparator()
+    {
+        var fallbacks = new List<RoScored<IListItem>>
+        {
+            S(string.Empty, 0),
+            S(" ", 0),
+        };
+
+        var result = MainListPageResultFactory.Create(
+            null,
+            null,
+            null,
+            fallbacks,
+            _resultsSeparator,
+            _fallbacksSeparator,
+            appResultLimit: 10);
+
+        Assert.AreEqual(0, result.Length);
+    }
+
+    [TestMethod]
     public void Merge_HandlesNullLists()
     {
         var result = MainListPageResultFactory.Create(

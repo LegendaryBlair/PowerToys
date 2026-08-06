@@ -142,19 +142,22 @@ internal static class MainListPageResultFactory
         // always at the end of the list and are sorted by user settings.
         if (fallbackItems is not null)
         {
-            // Create the fallbacks section header
-            if (fallbackItems.Count > 0)
-            {
-                result[writePos++] = fallbacksSeparator;
-            }
-
+            var fallbackHeaderWritten = false;
             for (int i = 0; i < fallbackItems.Count; i++)
             {
                 var item = fallbackItems[i].Item;
-                if (!string.IsNullOrEmpty(item.Title))
+                if (string.IsNullOrWhiteSpace(item.Title))
                 {
-                    result[writePos++] = item;
+                    continue;
                 }
+
+                if (!fallbackHeaderWritten)
+                {
+                    result[writePos++] = fallbacksSeparator;
+                    fallbackHeaderWritten = true;
+                }
+
+                result[writePos++] = item;
             }
         }
 
