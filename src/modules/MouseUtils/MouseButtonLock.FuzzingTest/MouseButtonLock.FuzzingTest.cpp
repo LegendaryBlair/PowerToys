@@ -34,7 +34,7 @@ namespace
         int count = 0;
         bool succeed = true;
 
-        bool InjectUp(MouseButton) override
+        bool InjectUp(MouseButton, bool) override
         {
             ++count;
             return succeed;

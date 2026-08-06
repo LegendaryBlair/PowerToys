@@ -827,6 +827,7 @@ INITDIALOG
 INITGUID
 initialfile
 INITTOLOGFONTSTRUCT
+inj
 inkscape
 INLINEPREFIX
 inlines
@@ -1040,6 +1041,7 @@ maximizebox
 MAXSHORTCUTSIZE
 maxversiontested
 mber
+MBL
 MBM
 MBR
 Mbuttondown
@@ -1183,6 +1185,7 @@ netcoreapp
 netcpl
 netframework
 netsetup
+NETSDK
 netsh
 NEWDIALOGSTYLE
 NEWFILE
@@ -2154,6 +2157,7 @@ wingetpkgs
 Winhook
 WINL
 winlogon
+WINM
 winmd
 winml
 WINNT

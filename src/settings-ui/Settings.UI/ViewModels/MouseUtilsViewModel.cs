@@ -219,6 +219,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             }
             else
             {
+                _mouseButtonLockEnabledStateIsGPOConfigured = false;
                 _isMouseButtonLockEnabled = GeneralSettingsConfig.Enabled.MouseButtonLock;
             }
         }

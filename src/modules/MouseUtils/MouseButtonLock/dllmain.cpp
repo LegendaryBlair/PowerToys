@@ -62,12 +62,12 @@ namespace
     // standalone reference app); distinct from the centralized keyboard hook's 0x110 flag.
     constexpr ULONG_PTR INJECTION_TAG = 0x57494E4D;
 
-    // Thread message the hook thread posts to itself to perform a deferred SendInject. Calling
+    // Thread message the hook thread posts to itself to perform a deferred SendInput. Calling
     // SendInput synchronously from inside the low-level hook callback lets the very event we are
     // trying to suppress leak to applications (it reads as a stray click that collapses a text
     // selection). Posting the injection back to the hook thread's own message loop runs it AFTER the
     // callback has returned 1 and the triggering event is fully suppressed. wParam packs the button
-    // in bits 1+ and the down/up direction in bit 0.
+    // in bits 1+ and whether the release needs a context-menu dismiss in bit 0.
     constexpr UINT WM_MBL_INJECT = WM_APP + 1;
 
     // Default values mirror the C# MouseButtonLockProperties defaults.
@@ -96,9 +96,9 @@ namespace
 
         // The module only ever injects button-UPs: a lock is held by suppressing the physical up (no
         // down injection), and every release injects the matching up.
-        bool InjectUp(mousebuttonlock::MouseButton button) override
+        bool InjectUp(mousebuttonlock::MouseButton button, bool dismissContextMenu) override
         {
-            return Post(button);
+            return Post(button, dismissContextMenu);
         }
 
         // Runs the actual SendInput. Called from the hook thread's message loop when it drains a
@@ -106,24 +106,27 @@ namespace
         // callback has returned and suppressed the physical event.
         static void PerformDeferred(WPARAM packed)
         {
-            InjectUpNow(static_cast<mousebuttonlock::MouseButton>(packed));
+            const auto button = static_cast<mousebuttonlock::MouseButton>(packed >> 1);
+            const bool dismissContextMenu = (packed & 1) != 0;
+            InjectUpNow(button, dismissContextMenu);
         }
 
     private:
         // Defer the SendInput to the hook thread's message loop. If the thread id isn't known yet
         // (should not happen once the hook is running) fall back to an inline inject so a release is
         // never silently dropped.
-        bool Post(mousebuttonlock::MouseButton button)
+        bool Post(mousebuttonlock::MouseButton button, bool dismissContextMenu)
         {
             const DWORD threadId = m_threadId.load();
-            if (threadId != 0 && PostThreadMessageW(threadId, WM_MBL_INJECT, static_cast<WPARAM>(button), 0))
+            const WPARAM packed = (static_cast<WPARAM>(button) << 1) | (dismissContextMenu ? 1 : 0);
+            if (threadId != 0 && PostThreadMessageW(threadId, WM_MBL_INJECT, packed, 0))
             {
                 return true;
             }
-            return InjectUpNow(button);
+            return InjectUpNow(button, dismissContextMenu);
         }
 
-        static bool InjectUpNow(mousebuttonlock::MouseButton button)
+        static bool InjectUpNow(mousebuttonlock::MouseButton button, bool dismissContextMenu)
         {
             DWORD flag = MOUSEEVENTF_RIGHTUP;
             switch (button)
@@ -148,14 +151,11 @@ namespace
                 Logger::warn(L"Failed to inject synthetic button-up event.");
                 return false;
             }
-            // Releasing a right-button lock emits a right-button-up, which apps treat as a right-click
-            // and answer with a context menu. Since every injected right-up here is a lock release (a
-            // normal quick right-click never locks and is untouched), immediately queue an Esc to
-            // dismiss that menu. Esc lands right behind the up in the input queue, so the menu's modal
-            // loop consumes it as soon as it opens. This is what makes hands-free right-drag usable;
-            // the trade-off is that a genuine right-drag-drop menu (e.g. Explorer's copy/move) is also
-            // dismissed.
-            if (button == mousebuttonlock::MouseButton::Right)
+            // An unchorded right-button release can open a context menu. For same-button release taps
+            // and lifecycle/settings releases, queue Esc immediately behind the up so the menu's
+            // modal loop consumes it. When another physical mouse button is already down, the release
+            // is chorded and does not open a menu, so avoid sending an unrelated Esc to the app.
+            if (button == mousebuttonlock::MouseButton::Right && dismissContextMenu)
             {
                 InjectEscape();
             }

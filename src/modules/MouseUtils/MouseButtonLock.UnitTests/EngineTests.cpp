@@ -18,11 +18,13 @@ namespace
     {
     public:
         std::vector<MouseButton> upCalls;
+        std::vector<bool> dismissContextMenus;
         bool succeed = true;
 
-        bool InjectUp(MouseButton button) override
+        bool InjectUp(MouseButton button, bool dismissContextMenu) override
         {
             upCalls.push_back(button);
+            dismissContextMenus.push_back(dismissContextMenu);
             return succeed;
         }
     };
@@ -104,6 +106,7 @@ namespace MouseButtonLockEngineTests
             Assert::IsFalse(e.IsLocked(MouseButton::Right));
             Assert::AreEqual(static_cast<size_t>(1), inj.upCalls.size());
             Assert::IsTrue(inj.upCalls[0] == MouseButton::Right);
+            Assert::IsTrue(inj.dismissContextMenus[0]);
 
             // The paired physical UP is swallowed so the app never sees an unbalanced up.
             Assert::IsTrue(e.OnButtonUp(MouseButton::Right, 1005, s));
@@ -129,7 +132,7 @@ namespace MouseButtonLockEngineTests
     TEST_CLASS(MoveCancel)
     {
     public:
-        TEST_METHOD(MoveBeyondDeadzoneBeforeThresholdCancels)
+        TEST_METHOD(MoveBeyondDeadZoneBeforeThresholdCancels)
         {
             FakeInjector inj;
             Engine e(inj);
@@ -141,7 +144,7 @@ namespace MouseButtonLockEngineTests
             Assert::IsFalse(e.IsLocked(MouseButton::Right));
         }
 
-        TEST_METHOD(MoveWithinDeadzoneStillLocks)
+        TEST_METHOD(MoveWithinDeadZoneStillLocks)
         {
             FakeInjector inj;
             Engine e(inj);
@@ -191,6 +194,7 @@ namespace MouseButtonLockEngineTests
             Assert::IsFalse(e.IsLocked(MouseButton::Right));
             Assert::AreEqual(static_cast<size_t>(1), inj.upCalls.size());
             Assert::IsTrue(inj.upCalls[0] == MouseButton::Right);
+            Assert::IsFalse(inj.dismissContextMenus[0]);
             // The middle tap itself is quick, so it does not lock.
             Assert::IsFalse(e.OnButtonUp(MouseButton::Middle, 550, s));
             Assert::IsFalse(e.IsLocked(MouseButton::Middle));
@@ -290,6 +294,7 @@ namespace MouseButtonLockEngineTests
             e.ReleaseAll();
             Assert::IsFalse(e.IsLocked(MouseButton::Right));
             Assert::AreEqual(static_cast<size_t>(1), inj.upCalls.size());
+            Assert::IsTrue(inj.dismissContextMenus[0]);
         }
 
         TEST_METHOD(ResetTransientClearsStaleHold)

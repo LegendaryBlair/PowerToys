@@ -45,12 +45,14 @@ namespace mousebuttonlock
     };
 
     // Abstraction over the synthetic button-up injection (SendInput in production, a recording fake in
-    // tests). Returns true if the OS accepted the synthetic event. A lock is held by suppressing the
-    // physical up, so the only injection the engine needs is the up that releases a lock.
+    // tests). Returns true if the OS accepted the synthetic event. dismissContextMenu is true for
+    // unchorded releases where a right-button up can open a menu, and false when another physical
+    // button is already down. A lock is held by suppressing the physical up, so the only injection
+    // the engine needs is the up that releases a lock.
     struct IButtonUpInjector
     {
         virtual ~IButtonUpInjector() = default;
-        virtual bool InjectUp(MouseButton button) = 0;
+        virtual bool InjectUp(MouseButton button, bool dismissContextMenu) = 0;
     };
 
     class Engine
@@ -82,7 +84,7 @@ namespace mousebuttonlock
             // events through so the OS can resolve the state.
             if (st.locked.exchange(false))
             {
-                if (m_injector.InjectUp(button))
+                if (m_injector.InjectUp(button, true))
                 {
                     st.swallowNextRealUp = true;
                     ReleaseAllExcept(button); // also free any other held button
@@ -164,24 +166,24 @@ namespace mousebuttonlock
         {
             if (!s.lmbEnabled)
             {
-                ReleaseButton(m_left, MouseButton::Left);
+                ReleaseButton(m_left, MouseButton::Left, true);
             }
             if (!s.rmbEnabled)
             {
-                ReleaseButton(m_right, MouseButton::Right);
+                ReleaseButton(m_right, MouseButton::Right, true);
             }
             if (!s.mmbEnabled)
             {
-                ReleaseButton(m_middle, MouseButton::Middle);
+                ReleaseButton(m_middle, MouseButton::Middle, true);
             }
         }
 
         // Release every locked button (crash/shutdown safety).
         void ReleaseAll()
         {
-            ReleaseButton(m_left, MouseButton::Left);
-            ReleaseButton(m_right, MouseButton::Right);
-            ReleaseButton(m_middle, MouseButton::Middle);
+            ReleaseButton(m_left, MouseButton::Left, true);
+            ReleaseButton(m_right, MouseButton::Right, true);
+            ReleaseButton(m_middle, MouseButton::Middle, true);
         }
 
         // Clear transient hold state. Call when (re)enabling so a button held across a
@@ -274,12 +276,12 @@ namespace mousebuttonlock
             }
         }
 
-        void ReleaseButton(ButtonState& st, MouseButton button)
+        void ReleaseButton(ButtonState& st, MouseButton button, bool dismissContextMenu)
         {
             // exchange() claims the lock atomically so among racing releasers exactly one injects.
             if (st.locked.exchange(false))
             {
-                m_injector.InjectUp(button);
+                m_injector.InjectUp(button, dismissContextMenu);
             }
         }
 
@@ -289,15 +291,15 @@ namespace mousebuttonlock
         {
             if (keep != MouseButton::Left)
             {
-                ReleaseButton(m_left, MouseButton::Left);
+                ReleaseButton(m_left, MouseButton::Left, false);
             }
             if (keep != MouseButton::Right)
             {
-                ReleaseButton(m_right, MouseButton::Right);
+                ReleaseButton(m_right, MouseButton::Right, false);
             }
             if (keep != MouseButton::Middle)
             {
-                ReleaseButton(m_middle, MouseButton::Middle);
+                ReleaseButton(m_middle, MouseButton::Middle, false);
             }
         }
 
