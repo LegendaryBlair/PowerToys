@@ -394,13 +394,16 @@ static HICON get_icon(Theme theme)
 
 static void handle_theme_change()
 {
-    if (theme_adaptive_enabled)
-    {
-        tray_icon_data.hIcon = get_icon(ThemeHelpers::GetSystemTheme());
-        Shell_NotifyIcon(NIM_MODIFY, &tray_icon_data);
-    }
+    dispatch_run_on_main_ui_thread([](PVOID) {
+        if (theme_adaptive_enabled)
+        {
+            tray_icon_data.hIcon = get_icon(ThemeHelpers::GetSystemTheme());
+            Shell_NotifyIcon(NIM_MODIFY, &tray_icon_data);
+        }
 
-    DarkMode::Refresh();
+        DarkMode::Refresh();
+    },
+                                   nullptr);
 }
 
 void update_bug_report_menu_status(bool isRunning)
