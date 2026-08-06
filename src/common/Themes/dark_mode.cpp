@@ -7,6 +7,7 @@
 #include "theme_helpers.h"
 
 #include <mutex>
+#include <wil/resource.h>
 
 namespace
 {
@@ -26,7 +27,7 @@ namespace
     fnFlushMenuThemes pFlushMenuThemes = nullptr;
 
     std::once_flag init_flag;
-    HBRUSH dark_menu_brush = nullptr;
+    wil::unique_hbrush dark_menu_brush;
 
     // Mirrors the surface color used by ZoomIt's dark menus for visual
     // consistency across PowerToys-owned native menus.
@@ -106,9 +107,9 @@ void DarkMode::ApplyToMenu(HMENU menu)
     {
         if (!dark_menu_brush)
         {
-            dark_menu_brush = CreateSolidBrush(DarkMenuSurfaceColor);
+            dark_menu_brush.reset(CreateSolidBrush(DarkMenuSurfaceColor));
         }
-        mi.hbrBack = dark_menu_brush;
+        mi.hbrBack = dark_menu_brush.get();
     }
     else
     {
