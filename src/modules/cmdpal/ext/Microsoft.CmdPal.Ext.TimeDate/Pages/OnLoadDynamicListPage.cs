@@ -53,25 +53,31 @@ internal abstract partial class OnLoadDynamicListPage : Page, IDynamicListPage
         add
         {
             InternalItemsChanged += value;
+            bool shouldLoad;
             lock (_loadLock)
             {
-                if (_loadCount++ == 0)
-                {
-                    Loaded();
-                }
+                shouldLoad = _loadCount++ == 0;
+            }
+
+            if (shouldLoad)
+            {
+                Loaded();
             }
         }
 
         remove
         {
             InternalItemsChanged -= value;
+            bool shouldUnload;
             lock (_loadLock)
             {
                 _loadCount = Math.Max(0, _loadCount - 1);
-                if (_loadCount == 0)
-                {
-                    Unloaded();
-                }
+                shouldUnload = _loadCount == 0;
+            }
+
+            if (shouldUnload)
+            {
+                Unloaded();
             }
         }
     }

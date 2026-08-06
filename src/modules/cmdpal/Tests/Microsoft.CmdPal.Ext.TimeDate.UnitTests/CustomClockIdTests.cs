@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Microsoft.CmdPal.Ext.TimeDate;
 using Microsoft.CmdPal.Ext.TimeDate.Helpers;
 using Microsoft.CmdPal.Ext.TimeDate.Pages;
@@ -19,7 +20,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Microsoft.CmdPal.Ext.TimeDate.UnitTests;
 
 [TestClass]
-public class CustomClockIdTests
+public partial class CustomClockIdTests
 {
     [TestMethod]
     public void CustomClockSurfaceIds_AreDistinct()
@@ -85,6 +86,21 @@ public class CustomClockIdTests
         finally
         {
             File.Delete(statePath);
+        }
+    }
+
+    [TestMethod]
+    public void OnLoadDynamicListPage_LoadedCanReenterItemsChanged()
+    {
+        var page = new ReentrantOnLoadPage();
+
+        page.ItemsChanged += Handler;
+
+        Assert.IsTrue(page.LoadedReenteredWithoutBlocking);
+        page.ItemsChanged -= Handler;
+
+        static void Handler(object sender, IItemsChangedEventArgs args)
+        {
         }
     }
 
@@ -412,6 +428,35 @@ public class CustomClockIdTests
         finally
         {
             File.Delete(statePath);
+        }
+    }
+
+    private sealed partial class ReentrantOnLoadPage : OnLoadDynamicListPage
+    {
+        internal bool LoadedReenteredWithoutBlocking { get; private set; }
+
+        public override IListItem[] GetItems() => [];
+
+        public override void UpdateSearchText(string oldSearch, string newSearch)
+        {
+        }
+
+        protected override void Loaded()
+        {
+            var reentry = Task.Run(() =>
+            {
+                ItemsChanged += Handler;
+                ItemsChanged -= Handler;
+            });
+            LoadedReenteredWithoutBlocking = reentry.Wait(TimeSpan.FromSeconds(1));
+        }
+
+        protected override void Unloaded()
+        {
+        }
+
+        private static void Handler(object sender, IItemsChangedEventArgs args)
+        {
         }
     }
 }
