@@ -56,12 +56,11 @@ namespace Common.Utilities
                 return false;
             }
 
-            Directory.CreateDirectory(directory);
-
             var tempFilePath = Path.Combine(directory, $"{Guid.NewGuid():N}.tmp");
 
             try
             {
+                Directory.CreateDirectory(directory);
                 File.WriteAllText(tempFilePath, content);
                 File.Move(tempFilePath, cacheFilePath, overwrite: true);
             }

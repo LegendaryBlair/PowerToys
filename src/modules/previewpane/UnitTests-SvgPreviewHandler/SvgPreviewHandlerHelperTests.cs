@@ -188,6 +188,25 @@ namespace SvgPreviewHandlerUnitTests
         }
 
         [TestMethod]
+        public void WriteCacheFileAtomicShouldReturnFalseWhenDirectoryCannotBeCreated()
+        {
+            var folder = Path.Combine(Path.GetTempPath(), "SvgCacheTest_" + Path.GetRandomFileName());
+            try
+            {
+                File.WriteAllText(folder, "not a directory");
+                var filePath = SvgPreviewCacheHelper.GetCacheFilePath(folder, "key1");
+
+                var result = SvgPreviewCacheHelper.WriteCacheFileAtomic(filePath, "content");
+
+                Assert.IsFalse(result);
+            }
+            finally
+            {
+                File.Delete(folder);
+            }
+        }
+
+        [TestMethod]
         public void WriteCacheFileAtomicShouldEvictOldEntriesBeyondLimit()
         {
             var folder = Path.Combine(Path.GetTempPath(), "SvgCacheTest_" + Path.GetRandomFileName());
