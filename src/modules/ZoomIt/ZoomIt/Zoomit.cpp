@@ -11161,7 +11161,8 @@ LRESULT APIENTRY MainWndProc(
 
         // The eraser uses click-to-toggle, so button-up must not finalize a pen
         // stroke (which would leave a stray dot where the user released).
-        if( g_EraserMode != EraserModeOff ) {
+        if( g_EraserMode != EraserModeOff &&
+            ( GetWindowLong( hWnd, GWL_EXSTYLE ) & WS_EX_LAYERED ) == 0 ) {
 
             return TRUE;
         }
