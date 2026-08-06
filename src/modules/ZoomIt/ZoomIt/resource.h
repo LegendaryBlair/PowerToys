@@ -8,6 +8,9 @@
 #define FILE_DESCRIPTION "Sysinternals Screen Magnifier"
 #define INTERNAL_NAME "ZoomIt"
 #define ORIGINAL_FILENAME "PowerToys.ZoomIt.exe"
+#define IDS_ERASER_MODE_PIXEL           120
+#define IDS_ERASER_MODE_STROKE          121
+#define IDS_ERASER_MODE_OFF             122
 
 // Non-localizable
 //////////////////////////////
@@ -156,7 +159,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        120
+#define _APS_NEXT_RESOURCE_VALUE        123
 #define _APS_NEXT_COMMAND_VALUE         40012
 #define _APS_NEXT_CONTROL_VALUE         1140
 #define _APS_NEXT_SYMED_VALUE           101
