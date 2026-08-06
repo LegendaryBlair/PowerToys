@@ -9,6 +9,41 @@
 namespace newplus::icon_utilities
 {
 
+namespace
+{
+    std::wstring query_default_icon(const wchar_t* association)
+    {
+        DWORD buffer_length = 0;
+        const HRESULT size_result = AssocQueryString(
+            ASSOCF_INIT_IGNOREUNKNOWN,
+            ASSOCSTR_DEFAULTICON,
+            association,
+            nullptr,
+            nullptr,
+            &buffer_length);
+        if (size_result != S_FALSE || buffer_length == 0)
+        {
+            return {};
+        }
+
+        std::wstring icon_resource(buffer_length, L'\0');
+        const HRESULT query_result = AssocQueryString(
+            ASSOCF_INIT_IGNOREUNKNOWN,
+            ASSOCSTR_DEFAULTICON,
+            association,
+            nullptr,
+            icon_resource.data(),
+            &buffer_length);
+        if (FAILED(query_result))
+        {
+            return {};
+        }
+
+        icon_resource.resize(wcsnlen_s(icon_resource.c_str(), icon_resource.size()));
+        return icon_resource;
+    }
+}
+
 std::wstring get_explorer_icon(const std::filesystem::path& path, bool is_directory)
 {
     // Cache by full path — directories are excluded because their icon can change via desktop.ini
@@ -44,12 +79,8 @@ std::wstring get_explorer_icon(const std::filesystem::path& path, bool is_direct
         }
         else
         {
-            WCHAR icon_resource_specifier[MAX_PATH] = { 0 };
-            DWORD buffer_length = MAX_PATH;
             const std::wstring extension = path.extension().wstring();
-            AssocQueryString(ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_DEFAULTICON,
-                             extension.c_str(), NULL, icon_resource_specifier, &buffer_length);
-            icon_resource = icon_resource_specifier;
+            icon_resource = query_default_icon(extension.c_str());
         }
 
         {
@@ -75,11 +106,7 @@ std::wstring get_explorer_icon(const std::filesystem::path& path, bool is_direct
         return icon_path + L"," + std::to_wstring(shell_file_info.iIcon);
     }
 
-    WCHAR icon_resource_specifier[MAX_PATH] = { 0 };
-    DWORD buffer_length = MAX_PATH;
-    AssocQueryString(ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_DEFAULTICON,
-                     L"", NULL, icon_resource_specifier, &buffer_length);
-    return icon_resource_specifier;
+    return query_default_icon(L"");
 }
 
 HICON get_explorer_icon_handle(const std::filesystem::path& path)
@@ -92,12 +119,13 @@ HICON get_explorer_icon_handle(const std::filesystem::path& path)
         return shell_file_info.hIcon;
     }
 
-    WCHAR icon_resource_specifier[MAX_PATH] = { 0 };
-    DWORD buffer_length = MAX_PATH;
     const std::wstring extension = path.extension().wstring();
-    AssocQueryString(ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_DEFAULTICON,
-                     extension.c_str(), NULL, icon_resource_specifier, &buffer_length);
-    const std::wstring icon_resource = icon_resource_specifier;
+    const std::wstring icon_resource = query_default_icon(extension.c_str());
+    if (icon_resource.empty())
+    {
+        return nullptr;
+    }
+
     const auto icon_x = GetSystemMetrics(SM_CXSMICON);
     const auto icon_y = GetSystemMetrics(SM_CYSMICON);
     return static_cast<HICON>(LoadImage(NULL, icon_resource.c_str(), IMAGE_ICON, icon_x, icon_y, LR_LOADFROMFILE));
