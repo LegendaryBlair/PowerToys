@@ -55,7 +55,7 @@ foreach ($csprojFile in $csprojFiles) {
             $importProject = $importNode.GetAttribute('Project')
 
             if (-not [string]::IsNullOrEmpty($importProject)) {
-                $importFilename = [System.IO.Path]::GetFileName($importProject)
+                $importFilename = ($importProject -split '[\\/]')[-1]
 
                 if ($importFilename -eq 'Common.Dotnet.CsWinRT.props' -or $importFilename -eq 'Common.Dotnet.props') {
                     $importExists = $true
