@@ -171,6 +171,7 @@ thmutil
 uriutil
 VKTAB
 wcautil
+wcsnlen
 winkey
 wininet
 WMKEYDOWN
