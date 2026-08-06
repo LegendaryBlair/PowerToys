@@ -1178,7 +1178,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                     return;
                 }
 
-                global::PowerToys.ZoomItSettingsInterop.ZoomItSettings.SaveSettingsJson(File.ReadAllText(path));
+                global::PowerToys.ZoomItSettingsInterop.ZoomItSettings.SaveSettingsJson(File.ReadAllText(path).Trim('\0'));
             }
             catch (Exception ex)
             {
