@@ -25,7 +25,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         private static readonly IFileSystem FileSystem = new FileSystem();
         private static readonly IPath Path = FileSystem.Path;
         private static readonly IFile File = FileSystem.File;
-        private readonly List<Stream> _imageResponseStreams = new List<Stream>();
+        private readonly List<AutoClosingReadStream> _imageResponseStreams = new List<AutoClosingReadStream>();
 
         /// <summary>
         /// RichTextBox control to display if external images are blocked.
@@ -186,12 +186,15 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                                     if (FilePreviewCommon.HTMLParsingExtension.TryOpenVirtualImage(e.Request.Uri, _allowedBasePath, out imageStream, out string imagePath) &&
                                         FilePreviewCommon.HTMLParsingExtension.TryGetImageContentType(imagePath, out string contentType))
                                     {
+                                        var responseStream = new AutoClosingReadStream(imageStream);
+                                        imageStream = responseStream;
+
                                         // Stream directly from disk rather than buffering the whole image
                                         // in memory. The wrapper closes at EOF, and the control retains it
                                         // as a fallback until the next preview or control disposal.
                                         e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + contentType + "\r\n");
-                                        _imageResponseStreams.RemoveAll(stream => !stream.CanRead);
-                                        _imageResponseStreams.Add(imageStream);
+                                        _imageResponseStreams.RemoveAll(stream => stream.IsComplete);
+                                        _imageResponseStreams.Add(responseStream);
                                         imageStream = null;
                                         return;
                                     }
@@ -372,7 +375,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
 
         private void DisposeImageResponseStreams()
         {
-            foreach (Stream imageResponseStream in _imageResponseStreams)
+            foreach (AutoClosingReadStream imageResponseStream in _imageResponseStreams)
             {
                 imageResponseStream.Dispose();
             }

@@ -339,7 +339,7 @@ namespace Microsoft.PowerToys.FilePreviewCommon
                     return false;
                 }
 
-                imageStream = new AutoClosingReadStream(new FileStream(imageHandle, FileAccess.Read));
+                imageStream = new FileStream(imageHandle, FileAccess.Read);
                 imageHandle = null;
                 resolvedPath = finalImagePath;
                 return true;

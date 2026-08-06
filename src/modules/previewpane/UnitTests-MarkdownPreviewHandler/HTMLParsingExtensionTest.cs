@@ -156,7 +156,6 @@ namespace PreviewPaneUnitTests
                 using (var reader = new System.IO.StreamReader(imageStream))
                 {
                     Assert.AreEqual("image-content", reader.ReadToEnd());
-                    Assert.IsFalse(imageStream.CanRead);
                 }
 
                 StringAssert.EndsWith(resolvedPath, @"\images\my #image.png");

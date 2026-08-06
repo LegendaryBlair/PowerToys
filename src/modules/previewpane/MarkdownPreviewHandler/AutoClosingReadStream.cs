@@ -7,61 +7,109 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Microsoft.PowerToys.FilePreviewCommon
+namespace Microsoft.PowerToys.PreviewHandler.Markdown
 {
+    // Stream implementations passed through the WinRT ABI must be partial for trimming and AOT.
     internal sealed partial class AutoClosingReadStream : Stream
     {
-        private Stream? _innerStream;
+        private readonly long _length;
+        private Stream _innerStream;
+        private bool _disposed;
+        private long _position;
 
         public AutoClosingReadStream(Stream innerStream)
         {
             _innerStream = innerStream ?? throw new ArgumentNullException(nameof(innerStream));
+            _length = innerStream.Length;
+            _position = innerStream.Position;
         }
 
-        public override bool CanRead => _innerStream?.CanRead ?? false;
+        public bool IsComplete { get; private set; }
 
-        public override bool CanSeek => _innerStream?.CanSeek ?? false;
+        public override bool CanRead => !_disposed;
+
+        public override bool CanSeek => !_disposed && !IsComplete;
 
         public override bool CanWrite => false;
 
-        public override long Length => GetInnerStream().Length;
+        public override long Length
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return _length;
+            }
+        }
 
         public override long Position
         {
-            get => GetInnerStream().Position;
-            set => GetInnerStream().Position = value;
+            get
+            {
+                ThrowIfDisposed();
+                return _position;
+            }
+
+            set
+            {
+                if (IsComplete)
+                {
+                    throw new NotSupportedException();
+                }
+
+                GetInnerStream().Position = value;
+                _position = value;
+            }
         }
 
         public override void Flush()
         {
-            GetInnerStream().Flush();
+            if (!IsComplete)
+            {
+                GetInnerStream().Flush();
+            }
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            return CompleteRead(GetInnerStream().Read(buffer, offset, count));
+            return IsComplete ? 0 : CompleteRead(GetInnerStream().Read(buffer, offset, count));
         }
 
         public override int Read(Span<byte> buffer)
         {
-            return CompleteRead(GetInnerStream().Read(buffer));
+            return IsComplete ? 0 : CompleteRead(GetInnerStream().Read(buffer));
         }
 
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
+            if (IsComplete)
+            {
+                return 0;
+            }
+
             int bytesRead = await GetInnerStream().ReadAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
             return CompleteRead(bytesRead);
         }
 
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
+            if (IsComplete)
+            {
+                return 0;
+            }
+
             int bytesRead = await GetInnerStream().ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
             return CompleteRead(bytesRead);
         }
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            return GetInnerStream().Seek(offset, origin);
+            if (IsComplete)
+            {
+                throw new NotSupportedException();
+            }
+
+            _position = GetInnerStream().Seek(offset, origin);
+            return _position;
         }
 
         public override void SetLength(long value)
@@ -76,12 +124,17 @@ namespace Microsoft.PowerToys.FilePreviewCommon
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            if (!_disposed)
             {
-                _innerStream?.Dispose();
+                if (disposing)
+                {
+                    _innerStream?.Dispose();
+                }
+
+                _innerStream = null;
+                _disposed = true;
             }
 
-            _innerStream = null;
             base.Dispose(disposing);
         }
 
@@ -89,7 +142,13 @@ namespace Microsoft.PowerToys.FilePreviewCommon
         {
             if (bytesRead == 0)
             {
-                Dispose();
+                IsComplete = true;
+                _innerStream?.Dispose();
+                _innerStream = null;
+            }
+            else
+            {
+                _position += bytesRead;
             }
 
             return bytesRead;
@@ -97,7 +156,13 @@ namespace Microsoft.PowerToys.FilePreviewCommon
 
         private Stream GetInnerStream()
         {
+            ThrowIfDisposed();
             return _innerStream ?? throw new ObjectDisposedException(nameof(AutoClosingReadStream));
+        }
+
+        private void ThrowIfDisposed()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
         }
     }
 }
