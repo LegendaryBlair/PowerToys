@@ -1,6 +1,7 @@
 #include "pch.h"
 // pch.h first
 #include "newplus_icon_utilities.h"
+#include <mutex>
 #include <unordered_map>
 
 #pragma comment(lib, "Shlwapi.lib")
@@ -14,8 +15,14 @@ std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
     // change via desktop.ini without a DLL reload.
     if (!is_directory)
     {
+        // Explorer can call into the shell extension on multiple threads concurrently, so the
+        // process-wide cache must be synchronized to avoid a data race on the unordered_map.
+        static std::mutex s_icon_cache_mutex;
         static std::unordered_map<std::wstring, std::wstring> s_icon_cache;
         const std::wstring key = path.extension().wstring();
+
+        std::lock_guard<std::mutex> cache_lock(s_icon_cache_mutex);
+
         const auto it = s_icon_cache.find(key);
         if (it != s_icon_cache.end())
             return it->second;

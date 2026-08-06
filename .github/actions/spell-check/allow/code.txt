@@ -436,3 +436,7 @@ WIDGETBOARD
 
 # URIs
 actioncenter
+
+# New+ shell PIDL type names
+PCUITEMID
+PITEMID

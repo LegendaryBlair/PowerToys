@@ -225,6 +225,10 @@ namespace newplus::utilities
         CComPtr<IFolderView> folder_view;
         shell_view->QueryInterface(&folder_view);
 
+        // The folder backing the active view; used to resolve child PIDLs to their names below.
+        CComPtr<IShellFolder> view_shell_folder;
+        folder_view->GetFolder(IID_PPV_ARGS(&view_shell_folder));
+
         // Find the newly created object (file or folder)
         // And put object into edit mode (SVSI_EDIT) and if desktop also reposition
         int number_of_objects_in_view = 0;
@@ -237,7 +241,21 @@ namespace newplus::utilities
             folder_view->Item(i, &shell_item_id);
 
             wchar_t path_buffer[MAX_PATH * 2] = { 0 };
-            if (!SHGetPathFromIDListW(reinterpret_cast<PCIDLIST_ABSOLUTE>(shell_item_id), path_buffer))
+
+            // IFolderView::Item returns a child (folder-relative) PIDL. SHGetPathFromIDList expects an
+            // absolute PIDL, so ask the parent IShellFolder for the item's in-folder parsing name instead
+            // of reinterpret-casting the child PIDL to absolute (which fails outside the desktop and
+            // would leave the new item never matched, so rename/reposition would silently time out).
+            if (view_shell_folder != nullptr)
+            {
+                STRRET str_ret;
+                if (SUCCEEDED(view_shell_folder->GetDisplayNameOf(shell_item_id, SHGDN_INFOLDER | SHGDN_FORPARSING, &str_ret)))
+                {
+                    StrRetToBufW(&str_ret, shell_item_id, path_buffer, ARRAYSIZE(path_buffer));
+                }
+            }
+
+            if (path_buffer[0] == L'\0')
             {
                 CoTaskMemFree(shell_item_id);
                 continue;
