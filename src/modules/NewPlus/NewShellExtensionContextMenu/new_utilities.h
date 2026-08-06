@@ -217,13 +217,28 @@ namespace newplus::utilities
         }
 
         CComPtr<IServiceProvider> service_provider;
-        shell_window->QueryInterface(&service_provider);
+        if (FAILED(shell_window->QueryInterface(&service_provider)) || service_provider == nullptr)
+        {
+            return false;
+        }
+
         CComPtr<IShellBrowser> shell_browser;
-        service_provider->QueryService(SID_STopLevelBrowser, IID_PPV_ARGS(&shell_browser));
+        if (FAILED(service_provider->QueryService(SID_STopLevelBrowser, IID_PPV_ARGS(&shell_browser))) || shell_browser == nullptr)
+        {
+            return false;
+        }
+
         CComPtr<IShellView> shell_view;
-        shell_browser->QueryActiveShellView(&shell_view);
+        if (FAILED(shell_browser->QueryActiveShellView(&shell_view)) || shell_view == nullptr)
+        {
+            return false;
+        }
+
         CComPtr<IFolderView> folder_view;
-        shell_view->QueryInterface(&folder_view);
+        if (FAILED(shell_view->QueryInterface(&folder_view)) || folder_view == nullptr)
+        {
+            return false;
+        }
 
         // The folder backing the active view; used to resolve child PIDLs to their names below.
         CComPtr<IShellFolder> view_shell_folder;
@@ -238,7 +253,10 @@ namespace newplus::utilities
         {
             PITEMID_CHILD shell_item_id = nullptr;
 
-            folder_view->Item(i, &shell_item_id);
+            if (FAILED(folder_view->Item(i, &shell_item_id)) || shell_item_id == nullptr)
+            {
+                continue;
+            }
 
             wchar_t path_buffer[MAX_PATH * 2] = { 0 };
 
