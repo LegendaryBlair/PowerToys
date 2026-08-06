@@ -36,14 +36,26 @@ foreach ($csprojFile in $csprojFiles) {
     $importExists = $false
 
     try {
-        $xml = New-Object System.Xml.XmlDocument
+        $xml = [System.Xml.XmlDocument]::new()
+        $xml.XmlResolver = $null
+        $readerSettings = [System.Xml.XmlReaderSettings]::new()
+        $readerSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+        $readerSettings.XmlResolver = $null
+        $reader = [System.Xml.XmlReader]::Create($csprojFile, $readerSettings)
 
-        $xml.Load($csprojFile)
+        try {
+            $xml.Load($reader)
+        }
+        finally {
+            $reader.Dispose()
+        }
 
         # The '*' wildcard matches Import elements regardless of XML namespace.
         foreach ($importNode in $xml.GetElementsByTagName('Import', '*')) {
-            if ($null -ne $importNode.Project) {
-                $importFilename = [System.IO.Path]::GetFileName($importNode.Project)
+            $importProject = $importNode.GetAttribute('Project')
+
+            if (-not [string]::IsNullOrEmpty($importProject)) {
+                $importFilename = [System.IO.Path]::GetFileName($importProject)
 
                 if ($importFilename -eq 'Common.Dotnet.CsWinRT.props' -or $importFilename -eq 'Common.Dotnet.props') {
                     $importExists = $true
