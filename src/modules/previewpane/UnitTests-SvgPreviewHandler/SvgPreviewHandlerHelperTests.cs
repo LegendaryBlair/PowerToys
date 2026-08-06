@@ -2,6 +2,7 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -164,10 +165,7 @@ namespace SvgPreviewHandlerUnitTests
             finally
             {
                 SvgPreviewCacheHelper.DeleteFileBestEffort(filePath);
-                if (Directory.Exists(folder))
-                {
-                    Directory.Delete(folder);
-                }
+                DeleteDirectoryBestEffort(folder);
             }
         }
 
@@ -187,10 +185,7 @@ namespace SvgPreviewHandlerUnitTests
             }
             finally
             {
-                if (Directory.Exists(folder))
-                {
-                    Directory.Delete(folder, true);
-                }
+                DeleteDirectoryBestEffort(folder);
             }
         }
 
@@ -209,10 +204,7 @@ namespace SvgPreviewHandlerUnitTests
             }
             finally
             {
-                if (Directory.Exists(folder))
-                {
-                    Directory.Delete(folder, true);
-                }
+                DeleteDirectoryBestEffort(folder);
             }
         }
 
@@ -252,10 +244,24 @@ namespace SvgPreviewHandlerUnitTests
             }
             finally
             {
+                DeleteDirectoryBestEffort(folder);
+            }
+        }
+
+        private static void DeleteDirectoryBestEffort(string folder)
+        {
+            try
+            {
                 if (Directory.Exists(folder))
                 {
                     Directory.Delete(folder, true);
                 }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
             }
         }
     }
