@@ -11,7 +11,7 @@
     Root directory to recursively search for .csproj files.
 
 .OUTPUTS
-    Writes the path of any non-conforming or malformed .csproj file to the output stream.
+    Writes a diagnostic identifying each non-conforming or malformed .csproj file.
     Exits with code 1 if any such files are found, and with code 0 otherwise.
 #>
 
