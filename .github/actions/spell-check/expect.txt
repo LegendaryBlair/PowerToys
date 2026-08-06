@@ -827,6 +827,7 @@ INITDIALOG
 INITGUID
 initialfile
 INITTOLOGFONTSTRUCT
+inj
 inkscape
 INLINEPREFIX
 inlines
@@ -954,6 +955,7 @@ livezoom
 LLKH
 llkhf
 LLMHF
+lmb
 LMEM
 LMENU
 lng
@@ -1039,6 +1041,7 @@ maximizebox
 MAXSHORTCUTSIZE
 maxversiontested
 mber
+MBL
 MBM
 MBR
 Mbuttondown
@@ -1082,6 +1085,7 @@ minwindef
 Mip
 mkdn
 mlcfg
+mmb
 mmc
 mmcexe
 mmi
@@ -1097,6 +1101,7 @@ MONITORINFOEX
 MONITORINFOEXW
 monitorinfof
 MOUSEACTIVATE
+mousebuttonlock
 mousecrosshairs
 MOUSEDATA
 MOUSEEVENTF
@@ -1180,6 +1185,7 @@ netcoreapp
 netcpl
 netframework
 netsetup
+NETSDK
 netsh
 NEWDIALOGSTYLE
 NEWFILE
@@ -1303,6 +1309,7 @@ OPTIMIZEFORINVOKE
 Optronics
 ORPHANEDDIALOGTITLE
 ORSCANS
+osk
 oss
 OSVERSIONINFO
 OSVERSIONINFOEX
@@ -1602,6 +1609,7 @@ RIDEV
 RIGHTBUTTON
 RIGHTSCROLLBAR
 riid
+rmb
 rollups
 rop
 ROUNDSMALL
@@ -1978,6 +1986,7 @@ UIA
 UIDs
 UIEx
 uild
+UIPI
 uitests
 UITo
 ULONGLONG
@@ -2148,6 +2157,7 @@ wingetpkgs
 Winhook
 WINL
 winlogon
+WINM
 winmd
 winml
 WINNT
