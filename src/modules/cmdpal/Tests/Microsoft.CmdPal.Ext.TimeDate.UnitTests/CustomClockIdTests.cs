@@ -211,6 +211,16 @@ public class CustomClockIdTests
         Assert.AreEqual("REL", rendered);
     }
 
+    [DataTestMethod]
+    [DataRow("'REL'", "REL")]
+    [DataRow("\"WOY\"", "WOY")]
+    public void CustomClockDisplay_QuotedCustomTokensAreRenderedLiterally(string format, string expected)
+    {
+        var rendered = CustomClockDisplay.Format(DateTimeOffset.Now, format, new Settings());
+
+        Assert.AreEqual(expected, rendered);
+    }
+
     [TestMethod]
     public void CustomClockDisplay_StandardFormatMatchesDateTimeFormatting()
     {
@@ -287,6 +297,8 @@ public class CustomClockIdTests
     [DataRow("yyyy-MM-dd HH:mm")]
     [DataRow("HH:mm 'seconds'")]
     [DataRow("HH:mm \"seconds\"")]
+    [DataRow("'WFT'")]
+    [DataRow("\"UXT\"")]
     public void CustomClockDisplay_FormatsWithoutActiveSecondTokensDoNotRequireSecondUpdates(string format)
     {
         var clock = new CustomClock { TitleFormat = format, SubtitleFormat = string.Empty };

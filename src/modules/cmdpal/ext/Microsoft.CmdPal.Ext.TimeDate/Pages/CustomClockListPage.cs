@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using Microsoft.CmdPal.Common.Commands;
 using Microsoft.CmdPal.Ext.TimeDate.Helpers;
@@ -188,6 +189,8 @@ internal sealed partial class CustomClockListPage : OnLoadDynamicListPage, IDisp
 
 internal sealed partial class CustomClockOverviewItem : ListItem
 {
+    private static readonly CompositeFormat _deleteConfirmationMessageFormat = CompositeFormat.Parse(Resources.timedate_custom_clock_delete_confirmation_message);
+
     private readonly ClockUpdateService _clockUpdateService;
     private readonly ISettingsInterface _settings;
     private readonly CompiledClockFormat _titleFormat;
@@ -251,7 +254,7 @@ internal sealed partial class CustomClockOverviewItem : ListItem
                 Name = Resources.timedate_custom_clock_delete,
                 Icon = Icons.DeleteIcon,
                 ConfirmationTitle = Resources.timedate_custom_clock_delete_confirmation_title,
-                ConfirmationMessage = Resources.timedate_custom_clock_delete_confirmation_message.Replace("{0}", CustomClockDisplay.GetName(Clock), StringComparison.Ordinal),
+                ConfirmationMessage = string.Format(CultureInfo.CurrentCulture, _deleteConfirmationMessageFormat, CustomClockDisplay.GetName(Clock)),
             }) { IsCritical = true },
         ];
     }

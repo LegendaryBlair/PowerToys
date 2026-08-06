@@ -185,11 +185,34 @@ internal sealed class CompiledClockFormat
         var segments = new List<FormatSegment>();
         var tokens = CustomFormatToken.None;
         var literalStart = 0;
+        char quote = default;
 
-        for (var index = 0; index <= format.Length - 3; index++)
+        for (var index = 0; index < format.Length; index++)
         {
-            if (!TryGetToken(format.AsSpan(index, 3), out var token) ||
-                (index > 0 && format[index - 1] == '\\'))
+            var character = format[index];
+            if (character == '\\')
+            {
+                index++;
+                continue;
+            }
+
+            if (character is '\'' or '"')
+            {
+                if (quote == default)
+                {
+                    quote = character;
+                }
+                else if (quote == character)
+                {
+                    quote = default;
+                }
+
+                continue;
+            }
+
+            if (quote != default ||
+                index > format.Length - 3 ||
+                !TryGetToken(format.AsSpan(index, 3), out var token))
             {
                 continue;
             }

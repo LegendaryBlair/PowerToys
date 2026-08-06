@@ -130,6 +130,7 @@ public class NowDockBandTests
                 clockReads++;
                 return FixedTime;
             });
+        _band.StartUpdating();
         var readsAfterConstruction = clockReads;
 
         _clockUpdateService.DispatchTick(FixedTime.AddSeconds(1));
