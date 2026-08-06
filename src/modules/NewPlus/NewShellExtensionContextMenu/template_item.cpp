@@ -203,9 +203,11 @@ void template_item::rename_on_other_thread_workaround(const std::filesystem::pat
     // Have been unable to have Windows Explorer Shell enter rename mode from the main thread.
     // Poll until the item appears in the folder view so icon is positioned and rename mode is entered
     // without a jump in the positioning
-    constexpr std::chrono::milliseconds poll_interval{ 30 };
+    constexpr std::chrono::milliseconds initial_poll_interval{ 30 };
+    constexpr std::chrono::milliseconds maximum_poll_interval{ 240 };
     constexpr std::chrono::milliseconds poll_timeout{ 2000 };
     const auto deadline = std::chrono::steady_clock::now() + poll_timeout;
+    auto poll_interval = initial_poll_interval;
 
     while (std::chrono::steady_clock::now() < deadline)
     {
@@ -214,6 +216,7 @@ void template_item::rename_on_other_thread_workaround(const std::filesystem::pat
             return;
         }
         std::this_thread::sleep_for(poll_interval);
+        poll_interval = std::min(poll_interval * 2, maximum_poll_interval);
     }
 
     // Final attempt: the item may have appeared during the last sleep interval (after the previous
