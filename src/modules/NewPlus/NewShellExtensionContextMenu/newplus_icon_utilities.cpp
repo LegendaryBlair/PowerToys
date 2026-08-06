@@ -42,6 +42,41 @@ namespace
         icon_resource.resize(wcsnlen_s(icon_resource.c_str(), icon_resource.size()));
         return icon_resource;
     }
+
+    HICON extract_default_icon(const wchar_t* association)
+    {
+        const std::wstring icon_resource = query_default_icon(association);
+        if (icon_resource.empty())
+        {
+            return nullptr;
+        }
+
+        const DWORD expanded_length = ExpandEnvironmentStrings(icon_resource.c_str(), nullptr, 0);
+        if (expanded_length == 0)
+        {
+            return nullptr;
+        }
+
+        std::wstring icon_path(expanded_length, L'\0');
+        const DWORD expand_result = ExpandEnvironmentStrings(icon_resource.c_str(), icon_path.data(), expanded_length);
+        if (expand_result == 0 || expand_result > expanded_length)
+        {
+            return nullptr;
+        }
+
+        const int icon_index = PathParseIconLocation(icon_path.data());
+        PathUnquoteSpaces(icon_path.data());
+        icon_path.resize(wcsnlen_s(icon_path.c_str(), icon_path.size()));
+
+        HICON icon = nullptr;
+        const UINT icon_size = static_cast<UINT>(GetSystemMetrics(SM_CXSMICON));
+        if (FAILED(SHDefExtractIcon(icon_path.c_str(), icon_index, 0, nullptr, &icon, MAKELONG(0, icon_size))))
+        {
+            return nullptr;
+        }
+
+        return icon;
+    }
 }
 
 std::wstring get_explorer_icon(const std::filesystem::path& path, bool is_directory)
@@ -120,15 +155,7 @@ HICON get_explorer_icon_handle(const std::filesystem::path& path)
     }
 
     const std::wstring extension = path.extension().wstring();
-    const std::wstring icon_resource = query_default_icon(extension.c_str());
-    if (icon_resource.empty())
-    {
-        return nullptr;
-    }
-
-    const auto icon_x = GetSystemMetrics(SM_CXSMICON);
-    const auto icon_y = GetSystemMetrics(SM_CYSMICON);
-    return static_cast<HICON>(LoadImage(NULL, icon_resource.c_str(), IMAGE_ICON, icon_x, icon_y, LR_LOADFROMFILE));
+    return extract_default_icon(extension.c_str());
 }
 
 }

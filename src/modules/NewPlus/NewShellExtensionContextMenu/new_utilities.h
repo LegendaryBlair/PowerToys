@@ -320,7 +320,10 @@ namespace newplus::utilities
                         ::ScreenToClient(folder_view_window, &screen_point);
                     }
 
-                    SetThreadDpiAwarenessContext(prev_ctx);
+                    if (prev_ctx != nullptr)
+                    {
+                        SetThreadDpiAwarenessContext(prev_ctx);
+                    }
 
                     // Keep icon clear of the screen edge: ~30 logical pixels scaled to the invoke monitor's DPI.
                     const LONG min_margin = ::MulDiv(30, static_cast<int>(invoke_dpi_x), 96);
@@ -329,14 +332,13 @@ namespace newplus::utilities
 
                     POINT position[] = { screen_point };
                     PCUITEMID_CHILD shell_item_to_select_and_position[] = { shell_item_id };
-                    folder_view->SelectAndPositionItems(1, shell_item_to_select_and_position, position, common_select_flags | SVSI_POSITIONITEM);
+                    done = SUCCEEDED(folder_view->SelectAndPositionItems(1, shell_item_to_select_and_position, position, common_select_flags | SVSI_POSITIONITEM));
                 }
                 else
                 {
                     // Enter rename mode
-                    folder_view->SelectItem(i, common_select_flags);
+                    done = SUCCEEDED(folder_view->SelectItem(i, common_select_flags));
                 }
-                done = true;
             }
             CoTaskMemFree(shell_item_id);
         }

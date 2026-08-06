@@ -194,12 +194,41 @@ void template_item::refresh_target(const std::filesystem::path target_final_full
 
 void template_item::enter_rename_mode(const std::filesystem::path target_fullpath, const POINT mouse_position_at_invoke) const
 {
-    std::thread thread_for_renaming_workaround(rename_on_other_thread_workaround, target_fullpath, mouse_position_at_invoke);
-    thread_for_renaming_workaround.detach();
+    active_rename_workers.fetch_add(1);
+    try
+    {
+        std::thread thread_for_renaming_workaround(rename_on_other_thread_workaround, target_fullpath, mouse_position_at_invoke);
+        thread_for_renaming_workaround.detach();
+    }
+    catch (...)
+    {
+        active_rename_workers.fetch_sub(1);
+    }
 }
 
 void template_item::rename_on_other_thread_workaround(const std::filesystem::path target_fullpath, const POINT mouse_position_at_invoke)
 {
+    struct worker_cleanup
+    {
+        bool com_initialized = false;
+
+        ~worker_cleanup()
+        {
+            if (com_initialized)
+            {
+                CoUninitialize();
+            }
+            active_rename_workers.fetch_sub(1);
+        }
+    } cleanup;
+
+    const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(com_result))
+    {
+        return;
+    }
+    cleanup.com_initialized = true;
+
     // Have been unable to have Windows Explorer Shell enter rename mode from the main thread.
     // Poll until the item appears in the folder view so icon is positioned and rename mode is entered
     // without a jump in the positioning
@@ -209,17 +238,23 @@ void template_item::rename_on_other_thread_workaround(const std::filesystem::pat
     const auto deadline = std::chrono::steady_clock::now() + poll_timeout;
     auto poll_interval = initial_poll_interval;
 
-    while (std::chrono::steady_clock::now() < deadline)
+    try
     {
-        if (newplus::utilities::explorer_enter_rename_mode_and_reposition(target_fullpath, mouse_position_at_invoke))
+        while (std::chrono::steady_clock::now() < deadline)
         {
-            return;
+            if (newplus::utilities::explorer_enter_rename_mode_and_reposition(target_fullpath, mouse_position_at_invoke))
+            {
+                return;
+            }
+            std::this_thread::sleep_for(poll_interval);
+            poll_interval = std::min(poll_interval * 2, maximum_poll_interval);
         }
-        std::this_thread::sleep_for(poll_interval);
-        poll_interval = std::min(poll_interval * 2, maximum_poll_interval);
-    }
 
-    // Final attempt: the item may have appeared during the last sleep interval (after the previous
-    // attempt but before the deadline), so try once more so a just-in-time item still enters rename mode.
-    newplus::utilities::explorer_enter_rename_mode_and_reposition(target_fullpath, mouse_position_at_invoke);
+        // Final attempt: the item may have appeared during the last sleep interval (after the previous
+        // attempt but before the deadline), so try once more so a just-in-time item still enters rename mode.
+        newplus::utilities::explorer_enter_rename_mode_and_reposition(target_fullpath, mouse_position_at_invoke);
+    }
+    catch (...)
+    {
+    }
 }
