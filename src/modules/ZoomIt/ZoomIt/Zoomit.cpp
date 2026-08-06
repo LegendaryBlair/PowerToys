@@ -186,6 +186,7 @@ DWORD   g_MirrorToggleMod;
 
 BOOLEAN	g_ZoomOnLiveZoom = FALSE;
 DWORD	g_PenWidth = PEN_WIDTH;
+int     g_CursorSaveWidth = 0;
 float   g_BlurRadius = NORMAL_BLUR_RADIUS;
 HWND	hWndOptions = NULL;
 BOOLEAN	g_DrawPointer = FALSE;
@@ -6409,10 +6410,10 @@ void InvalidateCursorMoveArea( HWND hWnd, float zoomLevel, int width, int height
 void SaveCursorArea( HDC hDcTarget, HDC hDcSource, POINT pt )
 {
     OutputDebug( L"SaveCursorArea\n");
-    int saveWidth = GetCursorSaveWidthForPen( g_PenWidth, g_EraserMode != EraserModeOff );
-    BitBlt( hDcTarget, 0, 0, saveWidth, saveWidth,
-        hDcSource, static_cast<INT>( pt.x - saveWidth / 2 ),
-        static_cast<INT>( pt.y - saveWidth / 2 ), SRCCOPY|CAPTUREBLT );
+    g_CursorSaveWidth = GetCursorSaveWidthForPen( g_PenWidth, g_EraserMode != EraserModeOff );
+    BitBlt( hDcTarget, 0, 0, g_CursorSaveWidth, g_CursorSaveWidth,
+        hDcSource, static_cast<INT>( pt.x - g_CursorSaveWidth / 2 ),
+        static_cast<INT>( pt.y - g_CursorSaveWidth / 2 ), SRCCOPY|CAPTUREBLT );
 }
 
 //----------------------------------------------------------------------------
@@ -6423,7 +6424,11 @@ void SaveCursorArea( HDC hDcTarget, HDC hDcSource, POINT pt )
 void RestoreCursorArea( HDC hDcTarget, HDC hDcSource, POINT pt )
 {
     OutputDebug( L"RestoreCursorArea\n");
-    int saveWidth = GetCursorSaveWidthForPen( g_PenWidth, g_EraserMode != EraserModeOff );
+    int saveWidth = g_CursorSaveWidth;
+    if( saveWidth <= 0 )
+    {
+        saveWidth = GetCursorSaveWidthForPen( g_PenWidth, g_EraserMode != EraserModeOff );
+    }
     BitBlt( hDcTarget, static_cast<INT>( pt.x - saveWidth / 2 ),
         static_cast<INT>( pt.y - saveWidth / 2 ), saveWidth, saveWidth,
         hDcSource, 0, 0, SRCCOPY|CAPTUREBLT );
@@ -6908,12 +6913,6 @@ EraserStrokeBuffers g_EraserStrokeBuffers;
 
 void DisengageEraser()
 {
-    if( g_EraserEngaged )
-    {
-        EnableDisableStickyKeys( TRUE );
-        ClipCursor( NULL );
-    }
-
     g_EraserEngaged = FALSE;
     g_EraserStrokeBuffers.Reset();
 }
@@ -6924,6 +6923,7 @@ void ExitEraserMode( HWND hWnd )
     g_EraserMode = EraserModeOff;
     g_EraserPopupVisible = FALSE;
     KillTimer( hWnd, ERASER_POPUP_TIMER );
+    InvalidateRect( hWnd, NULL, FALSE );
 }
 
 //----------------------------------------------------------------------------
@@ -8430,6 +8430,7 @@ LRESULT APIENTRY MainWndProc(
             g_EraserEngaged = FALSE;
             g_EraserPopupVisible = FALSE;
             g_EraserStrokeBuffers.Reset();
+            g_CursorSaveWidth = 0;
             KillTimer( hWnd, ERASER_POPUP_TIMER );
             EnableDisableStickyKeys( TRUE );
             DeleteObject( hTypingFont );
