@@ -11,18 +11,20 @@ namespace newplus::icon_utilities
 
 std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
 {
-    // Cache by file extension — directories are excluded because their icon can
-    // change via desktop.ini without a DLL reload.
+    // Cache by full path — directories are excluded because their icon can change via desktop.ini
+    // without a DLL reload. Extension is intentionally NOT used as the key: icons for types like .exe
+    // and .lnk are per-file (the icon comes from the binary/shortcut itself), so an extension key would
+    // return the first-seen file's icon for every template of that type.
     if (!is_directory)
     {
         // Explorer can call into the shell extension on multiple threads concurrently, so the
         // process-wide cache must be synchronized to avoid a data race on the unordered_map.
         // The lock is only ever held around the map lookup/insert and never while calling into the
-        // shell (SHGetFileInfo/AssocQueryString), because those calls can be re-entrant and would
+        // shell (SHGetFileInfo/AssocQueryString), because those calls can be reentrant and would
         // otherwise risk deadlocking this non-recursive mutex on the same thread.
         static std::mutex s_icon_cache_mutex;
         static std::unordered_map<std::wstring, std::wstring> s_icon_cache;
-        const std::wstring key = path.extension().wstring();
+        const std::wstring key = path.wstring();
 
         {
             std::lock_guard<std::mutex> cache_lock(s_icon_cache_mutex);
@@ -45,15 +47,16 @@ std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
         {
             WCHAR icon_resource_specifier[MAX_PATH] = { 0 };
             DWORD buffer_length = MAX_PATH;
+            const std::wstring extension = path.extension().wstring();
             AssocQueryString(ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_DEFAULTICON,
-                             key.c_str(), NULL, icon_resource_specifier, &buffer_length);
+                             extension.c_str(), NULL, icon_resource_specifier, &buffer_length);
             icon_resource = icon_resource_specifier;
         }
 
         {
             std::lock_guard<std::mutex> cache_lock(s_icon_cache_mutex);
             // Only cache successful (non-empty) lookups so a transient SHGetFileInfo/AssocQueryString
-            // failure cannot permanently poison the cache with an empty icon for that extension.
+            // failure cannot permanently poison the cache with an empty icon for that path.
             if (!icon_resource.empty())
             {
                 s_icon_cache[key] = icon_resource;
