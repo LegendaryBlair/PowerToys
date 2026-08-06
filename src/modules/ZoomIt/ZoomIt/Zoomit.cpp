@@ -6741,7 +6741,7 @@ public:
         }
 
         m_oldCurrentBitmap = SelectObject( m_currentDc, m_currentBitmap );
-        if( !m_oldCurrentBitmap || m_oldCurrentBitmap == HGDI_ERROR )
+        if( !m_oldCurrentBitmap )
         {
             m_oldCurrentBitmap = NULL;
             Reset();
@@ -6749,7 +6749,7 @@ public:
         }
 
         m_oldBaseBitmap = SelectObject( m_baseDc, m_baseBitmap );
-        if( !m_oldBaseBitmap || m_oldBaseBitmap == HGDI_ERROR )
+        if( !m_oldBaseBitmap )
         {
             m_oldBaseBitmap = NULL;
             Reset();
