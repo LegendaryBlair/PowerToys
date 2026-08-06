@@ -133,6 +133,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             ArgumentNullException.ThrowIfNull(mouseButtonLockSettingsRepository);
 
             MouseButtonLockSettingsConfig = mouseButtonLockSettingsRepository.SettingsConfig;
+            MouseButtonLockSettingsConfig.Properties ??= new MouseButtonLockProperties();
 
             // Null-safe in case a hand-edited settings.json carries explicit nulls: repair the
             // property objects to their defaults so both the reads below and the property setters
