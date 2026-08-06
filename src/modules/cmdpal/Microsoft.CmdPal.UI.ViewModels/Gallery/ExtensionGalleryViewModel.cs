@@ -395,29 +395,29 @@ public sealed partial class ExtensionGalleryViewModel : ObservableObject, IDispo
             LogCheckInstalledExtensionsError(_logger, ex);
         }
 
+        if (refreshWinGetCatalogs && _winGetPackageManagerService is not null && _winGetPackageManagerService.State.IsAvailable)
+        {
+            try
+            {
+                using var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                refreshCts.CancelAfter(WinGetRefreshTimeout);
+                await RunInBackgroundAsync(
+                    () => _winGetPackageManagerService.RefreshCatalogsAsync(refreshCts.Token),
+                    refreshCts.Token);
+                refreshCts.Token.ThrowIfCancellationRequested();
+            }
+            catch (OperationCanceledException)
+            {
+                // Proceed to next pass
+            }
+            catch (Exception ex)
+            {
+                LogRefreshWinGetCatalogsError(_logger, ex);
+            }
+        }
+
         if (_winGetPackageStatusService is not null)
         {
-            if (refreshWinGetCatalogs && _winGetPackageManagerService is not null && _winGetPackageManagerService.State.IsAvailable)
-            {
-                try
-                {
-                    using var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    refreshCts.CancelAfter(WinGetRefreshTimeout);
-                    await RunInBackgroundAsync(
-                        () => _winGetPackageManagerService.RefreshCatalogsAsync(refreshCts.Token),
-                        refreshCts.Token);
-                    refreshCts.Token.ThrowIfCancellationRequested();
-                }
-                catch (OperationCanceledException)
-                {
-                    // Proceed to next pass
-                }
-                catch (Exception ex)
-                {
-                    LogRefreshWinGetCatalogsError(_logger, ex);
-                }
-            }
-
             try
             {
                 var wingetIds = snapshot
@@ -473,7 +473,7 @@ public sealed partial class ExtensionGalleryViewModel : ObservableObject, IDispo
             {
                 var storeIdsToLookup = snapshot
                     .Where(e => !e.IsInstalledStateKnown && !string.IsNullOrWhiteSpace(e.StoreId))
-                    .Select(e => e.StoreId!)
+                    .Select(e => e.StoreId!.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
@@ -496,19 +496,9 @@ public sealed partial class ExtensionGalleryViewModel : ObservableObject, IDispo
                                 continue;
                             }
 
-                            if (results.Value.TryGetValue(entry.StoreId, out var catalogPackage))
+                            if (results.Value.TryGetValue(entry.StoreId.Trim(), out var catalogPackage))
                             {
                                 entry.IsInstalled = catalogPackage.InstalledVersion != null;
-                                entry.IsInstalledStateKnown = true;
-                            }
-                        }
-
-                        // Mark any Store-ID entries not found in the catalog as known-not-installed.
-                        foreach (var entry in snapshot)
-                        {
-                            if (!entry.IsInstalledStateKnown && !string.IsNullOrWhiteSpace(entry.StoreId))
-                            {
-                                entry.IsInstalled = false;
                                 entry.IsInstalledStateKnown = true;
                             }
                         }

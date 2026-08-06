@@ -238,8 +238,8 @@ public sealed class WinGetPackageManagerService : IWinGetPackageManagerService
 
                     var selector = initialization.Factory.CreatePackageMatchFilter();
                     selector.Field = PackageMatchField.Id;
-                    selector.Option = PackageFieldMatchOption.Equals;
-                    selector.Value = id.ToUpperInvariant();
+                    selector.Option = PackageFieldMatchOption.EqualsCaseInsensitive;
+                    selector.Value = id;
                     options.Selectors.Add(selector);
 
                     var findResult = await Task.Run(() => catalog.FindPackages(options), cancellationToken).ConfigureAwait(false);
@@ -249,7 +249,7 @@ public sealed class WinGetPackageManagerService : IWinGetPackageManagerService
                         return (id, (CatalogPackage?)null);
                     }
 
-                    if (findResult.Matches.Count > 0 )
+                    if (findResult.Matches.Count > 0)
                     {
                         var package = findResult.Matches[0].CatalogPackage;
                         return (id, package);
@@ -506,7 +506,7 @@ public sealed class WinGetPackageManagerService : IWinGetPackageManagerService
         {
             lock (_allCatalogAllSearchTaskLock)
             {
-                _allCatalogAllSearchTask ??= CreateCompositeCatalogAsync(includeStoreCatalog, searchBehavior, cancellationToken);
+                _allCatalogAllSearchTask ??= CreateCompositeCatalogAsync(includeStoreCatalog, searchBehavior, CancellationToken.None);
                 task = _allCatalogAllSearchTask;
             }
         }
@@ -514,7 +514,7 @@ public sealed class WinGetPackageManagerService : IWinGetPackageManagerService
         {
             lock (_allCatalogTaskLock)
             {
-                _allCatalogTask ??= CreateCompositeCatalogAsync(includeStoreCatalog, searchBehavior, cancellationToken);
+                _allCatalogTask ??= CreateCompositeCatalogAsync(includeStoreCatalog, searchBehavior, CancellationToken.None);
                 task = _allCatalogTask;
             }
         }
@@ -522,12 +522,12 @@ public sealed class WinGetPackageManagerService : IWinGetPackageManagerService
         {
             lock (_wingetCatalogTaskLock)
             {
-                _wingetCatalogTask ??= CreateCompositeCatalogAsync(includeStoreCatalog, searchBehavior, cancellationToken);
+                _wingetCatalogTask ??= CreateCompositeCatalogAsync(includeStoreCatalog, searchBehavior, CancellationToken.None);
                 task = _wingetCatalogTask;
             }
         }
 
-        var result = await task.ConfigureAwait(false);
+        var result = await task.WaitAsync(cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess || result.Value is null)
         {
             ClearCachedCompositeCatalogTask(includeStoreCatalog, searchBehavior, task);
@@ -697,19 +697,19 @@ public sealed class WinGetPackageManagerService : IWinGetPackageManagerService
                 _operationTracker.UpdateOperation(operationId, WinGetPackageOperationState.Queued, isIndeterminate: true);
                 break;
             case PackageInstallProgressState.Downloading:
-                {
-                    var progressPercent = progress.BytesRequired > 0
-                        ? (uint?)Math.Min(100, (progress.BytesDownloaded * 100UL) / progress.BytesRequired)
-                        : null;
-                    _operationTracker.UpdateOperation(
-                        operationId,
-                        WinGetPackageOperationState.Downloading,
-                        isIndeterminate: progress.BytesRequired == 0,
-                        progressPercent: progressPercent,
-                        bytesDownloaded: progress.BytesDownloaded,
-                        bytesRequired: progress.BytesRequired);
-                    break;
-                }
+            {
+                var progressPercent = progress.BytesRequired > 0
+                    ? (uint?)Math.Min(100, (progress.BytesDownloaded * 100UL) / progress.BytesRequired)
+                    : null;
+                _operationTracker.UpdateOperation(
+                    operationId,
+                    WinGetPackageOperationState.Downloading,
+                    isIndeterminate: progress.BytesRequired == 0,
+                    progressPercent: progressPercent,
+                    bytesDownloaded: progress.BytesDownloaded,
+                    bytesRequired: progress.BytesRequired);
+                break;
+            }
 
             case PackageInstallProgressState.Installing:
                 _operationTracker.UpdateOperation(operationId, WinGetPackageOperationState.Installing, isIndeterminate: true);
