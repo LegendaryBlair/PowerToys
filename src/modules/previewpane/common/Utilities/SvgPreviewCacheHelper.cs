@@ -15,6 +15,9 @@ namespace Common.Utilities
         // Upper bound on the number of cached preview files retained on disk before the oldest are evicted.
         private const int MaxCacheEntries = 200;
 
+        // WebView2.NavigateToString has an approximately 1.5 MB UTF-8 payload limit.
+        private const int NavigateToStringUtf8LimitInBytes = 1_500_000;
+
         internal static string BuildCacheKey(params string[] cacheInputs)
         {
             // Hash incrementally so multi-MB SVG inputs are not first concatenated into one large
@@ -38,6 +41,37 @@ namespace Common.Utilities
             // Pure path composition: directory creation is left to WriteCacheFileAtomic so that a failure
             // to create the folder cannot throw here and short-circuit the caller's in-memory fallback.
             return Path.Combine(cacheRootFolder, $"{cacheKey}.html");
+        }
+
+        internal static bool CanNavigateToString(string content)
+        {
+            return Encoding.UTF8.GetByteCount(content) <= NavigateToStringUtf8LimitInBytes;
+        }
+
+        internal static bool TryWriteTemporaryFile(string folder, string content, out string filePath)
+        {
+            filePath = Path.Combine(folder, $"{Guid.NewGuid():N}.html");
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+                File.WriteAllText(filePath, content);
+                return CacheFileIsUsable(filePath);
+            }
+            catch (Exception)
+            {
+                TryDelete(filePath);
+                filePath = string.Empty;
+                return false;
+            }
+        }
+
+        internal static void DeleteFileBestEffort(string path)
+        {
+            if (!string.IsNullOrEmpty(path))
+            {
+                TryDelete(path);
+            }
         }
 
         /// <summary>

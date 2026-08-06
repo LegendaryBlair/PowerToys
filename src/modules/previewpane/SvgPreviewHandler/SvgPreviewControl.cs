@@ -270,10 +270,24 @@ namespace Microsoft.PowerToys.PreviewHandler.Svg
                         string generatedPreview = _previewGenerator.GeneratePreview(svgData);
                         if (!SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, generatedPreview))
                         {
-                            // Cache write did not materialize (e.g. IO contention) — render the generated
-                            // content directly rather than navigating to a missing file (which would be blank).
-                            _browser.NavigateToString(generatedPreview);
-                            Controls.Add(_browser);
+                            if (SvgPreviewCacheHelper.CanNavigateToString(generatedPreview))
+                            {
+                                _browser.NavigateToString(generatedPreview);
+                                Controls.Add(_browser);
+                                return;
+                            }
+
+                            if (SvgPreviewCacheHelper.TryWriteTemporaryFile(_webView2UserDataFolder, generatedPreview, out var temporaryFilePath))
+                            {
+                                _localFileURI = new Uri(temporaryFilePath);
+                                _browser.NavigationCompleted += (sender, args) => SvgPreviewCacheHelper.DeleteFileBestEffort(temporaryFilePath);
+                                _browser.Source = _localFileURI;
+                                Controls.Add(_browser);
+                                return;
+                            }
+
+                            _infoBarAdded = true;
+                            AddTextBoxControl(Properties.Resource.SvgNotPreviewedError);
                             return;
                         }
                     }

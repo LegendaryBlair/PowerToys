@@ -110,6 +110,7 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
             Bitmap thumbnail = null;
 
             var thumbnailDone = new ManualResetEventSlim(false);
+            string temporaryFallbackFilePath = string.Empty;
 
             _browser = new WebView2();
             _browser.Dock = DockStyle.Fill;
@@ -192,9 +193,20 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
                     {
                         if (!SvgPreviewCacheHelper.WriteCacheFileAtomic(cacheFilePath, SvgContents))
                         {
-                            // Cache write did not materialize (e.g. IO contention) — render the content
-                            // directly rather than navigating to a missing file (which would be blank).
-                            _browser.NavigateToString(SvgContents);
+                            if (SvgPreviewCacheHelper.CanNavigateToString(SvgContents))
+                            {
+                                _browser.NavigateToString(SvgContents);
+                                return;
+                            }
+
+                            if (SvgPreviewCacheHelper.TryWriteTemporaryFile(_webView2UserDataFolder, SvgContents, out temporaryFallbackFilePath))
+                            {
+                                _localFileURI = new Uri(temporaryFallbackFilePath);
+                                _browser.Source = _localFileURI;
+                                return;
+                            }
+
+                            thumbnailDone.Set();
                             return;
                         }
                     }
@@ -215,6 +227,7 @@ namespace Microsoft.PowerToys.ThumbnailHandler.Svg
             }
 
             _browser.Dispose();
+            SvgPreviewCacheHelper.DeleteFileBestEffort(temporaryFallbackFilePath);
 
             return thumbnail;
         }

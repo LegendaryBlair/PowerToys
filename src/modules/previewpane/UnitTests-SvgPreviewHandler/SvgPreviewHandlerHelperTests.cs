@@ -143,6 +143,35 @@ namespace SvgPreviewHandlerUnitTests
         }
 
         [TestMethod]
+        public void CanNavigateToStringShouldUseUtf8ByteCount()
+        {
+            Assert.IsTrue(SvgPreviewCacheHelper.CanNavigateToString(new string('a', 1_500_000)));
+            Assert.IsFalse(SvgPreviewCacheHelper.CanNavigateToString(new string('漢', 500_001)));
+        }
+
+        [TestMethod]
+        public void TryWriteTemporaryFileShouldWriteContent()
+        {
+            var folder = Path.Combine(Path.GetTempPath(), "SvgCacheTest_" + Path.GetRandomFileName());
+            string filePath = string.Empty;
+            try
+            {
+                var result = SvgPreviewCacheHelper.TryWriteTemporaryFile(folder, "content", out filePath);
+
+                Assert.IsTrue(result);
+                Assert.AreEqual("content", File.ReadAllText(filePath));
+            }
+            finally
+            {
+                SvgPreviewCacheHelper.DeleteFileBestEffort(filePath);
+                if (Directory.Exists(folder))
+                {
+                    Directory.Delete(folder);
+                }
+            }
+        }
+
+        [TestMethod]
         public void WriteCacheFileAtomicShouldWriteContentAndReturnTrue()
         {
             var folder = Path.Combine(Path.GetTempPath(), "SvgCacheTest_" + Path.GetRandomFileName());
