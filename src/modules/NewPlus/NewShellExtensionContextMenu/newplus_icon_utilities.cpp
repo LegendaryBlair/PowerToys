@@ -52,7 +52,12 @@ std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
 
         {
             std::lock_guard<std::mutex> cache_lock(s_icon_cache_mutex);
-            s_icon_cache[key] = icon_resource;
+            // Only cache successful (non-empty) lookups so a transient SHGetFileInfo/AssocQueryString
+            // failure cannot permanently poison the cache with an empty icon for that extension.
+            if (!icon_resource.empty())
+            {
+                s_icon_cache[key] = icon_resource;
+            }
         }
 
         return icon_resource;
