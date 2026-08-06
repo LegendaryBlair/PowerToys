@@ -147,7 +147,11 @@ std::wstring template_item::remove_starting_digits_from_filename(std::wstring fi
 
 std::wstring template_item::get_explorer_icon() const
 {
-    return icon_utilities::get_explorer_icon(path, helpers::filesystem::is_directory(path));
+    // Use the non-throwing filesystem query: this runs while Explorer builds the context menu, so a
+    // throwing directory check here could take down the shell extension. On error, treat as a file.
+    std::error_code ec;
+    const bool is_dir = std::filesystem::is_directory(path, ec) && !ec;
+    return icon_utilities::get_explorer_icon(path, is_dir);
 }
 
 HICON template_item::get_explorer_icon_handle() const

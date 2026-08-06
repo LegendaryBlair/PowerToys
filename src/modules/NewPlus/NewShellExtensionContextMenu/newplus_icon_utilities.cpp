@@ -9,7 +9,7 @@
 namespace newplus::icon_utilities
 {
 
-std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
+std::wstring get_explorer_icon(const std::filesystem::path& path, bool is_directory)
 {
     // Cache by full path — directories are excluded because their icon can change via desktop.ini
     // without a DLL reload. Extension is intentionally NOT used as the key: icons for types like .exe
@@ -36,8 +36,7 @@ std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
         std::wstring icon_resource;
 
         SHFILEINFO shell_file_info = { 0 };
-        const std::wstring filepath = path.wstring();
-        SHGetFileInfo(filepath.c_str(), 0, &shell_file_info, sizeof(shell_file_info), SHGFI_ICONLOCATION);
+        SHGetFileInfo(key.c_str(), 0, &shell_file_info, sizeof(shell_file_info), SHGFI_ICONLOCATION);
         const std::wstring icon_path = shell_file_info.szDisplayName;
         if (!icon_path.empty())
         {
@@ -83,7 +82,7 @@ std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
     return icon_resource_specifier;
 }
 
-HICON get_explorer_icon_handle(std::filesystem::path path)
+HICON get_explorer_icon_handle(const std::filesystem::path& path)
 {
     SHFILEINFO shell_file_info = { 0 };
     const std::wstring filepath = path.wstring();
