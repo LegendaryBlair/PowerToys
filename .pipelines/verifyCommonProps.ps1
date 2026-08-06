@@ -17,7 +17,7 @@
 
 [CmdletBinding()]
 Param(
-    [Parameter(Mandatory = $True, Position = 1)]
+    [Parameter(Mandatory = $True, Position = 0)]
     [string]$sourceDir
 )
 
