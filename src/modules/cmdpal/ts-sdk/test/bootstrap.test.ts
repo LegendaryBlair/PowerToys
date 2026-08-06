@@ -106,4 +106,10 @@ describe('resolveCliEntry', () => {
     expect(resolved?.startsWith('file://')).toBe(true);
     expect(resolved).toContain('/abs/entry.js');
   });
+
+  it('converts a Windows drive-letter path instead of treating it as a URL scheme', () => {
+    expect(resolveCliEntry(['node', 'bootstrap.js', 'C:\\abs\\entry.js'], {})).toBe(
+      'file:///C:/abs/entry.js',
+    );
+  });
 });

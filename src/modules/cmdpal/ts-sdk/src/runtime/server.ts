@@ -125,6 +125,9 @@ export function startJsonRpcServer(factory: ProviderFactory): void {
             }
           }
           await runtime.handleNotification(message);
+        } else {
+          process.stderr.write('cmdpal-sdk: invalid JSON-RPC 2.0 message.\n');
+          await finalize(1);
         }
       })
       .catch((error: unknown) => {

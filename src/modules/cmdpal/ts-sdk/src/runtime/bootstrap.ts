@@ -54,11 +54,12 @@ export function resolveCliEntry(argv: readonly string[], env: NodeJS.ProcessEnv)
   if (raw === undefined || raw.length === 0) {
     return null;
   }
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw)) {
+  const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(raw) || raw.startsWith('\\\\');
+  if (!isWindowsPath && /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw)) {
     // Already a URL (for example a file: URL); import it as-is.
     return raw;
   }
-  return pathToFileURL(raw).href;
+  return pathToFileURL(raw, { windows: isWindowsPath }).href;
 }
 
 /**
