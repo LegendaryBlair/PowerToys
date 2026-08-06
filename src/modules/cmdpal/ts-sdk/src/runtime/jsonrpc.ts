@@ -56,7 +56,7 @@ export function isRequest(message: unknown): message is JsonRpcRequest {
     return false;
   }
   const hasId = typeof message.id === 'number' || typeof message.id === 'string';
-  return hasId && typeof message.method === 'string';
+  return message.jsonrpc === JSONRPC_VERSION && hasId && typeof message.method === 'string';
 }
 
 /** Narrows a parsed value to a JSON-RPC notification (has `method`, no `id`). */
@@ -64,7 +64,11 @@ export function isNotification(message: unknown): message is JsonRpcNotification
   if (!isObject(message)) {
     return false;
   }
-  return message.id === undefined && typeof message.method === 'string';
+  return (
+    message.jsonrpc === JSONRPC_VERSION &&
+    message.id === undefined &&
+    typeof message.method === 'string'
+  );
 }
 
 /** Reads `params` as a string-keyed record, or an empty record when absent. */

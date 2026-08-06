@@ -13,6 +13,8 @@ import type {
 import { ExtensionRuntime } from '../src/runtime/runtime.js';
 import {
   JSONRPC_VERSION,
+  isNotification,
+  isRequest,
   type JsonRpcMessage,
   type JsonRpcNotification,
   type JsonRpcResponse,
@@ -78,6 +80,20 @@ const provider: ICommandProvider = {
     ];
   },
 };
+
+describe('JSON-RPC message guards', () => {
+  it('requires the JSON-RPC 2.0 marker on requests', () => {
+    expect(isRequest({ id: 1, method: 'initialize' })).toBe(false);
+    expect(isRequest({ jsonrpc: '1.0', id: 1, method: 'initialize' })).toBe(false);
+    expect(isRequest({ jsonrpc: JSONRPC_VERSION, id: 1, method: 'initialize' })).toBe(true);
+  });
+
+  it('requires the JSON-RPC 2.0 marker on notifications', () => {
+    expect(isNotification({ method: 'dispose' })).toBe(false);
+    expect(isNotification({ jsonrpc: '1.0', method: 'dispose' })).toBe(false);
+    expect(isNotification({ jsonrpc: JSONRPC_VERSION, method: 'dispose' })).toBe(true);
+  });
+});
 
 describe('ExtensionRuntime request dispatch', () => {
   it('answers initialize with the extension capabilities', async () => {

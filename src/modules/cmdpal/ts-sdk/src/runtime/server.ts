@@ -133,12 +133,17 @@ export function startJsonRpcServer(factory: ProviderFactory): void {
   };
 
   process.stdin.on('data', (chunk: Buffer) => {
+    if (finalized) {
+      return;
+    }
     for (const body of framer.push(chunk)) {
       let parsed: unknown;
       try {
         parsed = JSON.parse(body);
-      } catch {
-        continue;
+      } catch (error) {
+        process.stderr.write(`cmdpal-sdk: invalid JSON-RPC payload: ${describeError(error)}\n`);
+        void finalize(1);
+        return;
       }
       enqueue(parsed);
     }
