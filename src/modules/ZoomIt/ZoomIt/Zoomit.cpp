@@ -6348,6 +6348,29 @@ BOOLEAN DrawHighlightedCursor( float ZoomLevel, int Width, int Height )
 
 //----------------------------------------------------------------------------
 //
+// GetCursorSaveWidthForPen
+//
+//----------------------------------------------------------------------------
+int GetCursorSaveWidthForPen( int penWidth, BOOLEAN eraserMode )
+{
+    int saveWidth = penWidth + CURSOR_SAVE_MARGIN + CURSOR_ARM_LENGTH * 2;
+    if( eraserMode )
+    {
+        float glyphSize = static_cast<float>( penWidth );
+        if( glyphSize < 12.0f )
+        {
+            glyphSize = 12.0f;
+        }
+
+        int eraserSaveWidth = static_cast<int>( ceil( glyphSize * 1.2f ) ) + CURSOR_SAVE_MARGIN;
+        saveWidth = max( saveWidth, eraserSaveWidth );
+    }
+
+    return saveWidth;
+}
+
+//----------------------------------------------------------------------------
+//
 // InvalidateCursorMoveArea
 //
 //----------------------------------------------------------------------------
@@ -6357,6 +6380,11 @@ void InvalidateCursorMoveArea( HWND hWnd, float zoomLevel, int width, int height
     int		x, y;
     RECT	rc;
     int		invWidth = g_PenWidth + CURSOR_SAVE_MARGIN;
+
+    if( g_EraserMode != EraserModeOff )
+    {
+        invWidth = max( invWidth, ( GetCursorSaveWidthForPen( g_PenWidth, TRUE ) + 1 ) / 2 );
+    }
 
     if( DrawHighlightedCursor( zoomLevel, width, height ) ) {
 
@@ -6381,10 +6409,10 @@ void InvalidateCursorMoveArea( HWND hWnd, float zoomLevel, int width, int height
 void SaveCursorArea( HDC hDcTarget, HDC hDcSource, POINT pt )
 {
     OutputDebug( L"SaveCursorArea\n");
-    int penWidth = g_PenWidth + CURSOR_SAVE_MARGIN;
-    BitBlt( hDcTarget, 0, 0, penWidth +CURSOR_ARM_LENGTH*2, penWidth +CURSOR_ARM_LENGTH*2,
-        hDcSource, static_cast<INT> (pt.x- penWidth /2)-CURSOR_ARM_LENGTH,
-        static_cast<INT>(pt.y- penWidth /2)-CURSOR_ARM_LENGTH, SRCCOPY|CAPTUREBLT );
+    int saveWidth = GetCursorSaveWidthForPen( g_PenWidth, g_EraserMode != EraserModeOff );
+    BitBlt( hDcTarget, 0, 0, saveWidth, saveWidth,
+        hDcSource, static_cast<INT>( pt.x - saveWidth / 2 ),
+        static_cast<INT>( pt.y - saveWidth / 2 ), SRCCOPY|CAPTUREBLT );
 }
 
 //----------------------------------------------------------------------------
@@ -6395,10 +6423,10 @@ void SaveCursorArea( HDC hDcTarget, HDC hDcSource, POINT pt )
 void RestoreCursorArea( HDC hDcTarget, HDC hDcSource, POINT pt )
 {
     OutputDebug( L"RestoreCursorArea\n");
-    int penWidth = g_PenWidth + CURSOR_SAVE_MARGIN;
-    BitBlt( hDcTarget, static_cast<INT>(pt.x- penWidth /2)-CURSOR_ARM_LENGTH,
-        static_cast<INT>(pt.y- penWidth /2)-CURSOR_ARM_LENGTH, penWidth +CURSOR_ARM_LENGTH*2,
-        penWidth + CURSOR_ARM_LENGTH*2, hDcSource, 0, 0, SRCCOPY|CAPTUREBLT );
+    int saveWidth = GetCursorSaveWidthForPen( g_PenWidth, g_EraserMode != EraserModeOff );
+    BitBlt( hDcTarget, static_cast<INT>( pt.x - saveWidth / 2 ),
+        static_cast<INT>( pt.y - saveWidth / 2 ), saveWidth, saveWidth,
+        hDcSource, 0, 0, SRCCOPY|CAPTUREBLT );
 }
 
 
@@ -6656,40 +6684,9 @@ void EraseScrubSegment( HDC hdcDst, HDC hdcBase, POINT p1, POINT p2,
 // EraserPixelDiffers
 //
 //----------------------------------------------------------------------------
-static inline bool EraserPixelDiffers( DWORD a, DWORD b )
+static constexpr bool EraserPixelDiffers( DWORD a, DWORD b )
 {
-    a &= 0xFFFFFF;
-    b &= 0xFFFFFF;
-    if( a == b ) return false;
-    int dr = abs( static_cast<int>( ( a >> 16 ) & 0xFF ) - static_cast<int>( ( b >> 16 ) & 0xFF ) );
-    int dg = abs( static_cast<int>( ( a >> 8 ) & 0xFF ) - static_cast<int>( ( b >> 8 ) & 0xFF ) );
-    int db = abs( static_cast<int>( a & 0xFF ) - static_cast<int>( b & 0xFF ) );
-    return ( dr + dg + db ) > 24;
-}
-
-//----------------------------------------------------------------------------
-//
-// EraserIsInkPixel
-//
-// Cheap test (single GetPixel pair) used to avoid a full-screen flood fill
-// when the stroke eraser is hovering over empty background.
-//
-//----------------------------------------------------------------------------
-bool EraserIsInkPixel( HDC hdcDst, HDC hdcBase, int x, int y, int blankMode )
-{
-    COLORREF c = GetPixel( hdcDst, x, y );
-    if( c == CLR_INVALID ) return false;
-    COLORREF b;
-    if( blankMode == 'K' ) b = RGB( 0, 0, 0 );
-    else if( blankMode ) b = GetSysColor( COLOR_WINDOW );
-    else
-    {
-        b = GetPixel( hdcBase, x, y );
-        if( b == CLR_INVALID ) return false;
-    }
-    DWORD cv = ( GetRValue( c ) << 16 ) | ( GetGValue( c ) << 8 ) | GetBValue( c );
-    DWORD bv = ( GetRValue( b ) << 16 ) | ( GetGValue( b ) << 8 ) | GetBValue( b );
-    return EraserPixelDiffers( cv, bv );
+    return ( a & 0xFFFFFF ) != ( b & 0xFFFFFF );
 }
 
 class EraserStrokeBuffers
@@ -6843,6 +6840,53 @@ public:
         return m_seeds;
     }
 
+    bool FindInkPoint( POINT center, POINT* inkPoint ) const
+    {
+        if( !m_currentBits || !m_baseBits || !inkPoint )
+        {
+            return false;
+        }
+
+        int radius = max( 1, static_cast<int>( g_PenWidth ) / 2 );
+        int radiusSquared = radius * radius;
+        int bestDistance = radiusSquared + 1;
+        DWORD* current = CurrentPixels();
+        DWORD* base = BasePixels();
+
+        int minY = max( 0, center.y - radius );
+        int maxY = min( m_height - 1, center.y + radius );
+        int minX = max( 0, center.x - radius );
+        int maxX = min( m_width - 1, center.x + radius );
+
+        for( int y = minY; y <= maxY; ++y )
+        {
+            int dy = y - center.y;
+            for( int x = minX; x <= maxX; ++x )
+            {
+                int dx = x - center.x;
+                int distance = dx * dx + dy * dy;
+                if( distance >= bestDistance || distance > radiusSquared )
+                {
+                    continue;
+                }
+
+                int pixel = y * m_width + x;
+                if( EraserPixelDiffers( current[pixel], base[pixel] ) )
+                {
+                    inkPoint->x = x;
+                    inkPoint->y = y;
+                    bestDistance = distance;
+                    if( distance == 0 )
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return bestDistance <= radiusSquared;
+    }
+
 private:
     HDC m_currentDc = NULL;
     HDC m_baseDc = NULL;
@@ -6983,6 +7027,24 @@ void EraseConnectedStroke( HDC hdcDst, HDC hdcBase, POINT pt,
         BitBlt( hdcDst, bx0, by0, bx1 - bx0 + 1, by1 - by0 + 1,
             g_EraserStrokeBuffers.CurrentDc(), bx0, by0, SRCCOPY | CAPTUREBLT );
     }
+}
+
+bool EraseConnectedStrokeAtEraser( HDC hdcDst, HDC hdcBase, POINT center,
+                                   int width, int height, int blankMode )
+{
+    if( !g_EraserStrokeBuffers.Initialize( hdcDst, hdcBase, width, height, blankMode ) )
+    {
+        return false;
+    }
+
+    POINT inkPoint;
+    if( !g_EraserStrokeBuffers.FindInkPoint( center, &inkPoint ) )
+    {
+        return false;
+    }
+
+    EraseConnectedStroke( hdcDst, hdcBase, inkPoint, width, height, blankMode );
+    return true;
 }
 
 //----------------------------------------------------------------------------
@@ -9570,8 +9632,9 @@ LRESULT APIENTRY MainWndProc(
 
                     // Create cursor save bitmap
                     // (have to accommodate large fonts and LiveZoom pen scaling)
-                    hbmpCursorCompat = CreateBitmap( MAX_LIVE_PEN_WIDTH+CURSOR_ARM_LENGTH*2,
-                        MAX_LIVE_PEN_WIDTH+CURSOR_ARM_LENGTH*2, bmp.bmPlanes,
+                    int cursorSaveWidth = GetCursorSaveWidthForPen( MAX_LIVE_PEN_WIDTH, TRUE );
+                    hbmpCursorCompat = CreateBitmap( cursorSaveWidth,
+                        cursorSaveWidth, bmp.bmPlanes,
                         bmp.bmBitsPixel, static_cast<CONST VOID *>(NULL));
                     SelectObject(hdcScreenCursorCompat, hbmpCursorCompat);
 
@@ -10357,36 +10420,37 @@ LRESULT APIENTRY MainWndProc(
         case 'E':
             // Shift+E cycles the scrub eraser tool: off -> pixel -> stroke -> off.
             // The scrub eraser needs the pristine buffer, so it isn't offered in
-            // LiveDraw (layered window). Plain E still clears the whole screen.
-            if( ( GetKeyState( VK_SHIFT ) & 0x8000 ) &&
-                g_Zoomed && ( g_TypeMode == TypeModeOff ) && !g_Tracing &&
-                ( GetWindowLong( hWnd, GWL_EXSTYLE ) & WS_EX_LAYERED ) == 0 ) {
+            // LiveDraw (layered window). Shift+E is otherwise a no-op; plain E
+            // still clears the whole screen.
+            if( GetKeyState( VK_SHIFT ) & 0x8000 ) {
 
-                DisengageEraser();
+                if( g_Zoomed && ( g_TypeMode == TypeModeOff ) && !g_Tracing &&
+                    ( GetWindowLong( hWnd, GWL_EXSTYLE ) & WS_EX_LAYERED ) == 0 ) {
 
-                if( g_EraserMode == EraserModeOff )        g_EraserMode = EraserModePixel;
-                else if( g_EraserMode == EraserModePixel ) g_EraserMode = EraserModeStroke;
-                else                                       g_EraserMode = EraserModeOff;
+                    DisengageEraser();
 
-                // Show the auto-dismissing mode indicator.
-                g_EraserPopupVisible = TRUE;
-                KillTimer( hWnd, ERASER_POPUP_TIMER );
-                SetTimer( hWnd, ERASER_POPUP_TIMER, ERASER_POPUP_DURATION_MS, NULL );
+                    if( g_EraserMode == EraserModeOff )        g_EraserMode = EraserModePixel;
+                    else if( g_EraserMode == EraserModePixel ) g_EraserMode = EraserModeStroke;
+                    else                                       g_EraserMode = EraserModeOff;
 
-                // Refresh the on-canvas cursor to reflect the new tool.
-                if( g_Drawing && !g_Tracing ) {
+                    // Show the auto-dismissing mode indicator.
+                    g_EraserPopupVisible = TRUE;
+                    KillTimer( hWnd, ERASER_POPUP_TIMER );
+                    SetTimer( hWnd, ERASER_POPUP_TIMER, ERASER_POPUP_DURATION_MS, NULL );
 
-                    RestoreCursorArea( hdcScreenCompat, hdcScreenCursorCompat, prevPt );
-                    SaveCursorArea( hdcScreenCursorCompat, hdcScreenCompat, prevPt );
-                    DrawCursor( hdcScreenCompat, prevPt, zoomLevel, width, height );
+                    // Refresh the on-canvas cursor to reflect the new tool.
+                    if( g_Drawing ) {
+
+                        RestoreCursorArea( hdcScreenCompat, hdcScreenCursorCompat, prevPt );
+                        SaveCursorArea( hdcScreenCursorCompat, hdcScreenCompat, prevPt );
+                        DrawCursor( hdcScreenCompat, prevPt, zoomLevel, width, height );
+                    }
                     InvalidateRect( hWnd, NULL, FALSE );
                 }
-                else {
 
-                    InvalidateRect( hWnd, NULL, FALSE );
-                }
                 break;
             }
+
             // Plain E: clear the whole screen. Also exits the eraser tool.
             ExitEraserMode( hWnd );
 
@@ -10541,11 +10605,10 @@ LRESULT APIENTRY MainWndProc(
                             EraseScrubSegment( hdcScreenCompat, hdcScreenSaveCompat,
                                 prevPt, currentPt, width, height, g_BlankedScreen );
 
-                        } else if( EraserIsInkPixel( hdcScreenCompat, hdcScreenSaveCompat,
-                                        currentPt.x, currentPt.y, g_BlankedScreen ) ) {
+                        } else if( EraseConnectedStrokeAtEraser(
+                                        hdcScreenCompat, hdcScreenSaveCompat, currentPt,
+                                        width, height, g_BlankedScreen ) ) {
 
-                            EraseConnectedStroke( hdcScreenCompat, hdcScreenSaveCompat,
-                                currentPt, width, height, g_BlankedScreen );
                             erasedStroke = TRUE;
                         }
                     }
@@ -10939,11 +11002,11 @@ LRESULT APIENTRY MainWndProc(
                         EraseScrubSegment( hdcScreenCompat, hdcScreenSaveCompat,
                             prevPt, prevPt, width, height, g_BlankedScreen );
 
-                    } else if( EraserIsInkPixel( hdcScreenCompat, hdcScreenSaveCompat,
-                                    prevPt.x, prevPt.y, g_BlankedScreen ) ) {
+                    } else {
 
-                        EraseConnectedStroke( hdcScreenCompat, hdcScreenSaveCompat,
-                            prevPt, width, height, g_BlankedScreen );
+                        EraseConnectedStrokeAtEraser(
+                            hdcScreenCompat, hdcScreenSaveCompat, prevPt,
+                            width, height, g_BlankedScreen );
                     }
 
                     EnableDisableStickyKeys( FALSE );
