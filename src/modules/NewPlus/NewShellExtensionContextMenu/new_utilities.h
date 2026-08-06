@@ -313,10 +313,11 @@ namespace newplus::utilities
                         GetDpiForMonitor(h_monitor, MDT_EFFECTIVE_DPI, &invoke_dpi_x, &invoke_dpi_y);
                     }
 
-                    // Convert physical screen coordinates to the desktop ListView's client coordinates.
-                    if (desktop_window_handle)
+                    // IFolderView expects client coordinates for its view window.
+                    HWND folder_view_window = nullptr;
+                    if (SUCCEEDED(shell_view->GetWindow(&folder_view_window)) && folder_view_window != nullptr)
                     {
-                        ::ScreenToClient(reinterpret_cast<HWND>(static_cast<LONG_PTR>(desktop_window_handle)), &screen_point);
+                        ::ScreenToClient(folder_view_window, &screen_point);
                     }
 
                     SetThreadDpiAwarenessContext(prev_ctx);
