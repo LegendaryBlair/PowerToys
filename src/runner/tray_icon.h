@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <optional>
 #include <string>
 #include <common/SettingsAPI/settings_objects.h>
@@ -21,9 +22,9 @@ void open_settings_window(std::optional<std::wstring> settings_window);
 // Update Quick Access Hotkey
 void update_quick_access_hotkey(bool enabled, PowerToysSettings::HotkeyObject hotkey);
 // Callback type to be called by the tray icon loop
-typedef void (*main_loop_callback_function)(PVOID);
+using main_loop_callback_function = std::function<void()>;
 // Calls a callback in _callback
-bool dispatch_run_on_main_ui_thread(main_loop_callback_function _callback, PVOID data);
+bool dispatch_run_on_main_ui_thread(main_loop_callback_function _callback);
 
 // Must be the same as: settings-ui/Settings.UI/Views/ShellPage.xaml.cs -> ExitPTItem_Tapped() -> const string ptTrayIconWindowClass
 const inline wchar_t* pt_tray_icon_window_class = L"PToyTrayIconWindow";
