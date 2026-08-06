@@ -211,4 +211,8 @@ void template_item::rename_on_other_thread_workaround(const std::filesystem::pat
         }
         std::this_thread::sleep_for(poll_interval);
     }
+
+    // Final attempt: the item may have appeared during the last sleep interval (after the previous
+    // attempt but before the deadline), so try once more so a just-in-time item still enters rename mode.
+    newplus::utilities::explorer_enter_rename_mode_and_reposition(target_fullpath, mouse_position_at_invoke);
 }

@@ -17,15 +17,21 @@ std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
     {
         // Explorer can call into the shell extension on multiple threads concurrently, so the
         // process-wide cache must be synchronized to avoid a data race on the unordered_map.
+        // The lock is only ever held around the map lookup/insert and never while calling into the
+        // shell (SHGetFileInfo/AssocQueryString), because those calls can be re-entrant and would
+        // otherwise risk deadlocking this non-recursive mutex on the same thread.
         static std::mutex s_icon_cache_mutex;
         static std::unordered_map<std::wstring, std::wstring> s_icon_cache;
         const std::wstring key = path.extension().wstring();
 
-        std::lock_guard<std::mutex> cache_lock(s_icon_cache_mutex);
+        {
+            std::lock_guard<std::mutex> cache_lock(s_icon_cache_mutex);
+            const auto it = s_icon_cache.find(key);
+            if (it != s_icon_cache.end())
+                return it->second;
+        }
 
-        const auto it = s_icon_cache.find(key);
-        if (it != s_icon_cache.end())
-            return it->second;
+        std::wstring icon_resource;
 
         SHFILEINFO shell_file_info = { 0 };
         const std::wstring filepath = path.wstring();
@@ -33,17 +39,22 @@ std::wstring get_explorer_icon(std::filesystem::path path, bool is_directory)
         const std::wstring icon_path = shell_file_info.szDisplayName;
         if (!icon_path.empty())
         {
-            std::wstring icon_resource = icon_path + L"," + std::to_wstring(shell_file_info.iIcon);
-            s_icon_cache[key] = icon_resource;
-            return icon_resource;
+            icon_resource = icon_path + L"," + std::to_wstring(shell_file_info.iIcon);
+        }
+        else
+        {
+            WCHAR icon_resource_specifier[MAX_PATH] = { 0 };
+            DWORD buffer_length = MAX_PATH;
+            AssocQueryString(ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_DEFAULTICON,
+                             key.c_str(), NULL, icon_resource_specifier, &buffer_length);
+            icon_resource = icon_resource_specifier;
         }
 
-        WCHAR icon_resource_specifier[MAX_PATH] = { 0 };
-        DWORD buffer_length = MAX_PATH;
-        AssocQueryString(ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_DEFAULTICON,
-                         key.c_str(), NULL, icon_resource_specifier, &buffer_length);
-        std::wstring icon_resource = icon_resource_specifier;
-        s_icon_cache[key] = icon_resource;
+        {
+            std::lock_guard<std::mutex> cache_lock(s_icon_cache_mutex);
+            s_icon_cache[key] = icon_resource;
+        }
+
         return icon_resource;
     }
 
