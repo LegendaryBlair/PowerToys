@@ -21,6 +21,11 @@ Param(
     [string]$sourceDir
 )
 
+if (-not [System.IO.Directory]::Exists($sourceDir)) {
+    Write-Output "Source directory does not exist: $sourceDir"
+    exit 1
+}
+
 $hasInvalidCsProj = $false
 
 $csprojFiles = [System.IO.Directory]::EnumerateFiles($sourceDir, '*.csproj', [System.IO.SearchOption]::AllDirectories)
