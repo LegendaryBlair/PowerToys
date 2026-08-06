@@ -2,10 +2,10 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 
 using Common;
 using Microsoft.PowerToys.PreviewHandler.Markdown.Properties;
@@ -25,6 +25,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         private static readonly IFileSystem FileSystem = new FileSystem();
         private static readonly IPath Path = FileSystem.Path;
         private static readonly IFile File = FileSystem.File;
+        private readonly List<AutoClosingReadStream> _imageResponseStreams = new List<AutoClosingReadStream>();
 
         /// <summary>
         /// RichTextBox control to display if external images are blocked.
@@ -55,6 +56,10 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         /// True if external image is blocked, false otherwise.
         /// </summary>
         private bool _infoBarDisplayed;
+
+        private string _markdownDirectory;
+        private string _allowedBasePath;
+        private bool _allowLocalImages;
 
         /// <summary>
         /// Gets the path of the current assembly.
@@ -106,6 +111,7 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
             }
 
             FilePreviewCommon.Helper.CleanupTempDir(_webView2UserDataFolder);
+            DisposeImageResponseStreams();
 
             _infoBarDisplayed = false;
 
@@ -116,14 +122,18 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                     throw new ArgumentException($"{nameof(dataSource)} for {nameof(MarkdownPreviewHandlerControl)} must be a string but was a '{typeof(T)}'");
                 }
 
-                string fileText = File.ReadAllText(filePath);
-                Regex imageTagRegex = new Regex(@"<[ ]*img.*>");
-                if (imageTagRegex.IsMatch(fileText))
+                _allowLocalImages = Settings.GetLocalImagesEnabled();
+                _markdownDirectory = Path.GetDirectoryName(filePath) ?? string.Empty;
+
+                _allowedBasePath = _markdownDirectory;
+                if (_markdownDirectory.StartsWith(@"\\", StringComparison.Ordinal) && Path.GetPathRoot(_markdownDirectory) is string shareRoot)
                 {
-                    _infoBarDisplayed = true;
+                    _allowedBasePath = shareRoot;
                 }
 
-                string markdownHTML = FilePreviewCommon.MarkdownHelper.MarkdownHtml(fileText, Settings.GetTheme(), filePath, ImagesBlockedCallBack);
+                string fileText = File.ReadAllText(filePath);
+
+                string markdownHTML = FilePreviewCommon.MarkdownHelper.MarkdownHtml(fileText, Settings.GetTheme(), filePath, ImagesBlockedCallBack, _allowLocalImages, _allowedBasePath);
 
                 _browser = new WebView2()
                 {
@@ -152,15 +162,54 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
                         _browser.CoreWebView2.Settings.IsScriptEnabled = false;
                         _browser.CoreWebView2.Settings.IsWebMessageEnabled = false;
 
-                        // Don't load any resources.
+                        // Allow only the generated local HTML document and validated localmdimages requests.
                         _browser.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
                         _browser.CoreWebView2.WebResourceRequested += (object sender, CoreWebView2WebResourceRequestedEventArgs e) =>
                         {
-                            // Show local file we've saved with the markdown contents. Block all else.
-                            if (new Uri(e.Request.Uri) != _localFileURI)
+                            // Allow the local HTML file
+                            if (_localFileURI != null && new Uri(e.Request.Uri) == _localFileURI)
                             {
-                                e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(null, 403, "Forbidden", null);
+                                return;
                             }
+
+                            // Serve virtual host image requests (localmdimages) directly. WebView2
+                            // Runtime 150+ no longer serves UNC/network paths through
+                            // SetVirtualHostNameToFolderMapping, so the image bytes are read here
+                            // after re-validating the resolved path against the allowed base path.
+                            if (_allowLocalImages &&
+                                e.ResourceContext == CoreWebView2WebResourceContext.Image &&
+                                e.Request.Uri.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                Stream imageStream = null;
+                                try
+                                {
+                                    if (FilePreviewCommon.HTMLParsingExtension.TryOpenVirtualImage(e.Request.Uri, _allowedBasePath, out imageStream, out string imagePath) &&
+                                        FilePreviewCommon.HTMLParsingExtension.TryGetImageContentType(imagePath, out string contentType))
+                                    {
+                                        var responseStream = new AutoClosingReadStream(imageStream);
+                                        imageStream = responseStream;
+
+                                        // Stream directly from disk rather than buffering the whole image
+                                        // in memory. The wrapper closes at EOF, and the control retains it
+                                        // as a fallback until the next preview or control disposal.
+                                        e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(imageStream, 200, "OK", "Content-Type: " + contentType + "\r\n");
+                                        _imageResponseStreams.RemoveAll(stream => stream.IsComplete);
+                                        _imageResponseStreams.Add(responseStream);
+                                        imageStream = null;
+                                        return;
+                                    }
+                                }
+                                finally
+                                {
+                                    imageStream?.Dispose();
+                                }
+
+                                e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", null);
+                                return;
+                            }
+
+                            // Block everything else
+                            e.Response = _browser.CoreWebView2.Environment.CreateWebResourceResponse(null, 403, "Forbidden", null);
                         };
 
                         _browser.CoreWebView2.ContextMenuRequested += (object sender, CoreWebView2ContextMenuRequestedEventArgs args) =>
@@ -217,7 +266,10 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
 
                         if (_infoBarDisplayed)
                         {
-                            _infoBar = GetTextBoxControl(Resources.BlockedImageInfoText);
+                            string message = _allowLocalImages
+                                ? Resources.ImagesBlockedWithLocalImagesEnabledInfoText
+                                : Resources.BlockedImageInfoText;
+                            _infoBar = GetTextBoxControl(message);
                             Resize += FormResized;
                             Controls.Add(_infoBar);
                         }
@@ -304,11 +356,31 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         }
 
         /// <summary>
-        /// Callback when image is blocked by extension.
+        /// Callback when an image is blocked by the parsing extension.
         /// </summary>
         private void ImagesBlockedCallBack()
         {
             _infoBarDisplayed = true;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                DisposeImageResponseStreams();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private void DisposeImageResponseStreams()
+        {
+            foreach (AutoClosingReadStream imageResponseStream in _imageResponseStreams)
+            {
+                imageResponseStream.Dispose();
+            }
+
+            _imageResponseStreams.Clear();
         }
     }
 }

@@ -4,9 +4,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+
+using Microsoft.PowerToys.Settings.UI.Library;
 
 namespace Microsoft.PowerToys.PreviewHandler.Markdown
 {
@@ -39,6 +43,47 @@ namespace Microsoft.PowerToys.PreviewHandler.Markdown
         public static string GetTheme()
         {
             return Common.UI.ThemeManager.GetWindowsBaseColor().ToLowerInvariant();
+        }
+
+        private static readonly SettingsUtils ModuleSettings = SettingsUtils.Default;
+
+        /// <summary>
+        /// Returns whether local images should be displayed in the Markdown preview.
+        /// GPO policy takes precedence over user setting.
+        /// </summary>
+        public static bool GetLocalImagesEnabled()
+        {
+            var gpo = global::PowerToys.GPOWrapper.GPOWrapper.GetConfiguredMarkdownLocalImagesEnabledValue();
+            if (gpo == global::PowerToys.GPOWrapper.GpoRuleConfigured.Enabled)
+            {
+                return true;
+            }
+
+            if (gpo == global::PowerToys.GPOWrapper.GpoRuleConfigured.Disabled)
+            {
+                return false;
+            }
+
+            try
+            {
+                return ModuleSettings.GetSettings<PowerPreviewSettings>(PowerPreviewSettings.ModuleName).Properties.EnableMdLocalImages;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
         }
     }
 }

@@ -2,7 +2,9 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.IO;
+using System.Text.RegularExpressions;
 
 using Markdig;
 
@@ -24,14 +26,17 @@ namespace Microsoft.PowerToys.FilePreviewCommon
         /// Markdown HTML footer.
         /// </summary>
         private static readonly string HtmlFooter = "</div></body></html>";
+        private static readonly TimeSpan RawHtmlImageRegexTimeout = TimeSpan.FromMilliseconds(250);
 
-        public static string MarkdownHtml(string fileContent, string theme, string filePath, ImagesBlockedCallBack imagesBlockedCallBack)
+        public static string MarkdownHtml(string fileContent, string theme, string filePath, ImagesBlockedCallBack imagesBlockedCallBack, bool allowLocalImages = false, string? allowedBasePath = null)
         {
             var htmlHeader = theme == "dark" ? HtmlDarkHeader : HtmlLightHeader;
 
             // Extension to modify markdown AST.
             HTMLParsingExtension extension = new HTMLParsingExtension(imagesBlockedCallBack);
             extension.FilePath = Path.GetDirectoryName(filePath) ?? string.Empty;
+            extension.AllowedBasePath = allowedBasePath ?? extension.FilePath;
+            extension.AllowLocalImages = allowLocalImages;
 
             // if you have a string with double space, some people view it as a new line.
             // while this is against spec, even GH supports this. Technically looks like GH just trims whitespace
@@ -45,6 +50,57 @@ namespace Microsoft.PowerToys.FilePreviewCommon
 
             MarkdownPipeline pipeline = pipelineBuilder.Build();
             string parsedMarkdown = Markdown.ToHtml(fileContent, pipeline);
+
+            if (parsedMarkdown.Contains("<img", StringComparison.OrdinalIgnoreCase))
+            {
+                // Rewrite src attributes of raw HTML <img> tags with the same path validation as the
+                // Markdig AST layer. When local images are disabled, every source is blocked. When they
+                // are enabled, only supported images inside the allowed base path pass through.
+                // Matches double-quoted, single-quoted and unquoted src values, so that every form
+                // an author can write is validated the same way. Unquoted values are re-emitted
+                // quoted, which is equivalent HTML.
+                try
+                {
+                    parsedMarkdown = Regex.Replace(
+                        parsedMarkdown,
+                        @"(<img\b[^>]*?\ssrc\s*=\s*)(?:(""|')(.+?)\2|([^\s""'>]+))",
+                        m =>
+                        {
+                            bool isQuoted = m.Groups[2].Success;
+                            string quote = isQuoted ? m.Groups[2].Value : "\"";
+                            string src = isQuoted ? m.Groups[3].Value : m.Groups[4].Value;
+
+                            if (src == "#")
+                            {
+                                return m.Value;
+                            }
+
+                            if (allowLocalImages &&
+                                src.StartsWith("https://localmdimages/", StringComparison.OrdinalIgnoreCase) &&
+                                HTMLParsingExtension.TryResolveVirtualUrl(src, extension.AllowedBasePath, out string? resolvedPath) &&
+                                HTMLParsingExtension.TryGetImageContentType(resolvedPath, out _))
+                            {
+                                return m.Value;
+                            }
+
+                            if (allowLocalImages &&
+                                HTMLParsingExtension.TryGetLocalImageVirtualUrl(src, extension.FilePath, extension.AllowedBasePath, out string? virtualUrl))
+                            {
+                                return m.Groups[1].Value + quote + virtualUrl + quote;
+                            }
+
+                            imagesBlockedCallBack();
+                            return m.Groups[1].Value + quote + "#" + quote;
+                        },
+                        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                        RawHtmlImageRegexTimeout);
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    imagesBlockedCallBack();
+                    parsedMarkdown = parsedMarkdown.Replace("<img", "&lt;img", StringComparison.OrdinalIgnoreCase);
+                }
+            }
 
             string markdownHTML = $"{htmlHeader}{parsedMarkdown}{HtmlFooter}";
             return markdownHTML;
