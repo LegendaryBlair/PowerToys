@@ -8,6 +8,7 @@
 #include "quick_access_host.h"
 #include "hotkey_conflict_detector.h"
 #include "trace.h"
+#include <atomic>
 #include <Windows.h>
 
 #include <common/utils/resources.h>
@@ -23,7 +24,7 @@
 
 namespace
 {
-    HWND tray_icon_hwnd = NULL;
+    std::atomic<HWND> tray_icon_hwnd{ nullptr };
 
     enum
     {
@@ -64,7 +65,8 @@ struct run_on_main_ui_thread_msg
 
 bool dispatch_run_on_main_ui_thread(main_loop_callback_function _callback, PVOID data)
 {
-    if (tray_icon_hwnd == NULL)
+    const HWND window = tray_icon_hwnd.load();
+    if (window == nullptr || !IsWindow(window))
     {
         return false;
     }
@@ -72,7 +74,11 @@ bool dispatch_run_on_main_ui_thread(main_loop_callback_function _callback, PVOID
     wnd_msg->_callback = _callback;
     wnd_msg->data = data;
 
-    PostMessage(tray_icon_hwnd, wm_run_on_main_ui_thread, 0, reinterpret_cast<LPARAM>(wnd_msg));
+    if (!PostMessage(window, wm_run_on_main_ui_thread, 0, reinterpret_cast<LPARAM>(wnd_msg)))
+    {
+        delete wnd_msg;
+        return false;
+    }
 
     return true;
 }
@@ -186,6 +192,7 @@ LRESULT __stdcall tray_icon_window_proc(HWND window, UINT message, WPARAM wparam
         }
         break;
     case WM_DESTROY:
+        tray_icon_hwnd.store(nullptr);
         // On OS-initiated shutdown skip cross-process cleanup: the shell is tearing
         // down and close_settings_window() blocks up to 1.5s waiting on
         // PowerToys.Settings.exe, which the OS is reaping in parallel. That wait, plus
@@ -568,7 +575,10 @@ void stop_tray_icon()
     {
         // Clear bug report callbacks
         BugReportManager::instance().clear_callbacks();
-        SendMessage(tray_icon_hwnd, WM_CLOSE, 0, 0);
+        if (const HWND window = tray_icon_hwnd.load())
+        {
+            SendMessage(window, WM_CLOSE, 0, 0);
+        }
     }
 }
 
