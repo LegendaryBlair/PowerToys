@@ -68,8 +68,8 @@ namespace Microsoft.PowerToys.Settings.UI.Library
         }
 
         /// <summary>
-        /// Returns the ZoomIt settings.json path when the theme-adaptive property was patched,
-        /// so the Settings UI can push it through ZoomItSettingsInterop.SaveSettingsJson.
+        /// Returns the existing ZoomIt settings.json path so the Settings UI can push its current
+        /// contents through ZoomItSettingsInterop.SaveSettingsJson.
         /// </summary>
         public static string TryGetPatchedZoomItSettingsPath()
         {

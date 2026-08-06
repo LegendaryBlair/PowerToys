@@ -2,6 +2,7 @@
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <commctrl.h>
+#include "theme_helpers.h"
 
 HICON LoadThemeAdaptiveTrayIcon(
     bool themeAdaptive,
