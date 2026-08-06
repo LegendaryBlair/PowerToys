@@ -7,7 +7,7 @@
 // Windows 10 1903+ and Windows 11. The current dark/light decision follows
 // the system theme via ThemeHelpers::GetSystemTheme() so it stays in sync
 // with the tray icon and the runner's theme-change handler.
-struct DarkMode
+struct MenuTheme
 {
     // Loads the uxtheme.dll ordinals (idempotent) and applies the current
     // system theme as the preferred app mode. Safe to call multiple times.

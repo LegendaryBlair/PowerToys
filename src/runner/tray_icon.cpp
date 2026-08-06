@@ -308,7 +308,7 @@ LRESULT __stdcall tray_icon_window_proc(HWND window, UINT message, WPARAM wparam
                     InsertMenuW(h_sub_menu, 1, MF_BYPOSITION | MF_SEPARATOR, 0, nullptr);
                 }
 
-                DarkMode::ApplyToMenu(h_menu);
+                MenuTheme::ApplyToMenu(h_menu);
 
                 POINT mouse_pointer;
                 GetCursorPos(&mouse_pointer);
@@ -401,7 +401,7 @@ static void handle_theme_change()
             Shell_NotifyIcon(NIM_MODIFY, &tray_icon_data);
         }
 
-        DarkMode::Refresh();
+        MenuTheme::Refresh();
     },
                                    nullptr);
 }
@@ -473,7 +473,7 @@ void start_tray_icon(bool isProcessElevated, bool theme_adaptive)
 
         tray_icon_created = Shell_NotifyIcon(NIM_ADD, &tray_icon_data) == TRUE;
         theme_listener.AddSystemThemeChangedHandler(&handle_theme_change);
-        DarkMode::Initialize();
+        MenuTheme::Initialize();
 
         // Register callback to update bug report menu item status
         BugReportManager::instance().register_callback([](bool isRunning) {

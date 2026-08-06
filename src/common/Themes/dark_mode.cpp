@@ -6,8 +6,9 @@
 #include "dark_mode.h"
 #include "theme_helpers.h"
 
+#include <memory>
 #include <mutex>
-#include <wil/resource.h>
+#include <type_traits>
 
 namespace
 {
@@ -23,15 +24,30 @@ namespace
     using fnSetPreferredAppMode = PreferredAppMode(WINAPI*)(PreferredAppMode appMode);
     using fnFlushMenuThemes = void(WINAPI*)();
 
+    struct BrushDeleter
+    {
+        void operator()(HBRUSH brush) const noexcept
+        {
+            DeleteObject(reinterpret_cast<HGDIOBJ>(brush));
+        }
+    };
+
+    using unique_hbrush = std::unique_ptr<std::remove_pointer_t<HBRUSH>, BrushDeleter>;
+
     fnSetPreferredAppMode pSetPreferredAppMode = nullptr;
     fnFlushMenuThemes pFlushMenuThemes = nullptr;
 
     std::once_flag init_flag;
-    wil::unique_hbrush dark_menu_brush;
 
     // Mirrors the surface color used by ZoomIt's dark menus for visual
     // consistency across PowerToys-owned native menus.
     constexpr COLORREF DarkMenuSurfaceColor = RGB(45, 45, 45);
+
+    unique_hbrush& GetDarkMenuBrush()
+    {
+        static unique_hbrush brush{ CreateSolidBrush(DarkMenuSurfaceColor) };
+        return brush;
+    }
 
     void LoadOrdinals()
     {
@@ -58,7 +74,7 @@ namespace
             return;
         }
 
-        const bool dark = DarkMode::IsDarkModeEnabled();
+        const bool dark = MenuTheme::IsDarkModeEnabled();
         pSetPreferredAppMode(dark ? PreferredAppMode::ForceDark : PreferredAppMode::ForceLight);
 
         if (pFlushMenuThemes)
@@ -68,18 +84,18 @@ namespace
     }
 }
 
-void DarkMode::Initialize()
+void MenuTheme::Initialize()
 {
     std::call_once(init_flag, LoadOrdinals);
     ApplyPreferredAppMode();
 }
 
-void DarkMode::Refresh()
+void MenuTheme::Refresh()
 {
     Initialize();
 }
 
-bool DarkMode::IsDarkModeEnabled()
+bool MenuTheme::IsDarkModeEnabled()
 {
     // Follow the *system* theme — the same signal the tray icon and the theme-change handler use —
     // rather than uxtheme's ShouldAppsUseDarkMode() (app theme). Otherwise, when Windows is set to a
@@ -87,7 +103,7 @@ bool DarkMode::IsDarkModeEnabled()
     return ThemeHelpers::GetSystemTheme() == Theme::Dark;
 }
 
-void DarkMode::ApplyToMenu(HMENU menu)
+void MenuTheme::ApplyToMenu(HMENU menu)
 {
     if (!menu)
     {
@@ -105,11 +121,7 @@ void DarkMode::ApplyToMenu(HMENU menu)
 
     if (IsDarkModeEnabled())
     {
-        if (!dark_menu_brush)
-        {
-            dark_menu_brush.reset(CreateSolidBrush(DarkMenuSurfaceColor));
-        }
-        mi.hbrBack = dark_menu_brush.get();
+        mi.hbrBack = GetDarkMenuBrush().get();
     }
     else
     {
