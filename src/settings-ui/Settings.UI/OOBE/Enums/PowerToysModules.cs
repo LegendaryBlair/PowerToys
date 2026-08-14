@@ -35,6 +35,7 @@ namespace Microsoft.PowerToys.Settings.UI.OOBE.Enums
         RegistryPreview,
         PowerDisplay,
         GrabAndMove,
+        ClipPing,
         NewPlus,
         ZoomIt,
         AltWindowCycle,

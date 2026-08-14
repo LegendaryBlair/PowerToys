@@ -1,0 +1,232 @@
+﻿// Copyright (c) Microsoft Corporation
+// The Microsoft Corporation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using ClipPing.Overlays;
+using ManagedCommon;
+using Microsoft.PowerToys.Settings.UI.Library;
+using Microsoft.PowerToys.Settings.UI.Library.Enumerations;
+using Microsoft.PowerToys.Telemetry;
+using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
+using PowerToys.Interop;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Foundation;
+
+namespace ClipPing;
+
+public partial class App : Application, IDisposable
+{
+    private static readonly SettingsUtils ModuleSettings = SettingsUtils.Default;
+    private readonly FileSystemWatcher _fileSystemWatcher;
+    private readonly ETWTrace _etwTrace = new();
+    private ClipPingSettings _currentSettings;
+    private IOverlay? _overlay;
+
+    private static readonly Dictionary<ClipPingOverlay, Type> OverlayTypes = new()
+    {
+        { ClipPingOverlay.Top, typeof(TopOverlay) },
+        { ClipPingOverlay.Border, typeof(BorderOverlay) },
+    };
+
+    public App()
+    {
+        InitializeComponent();
+
+        _currentSettings = ModuleSettings.GetSettingsOrDefault<ClipPingSettings>(ClipPingSettings.ModuleName);
+
+        var settingsPath = ModuleSettings.GetSettingsFilePath(ClipPingSettings.ModuleName);
+
+        _fileSystemWatcher = new FileSystemWatcher
+        {
+            Path = Path.GetDirectoryName(settingsPath) ?? string.Empty,
+            Filter = Path.GetFileName(settingsPath),
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+        };
+
+        _fileSystemWatcher.Changed += Settings_Changed;
+        _fileSystemWatcher.EnableRaisingEvents = true;
+    }
+
+    protected Type OverlayType
+    {
+        get
+        {
+            if (OverlayTypes.TryGetValue(_currentSettings.Properties.OverlayType, out var overlayType))
+            {
+                return overlayType;
+            }
+
+            return typeof(TopOverlay);
+        }
+    }
+
+    private void Settings_Changed(object sender, FileSystemEventArgs e)
+    {
+        _ = OnSettingsChanged();
+    }
+
+    private async Task OnSettingsChanged()
+    {
+        await Task.Delay(25);
+
+        try
+        {
+            _currentSettings = ModuleSettings.GetSettings<ClipPingSettings>(ClipPingSettings.ModuleName);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Failed to load ClipPing settings: {ex}.");
+        }
+    }
+
+    public void Dispose()
+    {
+        _fileSystemWatcher.Dispose();
+        _etwTrace.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Invoked when the application is launched.
+    /// </summary>
+    /// <param name="args">Details about the launch request and process.</param>
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    {
+        var cmdArgs = Environment.GetCommandLineArgs();
+        if (cmdArgs.Length > 1)
+        {
+            if (int.TryParse(cmdArgs[^1], out var powerToysRunnerPid))
+            {
+                Logger.LogInfo($"ClipPing started from the PowerToys Runner. Runner pid={powerToysRunnerPid}.");
+
+                var dispatcher = DispatcherQueue.GetForCurrentThread();
+                RunnerHelper.WaitForPowerToysRunner(powerToysRunnerPid, () =>
+                {
+                    Logger.LogInfo("PowerToys Runner exited. Exiting ClipPing");
+                    dispatcher.TryEnqueue(App.Current.Exit);
+                });
+
+                NativeEventWaiter.WaitForEvents(
+                    (Constants.ClipPingExitEvent(), ExitEventSignaled),
+                    (Constants.ClipPingShowOverlayEvent(), ShowOverlay));
+            }
+        }
+        else
+        {
+            Logger.LogInfo("ClipPing started detached from PowerToys Runner.");
+        }
+
+        PowerToysTelemetry.Log.WriteEvent(new Telemetry.ClipPingOpenedEvent());
+
+        Clipboard.ContentChanged += Clipboard_ContentChanged;
+        _ = GetOverlay(); // Preload the overlay to avoid delays when showing it.
+    }
+
+    private void ExitEventSignaled()
+    {
+        _etwTrace.Dispose();
+        App.Current.Exit();
+    }
+
+    private void Clipboard_ContentChanged(object? sender, object e)
+    {
+        ShowOverlay();
+    }
+
+    private IOverlay? GetOverlay()
+    {
+        if (_overlay?.GetType() != OverlayType)
+        {
+            var oldOverlay = _overlay;
+
+            if (oldOverlay != null)
+            {
+                // No clue why, WinUI crashes if we close the old overlay right away.
+                // Enqueue it so that it gets closed on the next message pump.
+                DispatcherQueue.GetForCurrentThread().TryEnqueue(() => oldOverlay.Dispose());
+            }
+
+            _overlay = Activator.CreateInstance(OverlayType) as IOverlay;
+        }
+
+        return _overlay;
+    }
+
+    private void ShowOverlay()
+    {
+        var hwnd = NativeMethods.GetForegroundWindow();
+
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        // Get bounding rectangle in device coordinates
+        var hr = NativeMethods.DwmGetWindowAttribute(
+            hwnd,
+            NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS,
+            out var rect,
+            Marshal.SizeOf<NativeMethods.RECT>());
+
+        if (hr != 0)
+        {
+            return;
+        }
+
+        int windowWidth = rect.Right - rect.Left;
+        int windowHeight = rect.Bottom - rect.Top;
+
+        if (windowWidth <= 0 || windowHeight <= 0)
+        {
+            return;
+        }
+
+        uint dpi = 96;
+
+        var awareness = NativeMethods.GetAwarenessFromDpiAwarenessContext(NativeMethods.GetWindowDpiAwarenessContext(hwnd));
+        bool usesWindowDpi = awareness is NativeMethods.DPI_AWARENESS.PER_MONITOR_AWARE or NativeMethods.DPI_AWARENESS.SYSTEM_AWARE;
+
+        if (usesWindowDpi)
+        {
+            dpi = NativeMethods.GetDpiForWindow(hwnd);
+        }
+        else
+        {
+            // DPI-unaware windows need to use the effective DPI of their monitor.
+            var monitor = NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+
+            if (NativeMethods.GetDpiForMonitor(monitor, NativeMethods.MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI, out var monDpiX, out _) == 0)
+            {
+                dpi = monDpiX;
+            }
+        }
+
+        double scale = 96.0 / dpi;
+
+        var color = ParseOverlayColor(_currentSettings.Properties.OverlayColor.Value);
+
+        // DWM and WinUIEx Move use physical screen pixels, while SetWindowSize uses DIPs.
+        var target = new Rect(rect.Left, rect.Top, windowWidth * scale, windowHeight * scale);
+
+        GetOverlay()?.Show(target, color);
+    }
+
+    private static Windows.UI.Color ParseOverlayColor(string? value)
+    {
+        if (value is { Length: 7 } &&
+            value[0] == '#' &&
+            uint.TryParse(value.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
+        {
+            return Windows.UI.Color.FromArgb(255, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
+        }
+
+        return Windows.UI.Color.FromArgb(255, 255, 0, 0);
+    }
+}

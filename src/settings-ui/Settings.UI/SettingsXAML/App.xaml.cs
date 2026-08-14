@@ -419,6 +419,7 @@ namespace Microsoft.PowerToys.Settings.UI
                 case "AltWindowCycle": return typeof(AltWindowCyclePage);
                 case "AlwaysOnTop": return typeof(AlwaysOnTopPage);
                 case "Awake": return typeof(AwakePage);
+                case "ClipPing": return typeof(ClipPingPage);
                 case "CmdNotFound": return typeof(CmdNotFoundPage);
                 case "ColorPicker": return typeof(ColorPickerPage);
                 case "LightSwitch": return typeof(LightSwitchPage);

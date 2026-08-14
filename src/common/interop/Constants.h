@@ -66,6 +66,8 @@ namespace winrt::PowerToys::Interop::implementation
         static hstring WorkspacesHotkeyEvent();
         static hstring PowerToysRunnerTerminateSettingsEvent();
         static hstring ShowCmdPalEvent();
+        static hstring ClipPingExitEvent();
+        static hstring ClipPingShowOverlayEvent();
         static hstring TogglePowerDisplayEvent();
         static hstring TerminatePowerDisplayEvent();
         static hstring AutoDisablePowerDisplayEvent();
@@ -90,4 +92,3 @@ namespace winrt::PowerToys::Interop::factory_implementation
     {
     };
 }
-

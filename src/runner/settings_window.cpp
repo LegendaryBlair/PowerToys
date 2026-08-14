@@ -821,6 +821,8 @@ std::string ESettingsWindowNames_to_string(ESettingsWindowNames value)
         return "NewPlus";
     case ESettingsWindowNames::CmdPal:
         return "CmdPal";
+    case ESettingsWindowNames::ClipPing:
+        return "ClipPing";
     case ESettingsWindowNames::ZoomIt:
         return "ZoomIt";
     case ESettingsWindowNames::PowerDisplay:
@@ -961,6 +963,10 @@ ESettingsWindowNames ESettingsWindowNames_from_string(std::string value)
     else if (value == "CmdPal")
     {
         return ESettingsWindowNames::CmdPal;
+    }
+    else if (value == "ClipPing")
+    {
+        return ESettingsWindowNames::ClipPing;
     }
     else if (value == "ZoomIt")
     {

@@ -49,6 +49,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library.Helpers
                 ModuleType.AdvancedPaste => generalSettingsConfig.Enabled.AdvancedPaste,
                 ModuleType.AlwaysOnTop => generalSettingsConfig.Enabled.AlwaysOnTop,
                 ModuleType.Awake => generalSettingsConfig.Enabled.Awake,
+                ModuleType.ClipPing => generalSettingsConfig.Enabled.ClipPing,
                 ModuleType.CmdPal => generalSettingsConfig.Enabled.CmdPal,
                 ModuleType.ColorPicker => generalSettingsConfig.Enabled.ColorPicker,
                 ModuleType.CropAndLock => generalSettingsConfig.Enabled.CropAndLock,
@@ -91,6 +92,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library.Helpers
                 case ModuleType.AdvancedPaste: generalSettingsConfig.Enabled.AdvancedPaste = isEnabled; break;
                 case ModuleType.AlwaysOnTop: generalSettingsConfig.Enabled.AlwaysOnTop = isEnabled; break;
                 case ModuleType.Awake: generalSettingsConfig.Enabled.Awake = isEnabled; break;
+                case ModuleType.ClipPing: generalSettingsConfig.Enabled.ClipPing = isEnabled; break;
                 case ModuleType.CmdPal: generalSettingsConfig.Enabled.CmdPal = isEnabled; break;
                 case ModuleType.ColorPicker: generalSettingsConfig.Enabled.ColorPicker = isEnabled; break;
                 case ModuleType.CropAndLock: generalSettingsConfig.Enabled.CropAndLock = isEnabled; break;
@@ -136,6 +138,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library.Helpers
                 ModuleType.AdvancedPaste => AdvancedPasteSettings.ModuleName,
                 ModuleType.AlwaysOnTop => AlwaysOnTopSettings.ModuleName,
                 ModuleType.Awake => AwakeSettings.ModuleName,
+                ModuleType.ClipPing => ClipPingSettings.ModuleName,
                 ModuleType.CmdPal => "CmdPal", // No dedicated settings class
                 ModuleType.ColorPicker => ColorPickerSettings.ModuleName,
                 ModuleType.CropAndLock => CropAndLockSettings.ModuleName,

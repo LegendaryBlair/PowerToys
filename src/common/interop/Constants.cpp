@@ -251,6 +251,14 @@ namespace winrt::PowerToys::Interop::implementation
     {
         return CommonSharedConstants::CMDPAL_SHOW_EVENT;
     }
+    hstring Constants::ClipPingExitEvent()
+    {
+        return CommonSharedConstants::CLIP_PING_EXIT_EVENT;
+    }
+    hstring Constants::ClipPingShowOverlayEvent()
+    {
+        return CommonSharedConstants::CLIP_PING_SHOW_OVERLAY_EVENT;
+    }
     hstring Constants::TogglePowerDisplayEvent()
     {
         return CommonSharedConstants::TOGGLE_POWER_DISPLAY_EVENT;
@@ -313,4 +321,3 @@ namespace winrt::PowerToys::Interop::implementation
         return CommonSharedConstants::KEYBOARD_MANAGER_ENGINE_INSTANCE_MUTEX;
     }
 }
-
