@@ -189,11 +189,11 @@ public class LayoutApplyHotKeyTests : UITestBase
         Arrange(quickLayoutSwitch: true);
         SelectLayoutInEditor(Id.GridCustomLayoutCard);
 
+        var startingDesktop = FancyZonesTestHelper.CaptureCurrentVirtualDesktop(this);
+        var createdDesktop = Guid.Empty;
         try
         {
-            FancyZonesTestHelper.Step(this, "Creating a virtual desktop and restarting PowerToys");
-            KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.D);
-            Thread.Sleep(1000);
+            createdDesktop = FancyZonesTestHelper.CreateVirtualDesktop(this);
 
             FancyZonesTestHelper.RestartPowerToys(this);
             FancyZonesTestHelper.EnsureFancyZonesRunning(this);
@@ -202,7 +202,10 @@ public class LayoutApplyHotKeyTests : UITestBase
         }
         finally
         {
-            CloseExtraVirtualDesktop();
+            if (createdDesktop != Guid.Empty)
+            {
+                FancyZonesTestHelper.CloseVirtualDesktop(this, createdDesktop, startingDesktop);
+            }
         }
     }
 
@@ -218,19 +221,17 @@ public class LayoutApplyHotKeyTests : UITestBase
         Arrange(quickLayoutSwitch: true);
         SelectLayoutInEditor(Id.GridCustomLayoutCard);
 
+        var startingDesktop = FancyZonesTestHelper.CaptureCurrentVirtualDesktop(this);
+        var createdDesktop = Guid.Empty;
         try
         {
-            FancyZonesTestHelper.Step(this, "Creating a second virtual desktop and applying a different layout there");
-            KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.D);
-            Thread.Sleep(1000);
+            createdDesktop = FancyZonesTestHelper.CreateVirtualDesktop(this);
 
             FancyZonesTestHelper.RestartPowerToys(this);
             FancyZonesTestHelper.EnsureFancyZonesRunning(this);
             SelectLayoutInEditor(Id.Grid9LayoutCard);
 
-            FancyZonesTestHelper.Step(this, "Returning to the first virtual desktop");
-            KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.Left);
-            Thread.Sleep(1000);
+            FancyZonesTestHelper.SwitchToVirtualDesktop(this, startingDesktop);
 
             FancyZonesTestHelper.RestartPowerToys(this);
             FancyZonesTestHelper.EnsureFancyZonesRunning(this);
@@ -239,7 +240,10 @@ public class LayoutApplyHotKeyTests : UITestBase
         }
         finally
         {
-            CloseExtraVirtualDesktop();
+            if (createdDesktop != Guid.Empty)
+            {
+                FancyZonesTestHelper.CloseVirtualDesktop(this, createdDesktop, startingDesktop);
+            }
         }
     }
 
@@ -314,11 +318,14 @@ public class LayoutApplyHotKeyTests : UITestBase
             FancyZonesTestHelper.CloseLayoutEditor(this);
         }
 
-        var (originalWidth, originalHeight) = WindowHelper.GetDisplaySize();
+        var originalMode = DisplayHelper.CaptureCurrentMode();
+        Assert.IsNotNull(originalMode, "Could not capture the original display mode for restoration.");
         try
         {
             FancyZonesTestHelper.Step(this, $"Changing the display resolution to {reducedWidth}x{reducedHeight}");
-            DisplayHelper.NormalizeResolution(reducedWidth, reducedHeight);
+            Assert.IsTrue(
+                DisplayHelper.TrySetResolution(reducedWidth, reducedHeight),
+                $"Windows rejected the requested {reducedWidth}x{reducedHeight} display mode.");
             Thread.Sleep(2000);
 
             var (currentWidth, currentHeight) = WindowHelper.GetDisplaySize();
@@ -339,9 +346,19 @@ public class LayoutApplyHotKeyTests : UITestBase
         }
         finally
         {
-            FancyZonesTestHelper.CloseLayoutEditor(this);
-            DisplayHelper.NormalizeResolution(originalWidth, originalHeight);
-            Thread.Sleep(2000);
+            try
+            {
+                FancyZonesTestHelper.CloseLayoutEditor(this);
+            }
+            finally
+            {
+                var restored = DisplayHelper.TryRestoreMode(originalMode);
+                var activeModeRestored = DisplayHelper.WaitForMode(originalMode, 10_000);
+                Assert.IsTrue(restored, "Windows rejected the original display mode during cleanup.");
+                Assert.IsTrue(
+                    activeModeRestored,
+                    $"The active display mode did not return to {originalMode.Width}x{originalMode.Height}.");
+            }
         }
     }
 
@@ -368,6 +385,7 @@ public class LayoutApplyHotKeyTests : UITestBase
             .Set(Setting.QuickLayoutSwitch, quickLayoutSwitch)
             .Set(Setting.FlashZonesOnQuickSwitch, flashZones)
             .Set(Setting.ShiftDrag, shiftDrag)
+            .Set(Setting.ExcludedApps, string.Empty)
             .Set(Setting.ShowZoneNumber, false)
             .Apply();
 
@@ -460,12 +478,4 @@ public class LayoutApplyHotKeyTests : UITestBase
                centerY <= parent.Y + parent.Height;
     }
 
-    private void CloseExtraVirtualDesktop()
-    {
-        FancyZonesTestHelper.Step(this, "Closing the extra virtual desktop");
-        KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.Right);
-        Thread.Sleep(800);
-        KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.F4);
-        Thread.Sleep(800);
-    }
 }

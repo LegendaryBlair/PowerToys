@@ -327,10 +327,11 @@ public static class EditorUiTestHelper
         session.Find<Button>(layoutName).Click(rightClick: true);
 
         Step(testBase, $"Waiting for context menu item '{menuItem}'");
+        var processSession = Session.FromProcess(EditorProcessName, PowerToysModule.FancyZonesEditor, timeoutMS: 10_000);
         Element? foundItem = null;
-        var itemAppeared = session.WaitFor(() =>
+        var itemAppeared = processSession.WaitFor(() =>
         {
-            var candidates = session.FindAll<Element>(By.Name(menuItem), 500);
+            var candidates = processSession.FindAll<Element>(By.Name(menuItem), 500);
             foundItem = candidates.FirstOrDefault(IsMenuItem);
             return foundItem is not null;
         }, 10_000);

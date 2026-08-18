@@ -101,13 +101,12 @@ public class OneZoneSwitchTests : UITestBase
             FancyZonesTestHelper.WaitForForegroundWindow(activeWindow, 5_000),
             $"The last snapped window ({DescribeWindow(activeWindow)}) should be active before changing desktops.");
 
+        var startingDesktop = FancyZonesTestHelper.CaptureCurrentVirtualDesktop(this);
+        var createdDesktop = Guid.Empty;
         try
         {
-            FancyZonesTestHelper.Step(this, "Creating a virtual desktop and returning to the original one");
-            KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.D);
-            Thread.Sleep(1500);
-            KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.Left);
-            Thread.Sleep(1500);
+            createdDesktop = FancyZonesTestHelper.CreateVirtualDesktop(this);
+            FancyZonesTestHelper.SwitchToVirtualDesktop(this, startingDesktop);
 
             Assert.IsTrue(
                 FancyZonesTestHelper.WaitForForegroundWindow(activeWindow, 10_000),
@@ -122,7 +121,10 @@ public class OneZoneSwitchTests : UITestBase
         }
         finally
         {
-            CloseExtraVirtualDesktop();
+            if (createdDesktop != Guid.Empty)
+            {
+                FancyZonesTestHelper.CloseVirtualDesktop(this, createdDesktop, startingDesktop);
+            }
         }
     }
 
@@ -162,6 +164,7 @@ public class OneZoneSwitchTests : UITestBase
         new FancyZonesSettingsSeed()
             .Set(Setting.ShiftDrag, true)
             .Set(Setting.MouseSwitch, false)
+            .Set(Setting.ExcludedApps, string.Empty)
             .Set(Setting.MakeDraggedWindowTransparent, false)
             .Set(Setting.ShowZoneNumber, false)
             .Set(Setting.WindowSwitching, windowSwitching)
@@ -295,12 +298,4 @@ public class OneZoneSwitchTests : UITestBase
     private static string DescribeWindow(IntPtr window) =>
         $"'{FancyZonesTestHelper.GetWindowTitle(window)}' (HWND {window})";
 
-    private void CloseExtraVirtualDesktop()
-    {
-        FancyZonesTestHelper.Step(this, "Closing the extra virtual desktop");
-        KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.Right);
-        Thread.Sleep(1000);
-        KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.F4);
-        Thread.Sleep(1000);
-    }
 }

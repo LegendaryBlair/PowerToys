@@ -74,6 +74,7 @@ bool WindowMouseSnap::MoveSizeStart(HMONITOR monitor, bool isSnapping)
 void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bool isSnapping, bool isSelectManyZonesState)
 {
     auto iter = m_activeWorkAreas.find(monitor);
+    bool workAreaChanged = false;
     if (isSnapping && iter != m_activeWorkAreas.end())
     {
         // The drag has moved to a different monitor.
@@ -95,6 +96,7 @@ void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bo
             }
             
             m_currentWorkArea = iter->second.get();
+            workAreaChanged = true;
         }
     }
 
@@ -109,7 +111,7 @@ void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bo
             POINT ptClient = ptScreen;
             MapWindowPoints(nullptr, m_currentWorkArea->GetWorkAreaWindow(), &ptClient, 1);
             const bool redraw = m_highlightedZones.Update(m_currentWorkArea->GetLayout().get(), ptClient, isSelectManyZonesState);
-            if (redraw)
+            if (redraw || workAreaChanged)
             {
                 m_currentWorkArea->ShowZones(m_highlightedZones.Zones(), m_window);
             }

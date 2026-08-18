@@ -13,6 +13,7 @@ namespace FancyZonesEditor.UITests;
 public class DeleteLayoutTests : FancyZonesEditorTestBase
 {
     private const string FirstCustomLayoutName = "Custom layout 1";
+    private const string FirstCustomLayoutUuid = "{0D6D2F58-9184-4804-81E4-4E4CC3476DC1}";
     private const string SecondCustomLayoutName = "Custom layout 2";
     private const string MonitorName = "monitor-1";
 
@@ -160,14 +161,14 @@ public class DeleteLayoutTests : FancyZonesEditorTestBase
 
     private void SelectAppliedBaselineLayout()
     {
-        var selected = Session.Find<Element>(FirstCustomLayoutName);
-        if (!selected.Selected)
-        {
-            EditorUiTestHelper.Step(this, $"Applying '{FirstCustomLayoutName}' to establish baseline");
-            selected.Click();
-        }
-
-        selected = Session.Find<Element>(FirstCustomLayoutName);
-        Assert.IsTrue(selected.Selected);
+        _ = EditorUiTestHelper.FindLayoutCard(Session, FirstCustomLayoutName);
+        _ = EditorUiTestHelper.ApplyLayoutAndWait(
+            this,
+            Session,
+            FirstCustomLayoutName,
+            data => data.AppliedLayouts.Any(layout =>
+                string.Equals(layout.Device.Monitor, MonitorName, StringComparison.Ordinal) &&
+                string.Equals(layout.AppliedLayout.Uuid, FirstCustomLayoutUuid, StringComparison.OrdinalIgnoreCase)),
+            $"{MonitorName} to use custom layout {FirstCustomLayoutUuid}");
     }
 }

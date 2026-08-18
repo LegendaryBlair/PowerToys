@@ -320,7 +320,8 @@ private:
     void RotateMonitorRotationContentNumbers(bool reverse) noexcept;
     bool IsMonitorRotationActivatorKey(DWORD vkCode) const noexcept;
     bool IsMonitorRotationChordDown() const noexcept;
-    void ReplaySuppressedShiftKey() noexcept;
+    bool ReplaySuppressedShiftChord(const KBDLLHOOKSTRUCT& companionKey) noexcept;
+    bool ReplaySuppressedCompanionKeyUp(const KBDLLHOOKSTRUCT& companionKey) noexcept;
 
     void SyncVirtualDesktops() noexcept;
 
@@ -345,6 +346,7 @@ private:
     WorkAreaConfiguration m_workAreaConfiguration;
     DraggingState m_draggingState;
     std::optional<KBDLLHOOKSTRUCT> m_suppressedShiftKey;
+    std::optional<KBDLLHOOKSTRUCT> m_replayedCompanionKey;
     bool m_monitorRotationPreviewActive = false;
     MonitorRotation::KeyState m_monitorRotationKeyState;
     std::optional<bool> m_pendingMonitorRotationReverse;
@@ -642,34 +644,57 @@ void FancyZones::WindowCreated(HWND window) noexcept
 }
 
 // IFancyZonesCallback
-void FancyZones::ReplaySuppressedShiftKey() noexcept
+bool FancyZones::ReplaySuppressedShiftChord(const KBDLLHOOKSTRUCT& companionKey) noexcept
 {
     if (!m_suppressedShiftKey)
     {
-        return;
+        return false;
+    }
+
+    const auto& shift = *m_suppressedShiftKey;
+    INPUT inputs[2]{};
+    inputs[0].type = INPUT_KEYBOARD;
+    inputs[0].ki.wVk = static_cast<WORD>(shift.vkCode);
+    inputs[0].ki.wScan = static_cast<WORD>(shift.scanCode);
+    inputs[0].ki.dwFlags = (shift.flags & LLKHF_EXTENDED) ? KEYEVENTF_EXTENDEDKEY : 0;
+    inputs[0].ki.dwExtraInfo = PowertoyModuleIface::CENTRALIZED_KEYBOARD_HOOK_DONT_TRIGGER_FLAG;
+    inputs[1].type = INPUT_KEYBOARD;
+    inputs[1].ki.wVk = static_cast<WORD>(companionKey.vkCode);
+    inputs[1].ki.wScan = static_cast<WORD>(companionKey.scanCode);
+    inputs[1].ki.dwFlags = (companionKey.flags & LLKHF_EXTENDED) ? KEYEVENTF_EXTENDEDKEY : 0;
+    inputs[1].ki.dwExtraInfo = PowertoyModuleIface::CENTRALIZED_KEYBOARD_HOOK_DONT_TRIGGER_FLAG;
+    m_suppressedShiftKey.reset();
+    if (SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT)) == ARRAYSIZE(inputs))
+    {
+        m_replayedCompanionKey = companionKey;
+    }
+
+    return true;
+}
+
+bool FancyZones::ReplaySuppressedCompanionKeyUp(const KBDLLHOOKSTRUCT& companionKey) noexcept
+{
+    if (!m_replayedCompanionKey ||
+        companionKey.vkCode != m_replayedCompanionKey->vkCode)
+    {
+        return false;
     }
 
     INPUT input{};
     input.type = INPUT_KEYBOARD;
-    const auto& shift = *m_suppressedShiftKey;
-    input.ki.wVk = static_cast<WORD>(shift.vkCode);
-    input.ki.wScan = static_cast<WORD>(shift.scanCode);
-    input.ki.dwFlags = (shift.flags & LLKHF_EXTENDED) ? KEYEVENTF_EXTENDEDKEY : 0;
+    input.ki.wVk = static_cast<WORD>(companionKey.vkCode);
+    input.ki.wScan = static_cast<WORD>(companionKey.scanCode);
+    input.ki.dwFlags =
+        ((companionKey.flags & LLKHF_EXTENDED) ? KEYEVENTF_EXTENDEDKEY : 0) |
+        KEYEVENTF_KEYUP;
     input.ki.dwExtraInfo = PowertoyModuleIface::CENTRALIZED_KEYBOARD_HOOK_DONT_TRIGGER_FLAG;
-    m_suppressedShiftKey.reset();
-    SendInput(1, &input, sizeof(INPUT));
+    m_replayedCompanionKey.reset();
+    return SendInput(1, &input, sizeof(INPUT)) == 1;
 }
 
 IFACEMETHODIMP_(bool)
 FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
 {
-    if (m_suppressedShiftKey && info->vkCode != m_suppressedShiftKey->vkCode)
-    {
-        // A second key turns the pending bare Shift into a shortcut. Replay Shift before allowing
-        // this key through so the foreground application receives the original modifier chord.
-        ReplaySuppressedShiftKey();
-    }
-
     m_monitorRotationKeyState.Update(info->vkCode, true);
 
     // Return true to swallow the keyboard event
@@ -705,7 +730,7 @@ FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
 
         if (IsRotationPreviewReleaseKey(info->vkCode))
         {
-            return false;
+            return ReplaySuppressedShiftChord(*info);
         }
     }
     else if (m_monitorRotationPreviewActive)
@@ -764,7 +789,7 @@ FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
         m_draggingState.SetShiftState(true);
         if (win || ctrl || alt)
         {
-            return false;
+            return ReplaySuppressedShiftChord(*info);
         }
 
         if (!m_suppressedShiftKey)
@@ -774,12 +799,18 @@ FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
 
         return true;
     }
-    return false;
+
+    // The physical companion key is still inside this hook callback. Swallow it and inject the
+    // suppressed Shift followed by the companion so the application observes the original order.
+    // The companion's physical key-up is replaced with a tagged injected key-up; Shift-up remains
+    // physical, preserving the user's release order without re-entering this module's hook.
+    return ReplaySuppressedShiftChord(*info);
 }
 
 IFACEMETHODIMP_(bool)
 FancyZones::OnKeyUp(PKBDLLHOOKSTRUCT info) noexcept
 {
+    const bool suppressCompanionRelease = ReplaySuppressedCompanionKeyUp(*info);
     const bool suppressBareShiftRelease =
         m_suppressedShiftKey &&
         info->vkCode == m_suppressedShiftKey->vkCode;
@@ -798,10 +829,10 @@ FancyZones::OnKeyUp(PKBDLLHOOKSTRUCT info) noexcept
     {
         m_monitorRotationPreviewActive = false;
         PostMessageW(m_window, WM_PRIV_MONITOR_ROTATION_PREVIEW_HIDE, 0, 0);
-        return isActivatorKey || wasConsumed || suppressBareShiftRelease;
+        return isActivatorKey || wasConsumed || suppressBareShiftRelease || suppressCompanionRelease;
     }
 
-    return wasConsumed || suppressBareShiftRelease;
+    return wasConsumed || suppressBareShiftRelease || suppressCompanionRelease;
 }
 
 bool FancyZones::IsMonitorRotationChordDown() const noexcept

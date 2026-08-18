@@ -272,6 +272,7 @@ public class DragWindowTests : UITestBase
         new FancyZonesSettingsSeed()
             .Set(Setting.ShiftDrag, shiftDrag)
             .Set(Setting.MouseSwitch, mouseSwitch)
+            .Set(Setting.ExcludedApps, string.Empty)
             .Set(Setting.MakeDraggedWindowTransparent, transparent)
             .Set(Setting.ShowZoneNumber, false)
             .Set(Setting.SystemTheme, false)

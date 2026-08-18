@@ -35,6 +35,7 @@ public class UITestBase : IDisposable
     // inherited ClassCleanup stops it once the owning class finishes.
     private static SessionHelper? keepAliveHelper;
     private static Type? keepAliveOwner;
+    private static IDisposable? keepAliveGlobalSettingsSnapshot;
 
     private readonly PowerToysModule scope;
     private readonly WindowSize windowSize;
@@ -42,6 +43,7 @@ public class UITestBase : IDisposable
     private readonly bool isInPipeline = EnvironmentConfig.IsInPipeline;
 
     private SessionHelper? sessionHelper;
+    private IDisposable? globalSettingsSnapshot;
     private ScreenRecording? screenRecording;
     private string? recordingDirectory;
     private bool artifactsCaptured;
@@ -92,8 +94,8 @@ public class UITestBase : IDisposable
     /// <param name="size">Optional fixed window size applied once the window appears.</param>
     /// <param name="enableModules">
     /// When non-null, exactly these modules are enabled (and every other listed module disabled) in
-    /// the global <c>settings.json</c> before the runner launches — a deterministic module baseline.
-    /// Leave null to launch against whatever state <c>settings.json</c> already holds.
+    /// the global <c>settings.json</c> before the runner launches — a deterministic module baseline
+    /// that is restored after the test scope stops. Leave null to launch against the existing state.
     /// </param>
     protected UITestBase(
         PowerToysModule scope = PowerToysModule.PowerToysSettings,
@@ -133,6 +135,13 @@ public class UITestBase : IDisposable
 
                 PreTestHygiene();
 
+                if (enableModules is not null)
+                {
+                    globalSettingsSnapshot = SettingsConfigHelper.PreserveGlobalSettings();
+                }
+
+                SettingsConfigHelper.SuppressFirstRunExperience();
+
                 // Seed a deterministic module on/off baseline before the runner reads settings.json.
                 if (enableModules is not null)
                 {
@@ -160,6 +169,8 @@ public class UITestBase : IDisposable
             {
                 keepAliveHelper = sessionHelper;
                 keepAliveOwner = GetType();
+                keepAliveGlobalSettingsSnapshot = globalSettingsSnapshot;
+                globalSettingsSnapshot = null;
             }
         }
         catch
@@ -173,7 +184,22 @@ public class UITestBase : IDisposable
             }
             finally
             {
-                CleanupTestStateAfterInitializationFailure();
+                try
+                {
+                    sessionHelper?.StopIfStarted();
+                }
+                catch
+                {
+                }
+
+                try
+                {
+                    CleanupTestStateAfterInitializationFailure();
+                }
+                finally
+                {
+                    RestoreGlobalSettings();
+                }
             }
 
             throw;
@@ -210,6 +236,7 @@ public class UITestBase : IDisposable
             }
         }
 
+        RestoreGlobalSettings();
         Dispose();
     }
 
@@ -229,8 +256,19 @@ public class UITestBase : IDisposable
         {
         }
 
-        keepAliveHelper = null;
-        keepAliveOwner = null;
+        finally
+        {
+            keepAliveHelper = null;
+            keepAliveOwner = null;
+            keepAliveGlobalSettingsSnapshot?.Dispose();
+            keepAliveGlobalSettingsSnapshot = null;
+        }
+    }
+
+    private void RestoreGlobalSettings()
+    {
+        globalSettingsSnapshot?.Dispose();
+        globalSettingsSnapshot = null;
     }
 
     /// <summary>
@@ -314,8 +352,8 @@ public class UITestBase : IDisposable
 
     /// <summary>
     /// Bring the desktop to a known state before launching: minimize every window, dismiss any
-    /// lingering popup with <c>Esc</c>, kill the stale PowerToys processes in
-    /// <see cref="StaleProcessNames"/>, and suppress the first-run Welcome/What's-new windows.
+    /// lingering popup with <c>Esc</c>, and kill the stale PowerToys processes in
+    /// <see cref="StaleProcessNames"/>.
     /// Best-effort — never blocks a test from starting.
     /// </summary>
     private void PreTestHygiene()
@@ -333,10 +371,6 @@ public class UITestBase : IDisposable
             {
                 WindowControl.TryKillProcessByName(processName);
             }
-
-            // Stop the runner popping the centered "Welcome to PowerToys" / "What's new" window on a
-            // fresh profile (e.g. CI) — it steals centre-screen mouse gestures from module overlays.
-            SettingsConfigHelper.SuppressFirstRunExperience();
         }
         catch
         {

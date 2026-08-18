@@ -48,8 +48,19 @@ public sealed class SessionHelper
 
     public Session Init()
     {
-        launchedByUs = EnsureRunning(scope, LaunchTimeout);
-        return ResolveMainWindowOrFail();
+        var wasRunning = IsRunning(scope);
+        try
+        {
+            launchedByUs = EnsureRunning(scope, LaunchTimeout);
+            return ResolveMainWindowOrFail();
+        }
+        catch
+        {
+            // EnsureRunning can launch successfully and then fail while waiting for the window.
+            // Retain ownership so TestInitialize's failure path can stop that partial launch.
+            launchedByUs = !wasRunning;
+            throw;
+        }
     }
 
     /// <summary>

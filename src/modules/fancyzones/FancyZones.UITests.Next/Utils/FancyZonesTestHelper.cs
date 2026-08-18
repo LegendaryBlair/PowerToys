@@ -3,10 +3,12 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using FancyZonesEditorCommon.Data;
 using Microsoft.PowerToys.UITest.Next;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.Win32;
 using SystemInformation = System.Windows.Forms.SystemInformation;
 
 namespace FancyZones.UITests.Utils;
@@ -19,6 +21,11 @@ public static class FancyZonesTestHelper
 {
     private static readonly object ExplorerWindowTrackingLock = new();
     private static readonly Dictionary<UITestBase, HashSet<long>> ExplorerWindowsByTest = [];
+    private const string VirtualDesktopsKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops";
+    private const string SessionVirtualDesktopsKeyPrefix = @"Software\Microsoft\Windows\CurrentVersion\Explorer\SessionInfo\";
+    private const string SessionVirtualDesktopsKeySuffix = @"\VirtualDesktops";
+    private const string CurrentVirtualDesktopValue = "CurrentVirtualDesktop";
+    private const string VirtualDesktopIdsValue = "VirtualDesktopIDs";
 
     /// <summary>The FancyZones module hosted by the runner (owns zone overlays and the snap hooks).</summary>
     public const string FancyZonesProcess = "PowerToys.FancyZones";
@@ -91,6 +98,148 @@ public static class FancyZonesTestHelper
     /// </summary>
     public static void Step(UITestBase testBase, string message) =>
         testBase.TestContext.WriteLine($"[{DateTime.UtcNow:HH:mm:ss.fff}] {message}");
+
+    /// <summary>Capture the current virtual desktop identity from Explorer's per-user state.</summary>
+    public static Guid CaptureCurrentVirtualDesktop(UITestBase testBase)
+    {
+        var desktop = WaitForCurrentVirtualDesktop(_ => true, 5_000);
+        Assert.IsTrue(desktop.HasValue, "Windows did not expose the current virtual desktop identity.");
+        Step(testBase, $"Current virtual desktop: {desktop.Value:B}");
+        return desktop.Value;
+    }
+
+    /// <summary>Create and switch to a virtual desktop, returning its stable identity.</summary>
+    public static Guid CreateVirtualDesktop(UITestBase testBase)
+    {
+        var previous = CaptureCurrentVirtualDesktop(testBase);
+        Step(testBase, "Creating a virtual desktop");
+        KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.D);
+
+        var created = WaitForCurrentVirtualDesktop(desktop => desktop != previous, 10_000);
+        Assert.IsTrue(created.HasValue, "Windows did not switch to the newly created virtual desktop.");
+        Step(testBase, $"Created virtual desktop: {created.Value:B}");
+        Thread.Sleep(500);
+        return created.Value;
+    }
+
+    /// <summary>Navigate to an exact virtual desktop rather than assuming an adjacent desktop.</summary>
+    public static void SwitchToVirtualDesktop(UITestBase testBase, Guid target)
+    {
+        const int maxSwitches = 20;
+        for (var attempt = 0; attempt < maxSwitches; attempt++)
+        {
+            var current = WaitForCurrentVirtualDesktop(_ => true, 2_000);
+            if (current == target)
+            {
+                Thread.Sleep(500);
+                return;
+            }
+
+            var desktops = ReadVirtualDesktopIds();
+            var currentIndex = current.HasValue ? desktops.IndexOf(current.Value) : -1;
+            var targetIndex = desktops.IndexOf(target);
+            if (currentIndex < 0 || targetIndex < 0)
+            {
+                Thread.Sleep(100);
+                continue;
+            }
+
+            var direction = currentIndex < targetIndex ? Key.Right : Key.Left;
+            Step(testBase, $"Switching {direction} toward virtual desktop {target:B}");
+            KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, direction);
+            _ = WaitForCurrentVirtualDesktop(desktop => desktop != current, 3_000);
+        }
+
+        Assert.Fail($"Could not navigate to virtual desktop {target:B} after {maxSwitches} switches.");
+    }
+
+    /// <summary>Close one exact test-created desktop, then return to the captured starting desktop.</summary>
+    public static void CloseVirtualDesktop(UITestBase testBase, Guid desktopToClose, Guid returnTo)
+    {
+        SwitchToVirtualDesktop(testBase, desktopToClose);
+        Step(testBase, $"Closing test-created virtual desktop {desktopToClose:B}");
+        KeyboardHelper.SendKeys(Key.Ctrl, Key.LWin, Key.F4);
+        Assert.IsTrue(
+            WaitForCurrentVirtualDesktop(desktop => desktop != desktopToClose, 10_000).HasValue,
+            $"Virtual desktop {desktopToClose:B} did not close.");
+        SwitchToVirtualDesktop(testBase, returnTo);
+    }
+
+    private static Guid? WaitForCurrentVirtualDesktop(Func<Guid, bool> predicate, int timeoutMs)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        do
+        {
+            var current = TryGetCurrentVirtualDesktopId();
+            if (current.HasValue && predicate(current.Value))
+            {
+                return current;
+            }
+
+            Thread.Sleep(100);
+        }
+        while (DateTime.UtcNow < deadline);
+
+        return null;
+    }
+
+    private static Guid? TryGetCurrentVirtualDesktopId()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(VirtualDesktopsKey, writable: false);
+            var current = TryReadGuid(key?.GetValue(CurrentVirtualDesktopValue) as byte[]);
+            if (current.HasValue)
+            {
+                return current;
+            }
+
+            if (!ProcessIdToSessionId((uint)Environment.ProcessId, out var sessionId))
+            {
+                return null;
+            }
+
+            var sessionPath = SessionVirtualDesktopsKeyPrefix + sessionId + SessionVirtualDesktopsKeySuffix;
+            using var sessionKey = Registry.CurrentUser.OpenSubKey(sessionPath, writable: false);
+            return TryReadGuid(sessionKey?.GetValue(CurrentVirtualDesktopValue) as byte[]);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static List<Guid> ReadVirtualDesktopIds()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(VirtualDesktopsKey, writable: false);
+            var bytes = key?.GetValue(VirtualDesktopIdsValue) as byte[];
+            if (bytes is null)
+            {
+                return [];
+            }
+
+            var desktops = new List<Guid>(bytes.Length / 16);
+            for (var offset = 0; offset + 16 <= bytes.Length; offset += 16)
+            {
+                desktops.Add(new Guid(bytes.AsSpan(offset, 16)));
+            }
+
+            return desktops;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static Guid? TryReadGuid(byte[]? bytes) =>
+        bytes is { Length: >= 16 } ? new Guid(bytes.AsSpan(0, 16)) : null;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ProcessIdToSessionId(uint dwProcessId, out uint pSessionId);
 
     /// <summary>
     /// Stop FancyZones before restarting its runner so a slow child teardown cannot retain the
