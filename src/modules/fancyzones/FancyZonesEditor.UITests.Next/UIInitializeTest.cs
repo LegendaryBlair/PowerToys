@@ -78,12 +78,7 @@ public abstract class UIInitializeTestBase : FancyZonesEditorTestBase
 
     protected static void SelectAndAssertMonitor(UITestBase test, Session session, string monitorName)
     {
-        EditorUiTestHelper.Step(test, $"Selecting {monitorName}");
-        var monitor = FindMonitorByExactName(session, monitorName);
-        monitor.Click();
-
-        monitor = FindMonitorByExactName(session, monitorName);
-        Assert.IsTrue(monitor.Selected, $"Expected {monitorName} to be selected.");
+        EditorUiTestHelper.SelectMonitor(test, session, monitorName);
     }
 
     protected static AppliedLayouts.AppliedLayoutWrapper FindAppliedLayout(

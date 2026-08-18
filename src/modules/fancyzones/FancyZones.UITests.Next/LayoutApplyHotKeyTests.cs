@@ -22,7 +22,9 @@ public class LayoutApplyHotKeyTests : UITestBase
     private const string SaveButtonName = "Save";
     private const string NewLayoutName = "Custom layout 1";
 
-    private readonly FancyZonesFiles files = new();
+    private FancyZonesFiles? files;
+
+    private FancyZonesFiles Files => files ?? throw new InvalidOperationException("FancyZones test files were not initialized.");
 
     public LayoutApplyHotKeyTests()
         : base(PowerToysModule.PowerToysSettings, WindowSize.UnSpecified, [ModuleName])
@@ -30,6 +32,14 @@ public class LayoutApplyHotKeyTests : UITestBase
     }
 
     protected override IReadOnlyList<string> StaleProcessNames => FancyZonesTestHelper.StaleProcessNames;
+
+    protected override void PrepareTestState() => files = new FancyZonesFiles();
+
+    protected override void CleanupTestStateAfterInitializationFailure()
+    {
+        WindowControl.TryKillProcessTreeByNameAndWait(FancyZonesTestHelper.FancyZonesProcess, 10_000);
+        files?.RestoreAll();
+    }
 
     [TestCleanup]
     public async Task CleanupTest()
@@ -41,7 +51,7 @@ public class LayoutApplyHotKeyTests : UITestBase
         FancyZonesTestHelper.CloseLayoutEditor(this);
         FancyZonesTestHelper.CloseExplorerWindows(this);
         FancyZonesTestHelper.StopFancyZones(this);
-        files.RestoreAll();
+        files?.RestoreAll();
     }
 
     /// <summary>
@@ -343,16 +353,16 @@ public class LayoutApplyHotKeyTests : UITestBase
     {
         FancyZonesTestHelper.Step(this, $"Seeding layouts and hotkeys (quick layout switch: {quickLayoutSwitch})");
 
-        files.Parameters.Write(new EditorParameters().Serialize(LayoutFixtures.TwoMonitorParameters));
-        files.LayoutTemplates.Write(new LayoutTemplates().Serialize(LayoutFixtures.TemplateLayouts));
-        files.CustomLayouts.Write(new CustomLayouts().Serialize(LayoutFixtures.QuickSwitchCustomLayouts));
-        files.DefaultLayouts.Write(new DefaultLayouts().Serialize(LayoutFixtures.DefaultLayouts));
-        files.LayoutHotkeys.Write(new LayoutHotkeys().Serialize(LayoutFixtures.QuickSwitchHotkeys));
-        files.AppliedLayouts.Write(new AppliedLayouts().Serialize(new AppliedLayouts.AppliedLayoutsListWrapper
+        Files.Parameters.Write(new EditorParameters().Serialize(LayoutFixtures.TwoMonitorParameters));
+        Files.LayoutTemplates.Write(new LayoutTemplates().Serialize(LayoutFixtures.TemplateLayouts));
+        Files.CustomLayouts.Write(new CustomLayouts().Serialize(LayoutFixtures.QuickSwitchCustomLayouts));
+        Files.DefaultLayouts.Write(new DefaultLayouts().Serialize(LayoutFixtures.DefaultLayouts));
+        Files.LayoutHotkeys.Write(new LayoutHotkeys().Serialize(LayoutFixtures.QuickSwitchHotkeys));
+        Files.AppliedLayouts.Write(new AppliedLayouts().Serialize(new AppliedLayouts.AppliedLayoutsListWrapper
         {
             AppliedLayouts = [],
         }));
-        files.AppZoneHistory.Delete();
+        Files.AppZoneHistory.Delete();
 
         new FancyZonesSettingsSeed()
             .Set(Setting.QuickLayoutSwitch, quickLayoutSwitch)

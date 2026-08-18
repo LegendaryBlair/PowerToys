@@ -103,9 +103,10 @@ public class RunFancyZonesEditorTest : FancyZonesEditorTestBase
         Assert.IsTrue(monitor1.Selected);
         Assert.IsFalse(monitor2.Selected);
 
-        EditorUiTestHelper.Step(this, "Selecting Monitor 2");
-        monitor2.Click();
+        EditorUiTestHelper.SelectMonitor(this, Session, "Monitor 2");
 
+        monitor1 = Session.Find<Element>("Monitor 1");
+        monitor2 = Session.Find<Element>("Monitor 2");
         Assert.IsFalse(monitor1.Selected);
         Assert.IsTrue(monitor2.Selected);
     }

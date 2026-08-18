@@ -258,6 +258,13 @@ public static class EditorUiTestHelper
                 10_000,
                 250),
             $"Edit dialog for '{layoutName}' did not expose an actionable Save button.");
+        Assert.IsTrue(
+            session.WaitFor(
+                () => session.FindAll<Element>(By.AccessibilityId(AccessibilityId.DialogTitle), 0)
+                    .Any(header => header.Displayed && header.Name.Contains(layoutName, StringComparison.Ordinal)),
+                10_000,
+                250),
+            $"The visible edit-dialog header did not identify layout '{layoutName}'.");
     }
 
     public static Session EnterZoneEditModeFromDialog(UITestBase testBase, Session session, string expectedEditorWindowName)

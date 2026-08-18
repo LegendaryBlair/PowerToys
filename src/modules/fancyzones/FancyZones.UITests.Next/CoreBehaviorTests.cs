@@ -20,7 +20,9 @@ public class CoreBehaviorTests : UITestBase
     private const long FirstZoneBitmask = 1L << 0;
     private const long SecondZoneBitmask = 1L << 1;
 
-    private readonly FancyZonesFiles files = new();
+    private FancyZonesFiles? files;
+
+    private FancyZonesFiles Files => files ?? throw new InvalidOperationException("FancyZones test files were not initialized.");
 
     public CoreBehaviorTests()
         : base(PowerToysModule.PowerToysSettings, WindowSize.UnSpecified, [ModuleName])
@@ -28,6 +30,14 @@ public class CoreBehaviorTests : UITestBase
     }
 
     protected override IReadOnlyList<string> StaleProcessNames => FancyZonesTestHelper.StaleProcessNames;
+
+    protected override void PrepareTestState() => files = new FancyZonesFiles();
+
+    protected override void CleanupTestStateAfterInitializationFailure()
+    {
+        WindowControl.TryKillProcessTreeByNameAndWait(FancyZonesTestHelper.FancyZonesProcess, 10_000);
+        files?.RestoreAll();
+    }
 
     [TestCleanup]
     public async Task CleanupTest()
@@ -39,7 +49,7 @@ public class CoreBehaviorTests : UITestBase
         FancyZonesTestHelper.CloseLayoutEditor(this);
         FancyZonesTestHelper.CloseExplorerWindows(this);
         FancyZonesTestHelper.StopFancyZones(this);
-        files.RestoreAll();
+        files?.RestoreAll();
     }
 
     /// <summary>Excluded applications must never receive a FancyZones zone assignment.</summary>
@@ -78,7 +88,7 @@ public class CoreBehaviorTests : UITestBase
             FancyZonesTestHelper.GetZoneBitmask(window),
             "An excluded Explorer HWND must not be stamped with a zone assignment.");
 
-        var history = files.AppZoneHistory.Exists ? files.AppZoneHistory.Read() : string.Empty;
+        var history = Files.AppZoneHistory.Exists ? Files.AppZoneHistory.Read() : string.Empty;
         Assert.IsNull(
             ZoneHistory.GetZoneIndexSetByAppName("explorer.exe", history),
             "An excluded Explorer window must not be written to app-zone-history.json.");
@@ -161,10 +171,10 @@ public class CoreBehaviorTests : UITestBase
 
     private void Arrange(Action<FancyZonesSettingsSeed> configure)
     {
-        files.AppZoneHistory.Delete();
-        files.AppliedLayouts.Delete();
-        files.CustomLayouts.Write(new CustomLayouts().Serialize(LayoutFixtures.QuickSwitchCustomLayouts));
-        files.LayoutHotkeys.Write(new LayoutHotkeys().Serialize(LayoutFixtures.QuickSwitchHotkeys));
+        Files.AppZoneHistory.Delete();
+        Files.AppliedLayouts.Delete();
+        Files.CustomLayouts.Write(new CustomLayouts().Serialize(LayoutFixtures.QuickSwitchCustomLayouts));
+        Files.LayoutHotkeys.Write(new LayoutHotkeys().Serialize(LayoutFixtures.QuickSwitchHotkeys));
 
         var seed = new FancyZonesSettingsSeed()
             .Set(Setting.QuickLayoutSwitch, true)

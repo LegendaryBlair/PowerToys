@@ -48,9 +48,11 @@ public class DragWindowTests : UITestBase
     /// <summary>Alpha FancyZones applies while a dragged window is made transparent (50%).</summary>
     private const byte TransparentAlpha = 127;
 
-    private readonly FancyZonesFiles files = new();
+    private FancyZonesFiles? files;
 
     private IntPtr draggedWindow;
+
+    private FancyZonesFiles Files => files ?? throw new InvalidOperationException("FancyZones test files were not initialized.");
 
     public DragWindowTests()
         : base(PowerToysModule.PowerToysSettings, WindowSize.UnSpecified, [ModuleName])
@@ -58,6 +60,14 @@ public class DragWindowTests : UITestBase
     }
 
     protected override IReadOnlyList<string> StaleProcessNames => FancyZonesTestHelper.StaleProcessNames;
+
+    protected override void PrepareTestState() => files = new FancyZonesFiles();
+
+    protected override void CleanupTestStateAfterInitializationFailure()
+    {
+        WindowControl.TryKillProcessTreeByNameAndWait(FancyZonesTestHelper.FancyZonesProcess, 10_000);
+        files?.RestoreAll();
+    }
 
     /// <summary>The button that toggles zone activation, honouring a swapped-buttons mouse.</summary>
     private static bool NonPrimaryIsRight => !SystemInformation.MouseButtonsSwapped;
@@ -74,7 +84,7 @@ public class DragWindowTests : UITestBase
         FancyZonesTestHelper.CloseLayoutEditor(this);
         FancyZonesTestHelper.CloseExplorerWindows(this);
         FancyZonesTestHelper.StopFancyZones(this);
-        files.RestoreAll();
+        files?.RestoreAll();
     }
 
     /// <summary>
@@ -254,9 +264,9 @@ public class DragWindowTests : UITestBase
     {
         FancyZonesTestHelper.Step(this, $"Seeding layout ({(twoZones ? "two zones" : "one zone")}) and zone-behaviour settings");
 
-        files.AppZoneHistory.Delete();
-        files.AppliedLayouts.Delete();
-        files.CustomLayouts.Write(new CustomLayouts().Serialize(
+        Files.AppZoneHistory.Delete();
+        Files.AppliedLayouts.Delete();
+        Files.CustomLayouts.Write(new CustomLayouts().Serialize(
             twoZones ? LayoutFixtures.TwoZoneColumns : LayoutFixtures.SingleZoneColumn));
 
         new FancyZonesSettingsSeed()
@@ -299,7 +309,7 @@ public class DragWindowTests : UITestBase
 
         // app-zone-history is the assertion signal, so it must start empty even if opening the window
         // restored it to a previously remembered zone.
-        files.AppZoneHistory.Delete();
+        Files.AppZoneHistory.Delete();
 
         FancyZonesTestHelper.Step(this, $"Window to drag ready at {WindowHelper.GetWindowBounds(draggedWindow)}");
     }
@@ -468,19 +478,33 @@ public class DragWindowTests : UITestBase
     /// </summary>
     private void AssertSnapped(bool expected, string because)
     {
+        const int StableAbsentObservations = 5;
+
         var deadline = DateTime.UtcNow.AddSeconds(10);
         string? zoneIndex = null;
         var validObservation = false;
+        var matchingObservations = 0;
+        var matched = false;
         do
         {
             validObservation = ZoneHistory.TryGetZoneIndexSetByAppName(
                 DraggedApp,
-                files.AppZoneHistory.Exists ? files.AppZoneHistory.Read() : string.Empty,
+                Files.AppZoneHistory.Exists ? Files.AppZoneHistory.Read() : string.Empty,
                 out zoneIndex);
 
             if (validObservation && (zoneIndex is not null) == expected)
             {
-                break;
+                matchingObservations++;
+                var requiredObservations = expected ? 1 : StableAbsentObservations;
+                if (matchingObservations >= requiredObservations)
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            else
+            {
+                matchingObservations = 0;
             }
 
             Thread.Sleep(500);
@@ -488,12 +512,10 @@ public class DragWindowTests : UITestBase
         while (DateTime.UtcNow < deadline);
 
         FancyZonesTestHelper.Step(this, $"app-zone-history zone index for {DraggedApp}: {zoneIndex ?? "<none>"}");
-
         Assert.IsTrue(validObservation, "app-zone-history.json never became valid JSON before the polling timeout.");
         var observed = zoneIndex is null ? "no entry" : $"zone {zoneIndex}";
-        Assert.AreEqual(
-            expected,
-            zoneIndex is not null,
+        Assert.IsTrue(
+            matched,
             $"{because} Expected the window {(expected ? "to snap into a zone" : "not to snap")}, but app-zone-history reported {observed}.");
     }
 }

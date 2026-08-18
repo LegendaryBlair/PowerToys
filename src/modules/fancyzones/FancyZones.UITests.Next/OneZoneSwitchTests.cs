@@ -28,7 +28,9 @@ public class OneZoneSwitchTests : UITestBase
 {
     private const long RightZoneBitmask = 1L << 1;
 
-    private readonly FancyZonesFiles files = new();
+    private FancyZonesFiles? files;
+
+    private FancyZonesFiles Files => files ?? throw new InvalidOperationException("FancyZones test files were not initialized.");
 
     public OneZoneSwitchTests()
         : base(PowerToysModule.PowerToysSettings, WindowSize.UnSpecified, [ModuleName])
@@ -36,6 +38,14 @@ public class OneZoneSwitchTests : UITestBase
     }
 
     protected override IReadOnlyList<string> StaleProcessNames => FancyZonesTestHelper.StaleProcessNames;
+
+    protected override void PrepareTestState() => files = new FancyZonesFiles();
+
+    protected override void CleanupTestStateAfterInitializationFailure()
+    {
+        WindowControl.TryKillProcessTreeByNameAndWait(FancyZonesTestHelper.FancyZonesProcess, 10_000);
+        files?.RestoreAll();
+    }
 
     [TestCleanup]
     public async Task CleanupTest()
@@ -48,7 +58,7 @@ public class OneZoneSwitchTests : UITestBase
         FancyZonesTestHelper.CloseLayoutEditor(this);
         FancyZonesTestHelper.CloseExplorerWindows(this);
         FancyZonesTestHelper.StopFancyZones(this);
-        files.RestoreAll();
+        files?.RestoreAll();
     }
 
     /// <summary>
@@ -145,9 +155,9 @@ public class OneZoneSwitchTests : UITestBase
     {
         FancyZonesTestHelper.Step(this, $"Seeding a two-zone layout (window switching: {windowSwitching})");
 
-        files.AppZoneHistory.Delete();
-        files.AppliedLayouts.Delete();
-        files.CustomLayouts.Write(new CustomLayouts().Serialize(LayoutFixtures.TwoZoneColumns));
+        Files.AppZoneHistory.Delete();
+        Files.AppliedLayouts.Delete();
+        Files.CustomLayouts.Write(new CustomLayouts().Serialize(LayoutFixtures.TwoZoneColumns));
 
         new FancyZonesSettingsSeed()
             .Set(Setting.ShiftDrag, true)

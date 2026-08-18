@@ -8,6 +8,7 @@
 #include <common/utils/winapi_error.h>
 #include <common/SettingsAPI/FileWatcher.h>
 #include <common/notifications/NotificationUtil.h>
+#include <modules/interface/powertoy_module_interface.h>
 
 #include <FancyZonesLib/DraggingState.h>
 #include <FancyZonesLib/EditorParameters.h>
@@ -319,6 +320,7 @@ private:
     void RotateMonitorRotationContentNumbers(bool reverse) noexcept;
     bool IsMonitorRotationActivatorKey(DWORD vkCode) const noexcept;
     bool IsMonitorRotationChordDown() const noexcept;
+    void ReplaySuppressedShiftKey() noexcept;
 
     void SyncVirtualDesktops() noexcept;
 
@@ -342,6 +344,7 @@ private:
     WindowKeyboardSnap m_windowKeyboardSnapper{};
     WorkAreaConfiguration m_workAreaConfiguration;
     DraggingState m_draggingState;
+    std::optional<KBDLLHOOKSTRUCT> m_suppressedShiftKey;
     bool m_monitorRotationPreviewActive = false;
     MonitorRotation::KeyState m_monitorRotationKeyState;
     std::optional<bool> m_pendingMonitorRotationReverse;
@@ -639,9 +642,34 @@ void FancyZones::WindowCreated(HWND window) noexcept
 }
 
 // IFancyZonesCallback
+void FancyZones::ReplaySuppressedShiftKey() noexcept
+{
+    if (!m_suppressedShiftKey)
+    {
+        return;
+    }
+
+    INPUT input{};
+    input.type = INPUT_KEYBOARD;
+    const auto& shift = *m_suppressedShiftKey;
+    input.ki.wVk = static_cast<WORD>(shift.vkCode);
+    input.ki.wScan = static_cast<WORD>(shift.scanCode);
+    input.ki.dwFlags = (shift.flags & LLKHF_EXTENDED) ? KEYEVENTF_EXTENDEDKEY : 0;
+    input.ki.dwExtraInfo = PowertoyModuleIface::CENTRALIZED_KEYBOARD_HOOK_DONT_TRIGGER_FLAG;
+    m_suppressedShiftKey.reset();
+    SendInput(1, &input, sizeof(INPUT));
+}
+
 IFACEMETHODIMP_(bool)
 FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
 {
+    if (m_suppressedShiftKey && info->vkCode != m_suppressedShiftKey->vkCode)
+    {
+        // A second key turns the pending bare Shift into a shortcut. Replay Shift before allowing
+        // this key through so the foreground application receives the original modifier chord.
+        ReplaySuppressedShiftKey();
+    }
+
     m_monitorRotationKeyState.Update(info->vkCode, true);
 
     // Return true to swallow the keyboard event
@@ -730,16 +758,21 @@ FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
         }
     }
 
-    // Only suppress the bare Shift key itself during drag (used for drag-toggle).
-    // Do NOT swallow Shift+<other key> combos - that steals keystrokes from apps.
     if (m_windowMouseSnapper &&
         (info->vkCode == VK_LSHIFT || info->vkCode == VK_RSHIFT))
     {
-        // Record the press before swallowing it. Returning 1 removes the key from the input stream
-        // for every listener - including this module's own WM_INPUT handler, which is what normally
-        // calls SetShiftState - so without this the zones could never be switched off with Shift.
         m_draggingState.SetShiftState(true);
-        return !win && !ctrl && !alt;
+        if (win || ctrl || alt)
+        {
+            return false;
+        }
+
+        if (!m_suppressedShiftKey)
+        {
+            m_suppressedShiftKey = *info;
+        }
+
+        return true;
     }
     return false;
 }
@@ -747,6 +780,15 @@ FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
 IFACEMETHODIMP_(bool)
 FancyZones::OnKeyUp(PKBDLLHOOKSTRUCT info) noexcept
 {
+    const bool suppressBareShiftRelease =
+        m_suppressedShiftKey &&
+        info->vkCode == m_suppressedShiftKey->vkCode;
+    if (suppressBareShiftRelease)
+    {
+        m_suppressedShiftKey.reset();
+        m_draggingState.SetShiftState(false);
+    }
+
     const bool wasMonitorRotationPreviewActive = m_monitorRotationPreviewActive;
     const bool isActivatorKey = IsMonitorRotationActivatorKey(info->vkCode);
     const bool wasConsumed = m_monitorRotationKeyState.ReleaseWasConsumed(info->vkCode);
@@ -756,10 +798,10 @@ FancyZones::OnKeyUp(PKBDLLHOOKSTRUCT info) noexcept
     {
         m_monitorRotationPreviewActive = false;
         PostMessageW(m_window, WM_PRIV_MONITOR_ROTATION_PREVIEW_HIDE, 0, 0);
-        return isActivatorKey || wasConsumed;
+        return isActivatorKey || wasConsumed || suppressBareShiftRelease;
     }
 
-    return wasConsumed;
+    return wasConsumed || suppressBareShiftRelease;
 }
 
 bool FancyZones::IsMonitorRotationChordDown() const noexcept
