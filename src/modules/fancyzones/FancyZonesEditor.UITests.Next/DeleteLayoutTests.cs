@@ -137,18 +137,16 @@ public class DeleteLayoutTests : FancyZonesEditorTestBase
 
         EditorUiTestHelper.OpenEditLayoutDialog(this, Session, FirstCustomLayoutName);
 
-        var hotkeyComboBox = Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.HotkeyComboBox));
-        Assert.IsNotNull(hotkeyComboBox);
-        EditorUiTestHelper.Step(this, "Opening the layout shortcut combo to verify free keys");
-        hotkeyComboBox.Click();
+        var processSession = EditorUiTestHelper.OpenHotkeyPopup(this, Session, FirstCustomLayoutName);
 
         for (var i = 0; i < 10; i++)
         {
-            Assert.IsNotNull(Session.Find<Element>(By.Name($"{i}")), $"Expected hotkey option '{i}' was not found.");
+            _ = EditorUiTestHelper.RequireHotkeyOption(processSession, $"{i}");
         }
 
         EditorUiTestHelper.Step(this, "Dismissing the layout shortcut popup");
         KeyboardHelper.SendKeys(Key.Esc);
+        _ = processSession.WaitFor(() => EditorUiTestHelper.FindHotkeyOption(processSession, "None") is null, 2_000);
         if (Session.WaitForElement(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.DialogTitle), 500))
         {
             var cancelButton = Session.FindAll<Button>(By.Name(EditorUiTestHelper.ElementName.Cancel), 500).FirstOrDefault();

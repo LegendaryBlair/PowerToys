@@ -36,7 +36,7 @@ public class LayoutApplyHotKeyTests : UITestBase
     {
         await CaptureFailureArtifactsBeforeCleanupAsync();
 
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
         FancyZonesTestHelper.CloseLayoutEditor(this);
         FancyZonesTestHelper.CloseExplorerWindows(this);
@@ -106,7 +106,7 @@ public class LayoutApplyHotKeyTests : UITestBase
         }
         finally
         {
-            MouseHelper.LeftUp();
+            FancyZonesTestHelper.ReleasePrimaryMouseButton();
         }
     }
 

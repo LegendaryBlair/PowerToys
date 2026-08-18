@@ -13,8 +13,6 @@ namespace FancyZonesEditor.UITests;
 [TestClass]
 public class LayoutHotkeysTests : FancyZonesEditorTestBase
 {
-    private const string EditorProcessName = "PowerToys.FancyZonesEditor";
-
     private static readonly (string Name, string Uuid)[] Layouts =
     [
         ("Layout 0", "{0D6D2F58-9184-4804-81E4-4E4CC3476DC1}"),
@@ -206,15 +204,7 @@ public class LayoutHotkeysTests : FancyZonesEditorTestBase
 
     private Session OpenHotkeyPopup(string layoutName)
     {
-        EditorUiTestHelper.Step(this, $"Opening the shortcut popup for '{layoutName}'");
-        Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.HotkeyComboBox)).Invoke();
-
-        var processSession = Session.FromProcess(EditorProcessName, PowerToysModule.FancyZonesEditor, timeoutMS: 10_000);
-        Assert.IsTrue(
-            processSession.WaitFor(() => FindHotkeyOption(processSession, "None") is not null, 10_000),
-            $"The shortcut popup did not open for '{layoutName}'.");
-
-        return processSession;
+        return EditorUiTestHelper.OpenHotkeyPopup(this, Session, layoutName);
     }
 
     private void SelectHotkeyOption(string layoutName, string optionName)
@@ -232,37 +222,17 @@ public class LayoutHotkeysTests : FancyZonesEditorTestBase
 
     private string ReadSelectedHotkeyValue()
     {
-        var combo = Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.HotkeyComboBox));
-        return string.IsNullOrWhiteSpace(combo.GetValue()) ? combo.GetProperty("Name") : combo.GetValue();
-    }
-
-    private static bool IsHotkeyOption(Element element)
-    {
-        return string.Equals(element.ControlType, "ListItem", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(element.ControlType, "MenuItem", StringComparison.OrdinalIgnoreCase);
+        return EditorUiTestHelper.ReadSelectedHotkeyValue(Session);
     }
 
     private static Element? FindHotkeyOption(Session processSession, string optionName)
     {
-        return processSession
-            .FindAll<Element>(By.Name(optionName), 500)
-            .FirstOrDefault(element =>
-                IsHotkeyOption(element) &&
-                string.Equals(element.Name, optionName, StringComparison.Ordinal));
+        return EditorUiTestHelper.FindHotkeyOption(processSession, optionName);
     }
 
     private static Element RequireHotkeyOption(Session processSession, string optionName)
     {
-        Element? option = null;
-        Assert.IsTrue(
-            processSession.WaitFor(() =>
-            {
-                option = FindHotkeyOption(processSession, optionName);
-                return option is not null;
-            }, 10_000),
-            $"Shortcut option '{optionName}' was not found in the popup.");
-
-        return option!;
+        return EditorUiTestHelper.RequireHotkeyOption(processSession, optionName);
     }
 
     private static void AssertOptionPresent(Session processSession, string optionName)

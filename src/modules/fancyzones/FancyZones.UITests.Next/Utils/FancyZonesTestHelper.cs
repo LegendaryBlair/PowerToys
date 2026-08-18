@@ -3,8 +3,11 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
+using System.Text.Json;
+using FancyZonesEditorCommon.Data;
 using Microsoft.PowerToys.UITest.Next;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using SystemInformation = System.Windows.Forms.SystemInformation;
 
 namespace FancyZones.UITests.Utils;
 
@@ -429,12 +432,12 @@ public static class FancyZonesTestHelper
     /// Open the layout editor, select <paramref name="card"/>, and close it again — the sequence that
     /// makes FancyZones write the chosen layout into <c>applied-layouts.json</c> for the live work area.
     /// </summary>
-    /// <param name="expectedAppliedFragment">
-    /// When given, the applied-layouts file must end up containing this fragment (normally the layout
-    /// UUID). Verifying the file makes "the layout was applied" an authoritative signal instead of an
-    /// assumption — a click that silently missed otherwise surfaces much later as an unrelated failure.
+    /// <param name="expectedLayoutUuid">
+    /// When given, the current work area's applied-layout record must end up with this layout UUID.
+    /// Verifying the exact record makes "the layout was applied" an authoritative signal instead of
+    /// an assumption — a click that silently missed otherwise surfaces much later as an unrelated failure.
     /// </param>
-    public static void ApplyLayoutThroughEditor(UITestBase testBase, By card, string? expectedAppliedFragment = null)
+    public static void ApplyLayoutThroughEditor(UITestBase testBase, By card, string? expectedLayoutUuid = null)
     {
         // Selecting a layout is idempotent, so a card click that didn't register (the editor's list
         // binds asynchronously) can simply be repeated until the file confirms the result.
@@ -451,7 +454,7 @@ public static class FancyZonesTestHelper
                 CloseLayoutEditor(testBase);
             }
 
-            if (expectedAppliedFragment is null || AppliedLayoutContains(expectedAppliedFragment, 15_000))
+            if (expectedLayoutUuid is null || AppliedLayoutContains(expectedLayoutUuid, 15_000))
             {
                 return;
             }
@@ -460,17 +463,19 @@ public static class FancyZonesTestHelper
         }
 
         Assert.Fail(
-            $"The layout was not applied: applied-layouts.json never referenced '{expectedAppliedFragment}' " +
+            $"The layout was not applied: the current work-area record never used '{expectedLayoutUuid}' " +
             $"after {attempts} attempts. Last content: {ReadAppliedLayouts()}");
     }
 
-    /// <summary>Poll <c>applied-layouts.json</c> until it references the expected layout.</summary>
-    public static bool AppliedLayoutContains(string expectedFragment, int timeoutMs = 15_000)
+    /// <summary>Poll until the current work area's applied-layout record has the expected UUID.</summary>
+    public static bool AppliedLayoutContains(string expectedLayoutUuid, int timeoutMs = 15_000)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(timeoutMs);
         while (true)
         {
-            if (ReadAppliedLayouts().Contains(expectedFragment, StringComparison.OrdinalIgnoreCase))
+            var currentLayout = TryReadCurrentWorkAreaLayout();
+            if (currentLayout.HasValue &&
+                string.Equals(currentLayout.Value.AppliedLayout.Uuid, expectedLayoutUuid, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -481,6 +486,61 @@ public static class FancyZonesTestHelper
             }
 
             Thread.Sleep(300);
+        }
+    }
+
+    private static AppliedLayouts.AppliedLayoutWrapper? TryReadCurrentWorkAreaLayout()
+    {
+        try
+        {
+            return ReadCurrentWorkAreaLayout();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static AppliedLayouts.AppliedLayoutWrapper? ReadCurrentWorkAreaLayout()
+    {
+        var appliedLayoutsFile = new AppliedLayouts();
+        var appliedLayouts = appliedLayoutsFile.Read(appliedLayoutsFile.File);
+
+        var selectedMonitor = TryReadSelectedMonitor();
+        if (selectedMonitor.HasValue)
+        {
+            var matchingLayouts = appliedLayouts.AppliedLayouts.Where(layout =>
+                string.Equals(layout.Device.Monitor, selectedMonitor.Value.Monitor, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(layout.Device.MonitorInstance, selectedMonitor.Value.MonitorInstanceId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(layout.Device.SerialNumber, selectedMonitor.Value.MonitorSerialNumber, StringComparison.OrdinalIgnoreCase) &&
+                layout.Device.MonitorNumber == selectedMonitor.Value.MonitorNumber &&
+                string.Equals(layout.Device.VirtualDesktop, selectedMonitor.Value.VirtualDesktop, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (matchingLayouts.Count == 1)
+            {
+                return matchingLayouts[0];
+            }
+        }
+
+        return appliedLayouts.AppliedLayouts.Count == 1 ? appliedLayouts.AppliedLayouts[0] : null;
+    }
+
+    private static EditorParameters.NativeMonitorDataWrapper? TryReadSelectedMonitor()
+    {
+        try
+        {
+            var parametersFile = new EditorParameters();
+            var parameters = parametersFile.Read(parametersFile.File);
+            if (parameters.Monitors is null)
+            {
+                return null;
+            }
+
+            var selectedMonitors = parameters.Monitors.Where(monitor => monitor.IsSelected).ToList();
+            return selectedMonitors.Count == 1 ? selectedMonitors[0] : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
         }
     }
 
@@ -530,8 +590,9 @@ public static class FancyZonesTestHelper
         var existing = ExplorerWindows().Select(w => w.Hwnd).ToHashSet();
 
         Step(testBase, $"Opening a File Explorer window at '{folder}'");
-        using (Process.Start(new ProcessStartInfo("explorer.exe", folder)
+        using (Process.Start(new ProcessStartInfo("explorer.exe")
         {
+            Arguments = $"/n,\"{folder}\"",
             UseShellExecute = true,
         }))
         {
@@ -657,8 +718,34 @@ public static class FancyZonesTestHelper
         Thread.Sleep(settleMs);
     }
 
+    /// <summary>Press the logical primary mouse button, honoring the system's swapped-button setting.</summary>
+    public static void PressPrimaryMouseButton()
+    {
+        if (SystemInformation.MouseButtonsSwapped)
+        {
+            MouseHelper.RightDown();
+        }
+        else
+        {
+            MouseHelper.LeftDown();
+        }
+    }
+
+    /// <summary>Release the logical primary mouse button, honoring the system's swapped-button setting.</summary>
+    public static void ReleasePrimaryMouseButton()
+    {
+        if (SystemInformation.MouseButtonsSwapped)
+        {
+            MouseHelper.RightUp();
+        }
+        else
+        {
+            MouseHelper.LeftUp();
+        }
+    }
+
     /// <summary>
-    /// Press the left button on the window's title bar and drag it by
+    /// Press the primary button on the window's title bar and drag it by
     /// cursor to (<paramref name="targetX"/>, <paramref name="targetY"/>), leaving the button DOWN.
     /// Returns the cursor position at the end of the drag.
     /// </summary>
@@ -704,7 +791,7 @@ public static class FancyZonesTestHelper
             // A failed press can begin a desktop selection drag while Explorer is still rendering.
             // Reset the whole acquisition before every candidate, then derive the next point from
             // the current rectangle rather than stale pre-attempt coordinates.
-            MouseHelper.LeftUp();
+            ReleasePrimaryMouseButton();
             WindowHelper.RestoreWindow(window);
             WindowHelper.MoveWindow(window, originalBounds.Left, originalBounds.Top);
             WindowHelper.SetMainWindowSize(window, originalWidth, originalHeight);
@@ -731,7 +818,7 @@ public static class FancyZonesTestHelper
             }
 
             var before = WindowHelper.GetWindowBounds(window);
-            MouseHelper.LeftDown();
+            PressPrimaryMouseButton();
             Thread.Sleep(300);
             DragCursorTo(grabX, grabY, grabX + nudge, grabY + nudge);
 
@@ -750,7 +837,7 @@ public static class FancyZonesTestHelper
             Step(
                 testBase,
                 $"The target window did not keep a foreground move from that point (bounds {moved}); releasing and trying the next candidate");
-            MouseHelper.LeftUp();
+            ReleasePrimaryMouseButton();
             Thread.Sleep(400);
         }
 

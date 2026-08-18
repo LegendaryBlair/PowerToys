@@ -42,7 +42,7 @@ public class OneZoneSwitchTests : UITestBase
     {
         await CaptureFailureArtifactsBeforeCleanupAsync();
 
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
 
         FancyZonesTestHelper.CloseLayoutEditor(this);
@@ -234,7 +234,7 @@ public class OneZoneSwitchTests : UITestBase
             if (!FancyZonesTestHelper.WaitForZonesOverlayHidden())
             {
                 FancyZonesTestHelper.Step(this, $"The previous overlay did not hide before regrabbing '{label}' (attempt {attempt}/{attempts})");
-                MouseHelper.LeftUp();
+                FancyZonesTestHelper.ReleasePrimaryMouseButton();
                 KeyboardHelper.ReleaseKey(Key.LShift);
                 continue;
             }
@@ -242,14 +242,14 @@ public class OneZoneSwitchTests : UITestBase
             if (!FancyZonesTestHelper.BeginWindowDrag(this, window, targetX, targetY))
             {
                 FancyZonesTestHelper.Step(this, $"Could not acquire '{label}' by its title bar (attempt {attempt}/{attempts})");
-                MouseHelper.LeftUp();
+                FancyZonesTestHelper.ReleasePrimaryMouseButton();
                 KeyboardHelper.ReleaseKey(Key.LShift);
                 Thread.Sleep(500);
                 continue;
             }
 
             var zonesActivated = FancyZonesTestHelper.ActivateZonesWithShiftDuringDrag(this);
-            MouseHelper.LeftUp();
+            FancyZonesTestHelper.ReleasePrimaryMouseButton();
 
             if (!zonesActivated)
             {

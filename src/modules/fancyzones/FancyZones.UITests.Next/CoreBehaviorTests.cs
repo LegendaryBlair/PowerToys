@@ -34,7 +34,7 @@ public class CoreBehaviorTests : UITestBase
     {
         await CaptureFailureArtifactsBeforeCleanupAsync();
 
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
         FancyZonesTestHelper.CloseLayoutEditor(this);
         FancyZonesTestHelper.CloseExplorerWindows(this);
@@ -69,7 +69,7 @@ public class CoreBehaviorTests : UITestBase
             overlayWatcher.Events.Count,
             $"An excluded Explorer window triggered overlay events: {string.Join(", ", overlayWatcher.Events)}.");
 
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
         Thread.Sleep(1000);
 

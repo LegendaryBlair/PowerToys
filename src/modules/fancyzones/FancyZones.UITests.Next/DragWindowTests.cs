@@ -68,7 +68,7 @@ public class DragWindowTests : UITestBase
         await CaptureFailureArtifactsBeforeCleanupAsync();
 
         // A test that failed mid-gesture can leave the button/modifier down; free them first.
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
 
         FancyZonesTestHelper.CloseLayoutEditor(this);
@@ -169,7 +169,7 @@ public class DragWindowTests : UITestBase
             this,
             $"Alpha after pressing Shift mid-drag: {afterShift} (system reports Shift held: {shiftReachedTheSystem})");
 
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
         Thread.Sleep(1000);
 
@@ -314,14 +314,14 @@ public class DragWindowTests : UITestBase
     /// <summary>Release the drag and let FancyZones settle the snap.</summary>
     private void Drop()
     {
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         Thread.Sleep(1500);
     }
 
     /// <summary>Release the mouse but keep Shift held until FancyZones records MoveSizeEnd.</summary>
     private void DropAndAssertSnapped(string because)
     {
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         try
         {
             AssertSnapped(true, because);
@@ -368,7 +368,7 @@ public class DragWindowTests : UITestBase
             }
 
             FancyZonesTestHelper.Step(this, "The overlay did not stabilize; releasing input and regrabbing the same window");
-            MouseHelper.LeftUp();
+            FancyZonesTestHelper.ReleasePrimaryMouseButton();
             KeyboardHelper.ReleaseKey(Key.LShift);
             FancyZonesTestHelper.WaitForZonesOverlayHidden();
             ResetDraggedWindowForRetry();
@@ -379,7 +379,7 @@ public class DragWindowTests : UITestBase
 
     private void ResetDraggedWindowForRetry()
     {
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
         WindowControl.TryBringToForeground(draggedWindow);
         WindowHelper.RestoreWindow(draggedWindow);
@@ -404,7 +404,7 @@ public class DragWindowTests : UITestBase
         Thread.Sleep(1000);
         var alpha = WindowHelper.GetWindowAlpha(draggedWindow);
 
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
         Thread.Sleep(500);
         return alpha;
@@ -456,7 +456,7 @@ public class DragWindowTests : UITestBase
         var alpha = WaitForWindowAlpha(TransparentAlpha);
         FancyZonesTestHelper.Step(this, $"Dragged window alpha while dragging: {alpha}");
 
-        MouseHelper.LeftUp();
+        FancyZonesTestHelper.ReleasePrimaryMouseButton();
         KeyboardHelper.ReleaseKey(Key.LShift);
         Thread.Sleep(500);
         return alpha;

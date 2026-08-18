@@ -6,8 +6,6 @@ using FancyZonesEditor.UITests.Utils;
 using FancyZonesEditorCommon.Data;
 using Microsoft.PowerToys.UITest.Next;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Globalization;
-using System.Text.RegularExpressions;
 
 namespace FancyZonesEditor.UITests;
 
@@ -116,12 +114,18 @@ public class ApplyLayoutTests : FancyZonesEditorTestBase
             $"Monitor {FirstMonitorNumber} to use template type {ColumnsType}");
 
         EditorUiTestHelper.OpenEditLayoutDialog(this, Session, EditorUiTestHelper.TemplateLayoutName.Columns);
-        var firstMonitorSlider = Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.TemplateZoneSlider));
-        firstMonitorSlider.Focus();
-        EditorUiTestHelper.Step(this, "Increasing Monitor 1 zone count twice");
-        KeyboardHelper.SendKeys(Key.Right);
-        KeyboardHelper.SendKeys(Key.Right);
-        var expectedFirstLayoutZoneCount = ReadZoneCount();
+        _ = EditorUiTestHelper.NudgeSliderAndRead(
+            this,
+            Session,
+            EditorUiTestHelper.AccessibilityId.TemplateZoneSlider,
+            Key.Right,
+            "increasing Monitor 1 zone count");
+        var expectedFirstLayoutZoneCount = EditorUiTestHelper.NudgeSliderAndRead(
+            this,
+            Session,
+            EditorUiTestHelper.AccessibilityId.TemplateZoneSlider,
+            Key.Right,
+            "increasing Monitor 1 zone count again");
         EditorUiTestHelper.Step(this, $"Setting Monitor 1 zone count to {expectedFirstLayoutZoneCount}");
         Session.Find<Button>(EditorUiTestHelper.ElementName.Save).Invoke();
         _ = EditorUiTestHelper.WaitForAppliedLayouts(
@@ -138,11 +142,12 @@ public class ApplyLayoutTests : FancyZonesEditorTestBase
             $"Monitor {SecondMonitorNumber} to use template type {ColumnsType}");
 
         EditorUiTestHelper.OpenEditLayoutDialog(this, Session, EditorUiTestHelper.TemplateLayoutName.Columns);
-        var secondMonitorSlider = Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.TemplateZoneSlider));
-        secondMonitorSlider.Focus();
-        EditorUiTestHelper.Step(this, "Decreasing Monitor 2 zone count once");
-        KeyboardHelper.SendKeys(Key.Left);
-        var expectedSecondLayoutZoneCount = ReadZoneCount();
+        var expectedSecondLayoutZoneCount = EditorUiTestHelper.NudgeSliderAndRead(
+            this,
+            Session,
+            EditorUiTestHelper.AccessibilityId.TemplateZoneSlider,
+            Key.Left,
+            "decreasing Monitor 2 zone count");
         EditorUiTestHelper.Step(this, $"Setting Monitor 2 zone count to {expectedSecondLayoutZoneCount}");
         Session.Find<Button>(EditorUiTestHelper.ElementName.Save).Invoke();
         var data = EditorUiTestHelper.WaitForAppliedLayouts(
@@ -152,7 +157,12 @@ public class ApplyLayoutTests : FancyZonesEditorTestBase
 
         EditorUiTestHelper.SelectMonitor(this, Session, "Monitor 1");
         EditorUiTestHelper.OpenEditLayoutDialog(this, Session, EditorUiTestHelper.TemplateLayoutName.Columns);
-        Assert.AreEqual(expectedFirstLayoutZoneCount, ReadZoneCount());
+        Assert.AreEqual(
+            expectedFirstLayoutZoneCount,
+            EditorUiTestHelper.ReadSliderValueAsInt(
+                this,
+                Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.TemplateZoneSlider)),
+                EditorUiTestHelper.AccessibilityId.TemplateZoneSlider));
         Session.Find<Button>(EditorUiTestHelper.ElementName.Cancel).Invoke();
         AssertFixtureMonitorLayouts(data);
 
@@ -186,18 +196,5 @@ public class ApplyLayoutTests : FancyZonesEditorTestBase
     {
         Assert.IsTrue(FindFixtureMonitorLayout(data, FirstMonitorNumber).HasValue, "Monitor 1 layout record was not persisted.");
         Assert.IsTrue(FindFixtureMonitorLayout(data, SecondMonitorNumber).HasValue, "Monitor 2 layout record was not persisted.");
-    }
-
-    private int ReadZoneCount()
-    {
-        var value = Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.TemplateZoneSlider)).GetValue();
-        if (double.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var numericValue))
-        {
-            return (int)Math.Round(numericValue, MidpointRounding.AwayFromZero);
-        }
-
-        var numbers = Regex.Matches(value, @"-?\d+");
-        Assert.IsTrue(numbers.Count > 0, $"The zone-count slider exposed no numeric value: '{value}'.");
-        return int.Parse(numbers[^1].Value, CultureInfo.InvariantCulture);
     }
 }

@@ -376,6 +376,49 @@ public static class EditorUiTestHelper
         return hotkeys.Read(hotkeys.File);
     }
 
+    internal static string ReadSelectedHotkeyValue(Session session)
+    {
+        var combo = session.Find<Element>(By.AccessibilityId(AccessibilityId.HotkeyComboBox));
+        var value = combo.GetValue();
+        return string.IsNullOrWhiteSpace(value) ? combo.GetProperty("Name") : value;
+    }
+
+    internal static Session OpenHotkeyPopup(UITestBase testBase, Session session, string layoutName)
+    {
+        Step(testBase, $"Opening the shortcut popup for '{layoutName}'");
+        session.Find<Element>(By.AccessibilityId(AccessibilityId.HotkeyComboBox)).Invoke();
+
+        var processSession = Session.FromProcess(EditorProcessName, PowerToysModule.FancyZonesEditor, timeoutMS: 10_000);
+        Assert.IsTrue(
+            processSession.WaitFor(() => FindHotkeyOption(processSession, "None") is not null, 10_000),
+            $"The shortcut popup did not open for '{layoutName}'.");
+
+        return processSession;
+    }
+
+    internal static Element? FindHotkeyOption(Session processSession, string optionName)
+    {
+        return processSession
+            .FindAll<Element>(By.Name(optionName), 500)
+            .FirstOrDefault(element =>
+                IsHotkeyOption(element) &&
+                string.Equals(element.Name, optionName, StringComparison.Ordinal));
+    }
+
+    internal static Element RequireHotkeyOption(Session processSession, string optionName)
+    {
+        Element? option = null;
+        Assert.IsTrue(
+            processSession.WaitFor(() =>
+            {
+                option = FindHotkeyOption(processSession, optionName);
+                return option is not null;
+            }, 10_000),
+            $"Shortcut option '{optionName}' was not found in the popup.");
+
+        return option!;
+    }
+
     public static LayoutTemplates.TemplateLayoutsListWrapper ReadTemplateLayouts()
     {
         var templates = new LayoutTemplates();
@@ -521,6 +564,10 @@ public static class EditorUiTestHelper
     }
 
     private static bool IsMenuItem(Element element) =>
+        string.Equals(element.ControlType, "MenuItem", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsHotkeyOption(Element element) =>
+        string.Equals(element.ControlType, "ListItem", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(element.ControlType, "MenuItem", StringComparison.OrdinalIgnoreCase);
 
     private static Session WaitForZoneEditorWindow(UITestBase testBase, HashSet<long> knownEditorWindows, string expectedEditorWindowName)

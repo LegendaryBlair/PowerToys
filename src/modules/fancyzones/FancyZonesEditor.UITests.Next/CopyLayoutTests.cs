@@ -195,15 +195,11 @@ public class CopyLayoutTests : FancyZonesEditorTestBase
         Assert.AreEqual(2, customLayoutsData.CustomLayouts.Count);
 
         EditorUiTestHelper.OpenEditLayoutDialog(this, Session, SourceCustomLayoutName);
-        var hotkeyComboBox = Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.HotkeyComboBox));
-        Assert.IsNotNull(hotkeyComboBox);
-        Assert.AreEqual("0", hotkeyComboBox.GetValue());
+        Assert.AreEqual("0", EditorUiTestHelper.ReadSelectedHotkeyValue(Session));
         Session.Find<Button>(EditorUiTestHelper.ElementName.Cancel).Click();
 
         EditorUiTestHelper.OpenEditLayoutDialog(this, Session, copiedLayoutName);
-        hotkeyComboBox = Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.HotkeyComboBox));
-        Assert.IsNotNull(hotkeyComboBox);
-        Assert.AreEqual("None", hotkeyComboBox.GetValue());
+        Assert.AreEqual("None", EditorUiTestHelper.ReadSelectedHotkeyValue(Session));
         Session.Find<Button>(EditorUiTestHelper.ElementName.Cancel).Click();
 
         var hotkeys = new LayoutHotkeys();
