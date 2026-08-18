@@ -86,6 +86,27 @@ public abstract class UIInitializeTestBase : FancyZonesEditorTestBase
         Assert.IsTrue(monitor.Selected, $"Expected {monitorName} to be selected.");
     }
 
+    protected static AppliedLayouts.AppliedLayoutWrapper FindAppliedLayout(
+        AppliedLayouts.AppliedLayoutsListWrapper data,
+        Func<AppliedLayouts.AppliedLayoutWrapper, bool> predicate,
+        string description)
+    {
+        var matches = data.AppliedLayouts.Where(predicate).ToList();
+        Assert.AreEqual(1, matches.Count, $"Expected one applied-layout record for {description}, but found {matches.Count}.");
+        return matches[0];
+    }
+
+    protected static void AssertAppliedLayoutUnchanged(
+        AppliedLayouts.AppliedLayoutWrapper expected,
+        AppliedLayouts.AppliedLayoutWrapper actual,
+        string description)
+    {
+        Assert.AreEqual(
+            JsonSerializer.Serialize(expected),
+            JsonSerializer.Serialize(actual),
+            $"The applied-layout payload for {description} changed.");
+    }
+
     protected static string Monitor1 => Monitor1Name;
 
     protected static string Monitor2 => Monitor2Name;
@@ -104,10 +125,6 @@ public class UIInitializeEditorParamsVerifySelectedMonitorTests : UIInitializeTe
     public void EditorParams_VerifySelectedMonitor()
     {
         EditorUiTestHelper.EnsureEditorReady(this, Session);
-
-        EditorUiTestHelper.Step(this, "Clicking monitors in sequence to verify persisted selection");
-        FindMonitorByExactName(Session, Monitor1).Click();
-        FindMonitorByExactName(Session, Monitor2).Click();
 
         Assert.IsFalse(FindMonitorByExactName(Session, Monitor1).Selected);
         Assert.IsTrue(FindMonitorByExactName(Session, Monitor2).Selected);
@@ -234,9 +251,6 @@ public class UIInitializeAppliedLayoutsNoLayoutsAppliedCustomDefaultLayoutTests 
         EditorUiTestHelper.EnsureEditorReady(this, Session);
 
         var defaultLayout = FindLayoutByExactName(Session, CustomLayoutName);
-        defaultLayout.Click();
-
-        defaultLayout = FindLayoutByExactName(Session, CustomLayoutName);
         Assert.IsTrue(defaultLayout.Selected);
     }
 }
@@ -255,8 +269,6 @@ public class UIInitializeAppliedLayoutsNoLayoutsAppliedTemplateDefaultLayoutTest
         EditorUiTestHelper.EnsureEditorReady(this, Session);
 
         var defaultLayout = FindLayoutByExactName(Session, EditorUiTestHelper.TemplateLayoutName.Grid);
-        defaultLayout.Click();
-        defaultLayout = FindLayoutByExactName(Session, EditorUiTestHelper.TemplateLayoutName.Grid);
         Assert.IsTrue(defaultLayout.Selected);
 
         EditorUiTestHelper.OpenEditLayoutDialog(this, Session, EditorUiTestHelper.TemplateLayoutName.Grid);
@@ -288,16 +300,27 @@ public class UIInitializeAppliedLayoutsVerifyDisconnectedMonitorsLayoutsAreNotCh
     {
         EditorUiTestHelper.EnsureEditorReady(this, Session);
 
+        var before = EditorUiTestHelper.ReadAppliedLayouts();
+        var monitor2Before = FindAppliedLayout(before, x => x.Device.Monitor == "monitor-2", "disconnected monitor 2");
+        var monitor3Before = FindAppliedLayout(before, x => x.Device.Monitor == "monitor-3", "disconnected monitor 3");
+
         FindLayoutByExactName(Session, EditorUiTestHelper.TemplateLayoutName.Rows).Click();
 
         var data = ReadAppliedLayoutsDurably(
             this,
-            applied => applied.AppliedLayouts.Count == 3,
+            applied => applied.AppliedLayouts.Count == 3
+                && applied.AppliedLayouts.Any(x =>
+                    x.Device.Monitor == "monitor-1"
+                    && x.AppliedLayout.Type == Constants.TemplateLayoutJsonTags[Constants.TemplateLayout.Rows]),
             "updating connected monitor while preserving disconnected monitor layouts");
 
-        Assert.IsNotNull(data.AppliedLayouts.Find(x => x.Device.Monitor == "monitor-1"));
-        Assert.IsNotNull(data.AppliedLayouts.Find(x => x.Device.Monitor == "monitor-2"));
-        Assert.IsNotNull(data.AppliedLayouts.Find(x => x.Device.Monitor == "monitor-3"));
+        var currentMonitor = FindAppliedLayout(data, x => x.Device.Monitor == "monitor-1", "connected monitor 1");
+        var monitor2After = FindAppliedLayout(data, x => x.Device.Monitor == "monitor-2", "disconnected monitor 2");
+        var monitor3After = FindAppliedLayout(data, x => x.Device.Monitor == "monitor-3", "disconnected monitor 3");
+
+        Assert.AreEqual(Constants.TemplateLayoutJsonTags[Constants.TemplateLayout.Rows], currentMonitor.AppliedLayout.Type);
+        AssertAppliedLayoutUnchanged(monitor2Before, monitor2After, "disconnected monitor 2");
+        AssertAppliedLayoutUnchanged(monitor3Before, monitor3After, "disconnected monitor 3");
     }
 }
 
@@ -317,19 +340,36 @@ public class UIInitializeAppliedLayoutsVerifyOtherVirtualDesktopsAreNotChangedTe
     {
         EditorUiTestHelper.EnsureEditorReady(this, Session);
 
+        var before = EditorUiTestHelper.ReadAppliedLayouts();
+        var untouchedDesktopBefore = FindAppliedLayout(
+            before,
+            x => x.Device.VirtualDesktop == VirtualDesktop2,
+            $"virtual desktop {VirtualDesktop2}");
+
         FindLayoutByExactName(Session, EditorUiTestHelper.TemplateLayoutName.Rows).Click();
 
         var data = ReadAppliedLayoutsDurably(
             this,
             applied => applied.AppliedLayouts.Count == 2
-                && applied.AppliedLayouts.Any(x => x.Device.VirtualDesktop == VirtualDesktop1)
+                && applied.AppliedLayouts.Any(x =>
+                    x.Device.VirtualDesktop == VirtualDesktop1
+                    && x.AppliedLayout.Type == Constants.TemplateLayoutJsonTags[Constants.TemplateLayout.Rows])
                 && applied.AppliedLayouts.Any(x => x.Device.VirtualDesktop == VirtualDesktop2),
             "updating only the current virtual desktop layout");
 
-        var untouchedDesktopLayout = data.AppliedLayouts.Find(x => x.Device.VirtualDesktop == VirtualDesktop2);
-        var currentDesktopLayout = data.AppliedLayouts.Find(x => x.Device.VirtualDesktop == VirtualDesktop1);
+        var untouchedDesktopAfter = FindAppliedLayout(
+            data,
+            x => x.Device.VirtualDesktop == VirtualDesktop2,
+            $"virtual desktop {VirtualDesktop2}");
+        var currentDesktopLayout = FindAppliedLayout(
+            data,
+            x => x.Device.VirtualDesktop == VirtualDesktop1,
+            $"virtual desktop {VirtualDesktop1}");
 
-        Assert.AreEqual(Constants.TemplateLayoutJsonTags[Constants.TemplateLayout.Focus], untouchedDesktopLayout.AppliedLayout.Type);
+        AssertAppliedLayoutUnchanged(
+            untouchedDesktopBefore,
+            untouchedDesktopAfter,
+            $"virtual desktop {VirtualDesktop2}");
         Assert.AreEqual(Constants.TemplateLayoutJsonTags[Constants.TemplateLayout.Rows], currentDesktopLayout.AppliedLayout.Type);
     }
 }

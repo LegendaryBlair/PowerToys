@@ -73,11 +73,6 @@ bool WindowMouseSnap::MoveSizeStart(HMONITOR monitor, bool isSnapping)
 
 void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bool isSnapping, bool isSelectManyZonesState)
 {
-    // Enter snapping mode before calculating highlights. The transition resets m_highlightedZones;
-    // doing it after Update discards the zone selected by the first Shift-triggered update and makes
-    // snapping depend on an otherwise unnecessary second mouse move.
-    SwitchSnappingMode(isSnapping);
-
     auto iter = m_activeWorkAreas.find(monitor);
     if (isSnapping && iter != m_activeWorkAreas.end())
     {
@@ -87,7 +82,7 @@ void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bo
         {
             m_highlightedZones.Reset();
 
-            if (m_currentWorkArea)
+            if (m_snappingMode && m_currentWorkArea)
             {
                 if (!FancyZonesSettings::settings().showZonesOnAllMonitors)
                 {
@@ -101,7 +96,14 @@ void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bo
             
             m_currentWorkArea = iter->second.get();
         }
+    }
 
+    // Resolve monitor changes before entering snapping mode so the correct overlay is shown. The
+    // transition must still happen before calculating highlights because it resets m_highlightedZones.
+    SwitchSnappingMode(isSnapping);
+
+    if (isSnapping && iter != m_activeWorkAreas.end())
+    {
         if (m_currentWorkArea)
         {
             POINT ptClient = ptScreen;

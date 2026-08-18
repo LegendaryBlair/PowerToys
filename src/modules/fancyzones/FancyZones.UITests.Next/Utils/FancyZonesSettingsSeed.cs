@@ -33,6 +33,11 @@ public sealed class FancyZonesSettingsSeed
 
     private readonly Dictionary<string, JsonNode?> values = new(StringComparer.Ordinal);
 
+    internal static string SettingsFilePath => Path.Combine(
+        SettingsConfigHelper.PowerToysSettingsRoot,
+        ModuleName,
+        "settings.json");
+
     public FancyZonesSettingsSeed Set(string property, bool value)
     {
         values[property] = new JsonObject { ["value"] = value };
@@ -72,13 +77,12 @@ public sealed class FancyZonesSettingsSeed
     /// <summary>Value of <paramref name="property"/> as the module's settings file currently holds it.</summary>
     public static string ReadCurrent(string property)
     {
-        var path = Path.Combine(SettingsConfigHelper.PowerToysSettingsRoot, ModuleName, "settings.json");
-        if (!File.Exists(path))
+        if (!File.Exists(SettingsFilePath))
         {
             return "<no settings file>";
         }
 
-        var properties = JsonNode.Parse(File.ReadAllText(path))?["properties"];
+        var properties = JsonNode.Parse(File.ReadAllText(SettingsFilePath))?["properties"];
         return properties?[property]?["value"]?.ToJsonString() ?? "<unset>";
     }
 

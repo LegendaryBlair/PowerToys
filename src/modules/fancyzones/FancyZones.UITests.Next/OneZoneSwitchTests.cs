@@ -46,7 +46,8 @@ public class OneZoneSwitchTests : UITestBase
         KeyboardHelper.ReleaseKey(Key.LShift);
 
         FancyZonesTestHelper.CloseLayoutEditor(this);
-        FancyZonesTestHelper.CloseExplorerWindows();
+        FancyZonesTestHelper.CloseExplorerWindows(this);
+        FancyZonesTestHelper.StopFancyZones(this);
         files.RestoreAll();
     }
 

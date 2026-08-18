@@ -32,6 +32,7 @@ public sealed class FancyZonesFiles
             "PowerToys",
             "FancyZones",
             "app-zone-history.json"));
+        Settings = new JsonFile(FancyZonesSettingsSeed.SettingsFilePath);
     }
 
     public JsonFile Parameters { get; }
@@ -48,6 +49,8 @@ public sealed class FancyZonesFiles
 
     public JsonFile AppZoneHistory { get; }
 
+    public JsonFile Settings { get; }
+
     public void RestoreAll()
     {
         Parameters.Restore();
@@ -57,5 +60,6 @@ public sealed class FancyZonesFiles
         LayoutHotkeys.Restore();
         LayoutTemplates.Restore();
         AppZoneHistory.Restore();
+        Settings.Restore();
     }
 }

@@ -14,6 +14,9 @@ namespace FancyZones.UITests.Utils;
 /// </summary>
 public static class FancyZonesTestHelper
 {
+    private static readonly object ExplorerWindowTrackingLock = new();
+    private static readonly Dictionary<UITestBase, HashSet<long>> ExplorerWindowsByTest = [];
+
     /// <summary>The FancyZones module hosted by the runner (owns zone overlays and the snap hooks).</summary>
     public const string FancyZonesProcess = "PowerToys.FancyZones";
 
@@ -92,13 +95,18 @@ public static class FancyZonesTestHelper
     /// </summary>
     public static void RestartPowerToys(UITestBase testBase)
     {
-        Step(testBase, $"Stopping {FancyZonesProcess} before restarting PowerToys");
+        StopFancyZones(testBase);
+        testBase.RestartScope();
+    }
+
+    /// <summary>Stop FancyZones before restoring settings files that it watches.</summary>
+    public static void StopFancyZones(UITestBase testBase)
+    {
+        Step(testBase, $"Stopping {FancyZonesProcess}");
         Assert.IsTrue(
             WindowControl.TryKillProcessTreeByNameAndWait(FancyZonesProcess, 10_000),
-            $"Could not stop {FancyZonesProcess} before restarting PowerToys. " +
+            $"Could not stop {FancyZonesProcess}. " +
             $"Live instances: {DescribeProcesses(FancyZonesProcess)}.");
-
-        testBase.RestartScope();
     }
 
     /// <summary>Live instances of a process with their ids and start times, for failure messages.</summary>
@@ -535,6 +543,8 @@ public static class FancyZonesTestHelper
             var fresh = ExplorerWindows().FirstOrDefault(w => !existing.Contains(w.Hwnd));
             if (fresh.Hwnd != IntPtr.Zero)
             {
+                TrackExplorerWindow(testBase, fresh.Hwnd);
+
                 (string Title, (int Left, int Top, int Right, int Bottom) Bounds)? previous = null;
                 var ready = WaitHelper.WaitForStable(
                     () =>
@@ -571,11 +581,26 @@ public static class FancyZonesTestHelper
         return IntPtr.Zero;
     }
 
-    /// <summary>Close every File Explorer browser window (never the desktop/shell itself).</summary>
-    public static void CloseExplorerWindows() =>
+    /// <summary>Close only File Explorer browser windows opened by this test.</summary>
+    public static void CloseExplorerWindows(UITestBase testBase)
+    {
+        HashSet<long> windows;
+        lock (ExplorerWindowTrackingLock)
+        {
+            if (!ExplorerWindowsByTest.TryGetValue(testBase, out var trackedWindows))
+            {
+                return;
+            }
+
+            windows = trackedWindows;
+            ExplorerWindowsByTest.Remove(testBase);
+        }
+
         WindowControl.TryCloseByApp(
             "explorer",
-            w => w.ClassName.Equals(ExplorerWindowClass, StringComparison.OrdinalIgnoreCase));
+            w => windows.Contains(w.Hwnd) &&
+                 w.ClassName.Equals(ExplorerWindowClass, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>Win32 title of a window.</summary>
     public static string GetWindowTitle(IntPtr hwnd) =>
@@ -585,6 +610,20 @@ public static class FancyZonesTestHelper
         WindowControl.EnumerateAllWindows()
             .Where(w => w.IsVisible && w.ClassName.Equals(ExplorerWindowClass, StringComparison.OrdinalIgnoreCase))
             .ToList();
+
+    private static void TrackExplorerWindow(UITestBase testBase, long window)
+    {
+        lock (ExplorerWindowTrackingLock)
+        {
+            if (!ExplorerWindowsByTest.TryGetValue(testBase, out var windows))
+            {
+                windows = [];
+                ExplorerWindowsByTest[testBase] = windows;
+            }
+
+            windows.Add(window);
+        }
+    }
 
     /// <summary>Wait for an exact HWND to own foreground without changing foreground as a recovery.</summary>
     public static bool WaitForForegroundWindow(IntPtr window, int timeoutMs = 5_000) =>

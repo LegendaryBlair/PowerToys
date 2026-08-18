@@ -247,8 +247,11 @@ public static class EditorUiTestHelper
         editButton.Invoke();
 
         Assert.IsTrue(
-            session.WaitForElement(By.AccessibilityId(AccessibilityId.DialogTitle), 10_000),
-            $"Edit dialog for '{layoutName}' did not appear.");
+            session.WaitFor(
+                () => session.FindAll<Button>(By.Name(ElementName.Save), 0).Any(button => button.IsEnabled && button.Displayed),
+                10_000,
+                250),
+            $"Edit dialog for '{layoutName}' did not expose an actionable Save button.");
     }
 
     public static Session EnterZoneEditModeFromDialog(UITestBase testBase, Session session, string expectedEditorWindowName)
