@@ -61,6 +61,9 @@ public static class SettingsConfigHelper
 
     private static string GlobalSettingsPath => Path.Combine(PowerToysSettingsRoot, "settings.json");
 
+    /// <summary>Snapshot the root PowerToys <c>settings.json</c> and restore its exact bytes on disposal.</summary>
+    public static IDisposable PreserveGlobalSettings() => PreserveFile(GlobalSettingsPath);
+
     /// <summary>
     /// Snapshot a module's <c>settings.json</c> and restore its exact bytes on disposal, deleting the
     /// file instead when the test created it. Use before a suite mutates persistent profile settings.

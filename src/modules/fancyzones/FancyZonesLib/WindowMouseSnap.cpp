@@ -74,6 +74,7 @@ bool WindowMouseSnap::MoveSizeStart(HMONITOR monitor, bool isSnapping)
 void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bool isSnapping, bool isSelectManyZonesState)
 {
     auto iter = m_activeWorkAreas.find(monitor);
+    bool workAreaChanged = false;
     if (isSnapping && iter != m_activeWorkAreas.end())
     {
         // The drag has moved to a different monitor.
@@ -82,7 +83,7 @@ void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bo
         {
             m_highlightedZones.Reset();
 
-            if (m_currentWorkArea)
+            if (m_snappingMode && m_currentWorkArea)
             {
                 if (!FancyZonesSettings::settings().showZonesOnAllMonitors)
                 {
@@ -95,21 +96,27 @@ void WindowMouseSnap::MoveSizeUpdate(HMONITOR monitor, POINT const& ptScreen, bo
             }
             
             m_currentWorkArea = iter->second.get();
+            workAreaChanged = true;
         }
+    }
 
+    // Resolve monitor changes before entering snapping mode so the correct overlay is shown. The
+    // transition must still happen before calculating highlights because it resets m_highlightedZones.
+    SwitchSnappingMode(isSnapping);
+
+    if (isSnapping && iter != m_activeWorkAreas.end())
+    {
         if (m_currentWorkArea)
         {
             POINT ptClient = ptScreen;
             MapWindowPoints(nullptr, m_currentWorkArea->GetWorkAreaWindow(), &ptClient, 1);
             const bool redraw = m_highlightedZones.Update(m_currentWorkArea->GetLayout().get(), ptClient, isSelectManyZonesState);
-            if (redraw)
+            if (redraw || workAreaChanged)
             {
                 m_currentWorkArea->ShowZones(m_highlightedZones.Zones(), m_window);
             }
         }
     }
-
-    SwitchSnappingMode(isSnapping);
 }
 
 void WindowMouseSnap::MoveSizeEnd()
