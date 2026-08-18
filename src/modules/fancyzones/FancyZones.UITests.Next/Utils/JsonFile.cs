@@ -19,13 +19,15 @@ public sealed class JsonFile
     private const int RetryDelayMs = 50;
 
     private readonly string path;
-    private readonly string? originalContent;
+    private readonly bool originallyExisted;
+    private readonly string originalContent = string.Empty;
 
     public JsonFile(string path)
     {
         this.path = path;
+        originallyExisted = File.Exists(path);
 
-        if (File.Exists(path))
+        if (originallyExisted)
         {
             originalContent = Read();
         }
@@ -46,7 +48,7 @@ public sealed class JsonFile
     /// <summary>Put the file back the way the test found it (deleting it when the test created it).</summary>
     public void Restore()
     {
-        if (originalContent is null)
+        if (!originallyExisted)
         {
             Delete();
         }

@@ -66,7 +66,7 @@ public class CopyLayoutTests : FancyZonesEditorTestBase
         Assert.IsTrue(data.CustomLayouts.Exists(x => x.Name == copiedLayoutName));
     }
 
-    [TestMethod("FancyZonesEditor.Basic.CopyTemplate_FromEditLayoutWindow")]
+    [TestMethod("FancyZonesEditor.Basic.CopyTemplate_FromContextMenu")]
     [TestCategory("FancyZones Editor #4")]
     public void CopyTemplate_FromContextMenu()
     {
