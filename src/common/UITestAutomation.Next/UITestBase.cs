@@ -80,6 +80,14 @@ public class UITestBase : IDisposable
     {
     }
 
+    /// <summary>
+    /// Restore test-owned state when initialization fails after <see cref="PrepareTestState"/>.
+    /// MSTest does not run cleanup methods after a failed test initialization.
+    /// </summary>
+    protected virtual void CleanupTestStateAfterInitializationFailure()
+    {
+    }
+
     /// <param name="scope">Module whose window the test drives.</param>
     /// <param name="size">Optional fixed window size applied once the window appears.</param>
     /// <param name="enableModules">
@@ -159,7 +167,15 @@ public class UITestBase : IDisposable
             // MSTest does NOT run [TestCleanup] when [TestInitialize] throws, so capture the failure
             // media here (e.g. the window never appeared) before propagating — otherwise an init
             // failure would attach no diagnostics at all.
-            await CaptureFailureArtifactsAsync();
+            try
+            {
+                await CaptureFailureArtifactsAsync();
+            }
+            finally
+            {
+                CleanupTestStateAfterInitializationFailure();
+            }
+
             throw;
         }
     }

@@ -469,11 +469,42 @@ public static class FancyZonesTestHelper
 
     /// <summary>Poll until the current work area's applied-layout record has the expected UUID.</summary>
     public static bool AppliedLayoutContains(string expectedLayoutUuid, int timeoutMs = 15_000)
+        => WaitForAppliedLayoutDevice(expectedLayoutUuid, timeoutMs).HasValue;
+
+    /// <summary>Poll until the current work area's applied-layout record has the expected UUID.</summary>
+    public static AppliedLayouts.AppliedLayoutWrapper.DeviceIdWrapper? WaitForAppliedLayoutDevice(
+        string expectedLayoutUuid,
+        int timeoutMs = 15_000)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(timeoutMs);
         while (true)
         {
             var currentLayout = TryReadCurrentWorkAreaLayout();
+            if (currentLayout.HasValue &&
+                string.Equals(currentLayout.Value.AppliedLayout.Uuid, expectedLayoutUuid, StringComparison.OrdinalIgnoreCase))
+            {
+                return currentLayout.Value.Device;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                return null;
+            }
+
+            Thread.Sleep(300);
+        }
+    }
+
+    /// <summary>Poll until the exact work-area record has the expected layout UUID.</summary>
+    public static bool AppliedLayoutContains(
+        string expectedLayoutUuid,
+        AppliedLayouts.AppliedLayoutWrapper.DeviceIdWrapper expectedDevice,
+        int timeoutMs = 15_000)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(timeoutMs);
+        while (true)
+        {
+            var currentLayout = TryReadWorkAreaLayout(expectedDevice);
             if (currentLayout.HasValue &&
                 string.Equals(currentLayout.Value.AppliedLayout.Uuid, expectedLayoutUuid, StringComparison.OrdinalIgnoreCase))
             {
@@ -524,6 +555,31 @@ public static class FancyZonesTestHelper
         return appliedLayouts.AppliedLayouts.Count == 1 ? appliedLayouts.AppliedLayouts[0] : null;
     }
 
+    private static AppliedLayouts.AppliedLayoutWrapper? TryReadWorkAreaLayout(
+        AppliedLayouts.AppliedLayoutWrapper.DeviceIdWrapper expectedDevice)
+    {
+        try
+        {
+            var appliedLayoutsFile = new AppliedLayouts();
+            var appliedLayouts = appliedLayoutsFile.Read(appliedLayoutsFile.File);
+            var matchingLayouts = appliedLayouts.AppliedLayouts.Where(layout => SameDevice(layout.Device, expectedDevice)).ToList();
+            return matchingLayouts.Count == 1 ? matchingLayouts[0] : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static bool SameDevice(
+        AppliedLayouts.AppliedLayoutWrapper.DeviceIdWrapper left,
+        AppliedLayouts.AppliedLayoutWrapper.DeviceIdWrapper right) =>
+        string.Equals(left.Monitor, right.Monitor, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(left.MonitorInstance, right.MonitorInstance, StringComparison.OrdinalIgnoreCase) &&
+        left.MonitorNumber == right.MonitorNumber &&
+        string.Equals(left.SerialNumber, right.SerialNumber, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(left.VirtualDesktop, right.VirtualDesktop, StringComparison.OrdinalIgnoreCase);
+
     private static EditorParameters.NativeMonitorDataWrapper? TryReadSelectedMonitor()
     {
         try
@@ -542,6 +598,32 @@ public static class FancyZonesTestHelper
         {
             return null;
         }
+    }
+
+    /// <summary>Find the monitor card selected for the current editor work area.</summary>
+    public static Element FindSelectedMonitorCard(Session editor, int timeoutMs = FindTimeoutMs)
+    {
+        Element? monitorCard = null;
+        var found = editor.WaitFor(
+            () =>
+            {
+                var selectedMonitor = TryReadSelectedMonitor();
+                if (!selectedMonitor.HasValue)
+                {
+                    return false;
+                }
+
+                monitorCard = editor.FindAll<Element>(By.Name(selectedMonitor.Value.Monitor), 0)
+                    .FirstOrDefault(element =>
+                        string.Equals(element.Name, selectedMonitor.Value.Monitor, StringComparison.Ordinal) &&
+                        string.Equals(element.ControlType, "ListItem", StringComparison.OrdinalIgnoreCase));
+                return monitorCard is not null;
+            },
+            timeoutMs,
+            250);
+
+        Assert.IsTrue(found && monitorCard is not null, "The editor did not expose the selected monitor card.");
+        return monitorCard!;
     }
 
     /// <summary>Current content of <c>applied-layouts.json</c>, or an empty string when it is absent.</summary>

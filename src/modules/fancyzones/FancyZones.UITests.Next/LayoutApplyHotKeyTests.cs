@@ -72,10 +72,12 @@ public class LayoutApplyHotKeyTests : UITestBase
     {
         Arrange(quickLayoutSwitch: true, shiftDrag: false);
 
+        PositionCursorOnPrimaryMonitor();
         FancyZonesTestHelper.Step(this, "Applying Grid-9 as setup with Win+Ctrl+Alt+1");
         KeyboardHelper.SendKeys(Key.LWin, Key.Ctrl, Key.Alt, Key.Num1);
+        var targetWorkArea = FancyZonesTestHelper.WaitForAppliedLayoutDevice(LayoutFixtures.Grid9LayoutUuid, 15_000);
         Assert.IsTrue(
-            FancyZonesTestHelper.AppliedLayoutContains(LayoutFixtures.Grid9LayoutUuid, 15_000),
+            targetWorkArea.HasValue,
             $"Could not apply the setup layout {LayoutFixtures.Grid9LayoutUuid}. " +
             $"Last content: {FancyZonesTestHelper.ReadAppliedLayouts()}");
 
@@ -100,7 +102,10 @@ public class LayoutApplyHotKeyTests : UITestBase
             KeyboardHelper.SendKeys(Key.LWin, Key.Ctrl, Key.Alt, Key.Num0);
 
             Assert.IsTrue(
-                FancyZonesTestHelper.AppliedLayoutContains(LayoutFixtures.GridCustomLayoutUuid, 15_000),
+                FancyZonesTestHelper.AppliedLayoutContains(
+                    LayoutFixtures.GridCustomLayoutUuid,
+                    targetWorkArea.Value,
+                    15_000),
                 $"The drag-specific quick-layout chord did not apply {LayoutFixtures.GridCustomLayoutUuid}. " +
                 $"Last content: {FancyZonesTestHelper.ReadAppliedLayouts()}");
         }
@@ -128,6 +133,7 @@ public class LayoutApplyHotKeyTests : UITestBase
         for (var attempt = 0; attempt < chords.Length && !flashed; attempt++)
         {
             var chord = chords[attempt];
+            PositionCursorOnPrimaryMonitor();
             var before = FancyZonesTestHelper.ReadAppliedLayouts();
             FancyZonesTestHelper.Step(this, $"Sending Win+Ctrl+Alt+{chord} and watching for the zones overlay");
             flashed = FancyZonesTestHelper.DidZonesFlash(
@@ -312,11 +318,13 @@ public class LayoutApplyHotKeyTests : UITestBase
                 "The display did not accept the requested resolution, so the editor's report cannot be verified.");
 
             editor = FancyZonesTestHelper.OpenLayoutEditor(this);
-            var resolutionTexts = editor.FindAll<Element>(By.AccessibilityId(Id.ResolutionText), FancyZonesTestHelper.FindTimeoutMs);
-            Assert.IsTrue(resolutionTexts.Count > 0, "The editor did not render a resolution label for any monitor.");
+            var targetMonitor = FancyZonesTestHelper.FindSelectedMonitorCard(editor);
+            var resolutionText = editor.FindAll<Element>(By.AccessibilityId(Id.ResolutionText), FancyZonesTestHelper.FindTimeoutMs)
+                .FirstOrDefault(element => CenterIsInside(element, targetMonitor));
+            Assert.IsNotNull(resolutionText, "The selected monitor card did not expose its resolution label.");
             Assert.AreEqual(
                 $"{currentWidth} × {currentHeight}",
-                resolutionTexts[0].GetValue(),
+                resolutionText.GetValue(),
                 "The editor should report the monitor's current resolution.");
         }
         finally
@@ -398,6 +406,7 @@ public class LayoutApplyHotKeyTests : UITestBase
     {
         WindowControl.TryBringToForeground(new IntPtr(Session.WindowHandle));
         Thread.Sleep(300);
+        PositionCursorOnPrimaryMonitor();
 
         FancyZonesTestHelper.Step(this, $"Sending Win+Ctrl+Alt+{digit}");
         KeyboardHelper.SendKeys(Key.LWin, Key.Ctrl, Key.Alt, digit);
@@ -422,6 +431,23 @@ public class LayoutApplyHotKeyTests : UITestBase
         {
             FancyZonesTestHelper.CloseLayoutEditor(this);
         }
+    }
+
+    private void PositionCursorOnPrimaryMonitor()
+    {
+        var (x, y) = FancyZonesTestHelper.ScreenCenter();
+        FancyZonesTestHelper.Step(this, $"Positioning the cursor on the primary monitor at ({x}, {y})");
+        FancyZonesTestHelper.MoveCursorTracked(x, y);
+    }
+
+    private static bool CenterIsInside(Element child, Element parent)
+    {
+        var centerX = child.X + (child.Width / 2);
+        var centerY = child.Y + (child.Height / 2);
+        return centerX >= parent.X &&
+               centerX <= parent.X + parent.Width &&
+               centerY >= parent.Y &&
+               centerY <= parent.Y + parent.Height;
     }
 
     private void CloseExtraVirtualDesktop()

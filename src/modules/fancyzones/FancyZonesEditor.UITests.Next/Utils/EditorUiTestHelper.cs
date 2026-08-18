@@ -246,6 +246,12 @@ public static class EditorUiTestHelper
         Assert.IsNotNull(editButton, $"No edit button was found inside the '{layoutName}' layout card.");
         editButton.Invoke();
 
+        EnsureEditLayoutDialogReady(testBase, session, layoutName);
+    }
+
+    public static void EnsureEditLayoutDialogReady(UITestBase testBase, Session session, string layoutName)
+    {
+        Step(testBase, $"Waiting for the edit dialog for '{layoutName}'");
         Assert.IsTrue(
             session.WaitFor(
                 () => session.FindAll<Button>(By.Name(ElementName.Save), 0).Any(button => button.IsEnabled && button.Displayed),

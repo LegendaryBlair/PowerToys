@@ -469,14 +469,16 @@ public class DragWindowTests : UITestBase
     private void AssertSnapped(bool expected, string because)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        string? zoneIndex;
+        string? zoneIndex = null;
+        var validObservation = false;
         do
         {
-            zoneIndex = ZoneHistory.GetZoneIndexSetByAppName(
+            validObservation = ZoneHistory.TryGetZoneIndexSetByAppName(
                 DraggedApp,
-                files.AppZoneHistory.Exists ? files.AppZoneHistory.Read() : string.Empty);
+                files.AppZoneHistory.Exists ? files.AppZoneHistory.Read() : string.Empty,
+                out zoneIndex);
 
-            if ((zoneIndex is not null) == expected)
+            if (validObservation && (zoneIndex is not null) == expected)
             {
                 break;
             }
@@ -487,6 +489,7 @@ public class DragWindowTests : UITestBase
 
         FancyZonesTestHelper.Step(this, $"app-zone-history zone index for {DraggedApp}: {zoneIndex ?? "<none>"}");
 
+        Assert.IsTrue(validObservation, "app-zone-history.json never became valid JSON before the polling timeout.");
         var observed = zoneIndex is null ? "no entry" : $"zone {zoneIndex}";
         Assert.AreEqual(
             expected,

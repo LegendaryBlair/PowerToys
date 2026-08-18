@@ -27,6 +27,12 @@ public abstract class FancyZonesEditorTestBase : UITestBase
         Files.RestageAll();
     }
 
+    protected override void CleanupTestStateAfterInitializationFailure()
+    {
+        WindowControl.TryKillProcessTreeByNameAndWait("PowerToys.FancyZonesEditor", 10_000);
+        Files.RestoreAll();
+    }
+
     [TestCleanup]
     public async Task CleanupEditorTest()
     {

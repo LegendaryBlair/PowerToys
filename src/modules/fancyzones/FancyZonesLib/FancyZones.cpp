@@ -739,7 +739,7 @@ FancyZones::OnKeyDown(PKBDLLHOOKSTRUCT info) noexcept
         // for every listener - including this module's own WM_INPUT handler, which is what normally
         // calls SetShiftState - so without this the zones could never be switched off with Shift.
         m_draggingState.SetShiftState(true);
-        return true;
+        return !win && !ctrl && !alt;
     }
     return false;
 }

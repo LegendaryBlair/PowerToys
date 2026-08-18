@@ -32,10 +32,10 @@ public sealed class JsonFile
 
     public bool Exists => File.Exists(path);
 
+    /// <summary>Stage fixture content in memory; <see cref="Restage"/> persists it after stale processes stop.</summary>
     public void Write(string data)
     {
         stagedContent = data;
-        WriteRaw(data);
     }
 
     public void Restage()

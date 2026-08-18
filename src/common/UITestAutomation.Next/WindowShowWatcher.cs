@@ -2,6 +2,7 @@
 // The Microsoft Corporation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace Microsoft.PowerToys.UITest.Next;
@@ -28,12 +29,14 @@ public sealed class WindowShowWatcher : IDisposable
     private readonly string className;
     private readonly ManualResetEventSlim shown = new(false);
     private readonly ManualResetEventSlim ready = new(false);
+    private readonly ManualResetEventSlim hookFailed = new(false);
     private readonly Thread pump;
     private readonly List<string> events = new();
     private readonly Lock sync = new();
     private readonly WinEventProc callback; // keep the delegate alive for the hook's lifetime
 
     private volatile bool stop;
+    private int hookError;
 
     public WindowShowWatcher(string className)
     {
@@ -42,7 +45,27 @@ public sealed class WindowShowWatcher : IDisposable
 
         pump = new Thread(Pump) { IsBackground = true };
         pump.Start();
-        ready.Wait(5_000);
+
+        var result = WaitHandle.WaitAny(new[] { ready.WaitHandle, hookFailed.WaitHandle }, 5_000);
+        if (result == 0)
+        {
+            return;
+        }
+
+        stop = true;
+        if (pump.Join(2_000))
+        {
+            shown.Dispose();
+            ready.Dispose();
+            hookFailed.Dispose();
+        }
+
+        if (result == 1)
+        {
+            throw new Win32Exception(hookError, "SetWinEventHook failed.");
+        }
+
+        throw new TimeoutException("Timed out while installing the window show WinEvent hook.");
     }
 
     private delegate void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint idEventThread, uint dwmsEventTime);
@@ -68,6 +91,7 @@ public sealed class WindowShowWatcher : IDisposable
         pump.Join(2_000);
         shown.Dispose();
         ready.Dispose();
+        hookFailed.Dispose();
     }
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -125,11 +149,14 @@ public sealed class WindowShowWatcher : IDisposable
             0,
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
-        ready.Set();
         if (hook == IntPtr.Zero)
         {
+            hookError = Marshal.GetLastWin32Error();
+            hookFailed.Set();
             return;
         }
+
+        ready.Set();
 
         try
         {

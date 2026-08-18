@@ -48,4 +48,21 @@ public static class ZoneHistory
 
         return null;
     }
+
+    /// <summary>
+    /// Try to read a zone-history observation, treating malformed JSON from an in-progress write as transient.
+    /// </summary>
+    public static bool TryGetZoneIndexSetByAppName(string exeName, string json, out string? zoneIndex)
+    {
+        try
+        {
+            zoneIndex = GetZoneIndexSetByAppName(exeName, json);
+            return true;
+        }
+        catch (JsonException)
+        {
+            zoneIndex = null;
+            return false;
+        }
+    }
 }

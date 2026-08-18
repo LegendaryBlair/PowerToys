@@ -24,7 +24,13 @@ public class RunFancyZonesEditorTest : FancyZonesEditorTestBase
         EditorUiTestHelper.Step(this, "Opening the new layout dialog");
         Session.Find<Button>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.NewLayoutButton)).Click();
 
-        Assert.IsNotNull(Session.Find<Element>("Choose layout type"));
+        Assert.IsTrue(
+            Session.WaitFor(
+                () => Session.FindAll<RadioButton>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.GridRadioButton), 0)
+                    .Any(button => button.IsEnabled && button.Displayed),
+                10_000,
+                250),
+            "The new-layout dialog did not expose an actionable grid-layout option.");
     }
 
     [TestMethod]
@@ -32,11 +38,7 @@ public class RunFancyZonesEditorTest : FancyZonesEditorTestBase
     {
         EditorUiTestHelper.EnsureEditorReady(this, Session);
 
-        EditorUiTestHelper.Step(this, $"Opening edit dialog for '{EditorUiTestHelper.TemplateLayoutName.Grid}' from the layout card");
-        Session.Find<Button>(EditorUiTestHelper.TemplateLayoutName.Grid).Click();
-
-        Assert.IsNotNull(Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.DialogTitle)));
-        Assert.IsNotNull(Session.Find<Element>($"Edit '{EditorUiTestHelper.TemplateLayoutName.Grid}'"));
+        EditorUiTestHelper.OpenEditLayoutDialog(this, Session, EditorUiTestHelper.TemplateLayoutName.Grid);
     }
 
     [TestMethod]
@@ -53,8 +55,7 @@ public class RunFancyZonesEditorTest : FancyZonesEditorTestBase
         EditorUiTestHelper.Step(this, "Invoking Edit from the context menu");
         editItem.Invoke();
 
-        Assert.IsNotNull(Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.DialogTitle)));
-        Assert.IsNotNull(Session.Find<Element>($"Edit '{EditorUiTestHelper.TemplateLayoutName.Grid}'"));
+        EditorUiTestHelper.EnsureEditLayoutDialogReady(this, Session, EditorUiTestHelper.TemplateLayoutName.Grid);
     }
 
     [TestMethod]
@@ -72,8 +73,7 @@ public class RunFancyZonesEditorTest : FancyZonesEditorTestBase
         EditorUiTestHelper.Step(this, "Invoking Edit from the custom-layout context menu");
         editItem.Invoke();
 
-        Assert.IsNotNull(Session.Find<Element>(By.AccessibilityId(EditorUiTestHelper.AccessibilityId.DialogTitle)));
-        Assert.IsNotNull(Session.Find<Element>($"Edit '{layoutName}'"));
+        EditorUiTestHelper.EnsureEditLayoutDialogReady(this, Session, layoutName);
     }
 
     [TestMethod]
