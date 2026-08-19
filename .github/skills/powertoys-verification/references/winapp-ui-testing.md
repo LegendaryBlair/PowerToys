@@ -409,6 +409,7 @@ if ($sent -eq 0) { throw "SendInput failed err=$([Runtime.InteropServices.Marsha
 
 **Caveats**:
 - The injector must run at the **same or higher integrity level** as the hook owner (PowerToys runner). Default per-user installs run the runner at Medium IL, so a normal shell works; if the runner is elevated, run the injector elevated too (otherwise UIPI silently drops the injection).
+- For physical-input tests implemented by a PowerToys low-level hook, the Runner must also be at the **same or higher integrity level than the foreground app**. A `RegisterHotKey` chord may still work when this condition is violated while a modifier-hold gesture produces no hook callback. Check both processes with `Test-PtRunnerAdmin` and `Test-ProcessElevated` before reporting an app-specific regression.
 - Must run in the interactive desktop session.
 - OS-reserved chords (Win+L, Win+Tab) are consumed by Windows before any hook and cannot be injected this way.
 - Verify the result via the runner trace log line `… hotkey is invoked from Centralized keyboard hook` (`%LOCALAPPDATA%\Microsoft\PowerToys\RunnerLogs\runner-log_<date>.log`) and/or the module's observable side-effect (overlay window, spawned editor process).
@@ -538,4 +539,3 @@ try {
 ```
 
 **Important**: this should be used ONLY when the UI route is unreachable. Any setting flippable through the AppX Settings UI should be flipped that way instead (it's the documented user flow and tests real binding code).
-

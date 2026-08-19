@@ -13,3 +13,6 @@ One file per module; a verification run loads only its module's file.
 | New+ | 9 | `new-plus.md` |
 | Peek | 18 | `peek.md` |
 | PowerRename | 17 | `power-rename.md` |
+| PowerToys Settings | 29 | `settings.md` |
+| Shortcut Guide | 27 | `shortcut-guide.md` |
+| Workspaces | 40 | `workspaces.md` |

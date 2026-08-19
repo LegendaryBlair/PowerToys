@@ -29,6 +29,9 @@ Some flows are common to several modules and live in their own top-level docs (n
 | PowerRename | `power-rename.md` | ✅ written 2026-06-10; **reworked 2026-07-08** — recipe reduced to *capability → control* + a Read-out notes block, self-contradiction &amp; meta-hedges removed. Rows 4–12 are author-derived (control IDs discover-at-runtime); confirm on the next live run |
 | New+ | `new-plus.md` | ✅ written 2026-06-18 (registration-gate for menu presence; Settings-UI toggle drives template auto-copy) |
 | Command Palette | `command-palette.md` | ✅ written 2026-07-07 (CmdPal AppX foreground-lock / TextChanged-broken / alias-keystroke / Esc-filtered quirks — moved out of the global SKILL.md pitfalls) |
+| Workspaces | `workspaces.md` | ✅ written 2026-08-12 (bottom-up automation profile plus an embedded top-down human workflow and sanitized visual landmarks) |
+| PowerToys Settings | `settings.md` | ✅ written 2026-08-14 (Settings/Quick Access state transitions, restart-safe recipes, backup picker flow, update/elevation blocks, and verified product quirks) |
+| Shortcut Guide | `shortcut-guide.md` | ✅ written 2026-08-17 (persistent overlay lifecycle, manifest/index recipes, startup-only settings, taskbar indicators, and UIA/foreground traps) |
 | (other modules to be added as we encounter sign-off needs) | — | — |
 
 ## For Explorer-context-menu modules: read the canonical flow doc first
@@ -51,10 +54,10 @@ Your module profile then only documents the **module-specific** quirks: settings
 
 ## Profile template
 
-A profile holds **only module-specific logic** an agent can't infer from the SKILL engine. It has **4 required sections + 2 optional**. Do NOT pad it with sections that have no content — omit them. No Ceiling/Don'ts sections: a PASS-rate number drifts every release, and "don'ts" are just traps phrased negatively (put them in BLOCKED traps).
+A profile holds **only module-specific logic** an agent can't infer from the SKILL engine. It has **4 required sections + 3 optional**. Do NOT pad it with sections that have no content — omit them. No Ceiling/Don'ts sections: a PASS-rate number drifts every release, and "don'ts" are just traps phrased negatively (put them in BLOCKED traps).
 
 **Required (always):** ① metadata header · ② Entry-paths · ③ Recipes · ④ BLOCKED traps.
-**Optional (include only if non-empty):** Fixtures · Source citations.
+**Optional (include only if non-empty):** UI state-transition map · Fixtures · Source citations.
 
 ```markdown
 # <Module> — module verification profile
@@ -68,6 +71,8 @@ A profile holds **only module-specific logic** an agent can't infer from the SKI
 **Named Event**: `Local\<name>` (friendly name in pt-shared-events.ps1 catalog)
 **DSC resource**: `Microsoft.PowerToys/<Name>Settings`
 **Last verified**: `<build>` · `<date>` (bump whenever you re-drive the module)
+
+## UI state-transition map            # OPTIONAL — only for a multi-screen/non-obvious state machine
 
 ## Entry-paths (try in order)        # ② REQUIRED — how to launch & reach the UI, fastest first
 ### 1. <fastest path>  <code + when to use + source citation>
@@ -90,12 +95,31 @@ A profile holds **only module-specific logic** an agent can't infer from the SKI
 
 ## Hygiene
 
-- **4 required + 2 optional sections only** (header · entry-paths · recipes · BLOCKED traps; fixtures + source citations if non-empty). No Ceiling, no Don'ts — fold negative guidance into BLOCKED traps. Omit empty sections rather than writing "None".
-- **Keep each profile under ~10 KB.** If it grows beyond that, the module has too many quirks — escalate to maintainer review of the upstream checklist.
+- **4 required + 3 optional sections only** (header · entry-paths · recipes · BLOCKED traps; UI state-transition map, fixtures, and source citations if non-empty). No Ceiling, no Don'ts — fold negative guidance into BLOCKED traps. Omit empty sections rather than writing "None".
+- **Keep each profile under ~10 KB, or ~12 KB when it includes a visual workflow.** If it grows beyond that, remove duplication or escalate to maintainer review of the upstream checklist.
 - **The recipe table is a capability → control MAP, not a mini-checklist.** Two attributes only: *Capability → Control (how to drive it)*. It must **not** carry inputs, expected outputs, or an `Observe` column — those overlap the checklist, which owns the inputs *and* the expected result. Put *where/how to read* an outcome in a short **Read-out notes** block under the table (a readout location/technique, never an expected value).
 - **Tables are capability-keyed, NOT line-keyed.** Upstream checklist line numbers (`L<n>`) **must not appear** — they drift between releases. PT-source-code citations should prefer **file + symbol** (a line number is fine only as an *as-of-build* hint).
 - **Cite source by file + symbol** (e.g. `Settings.cpp CSettings::Load`) where module behavior surprises (CLI guards, debounce timings, fallback chains) so reviewers can verify — symbols survive refactors, bare line numbers rot.
 - **Update the profile after every verification round**; promote any new technique into the right helper script if it generalizes beyond this module.
+
+## Optional UI state-transition section
+
+For a module with several screens or a non-obvious state machine, add a concise
+**UI state-transition map** section to the module profile. Build it from human
+recordings, product documentation, source, and live verification:
+
+1. Collapse raw recorder events into meaningful screen states and transitions.
+2. Crop or redact screenshots to the module UI; never retain unrelated desktop,
+   notification, account, chat, or document content.
+3. Encode transitions as `current state → exact trigger/control → next state →
+   observable side effect`; this must be directly usable for planning an agent action.
+4. Map human-facing labels to stable controls or runtime-discovery instructions.
+5. Corroborate inferred semantics with source symbols or a live run.
+6. Keep screenshots subordinate to the transition table: they are state-recognition
+   landmarks for UIA gaps, not the primary instructions or pixel baselines.
+
+The profile combines the bottom-up **automation map** and top-down **UI state-transition
+map**; the release checklist remains the behavioral specification.
 
 ## Filling a profile: provenance & keeping it fresh
 
