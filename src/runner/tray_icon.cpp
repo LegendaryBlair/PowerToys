@@ -8,6 +8,10 @@
 #include "quick_access_host.h"
 #include "hotkey_conflict_detector.h"
 #include "trace.h"
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <utility>
 #include <Windows.h>
 
 #include <common/utils/resources.h>
@@ -17,12 +21,14 @@
 #include <common/utils/elevation.h>
 #include <common/Themes/theme_listener.h>
 #include <common/Themes/theme_helpers.h>
+#include <common/Themes/dark_mode.h>
 #include "bug_report.h"
 #include <common/updating/updateState.h>
 
 namespace
 {
-    HWND tray_icon_hwnd = NULL;
+    std::atomic<HWND> tray_icon_hwnd{ nullptr };
+    std::mutex tray_icon_dispatch_mutex;
 
     enum
     {
@@ -54,25 +60,28 @@ namespace
     static bool update_available = false;
 }
 
-// Struct to fill with callback and the data. The window_proc is responsible for cleaning it.
+// Struct to fill with a callback. The window_proc is responsible for cleaning it.
 struct run_on_main_ui_thread_msg
 {
     main_loop_callback_function _callback;
-    PVOID data;
 };
 
-bool dispatch_run_on_main_ui_thread(main_loop_callback_function _callback, PVOID data)
+bool dispatch_run_on_main_ui_thread(main_loop_callback_function _callback)
 {
-    if (tray_icon_hwnd == NULL)
+    std::lock_guard lock{ tray_icon_dispatch_mutex };
+    const HWND window = tray_icon_hwnd.load();
+    if (window == nullptr || !IsWindow(window))
     {
         return false;
     }
-    struct run_on_main_ui_thread_msg* wnd_msg = new struct run_on_main_ui_thread_msg();
-    wnd_msg->_callback = _callback;
-    wnd_msg->data = data;
+    auto wnd_msg = std::make_unique<run_on_main_ui_thread_msg>(run_on_main_ui_thread_msg{ std::move(_callback) });
 
-    PostMessage(tray_icon_hwnd, wm_run_on_main_ui_thread, 0, reinterpret_cast<LPARAM>(wnd_msg));
+    if (!PostMessage(window, wm_run_on_main_ui_thread, 0, reinterpret_cast<LPARAM>(wnd_msg.get())))
+    {
+        return false;
+    }
 
+    wnd_msg.release();
     return true;
 }
 
@@ -180,11 +189,22 @@ LRESULT __stdcall tray_icon_window_proc(HWND window, UINT message, WPARAM wparam
     case WM_CREATE:
         if (wm_taskbar_restart == 0)
         {
-            tray_icon_hwnd = window;
+            std::lock_guard lock{ tray_icon_dispatch_mutex };
+            tray_icon_hwnd.store(window);
             wm_taskbar_restart = RegisterWindowMessageW(L"TaskbarCreated");
         }
         break;
     case WM_DESTROY:
+    {
+        {
+            std::lock_guard lock{ tray_icon_dispatch_mutex };
+            tray_icon_hwnd.store(nullptr);
+            MSG queued_message{};
+            while (PeekMessage(&queued_message, window, wm_run_on_main_ui_thread, wm_run_on_main_ui_thread, PM_REMOVE))
+            {
+                delete reinterpret_cast<run_on_main_ui_thread_msg*>(queued_message.lParam);
+            }
+        }
         // On OS-initiated shutdown skip cross-process cleanup: the shell is tearing
         // down and close_settings_window() blocks up to 1.5s waiting on
         // PowerToys.Settings.exe, which the OS is reaping in parallel. That wait, plus
@@ -204,6 +224,7 @@ LRESULT __stdcall tray_icon_window_proc(HWND window, UINT message, WPARAM wparam
         }
         PostQuitMessage(0);
         break;
+    }
     case WM_CLOSE:
         DestroyWindow(window);
         break;
@@ -307,6 +328,8 @@ LRESULT __stdcall tray_icon_window_proc(HWND window, UINT message, WPARAM wparam
                     InsertMenuW(h_sub_menu, 1, MF_BYPOSITION | MF_SEPARATOR, 0, nullptr);
                 }
 
+                MenuTheme::ApplyToMenu(h_menu);
+
                 POINT mouse_pointer;
                 GetCursorPos(&mouse_pointer);
                 SetForegroundWindow(window); // Needed for the context menu to disappear.
@@ -347,7 +370,7 @@ LRESULT __stdcall tray_icon_window_proc(HWND window, UINT message, WPARAM wparam
             if (lparam != NULL)
             {
                 struct run_on_main_ui_thread_msg* msg = reinterpret_cast<struct run_on_main_ui_thread_msg*>(lparam);
-                msg->_callback(msg->data);
+                msg->_callback();
                 delete msg;
                 lparam = NULL;
             }
@@ -391,11 +414,15 @@ static HICON get_icon(Theme theme)
 
 static void handle_theme_change()
 {
-    if (theme_adaptive_enabled)
-    {
-        tray_icon_data.hIcon = get_icon(ThemeHelpers::GetSystemTheme());
-        Shell_NotifyIcon(NIM_MODIFY, &tray_icon_data);
-    }
+    dispatch_run_on_main_ui_thread([] {
+        if (theme_adaptive_enabled)
+        {
+            tray_icon_data.hIcon = get_icon(ThemeHelpers::GetSystemTheme());
+            Shell_NotifyIcon(NIM_MODIFY, &tray_icon_data);
+        }
+
+        MenuTheme::Refresh();
+    });
 }
 
 void update_bug_report_menu_status(bool isRunning)
@@ -465,15 +492,13 @@ void start_tray_icon(bool isProcessElevated, bool theme_adaptive)
 
         tray_icon_created = Shell_NotifyIcon(NIM_ADD, &tray_icon_data) == TRUE;
         theme_listener.AddSystemThemeChangedHandler(&handle_theme_change);
+        MenuTheme::Initialize();
 
         // Register callback to update bug report menu item status
         BugReportManager::instance().register_callback([](bool isRunning) {
-            dispatch_run_on_main_ui_thread([](PVOID data) {
-                bool* running = static_cast<bool*>(data);
-                update_bug_report_menu_status(*running);
-                delete running;
-            },
-                                           new bool(isRunning));
+            dispatch_run_on_main_ui_thread([isRunning] {
+                update_bug_report_menu_status(isRunning);
+            });
         });
     }
 }
@@ -559,7 +584,10 @@ void stop_tray_icon()
     {
         // Clear bug report callbacks
         BugReportManager::instance().clear_callbacks();
-        SendMessage(tray_icon_hwnd, WM_CLOSE, 0, 0);
+        if (const HWND window = tray_icon_hwnd.load(); window != nullptr && IsWindow(window))
+        {
+            SendMessage(window, WM_CLOSE, 0, 0);
+        }
     }
 }
 

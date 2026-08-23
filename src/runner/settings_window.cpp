@@ -357,17 +357,11 @@ void dispatch_received_json(const std::wstring& json_to_parse)
     return;
 }
 
-void dispatch_received_json_callback(PVOID data)
-{
-    std::wstring* msg = static_cast<std::wstring*>(data);
-    dispatch_received_json(*msg);
-    delete msg;
-}
-
 void receive_json_send_to_main_thread(const std::wstring& msg)
 {
-    std::wstring* copy = new std::wstring(msg);
-    dispatch_run_on_main_ui_thread(dispatch_received_json_callback, copy);
+    dispatch_run_on_main_ui_thread([msg] {
+        dispatch_received_json(msg);
+    });
 }
 
 // Try to run the Settings process with non-elevated privileges.
