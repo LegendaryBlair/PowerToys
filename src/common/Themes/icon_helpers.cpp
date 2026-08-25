@@ -2,6 +2,45 @@
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <commctrl.h>
+#include "theme_helpers.h"
+
+HICON LoadThemeAdaptiveTrayIcon(
+    bool themeAdaptive,
+    _In_ PCWSTR whiteIconPath,
+    _In_ PCWSTR darkIconPath,
+    _In_ HINSTANCE fallbackInstance,
+    _In_ LPCWSTR fallbackResourceName)
+{
+    if (themeAdaptive)
+    {
+        const auto systemTheme = ThemeHelpers::GetSystemTheme();
+        const PCWSTR iconPath = systemTheme == Theme::Dark ? whiteIconPath : darkIconPath;
+
+        if (GetFileAttributes(iconPath) != INVALID_FILE_ATTRIBUTES)
+        {
+            HICON icon = static_cast<HICON>(LoadImage(
+                NULL,
+                iconPath,
+                IMAGE_ICON,
+                0,
+                0,
+                LR_LOADFROMFILE | LR_DEFAULTSIZE));
+
+            if (icon)
+            {
+                return icon;
+            }
+        }
+    }
+
+    return static_cast<HICON>(LoadImage(
+        fallbackInstance,
+        fallbackResourceName,
+        IMAGE_ICON,
+        0,
+        0,
+        LR_DEFAULTSIZE));
+}
 
 HRESULT GetIconIndexFromPath(_In_ PCWSTR path, _Out_ int* index)
 {
