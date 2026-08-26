@@ -32,6 +32,8 @@ Some flows are common to several modules and live in their own top-level docs (n
 | Workspaces | `workspaces.md` | ✅ written 2026-08-12 (bottom-up automation profile plus an embedded top-down human workflow and sanitized visual landmarks) |
 | PowerToys Settings | `settings.md` | ✅ written 2026-08-14 (Settings/Quick Access state transitions, restart-safe recipes, backup picker flow, update/elevation blocks, and verified product quirks) |
 | Shortcut Guide | `shortcut-guide.md` | ✅ written 2026-08-17 (persistent overlay lifecycle, manifest/index recipes, startup-only settings, taskbar indicators, and UIA/foreground traps) |
+| ZoomIt | `zoomit.md` | ✅ written 2026-08-19 (hosted events, registry-backed settings, recording flows, input-blocking overlays, and hardware/drag constraints) |
+| Crop And Lock | `crop-and-lock.md` | ✅ written 2026-08-19 (mode events, selector lifecycle, shortcut persistence, crop creation, and real-drag constraints) |
 | (other modules to be added as we encounter sign-off needs) | — | — |
 
 ## For Explorer-context-menu modules: read the canonical flow doc first
