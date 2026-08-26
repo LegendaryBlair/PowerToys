@@ -29,7 +29,11 @@ function Start-PtNonElevated {
     $before = @()
     if ($MatchProcessName) { $before = @(Get-Process -Name $MatchProcessName -EA SilentlyContinue | Select-Object -Expand Id) }
     try {
-        $action    = New-ScheduledTaskAction -Execute $Exe -Argument $Arguments
+        $action = if ([string]::IsNullOrWhiteSpace($Arguments)) {
+            New-ScheduledTaskAction -Execute $Exe
+        } else {
+            New-ScheduledTaskAction -Execute $Exe -Argument $Arguments
+        }
         $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -RunLevel Limited -LogonType Interactive
         Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
         Start-ScheduledTask -TaskName $taskName

@@ -23,7 +23,7 @@ The deterministic, UIPI-immune way to open CmdPal (same downstream path the runn
 ### 2. Query helper — drive a search + read results
 ```powershell
 . "$skill\scripts\pt-cmdpal-recycle.ps1"
-Invoke-CmdPalQuery -Text 'notepad'           # types a PLAIN query; auto-handles degraded state
+Invoke-CmdPalQuery -Query 'notepad'          # types a PLAIN query; auto-handles degraded state
 ```
 Use for plain-text queries (result list assertions). It routes through the helper so a TextChanged-broken
 session is detected + recycled first. **Aliases are different — see trap below.**
@@ -38,7 +38,7 @@ prefer entry-path 1.
 | # | Capability | Drive (control / command) | Observe (where the result shows) |
 |---|---|---|---|
 | 1 | CmdPal opens & is listening | `Invoke-PtSharedEvent -Name 'CmdPal.Show'` (or the hotkey) | `Microsoft.CmdPal.UI` window appears (`winapp ui list-windows`) |
-| 2 | Plain-text query returns results | `Invoke-CmdPalQuery -Text '<q>'` / `winapp ui set-value` the search box | results list updates to matching items |
+| 2 | Plain-text query returns results | `Invoke-CmdPalQuery -Query '<q>'` / `winapp ui set-value` the search box | results list updates to matching items |
 | 3 | Alias engages (`=` `<` `>` `:` `$` `??` `)`) | **real keystrokes** — `Assert-PtForegroundOrAbort -AppId Microsoft.CmdPal.UI` → `Send-PtChord` (NOT `set-value`) | the alias provider activates (e.g. `=` → calculator result) |
 | 4 | Dismiss / navigate back | `winapp ui invoke BackButton` (NOT Esc — filtered) / `Reset-CmdPalToHome` | returns to home / closes |
 | 5 | Recover a wedged session | `Test-CmdPalDegraded` → `Reset-CmdPalAppX` | CmdPal responds to input again |
@@ -52,3 +52,4 @@ prefer entry-path 1.
 - **TextChanged-broken state every ~30 probes.** After heavy scripted querying the search box stops raising TextChanged and results freeze. Detect with `Test-CmdPalDegraded` and recover with `Reset-CmdPalAppX` before continuing.
 - **Alias detection requires REAL keystrokes.** `winapp ui set-value` on the search box bypasses TextChanged, so alias prefixes (`=`, `<`, `>`, `:`, `$`, `??`, `)`) never fire. Use `Send-PtChord` (after `Assert-PtForegroundOrAbort`) for aliases; reserve `set-value` for plain queries.
 - **Esc is filtered** by the WinUI 3 raw-input hook, so "press Esc to go back/close" doesn't work via injection. Use `winapp ui invoke BackButton` (or `Reset-CmdPalToHome`) instead.
+- **`PowerToys (Preview)` can be an app-search false positive.** A result with the shortcut-arrow overlay and subtitle `PowerToys - Windows system utilities to maximize productivity` comes from **Search apps**, not the PowerToys command extension. Running it launches PowerToys and returns CmdPal home. The real extension exposes a PowerToys command page and module fallback commands such as `Toggle Shortcut Guide`; confirm those commands exist before treating the integration as available.
