@@ -148,6 +148,13 @@ Read `test-results.json` for structured pass/fail. Only fix code if tests fail.
 
 ### Step 3.5: Look at the Screenshots
 
+For PowerToys verification, use `Save-PtPassiveScreenshot` for menus, overlays and held-input
+observations; even a window-targeted `winapp ui screenshot` can change focus. Supply a stable
+state probe and reject a capture whose before/after state differs. See
+[helper workflow](helper-workflow.md#input-ownership-and-observation). For recorded native
+operations use `Invoke-PtWinApp` with arguments after `winapp ui`; direct executable calls
+inside legacy snippets are not automatically recorded.
+
 UIA assertions don't see clipping, overlap, wrong theming, or controls bleeding past their container — UIA returns `PASS` while the app is visually broken. **Capture screenshots with `winapp ui screenshot` and view each PNG.**
 
 Capture the initial state and any state after a major interaction (the State Screenshots block in the script template above handles this).

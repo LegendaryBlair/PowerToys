@@ -2,6 +2,12 @@
 
 This doc defines the **required** report shape for every per-module verification run. Modeled on `PR-validation\Round1\PR-47211-validation\report.md` style — table-driven, reproducible, no prose narratives.
 
+Use the reusable recorder and exporter in [Recording workflow](recording-workflow.md)
+instead of building a report generator during each run. Initialize its explicit item and
+subassertion inventory before discovery; snapshot the actual source inputs, including
+dirty-worktree helper versions. The templates below describe the rendered report, not
+permission to reconstruct commands or observations after the fact.
+
 ## §A — Per-item table (one per checklist item)
 
 ```markdown
@@ -67,6 +73,35 @@ This doc defines the **required** report shape for every per-module verification
 5. **`—` (em dash) is allowed for non-CLI steps** like "Read sign-off entry + diff", "Create validation folder", "Cleanup notepad". Don't fabricate a command for steps that were purely cognitive or file-system level.
 6. **Numbered steps must be contiguous** (1, 2, 3, ...). Don't skip numbers.
 7. **At least one screenshot per PASS item if the item is a user-visible behavioral test**. Schema-only assertions (settings.json key check) don't need screenshots; behavioral tests (popup shown, dialog appeared, theme switched) do.
+
+### Recorded-report rules
+
+- Record **every** winapp command, including discovery, diagnostics and helper-internal
+  probes, through the ambient attempt integration in [Recording workflow](recording-workflow.md).
+  Preflight/cleanup use non-item contexts. Preserve the executed script version, resolved
+  command, raw outputs/errors, timestamps, duration and unique artifact paths for each step.
+- Retain **Normal and Diagnostic attempts separately**. A restart-recovered diagnostic
+  PASS does not prove normal reopen. Normal product/checklist failures remain failures
+  in that run; command completion/exit zero never assigns a product verdict.
+- Show every registered child as **PASS / FAIL / BLOCKED / NOT-OBSERVED**, with its reason
+  and evidence, even under a failing parent. Missing required observations cannot produce
+  item PASS. Unfinished items remain **BLOCKED / BLK-INCOMPLETE**; command/capture errors
+  are **BLK-INFRASTRUCTURE**, not inferred product defects. These two recording categories
+  supplement, rather than replace, the existing environment/hardware BLOCKED reasons.
+- Include **BITS**, explicit cleanup/restoration receipts and **Signoff: APPROVED or
+  WITHHELD** in the summary. Withhold signoff for failed, blocked, unobserved or incomplete
+  coverage, execution/cleanup errors, missing evidence or unrecorded restoration.
+- Never overwrite a screenshot or script revision. Associate screenshots with their
+  producing step and Normal-path assertion. Synthetic fixtures are labeled and cannot
+  substantiate a product signoff.
+- When literal pipes/backticks/newlines would break the table, use safely encoded code
+  spans and line breaks plus a link to the **unchanged raw command/script artifact** for
+  copy/paste. Keep raw output outside Markdown. The structured results retain verbatim
+  descriptions, observations and Unicode text.
+- Export the mandatory full inventory, machine-readable results and artifact manifest.
+  Validate every referenced file and SHA256, including input snapshots, before accepting
+  the report and again after moving the whole workspace. A missing/corrupt artifact
+  invalidates the export; an interrupted step remains explicitly incomplete.
 
 ## §D — Reporting style
 

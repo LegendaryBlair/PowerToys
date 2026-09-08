@@ -46,8 +46,12 @@ specific checklist.
 | File | Purpose |
 |---|---|
 | `scripts/pt-shared-events.ps1` | `Invoke-PtSharedEvent`, `Test-PtSharedEvent`, `Get-PtSharedEventCatalog` — 56-entry friendly-name map for PT Named Events (CmdPal.Show, AOT.Pin, PowerLauncher.Invoke, LightSwitch.Toggle, ZoomIt.Draw, ...). The deterministic, foreground-free, UIPI-immune way to trigger a module. |
-| `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Wait-PtHotkeyAccepted` — last-resort SendInput hotkey injection with the cb=40 fix. Use only when the module has no Named Event and the hotkey itself is the test subject. |
-| `scripts/pt-foreground-guard.ps1` | `Test-PtForeground`, `Force-PtForeground`, `Assert-PtForegroundOrAbort` — guard helpers to ensure target window IS foreground before SendInput, so keys don't leak to caller's terminal. |
+| `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Invoke-PtHeldKeys`, `Wait-PtHotkeyAccepted` — paced chords, left/right extended keys, and release in `finally`. Prefer Named Events unless the binding/input itself is under test. |
+| `scripts/pt-foreground-guard.ps1` | `Test-PtForeground`, `Force-PtForeground`, `Assert-PtForegroundOrAbort` — accept exact `-Hwnd` or legacy `-AppId`; reject hidden/stale targets before input. |
+| `scripts/pt-desktop.ps1` | Native window discovery, `Wait-PtCondition`, `Wait-PtWindow`, bounded/recorded `Invoke-PtWinApp`, reusable UIA tree flattening, and `Save-PtPassiveScreenshot`. See [helper workflow](references/helper-workflow.md). |
+| `scripts/pt-state-snapshot.ps1` | Paired file/selected-HKCU-value/window/desktop snapshots and restoration; exact process identity and tracked-window close. Does not infer ownership or restart apps. |
+| `scripts/pt-shortcut-guide.ps1` | SG host/content readiness and read-only taskbar baselines/restoration comparisons. Module semantics stay in its profile/checklist. |
+| `scripts/pt-verification-report.ps1` | Append-only attempts/steps, immutable source/evidence snapshots, subassertions and fixed report export. Read [recording workflow](references/recording-workflow.md) before the first discovery command. |
 | `scripts/pt-cmdpal-recycle.ps1` | `Reset-CmdPalAppX`, `Reset-CmdPalToHome`, `Test-CmdPalDegraded`, `Invoke-CmdPalQuery` — CmdPal-specific lifecycle (handles TextChanged-broken state, BackButton navigation, AppX recycle). |
 | `scripts/pt-admin-probe.ps1` | `Test-PtAdmin`, `Test-ProcessElevated`, `Test-PtRunnerAdmin` — TokenElevation probes to verify your session and the PT runner have the right elevation for the test. |
 | `scripts/pt-clipboard-diff.ps1` | `Get-PtClipboardFormats`, `Compare-PtClipboardFormatDiff`, `Set-PtClipboardRich` — multi-format clipboard inspection for Advanced Paste tests. |
@@ -58,10 +62,12 @@ specific checklist.
 | `scripts/pt-nonelevated.ps1` | `Start-PtNonElevated`, `Invoke-PtNonElevatedCapture` — launch an exe at **Medium IL (non-elevated)** from an elevated agent shell via a one-shot `RunLevel Limited` scheduled task. Required for elevation-visibility tests (a non-elevated module must NOT see higher-integrity processes; e.g. File Locksmith L649/L650). Verify the result with `Test-ProcessElevated`. |
 | `scripts/pt-workspaces-fixtures.ps1` | `New-PtWorkspacesFixtureSession`, `Start-PtWorkspacesNotepadFixture`, `Add-PtWorkspacesFixtureProcess`, `Add-PtWorkspacesFixtureFile`, `Stop-PtWorkspacesFixtureSession` — exact PID/start-time and temp-file tracking with per-case cleanup for Workspaces fixtures. |
 
-Dot-source them **all** at once in your bootstrap (the `Get-ChildItem` loop loads every helper — see **Step 1 — Bootstrap**):
+Dot-source the helper libraries once. Run the executable session diagnostic as a recorded preflight
+step, not as an unrecorded import:
 ```powershell
 $skill = '<this skill folder>'   # the folder containing SKILL.md, e.g. <PT-repo>\.github\skills\powertoys-verification
-Get-ChildItem "$skill\scripts" -Filter '*.ps1' | ForEach-Object { . $_.FullName }
+Get-ChildItem "$skill\scripts" -Filter '*.ps1' |
+    Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
 ```
 
 ## Step 1 — Bootstrap
@@ -71,18 +77,27 @@ $module = 'AdvancedPaste'  # or 'CmdPal', 'FZ', 'Peek', ...
 # Work out of %TEMP% during the run (keeps screenshots/scratch off OneDrive); move to the
 # sign-off archive at the very end (see Step 7).
 $workspace = "$env:TEMP\verify-$module-$(Get-Date -Format yyyyMMdd-HHmmss)"
-New-Item -ItemType Directory -Path $workspace, "$workspace\artifacts" -Force | Out-Null
-$report = "$workspace\verify-$module.md"
+# Do not pre-create the directory: New-PtVerificationRun creates it with immutable inputs.
 
 # Dot-source helpers
 $skill = '<this skill folder>'   # set once at top of your script (the folder containing SKILL.md)
-Get-ChildItem "$skill\scripts" -Filter '*.ps1' | ForEach-Object { . $_.FullName }
+Get-ChildItem "$skill\scripts" -Filter '*.ps1' |
+    Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
 
-# Verify environment
-"=== Environment ===" | Tee-Object $report -Append
-"IsAdmin: $(Test-PtAdmin)" | Tee-Object $report -Append
-$rn = Test-PtRunnerAdmin
-"PT runner: PID=$($rn.Pid) Elevated=$($rn.Elevated)" | Tee-Object $report -Append
+# Build the explicit item/subassertion inventory and input list per recording-workflow.md.
+$run = New-PtVerificationRun -Workspace $workspace -Module $module -Bits $bits `
+    -Scenario $scenario -Items $items -Inputs $inputs
+$preflight = Start-PtVerificationAttempt -Run $run -Context Preflight `
+    -Kind Normal -Name 'Environment probes' -Activate
+Invoke-PtVerificationStep -Attempt $preflight -Name 'Session and elevation' `
+    -Command "& '$skill\scripts\pt-session-diagnose.ps1'; Test-PtAdmin; Test-PtRunnerAdmin" `
+    -ArgumentList @($skill) -Action {
+        param($skillRoot)
+        & "$skillRoot\scripts\pt-session-diagnose.ps1"
+        Test-PtAdmin
+        Test-PtRunnerAdmin
+    }
+Stop-PtVerificationAttempt $preflight -Reason 'Prerequisites recorded'
 
 # The checklist source depends on the scenario (see references/scenarios/):
 #   A - read the supplied references/release-checklist/<module>.md
@@ -90,6 +105,9 @@ $rn = Test-PtRunnerAdmin
 #       build+sideload if the code isn't in the build under test (pr-validation.md)
 # Then iterate the items (see Step 6 - Verifier loop).
 ```
+
+Use the [helper workflow](references/helper-workflow.md) for paired restoration and desktop smoke
+checks. Use `Invoke-PtWinApp -Arguments @('inspect',...)`, not direct native calls, while recording.
 
 ## Step 2 — Drive techniques
 
@@ -126,10 +144,10 @@ try {
 
 #### B1. UIA invoke / set-value — **always try first**
 ```powershell
-winapp ui invoke 'SubmitButton' -a PowerToys.Settings
-winapp ui set-value 'QueryTextBox' '=2+3*4' -a PowerToys.PowerLauncher
+Invoke-PtWinApp -Arguments @('invoke','SubmitButton','-a','PowerToys.Settings')
+Invoke-PtWinApp -Arguments @('set-value','QueryTextBox','=2+3*4','-a','PowerToys.PowerLauncher')
 Start-Sleep -Milliseconds 600
-winapp ui inspect -a PowerToys.PowerLauncher --depth 7 -i 2>$null
+Invoke-PtWinApp -Arguments @('inspect','--depth','7','-a','PowerToys.PowerLauncher','-i')
 ```
 Invoke goes through UIA InvokePattern COM IPC — no foreground steal, no UIPI. See references/winapp-ui-testing.md §CRITICAL — invoke vs click.
 
@@ -176,7 +194,7 @@ if (-not $line) { throw 'Runner did not log hotkey invocation' }
 > ```
 > The `-AppId` is whatever window you're targeting — it's **not** CmdPal-specific. CmdPal is just the worst offender: its AppX foreground-lock drops focus after the first `SetForegroundWindow`, so without the guard the keys silently leak to your terminal.
 
-> Verdict decisions (PASS if behavior matches spec; **FAIL** if the product is wrong *or* the checklist item is stale/ambiguous; BLOCKED if you couldn't run the check after ≥2 entry-paths) live in **Step 3 — Classification taxonomy** below. Don't put verdict logic in Step 2.
+> Verdict decisions (PASS if behavior matches spec; **FAIL** if the product is wrong *or* the checklist item is stale/ambiguous; BLOCKED if you couldn't run the check) live in **Step 3 — Classification taxonomy** below. Don't put verdict logic in Step 2.
 
 ## Step 3 — Classification taxonomy
 
@@ -186,26 +204,31 @@ if (-not $line) { throw 'Runner did not log hotkey invocation' }
 |---|---|
 | **PASS** | You drove/observed the behavior and it matched the spec. **A pass is a pass — there is no PASS sub-type.** Record *how* you verified in the item's **Category** field as free text, e.g. "full UIA flow + asserted popup", "settings.json round-trip", "runner-log line", "Shell COM / IExplorerCommand", "screenshot pixel-diff", "output matches fixture", "process spawn/exit", "module CLI", "admin GPO write". |
 | **FAIL** | The item is **red** — something is wrong and action is required. Treat the checklist as test code: a test fails because **the product is wrong** *or* **the test/checklist is wrong**. Record the **cause** in the **Category** field: <br>• **product** — behavior contradicts a valid spec → file a product bug (repro + expected-vs-actual + screenshot/log + build version). <br>• **checklist** — the item itself is broken: *stale* (feature was removed/deprecated — cite the source grep proving it's gone) or *ambiguous* (`[CLARITY: VAGUE-*]`, no definable pass/fail criterion — quote the original wording). Fix the checklist, not the product. |
-| **BLOCKED** | Couldn't run the check in this environment / with this toolset *after ≥2 entry-paths* — inconclusive, like a skipped test. **Not red against the product.** Tag exactly one concrete reason below. |
+| **BLOCKED** | Couldn't run the check in this environment / with this toolset *after ≥2 entry-paths*, or skipped admin-required coverage under the default missing-elevation policy in `references/pre-flight.md`. **Not red against the product.** Tag exactly one concrete reason below. |
 
 ### BLOCKED reasons
 Different failure reasons stay distinct because each drives a different remediation.
 
 | Reason | When |
 |---|---|
-| `BLK-ENV` | This specific shell can't drive it (non-interactive / Session 0, RDP-minimized, missing Explorer windows) but a normal interactive desktop CAN. Triggers a "re-run on an interactive desktop" recommendation. Cite `references/environment-setup.md`. |
+| `BLK-ENV` | This specific shell lacks a required condition (elevation, interactive desktop, or Explorer windows). For missing elevation, skip only admin-required coverage by default and continue non-admin checks; cite `references/pre-flight.md` and the elevation probe. For desktop/session obstacles, cite `references/environment-setup.md`. State the required environment for a rerun. |
 | `BLK-HARDWARE` | Needs hardware this session lacks — multi-monitor, 2 physical PCs (MWB), real camera / battery / game-mode, or live screen/device capture. State the specific shortfall in **Category**. |
 | `BLK-DRAG-REQUIRED` | Needs a real mouse-drag gesture; synthetic drag is insufficient (e.g. FancyZones snap). |
 | `BLK-DESTRUCTIVE` | Reboot, hibernate, install/uninstall, or mid-session AppX uninstall — would damage the run environment. |
 | `BLK-VISUAL-RENDER` | The thing to verify is a rendered surface UIA can't see — WinUI3 islands, WebView2, or Explorer-side context-menu rendering/localization. Needs pixel/OCR or a manual eyeball. |
 | `BLK-OVERLAY-INPUT-BLOCK` | Overlay both blocks input and excludes itself from capture (`BlockInput` + `WDA_EXCLUDEFROMCAPTURE`, e.g. ZoomIt draw mode) — can neither drive nor screenshot it. |
 | `BLK-EXTERNAL-APP` | Needs a 3rd-party tool, a real API key, or a system locale change. |
+| `BLK-INFRASTRUCTURE` | A recorded driver/recorder error prevents trustworthy observation. Preserve the error and attempts; do not infer a product defect from it. |
+| `BLK-INCOMPLETE` | Report coverage gate: inventory, required subassertions, or attempts remain unfinished. Explicitly list the missing work; this is not an environmental prerequisite skip. |
 
 **Rule of thumb**: in your report, separate the two FAIL causes — *product* FAILs are bugs to file; *checklist* FAILs are items to rewrite or prune. `BLOCKED` is only for a concrete, named obstacle (cite it), never a substitute for effort. If a large share of a module's items are checklist-FAILs, the checklist needs an overhaul before re-verifying.
 
 ## Step 4 — Report format
 
-**See `references/reporting-format.md` for the full template** (per-item table, summary, step-table rules, anti-patterns, worked example). Don't paraphrase; copy the templates literally. This includes a mandatory **§G Retrospective** — a self-reflection on the *run itself*: list every friction encountered (classified by source — `SKILL-UNCLEAR` / `WINAPP-TOOL-BUG` / `WINAPP-DOC-UNCLEAR` / `HELPER-FLAW` / `PT-PRODUCT` / `ENVIRONMENT` — with severity + minutes/attempts cost + a suggested fix), or write `Everything was smooth — no friction encountered.` if there was none. This is how the skill improves run over run, so don't skip it.
+**See `references/reporting-format.md` for the full template** and use the fixed recorder/exporter
+in [recording-workflow.md](references/recording-workflow.md), rather than writing a new generator
+per run. This includes mandatory **§G Retrospective**, with source, severity, cost and a concrete
+fix for every friction, or an explicit `Everything was smooth — no friction encountered.`
 
 ## Step 5 — State hygiene (CRITICAL)
 
@@ -238,6 +261,10 @@ Quick one-liners for modules without dedicated profiles (will be moved to per-mo
 
 ## Step 6 — Verifier loop per checkbox
 
+Apply the elevation policy in `references/pre-flight.md` before driving: in a non-elevated
+session, record admin-required checks as skipped/BLOCKED without attempting privileged entry-paths,
+then continue the eligible checks, including non-admin portions of conditional items.
+
 ```
 For each item in module:
    1. Pick a bucket from the verb in the item (§2.A change a setting / §2.B interact with UI / §2.C trigger an action)
@@ -259,12 +286,15 @@ The live run works out of `%TEMP%`, but the **final deliverable must live in the
 
 ```powershell
 # After the report is written AND the artifact-existence check passes:
+Test-PtVerificationArchive -Workspace $workspace
 $signoff = "$env:OneDrive\PowerToys\Module-Signoff"   # e.g. C:\Users\<you>\OneDrive - Microsoft\PowerToys\Module-Signoff
 New-Item -ItemType Directory -Path $signoff -Force | Out-Null
 $final = Join-Path $signoff (Split-Path $workspace -Leaf)
-Move-Item -Path $workspace -Destination $final -Force
+if (Test-Path -LiteralPath $final) { throw 'Archive already exists; do not overwrite.' }
+Move-Item -LiteralPath $workspace -Destination $final -ErrorAction Stop
+Test-PtVerificationArchive -Workspace $final
 # Report uses RELATIVE artifacts/… paths, so all links stay valid after the move.
-Write-Host "Final report: $(Join-Path $final (Split-Path $report -Leaf))"
+Write-Host "Final report: $(Join-Path $final (Split-Path $export.Report -Leaf))"
 ```
 
 Print the **moved** report path (under `…\PowerToys\Module-Signoff\`) as the last line — never the `%TEMP%` path.

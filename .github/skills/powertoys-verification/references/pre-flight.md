@@ -2,9 +2,11 @@
 
 This doc covers the **agent-runtime** environment probing and lifecycle hooks. Read alongside `SKILL.md` (the playbook) and `references/environment-setup.md` (one-time user env prep).
 
-## Pre-flight checks (do these first; abort if any fails)
+## Pre-flight checks (do these first)
 
-1. **Admin check** — `Test-PtAdmin` must return the elevation level matching `[ADMIN: YES]` items in the module's checklist. If the module contains `[ADMIN: YES]` items and `Test-PtAdmin` returns `False`, **STOP** and tell the user "this module requires an elevated session". Do NOT silently mark those items BLOCKED-LACK-ADMIN — that hides a fixable env issue.
+1. **Admin check — skip admin-required coverage by default when not elevated.** Run `Test-PtAdmin` and record the result. If it returns `False`, skip `[ADMIN: YES]` items and continue all `[ADMIN: NO]` items. For `[ADMIN: COND]`, run the non-admin portions and skip only the variants that require elevation. Do not abort the module, request additional authorization to skip, or attempt elevation just to run those checks.
+
+   Retain every item in the inventory. Record each skipped check as `BLOCKED` with `BLK-ENV (requires elevation; current session is not elevated)` and the `Test-PtAdmin=False` evidence. For a conditional item, preserve the non-admin results and identify the skipped variants; if any required coverage remains skipped, the item cannot be a PASS. Do not claim full sign-off with skipped coverage. This known prerequisite skip does not require trying privileged entry-paths.
 
 2. **PT runner present** — `Test-PtRunnerAdmin` should show the runner exists. If it doesn't exist, start PowerToys (`Start-Process "$env:LOCALAPPDATA\PowerToys\PowerToys.exe"`).
 
@@ -44,30 +46,46 @@ This doc covers the **agent-runtime** environment probing and lifecycle hooks. R
    - **ShellComOk only (ForegroundOk false)** → Non-interactive (e.g. Session ≠ console, RDP minimized, screen locked, screensaver). Only schema / UIA-invoke / CLI / Named-Event tests work. Mark input-injection items as `BLK-ENV` and **cite `references/environment-setup.md` in the report** so the user can fix env and re-run.
    - **Neither (ShellComOk false)** → Session 0 / service context — even Shell COM fails. Very few tests possible.
 
-5. **Discipline: try AT LEAST 2 distinct entry-paths before marking BLOCKED.** For Peek/FZ/Workspaces/Image Resizer/PowerRename/File Locksmith specifically, the obvious entry-path is the global hotkey but Shell.Application COM driving Explorer also works — see per-module profiles under `references/modules/`. Marking BLOCKED after trying only the CLI launch (a common trap) hides easily-PASS-able items in an interactive session.
+5. **Discipline: try AT LEAST 2 distinct entry-paths before marking a drivable item BLOCKED.** The default missing-elevation skips in check 1 are exempt; do not attempt privileged operations to satisfy this rule. For Peek/FZ/Workspaces/Image Resizer/PowerRename/File Locksmith specifically, the obvious entry-path is the global hotkey but Shell.Application COM driving Explorer also works — see per-module profiles under `references/modules/`. Marking BLOCKED after trying only the CLI launch (a common trap) hides easily-PASS-able items in an interactive session.
 
 ## Bootstrap (paste at start of your verification script)
 
+Use PowerShell 7. Prepare the explicit item/subassertion inventory and actual source-input
+list from [recording-workflow.md](recording-workflow.md) before any UI discovery.
+Do not create a report generator or append report Markdown during driving.
+
 ```powershell
 $skill = '<this skill folder>'   # the folder containing SKILL.md
-Get-ChildItem "$skill\scripts" -Filter '*.ps1' | ForEach-Object { . $_.FullName }
+Get-ChildItem "$skill\scripts" -Filter '*.ps1' |
+    Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
 
 $workspace = "$env:TEMP\verify-<Module>-$(Get-Date -Format yyyyMMdd-HHmmss)"
-New-Item -ItemType Directory -Path $workspace, "$workspace\artifacts" | Out-Null
-$report = "$workspace\verify-<Module>.md"
+$run = New-PtVerificationRun -Workspace $workspace -Module $module -Bits $bits `
+    -Scenario $scenario -Items $items -Inputs $inputs
+$preflight = Start-PtVerificationAttempt -Run $run -Context Preflight `
+    -Kind Normal -Name 'Environment probes' -Activate
+Invoke-PtVerificationStep -Attempt $preflight -Name 'Session and elevation' `
+    -Command "& '$skill\scripts\pt-session-diagnose.ps1'; Test-PtAdmin; Test-PtRunnerAdmin" `
+    -ArgumentList @($skill) -Action {
+        param($skillRoot)
+        & "$skillRoot\scripts\pt-session-diagnose.ps1"
+        Test-PtAdmin
+        Test-PtRunnerAdmin
+    }
+Stop-PtVerificationAttempt $preflight -Reason 'Prerequisites recorded'
 
-"# <Module> verification — $(Get-Date -Format 'yyyy-MM-dd HH:mm')" | Set-Content $report
-"" | Add-Content $report
-"## Pre-flight" | Add-Content $report
-"- IsAdmin: $(Test-PtAdmin)" | Add-Content $report
-"- PT runner: PID=$((Test-PtRunnerAdmin).Pid) Elevated=$((Test-PtRunnerAdmin).Elevated)" | Add-Content $report
-
-# Then proceed with pre-flight checks #4-#6 above and write their results into the report.
+# Record the other prerequisites and subsequent operations in explicit attempts.
+# Invoke-PtWinApp records internal discovery/probe commands automatically while active.
 ```
 
 ## State hygiene (CRITICAL — always restore)
 
 Wrap any settings/registry mutation in try/finally:
+
+Prefer the [paired snapshot helpers](helper-workflow.md#pair-snapshots-with-restoration-before-changing-state).
+Prepare and persist capture/restore pairs before mutation, including original absence. Native
+window placement is not a backup of application page/tab/IME state. The examples below are
+legacy single-resource snippets, not permission to overwrite unrelated state.
 
 ```powershell
 # Per-item: settings.json edits
@@ -90,31 +108,36 @@ foreach ($pid in $spawnedPids) { Stop-Process -Id $pid -Force -EA SilentlyContin
 
 ## Final wrap-up (run AFTER all per-item tables are written)
 
-1. **Run state-hygiene cleanup** above for everything that wasn't restored per-item.
-2. **Write the top-of-report summary** per `references/reporting-format.md` §B.
-3. **Write the §G Retrospective** — reflect on the run itself: every friction (classified by source + severity + minutes/attempts cost + suggested fix), or `Everything was smooth — no friction encountered.` See `references/reporting-format.md` §G. Don't skip it; it's how the skill improves.
-4. **Verify every screenshot referenced in the report actually exists on disk** (before the move, while paths still resolve under `$workspace`):
+1. **Run state-hygiene cleanup** in a Normal Cleanup recording context for everything not restored
+   per-item. Register the baseline comparisons as Restoration evidence; a successful command is
+   not proof of restored state. Record every required subassertion, including NOT-OBSERVED parts
+   of failed items, and complete the inventory without promoting diagnostic recovery to PASS.
+2. **Finalize using the fixed exporter**, with the actual §G retrospective:
    ```powershell
-   $missing = Get-Content $report | Select-String 'artifacts/L\d+/step-\d+-[^\.\s]+\.(png|txt|log|json|ps1)' -AllMatches |
-       ForEach-Object { $_.Matches.Value } | Sort-Object -Unique |
-       Where-Object { -not (Test-Path (Join-Path $workspace $_)) }
-   if ($missing) { Write-Warning "Missing artifacts: $($missing -join ', ')" }
+   $export = Complete-PtVerificationRun -Run $run -Retrospective $frictionRows
+   # Use -NoFriction instead only when explicitly justified.
+   Test-PtVerificationArchive -Workspace $workspace
    ```
-5. **Move the workspace to the sign-off archive** (LAST step, after the report + artifact check pass):
+   The exporter generates summary and per-item tables and rejects missing/changed evidence.
+   Use `Export-PtVerificationReport` for an interrupted/partial run; do not erase its failed steps.
+3. **Move the workspace to the sign-off archive**, only after validation succeeds:
    ```powershell
    $signoff = "$env:OneDrive\PowerToys\Module-Signoff"
    New-Item -ItemType Directory -Path $signoff -Force | Out-Null
    $final = Join-Path $signoff (Split-Path $workspace -Leaf)
-   Move-Item -Path $workspace -Destination $final -Force
-   $report = Join-Path $final (Split-Path $report -Leaf)
+   if (Test-Path -LiteralPath $final) { throw 'Archive already exists; do not merge or overwrite.' }
+   Move-Item -LiteralPath $workspace -Destination $final -ErrorAction Stop
+   Test-PtVerificationArchive -Workspace $final
+   $report = Join-Path $final (Split-Path $export.Report -Leaf)
    ```
-   The report uses **relative** `artifacts/…` paths, so the whole tree moves intact.
-6. **Print the FINAL (moved) report path** as the very last line of your response — the `…\Module-Signoff\verify-<Module>-<timestamp>\verify-<Module>.md` path, NOT the temp path.
+   Relative evidence paths remain valid after the move.
+4. **Print the FINAL report path** under `Module-Signoff`, not the temporary path.
 
 ## Hard rules
 
-- **Never silently send keys via SendInput** to a target window without first calling `Assert-PtForegroundOrAbort -AppId <id>`. Keys silently leak to your terminal if the target isn't foreground.
-- **Never mark BLOCKED without trying at least 2 distinct entry-paths from the drive-stack** (SKILL.md §2). If you can't drive the item, name the specific obstacle (not "I can't").
+- **Never silently send keys via SendInput** without a foreground guard. Prefer `-Hwnd <exact-window>`
+  or `Send-PtChord -Hwnd`; `-AppId` alone cannot distinguish multiple windows of one process.
+- **Try at least 2 distinct entry-paths from the drive-stack before marking BLOCKED** (SKILL.md §2), except for the default missing-elevation skips in pre-flight check 1. Always name the specific obstacle and retain the skipped coverage in the report.
 - **Never assume any external repo is cloned locally.** The helpers under `scripts/` are self-contained. Use `Test-Path` guards before referencing any external path.
 - **Never invent test steps for a `[CLARITY: VAGUE-*]` item** — mark it **FAIL (cause: checklist-ambiguous)** and quote the original wording so the user can fix the checklist. The checklist is test code; an undefinable test is a broken test.
 - **Always restore state** before exiting (even on error). State hygiene wraps every mutation in try/finally.

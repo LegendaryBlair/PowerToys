@@ -73,7 +73,7 @@ map 1:1 — use the `SKILL.md` set and treat the legacy labels as aliases:
 | PASS | PASS | Drove the behavior; matches the claim. |
 | FAIL (cause=product) | FAIL | Shipped/built behavior contradicts the claim → file a bug. |
 | FAIL (cause=checklist) | Don't know what to test | The item/spec is too vague or stale to judge → fix the checklist, quote the ambiguity. |
-| BLOCKED (`BLK-*`) | Incapable of Testing | Couldn't run the check after ≥2 entry-paths → name the concrete obstacle. |
+| BLOCKED (`BLK-*`) | Incapable of Testing | Couldn't run the check after ≥2 entry-paths, or skipped admin-required coverage under `../pre-flight.md`'s default missing-elevation policy. Name the concrete obstacle and continue eligible checks. |
 
 Whichever label set the caller asks for, keep the **evidence rules identical**: no "source verified /
 live deferred / pre-existing / probably / unlikely" weasel-words to justify a PASS — those flip the

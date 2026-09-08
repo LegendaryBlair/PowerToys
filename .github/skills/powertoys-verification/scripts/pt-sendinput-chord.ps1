@@ -21,8 +21,17 @@ if (-not ('PtChord' -as [type])) {
             struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
             [DllImport("user32.dll", SetLastError=true)]
             static extern uint SendInput(uint n, INPUT[] p, int cb);
+            [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
             const uint KEYUP = 0x0002;
-            static INPUT K(ushort vk, bool up) { INPUT i=new INPUT(); i.type=1; i.ki.wVk=vk; i.ki.dwFlags=up?KEYUP:0; return i; }
+            static INPUT K(ushort vk, bool up) {
+                INPUT i=new INPUT(); i.type=1; i.ki.wVk=vk;
+                bool extended = vk == 0x5B || vk == 0x5C || vk == 0xA3 || vk == 0xA5 ||
+                    (vk >= 0x21 && vk <= 0x28) || vk == 0x2D || vk == 0x2E;
+                i.ki.dwFlags=(up?KEYUP:0) | (extended?1u:0u); return i;
+            }
+            public static uint Key(ushort key, bool up) {
+                return SendInput(1, new INPUT[] { K(key, up) }, Marshal.SizeOf(typeof(INPUT)));
+            }
             public static uint Chord(ushort[] mods, ushort key) {
                 var l=new List<INPUT>();
                 foreach(var m in mods) l.Add(K(m,false));
@@ -46,7 +55,7 @@ if (-not ('PtChord' -as [type])) {
 function Send-PtChord {
     <#
     .SYNOPSIS
-    Inject a hotkey chord. Returns number of inputs Windows accepted (0 = failed; check GetLastError).
+    Inject a chord with configurable dwell. Throws on incomplete input; releases keys in finally.
     .EXAMPLE
     Send-PtChord -Mods 0x5B,0x10 -Key 0x43      # Win+Shift+C (Color Picker)
     Send-PtChord -Mods 0x5B,0x11 -Key 0x52      # Win+Ctrl+R (PowerOcr)
@@ -56,14 +65,69 @@ function Send-PtChord {
     [CmdletBinding()]
     param(
         [uint16[]]$Mods = @(),
-        [Parameter(Mandatory)][uint16]$Key
+        [Parameter(Mandatory)][ValidateRange(1,254)][uint16]$Key,
+        [ValidateRange(0,5000)][int]$KeyDownMilliseconds = 90,
+        [ValidateRange(0,1000)][int]$ModifierDelayMilliseconds = 40,
+        [long]$Hwnd
     )
-    $sent = [PtChord]::Chord($Mods, $Key)
-    if ($sent -eq 0) {
-        $err = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-        throw "SendInput failed (returned 0, GetLastError=$err). Likely caller is at lower integrity than PT runner, or chord is OS-reserved (Win+L, Win+Tab)."
+    if ($PSBoundParameters.ContainsKey('Hwnd')) {
+        Assert-PtForegroundOrAbort -Hwnd $Hwnd
     }
-    return $sent
+    Invoke-PtHeldKeys -Keys @($Mods + $Key) -KeyDownDelayMilliseconds $ModifierDelayMilliseconds -Action {
+        Start-Sleep -Milliseconds $KeyDownMilliseconds
+    }
+    return 2 * ($Mods.Count + 1)
+}
+
+function Invoke-PtHeldKeys {
+    <#
+    .SYNOPSIS
+    Hold keys during an observation, then release every injected key even if the action throws.
+    .NOTES
+    The action may change foreground (for example Win+1). Guard the initial HWND, not the result.
+    Already-held keys are rejected so cleanup never releases a key owned by the user/outer scope.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ValidateCount(1,16)][uint16[]]$Keys,
+        [Parameter(Mandatory)][scriptblock]$Action,
+        [ValidateRange(0,1000)][int]$KeyDownDelayMilliseconds = 40,
+        [long]$Hwnd
+    )
+    if (@($Keys | Select-Object -Unique).Count -ne $Keys.Count -or @($Keys | Where-Object { $_ -lt 1 -or $_ -gt 254 }).Count) {
+        throw 'Keys must be unique virtual-key codes in 1..254.'
+    }
+    foreach ($key in $Keys) {
+        if (([PtChord]::GetAsyncKeyState($key) -band 0x8000) -ne 0) { throw "Key $key is already held; input aborted." }
+    }
+    if ($PSBoundParameters.ContainsKey('Hwnd')) { Assert-PtForegroundOrAbort -Hwnd $Hwnd }
+    $down = [Collections.Generic.List[uint16]]::new()
+    $releaseErrors = [Collections.Generic.List[string]]::new()
+    $originalError = $null
+    try {
+        foreach ($key in $Keys) {
+            if ([PtChord]::Key($key, $false) -ne 1) {
+                throw "SendInput key-down $key failed (Win32=$([Runtime.InteropServices.Marshal]::GetLastWin32Error()))."
+            }
+            $down.Add($key)
+            if ($KeyDownDelayMilliseconds) { Start-Sleep -Milliseconds $KeyDownDelayMilliseconds }
+        }
+        & $Action
+    } catch {
+        $originalError = $_
+        throw
+    } finally {
+        for ($i = $down.Count - 1; $i -ge 0; $i--) {
+            if ([PtChord]::Key($down[$i], $true) -ne 1) { $releaseErrors.Add("Key-up $($down[$i]) failed") }
+        }
+        if ($releaseErrors.Count) {
+            $message = "Input cleanup failed: $($releaseErrors -join '; ')"
+            if ($originalError) {
+                $originalError.Exception.Data['InputCleanupFailure'] = $message
+                [Console]::Error.WriteLine($message)
+            } else { throw $message }
+        }
+    }
 }
 
 function Wait-PtHotkeyAccepted {

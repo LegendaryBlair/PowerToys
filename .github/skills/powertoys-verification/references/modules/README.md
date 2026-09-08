@@ -72,14 +72,13 @@ A profile holds **only module-specific logic** an agent can't infer from the SKI
 **Default hotkey**: `<keys>` (+ settings ActivationShortcut path)
 **Named Event**: `Local\<name>` (friendly name in pt-shared-events.ps1 catalog)
 **DSC resource**: `Microsoft.PowerToys/<Name>Settings`
-**Last verified**: `<build>` · `<date>` (bump whenever you re-drive the module)
 
 ## UI state-transition map            # OPTIONAL — only for a multi-screen/non-obvious state machine
 
-## Entry-paths (try in order)        # ② REQUIRED — how to launch & reach the UI, fastest first
-### 1. <fastest path>  <code + when to use + source citation>
-### 2. <alternate path>
-### 3. <last-resort path>
+## Entry-paths (choose by assertion) # ② REQUIRED — use the trigger that proves the requested behavior
+### <assertion type>  <code + when to use + source citation>
+# Order alternatives by reliability within the same assertion; do not replace a keyboard-binding
+# test with a Named Event that bypasses the binding.
 
 ## Recipes — control/observation map, NOT an answer key   # ③ REQUIRED
 | # | Capability | Drive (control / settings key) | Observe (where result shows) |
@@ -137,4 +136,4 @@ Profiles are written by an agent and may sit unreviewed, so a hallucination can 
 
 **5. Prefer symbol over line for source citations.** `Settings.cpp CSettings::Load` survives a refactor; `Settings.cpp:307` rots on the next edit. A line number is fine only as an *as-of-build* hint.
 
-**6. Freshness.** The only provenance marker a profile carries is a compact `**Last verified**: <build> (<date>)` line in the header — no per-fact date tags in the body. Treat a profile as stale after ~2 releases or on a detected UI redesign; it should get **one human review** before it's trusted (necessary, not sufficient — the same discipline the skill applies to checklists). An optional run-start lint (do the named control IDs resolve? do the settings keys exist?) can flag drift.
+**6. Content validity.** Do not add last-verification dates, tested-build markers, or per-fact age tags to a profile. Keep run history, build details, and verdicts in the archived verification report. Maintain the profile by correcting or removing instructions that no longer match the controls, settings, or behavior; elapsed time or release count alone does not establish staleness. Runtime discovery (do the named control IDs resolve? do the settings keys exist?) can flag content that needs review.
