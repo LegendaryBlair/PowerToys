@@ -66,12 +66,12 @@ that return objects are noted below; mutation-only functions emit no success out
 | `Open-PtVerificationRun -Workspace [-JournalName]` | Reloads a run after interruption or moving it. A nondefault journal is a read-only partial-export snapshot. It does not recreate or complete interrupted attempts. |
 | `Start-PtVerificationAttempt -Run -ItemId -Kind -Name [-Activate]` | Starts a UUID item attempt, `Kind Normal` or `Diagnostic`; returns its handle. No default path kind. |
 | `Start-PtVerificationAttempt -Run -Context -Kind -Name [-Activate]` | Non-item `Preflight`, `Cleanup` or `Diagnostic`; does not add invented checklist items. Diagnostic context requires Diagnostic kind. |
-| `Get-PtActiveVerificationAttempt` / `Set-PtActiveVerificationAttempt -Attempt` | Opt-in ambient context; returns null until set. Pass `$null` to clear. Nested helper probes share the active attempt, not a global recording-disable flag. |
+| `Get-PtActiveVerificationAttempt` / `Set-PtActiveVerificationAttempt -Attempt` | Runspace-local ambient context across script boundaries. Use `-Activate`/the setter for top-level calls, or `$null` to clear. Each recorded step temporarily selects its explicit attempt and restores the caller context afterward. |
 | `Stop-PtVerificationAttempt -Attempt -Reason` | Records the end and clears this attempt if active. Does not assert product success. Cannot stop a running step. |
 | `Invoke-PtVerificationStep -Attempt -Name -Command -Action [-ArgumentList] [-Implementation]` | Writes exact command/action/arguments before execution, records raw streams and completion/error, returns original success-stream objects. Records failure and rethrows the original error. |
 | `Invoke-PtVerificationStep -Attempt -Name -Command -ScriptFile [-ArgumentList]` | Copies and executes the **snapshot**, not the mutable original file. Revisions get separate snapshots/hashes. |
 | `New-PtVerificationArtifactPath -Attempt -Name` | Reserves a unique nonexistent absolute output path; returns it. Reusing a friendly name never reuses its path. |
-| `Add-PtVerificationArtifact -Attempt -Path -Kind -Description [-StepId] [-Synthetic]` | Seals a reserved output or snapshots another real file into a new path; returns a file reference. Kind is `Evidence`, `Screenshot` or `Restoration`. |
+| `Add-PtVerificationArtifact -Attempt -Path -Kind -Description [-StepId] [-Synthetic] [-Name]` | Seals a reserved output or imports a real file using a safe bounded alias; returns a file reference including `OriginalName`. Optional `-Name` selects an explicit safe alias for an import. Kind is `Evidence`, `Screenshot` or `Restoration`. |
 | `Add-PtVerificationAssertion -Attempt -AssertionId -Verdict -Category -Reason [-Evidence]` | Appends an explicit observation against the registered child ID. Evidence is an array of file-reference objects returned by artifact registration, from **this same attempt**. |
 | `Complete-PtVerificationItem -Run -ItemId -Reason [-Caveats]` | Records the analyst's completion/reasoning, not a supplied final verdict. Subsequent attempts need a new run. Unfinished coverage still blocks. |
 | `Add-PtVerificationRestoration -Attempt -Verdict -Reason [-Evidence]` | Only a Normal Cleanup context can record restoration. PASS requires registered `Restoration` evidence. |
@@ -109,6 +109,19 @@ $preflight = Start-PtVerificationAttempt -Run $run -Context Preflight `
 Stop-PtVerificationAttempt -Attempt $preflight -Reason 'Preflight probes recorded'
 ```
 
+`-ScriptFile` runs in a new PowerShell script scope. Load the required helper functions
+once in the caller: the Named Event catalog no longer depends on caller `$script:` data,
+and each recorded step binds its attempt across nested script invocations. Re-loading
+helpers or manually setting the attempt inside every script is unnecessary. This is
+runspace-local state, not cross-process persistence; a new PowerShell process still needs
+normal initialization. The recorded script's relative-path dependencies must be passed
+explicitly because its `$PSScriptRoot` is the snapshot directory.
+
+The recorder accepts actual `Format-Table`/`Format-List` streams from the diagnostic
+without an `Out-String` workaround. It renders formatting packets through one stateful
+pipeline while retaining their serialized data and returning the original output objects.
+Use caller-side `Out-String` only when the caller intentionally wants text.
+
 Record meaningful names, exact commands with resolved arguments, and actual probe output
 (including admin/runner/settings/desktop evidence required by the reporting format).
 Do not reconstruct missing commands from memory afterward. Prefer parameterized `-Action`
@@ -122,6 +135,14 @@ Allocate screenshot destinations before capture. Register evidence immediately, 
 overwrite a sealed artifact. A screenshot must be associated with its producing step:
 registration inside an action uses that step automatically; registration afterward uses
 the attempt's `LastStepId` explicitly.
+
+Output reservations still require safe logical names. Imported files may have real Windows
+basenames such as `+Package.en-US.yml` or a long generated `.png.state.json` suffix:
+the recorder chooses a bounded ASCII storage alias, keeps `OriginalName` in the sealed
+reference, and copies bytes without renaming the source. Long names retain a name hash and
+short extension. Use `-Name 'token-fixture.yml'` for an explicit import alias; traversal and
+device names remain invalid aliases. Choose a reserved output's name when allocating it,
+not when sealing it. Repeated imports always get new paths.
 
 ```powershell
 $attempt = Start-PtVerificationAttempt -Run $run -ItemId L1 -Kind Normal `
@@ -266,6 +287,9 @@ rewriting; `streams.jsonl` preserves record boundaries/type/stream for multiple 
 Non-string objects use PowerShell's textual representation for the raw log, while the
 wrapper returns the original objects. Binary commands need an explicit binary output
 file registered as evidence, not a PowerShell text pipeline.
+For PowerShell formatting packets, `streams.jsonl` retains CLIXML in `Text` with the original
+packet type; `stdout.txt` contains the rendered table/list. Formatting does not replace
+ordinary return objects with strings, and caller context is restored on exceptions too.
 
 Markdown uses encoded code spans for unsafe command characters and `<br>` for line
 breaks; its adjacent raw-command link is authoritative for exact copy/paste. Long scripts
@@ -305,6 +329,7 @@ The standalone script creates only its own named workspace and preserves it as e
 ```powershell
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtVerificationReport.ps1" `
     -Workspace "$env:TEMP\pt-report-acceptance-$([Guid]::NewGuid().ToString('N'))"
+pwsh -NoProfile -File "$skill\scripts\tests\Test-PtInvocationContracts.ps1"
 ```
 
 The fixtures include a clearly synthetic PNG, mixed verdicts, interrupted child PowerShell,
@@ -312,3 +337,7 @@ throw/rethrow and recorder-finally failures, nested fake winapp discovery/probes
 revisions, corrupt evidence/journals, Markdown/Unicode, input edits and moved archives.
 Expected injected errors/warnings are recorded; the script fails immediately on an
 unexpected result and writes `acceptance-results.json`. It never runs historical scripts.
+The invocation-contract suite additionally exercises grouped formatting, the documented
+read-only preflight, inherited helpers in a copied script, a uniquely owned local kernel
+event, real CLI help with an empty argument, and module-style evidence names. It does not
+signal PowerToys events or drive product UI.

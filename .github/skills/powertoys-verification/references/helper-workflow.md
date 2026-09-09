@@ -26,6 +26,7 @@ assertions, and a diagnostic restart does not prove ordinary reopen behavior.
 | Helper | Contract |
 |---|---|
 | `Get-PtNativeWindow [-Hwnd] [-ProcessId] [-ClassName] [-Visible]` | Fresh native top-level windows in physical screen coordinates. `-Hwnd 0` throws. Does not choose by English title or `MainWindowHandle`. |
+| `Get-PtForegroundWindow` | Reads the actual foreground HWND directly. Shell surfaces can be absent from `EnumWindows` even while foreground; an empty enumeration is not proof they are closed. |
 | `Wait-PtWindow -ProcessId [-ClassName] [-Visible] [-TimeoutSeconds]` | Waits for one matching window; ambiguity/process exit throws. |
 | `Wait-PtCondition -Probe -Description [-TimeoutSeconds] [-PollMilliseconds]` | Returns the probe's first truthy result. Exceptions propagate; only absence should return false/null. Probes must themselves be bounded. |
 | `Invoke-PtWinApp -Arguments [-TimeoutSeconds]` | Arguments follow `winapp ui`, not `winapp`. Captures raw output, throws on invalid target/nonzero exit/timeout, and stops only its own timed-out CLI process. Automatically records inside an active attempt. |
@@ -36,6 +37,8 @@ module profile supplies the required class/control predicates. Do not replace a 
 predicate with a fixed sleep or treat a timeout as authorization to restart the product.
 Re-discover after restart or UI reconstruction; do not persist selectors across those
 boundaries. A surviving process may own multiple windows.
+Empty argument elements are preserved, for example
+`Invoke-PtWinApp -Arguments @('set-value','TextBox','','-w',"$hwnd")`.
 
 ```powershell
 $window = Wait-PtWindow -ProcessId $process.Id -ClassName $expectedClass -Visible
@@ -54,9 +57,11 @@ physical binding, guard the exact visible HWND:
 Send-PtChord -Hwnd $window.Hwnd -Mods 0x5B,0x10 -Key 0xBF
 ```
 
-`Send-PtChord` defaults to 90 ms main-key dwell and 40 ms between key-down events.
-Override `-KeyDownMilliseconds` / `-ModifierDelayMilliseconds` only when the assertion
-requires a different timing; these delays are not the module's long-hold threshold.
+`Send-PtChord` defaults to no artificial dwell or inter-key delay. Opt into pacing when
+the specific UI needs it, for example `-KeyDownMilliseconds 90 -ModifierDelayMilliseconds 40`
+for a shortcut recorder. Delaying every activation chord can let a module observe a
+held Windows key and close its newly opened surface on release. These delays are not
+the module's long-hold threshold.
 Existing calls still return the accepted input count. `-Hwnd` is optional for legacy
 callers, which must continue to guard foreground themselves.
 
@@ -66,6 +71,14 @@ keys and duplicate codes are rejected, so it never releases a user's key or a ke
 by an outer hold. Left/right Windows and extended navigation modifiers are supported.
 For Win+1, keep Windows in the outer hold and send only `1` in the inner chord.
 Do not force the old foreground after routing changes it.
+
+For a **test-opened** Start/Search transition, use
+`Restore-PtForegroundAfterShell -Hwnd <tracked-target>`. It identifies the actual foreground
+owner, sends guarded Escape only to Start/Search, waits for foreground to leave that surface,
+and rechecks the original target identity. It rejects held modifiers and never terminates
+Shell processes. This is an explicit recovery action, not part of the ordinary foreground
+guard: do not use it to dismiss user-owned UI or to hide a product's failed close assertion.
+Review a passive capture too; Shell `WS_VISIBLE` can stay set after the surface is dismissed.
 
 Use `Save-PtPassiveScreenshot -Path [-Observe]` for menus, overlays, held-key observations
 and other focus-sensitive surfaces. Even ordinary `winapp ui screenshot -w` can affect
@@ -93,7 +106,8 @@ product files: the scenario's UI-only mutation rules still apply. Use file resto
 only for authorized rollback, and follow module-specific cache refresh rules afterward.
 Stop live writers through normal documented UI when required. Never use Taskband registry
 writes to restore taskbar pins/order.
-Matching file/registry snapshots are not rewritten, avoiding unnecessary watcher notifications.
+Matching file/registry/window snapshots are not rewritten, avoiding unnecessary watcher
+notifications or placement/DPI transitions on an untouched minimized window.
 
 ```powershell
 $desktop = Get-PtDesktopSnapshot -WindowHwnd @($window.Hwnd)
@@ -129,6 +143,9 @@ pwsh -NoProfile -File "$skill\scripts\tests\Test-PtDesktopHelpers.ps1" -Interact
 
 # Actual winapp --help wrapper integration, no UI access.
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtRecordingIntegration.ps1"
+
+# Real cross-script/formatting/argument/artifact contracts, no product UI access.
+pwsh -NoProfile -File "$skill\scripts\tests\Test-PtInvocationContracts.ps1"
 ```
 
 Each acceptance uses a new workspace and retains its results and restoration evidence.

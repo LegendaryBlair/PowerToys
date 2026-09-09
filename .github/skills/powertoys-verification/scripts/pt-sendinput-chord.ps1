@@ -66,15 +66,15 @@ function Send-PtChord {
     param(
         [uint16[]]$Mods = @(),
         [Parameter(Mandatory)][ValidateRange(1,254)][uint16]$Key,
-        [ValidateRange(0,5000)][int]$KeyDownMilliseconds = 90,
-        [ValidateRange(0,1000)][int]$ModifierDelayMilliseconds = 40,
+        [ValidateRange(0,5000)][int]$KeyDownMilliseconds = 0,
+        [ValidateRange(0,1000)][int]$ModifierDelayMilliseconds = 0,
         [long]$Hwnd
     )
     if ($PSBoundParameters.ContainsKey('Hwnd')) {
         Assert-PtForegroundOrAbort -Hwnd $Hwnd
     }
     Invoke-PtHeldKeys -Keys @($Mods + $Key) -KeyDownDelayMilliseconds $ModifierDelayMilliseconds -Action {
-        Start-Sleep -Milliseconds $KeyDownMilliseconds
+        if ($KeyDownMilliseconds) { Start-Sleep -Milliseconds $KeyDownMilliseconds }
     }
     return 2 * ($Mods.Count + 1)
 }

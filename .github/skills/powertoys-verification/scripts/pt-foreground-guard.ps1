@@ -130,3 +130,39 @@ function Assert-PtForegroundOrAbort {
         }
     }
 }
+
+function Restore-PtForegroundAfterShell {
+    <#
+    .SYNOPSIS
+    Explicitly dismiss a test-opened foreground Start/Search surface, then restore a tracked target.
+    .NOTES
+    Call only when the case owns the Shell transition. Normal foreground guards never send Escape.
+    Window enumeration and WS_VISIBLE alone do not identify the currently active Shell surface.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ValidateRange(1,[long]::MaxValue)][long]$Hwnd,
+        [ValidateRange(0.1,30)][double]$TimeoutSeconds = 3
+    )
+    if (-not (Get-Command Get-PtWindowIdentity -ErrorAction Ignore)) { . "$PSScriptRoot\pt-state-snapshot.ps1" }
+    if (-not (Get-Command Send-PtChord -ErrorAction Ignore)) { . "$PSScriptRoot\pt-sendinput-chord.ps1" }
+    $target = Get-PtWindowIdentity -Hwnd $Hwnd
+    $before = Get-PtForegroundWindow
+    $owner = Get-Process -Id $before.ProcessId -ErrorAction Stop
+    $dismissed = $false
+    if ($owner.ProcessName -in 'SearchHost','StartMenuExperienceHost') {
+        if ($before.Hwnd -eq $Hwnd) { throw 'Recovery target must not be the Shell surface being dismissed.' }
+        $held = @(0x10,0x11,0x12,0x5B,0x5C | Where-Object { ([PtChord]::GetAsyncKeyState($_) -band 0x8000) -ne 0 })
+        if ($held.Count) { throw "Release owned modifiers before Shell recovery; currently held: $($held -join ', ')." }
+        if (-not (Test-PtForeground -Hwnd $before.Hwnd)) { throw 'Foreground changed before Shell dismissal; no keys were sent.' }
+        Send-PtChord -Hwnd $before.Hwnd -Key 0x1B | Out-Null
+        Wait-PtCondition -Description 'foreground to leave the test-opened Shell surface' -TimeoutSeconds $TimeoutSeconds -Probe {
+            $current = [PtFg]::GetForegroundWindow().ToInt64()
+            $current -ne 0 -and $current -ne $before.Hwnd
+        } | Out-Null
+        $dismissed = $true
+    }
+    Assert-PtWindowIdentity -Identity $target
+    Assert-PtForegroundOrAbort -Hwnd $Hwnd
+    [pscustomobject]@{ Before = $before; ShellDismissed = $dismissed; Target = $target; After = (Get-PtForegroundWindow) }
+}

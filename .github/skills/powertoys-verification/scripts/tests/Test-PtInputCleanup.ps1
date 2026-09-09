@@ -35,4 +35,8 @@ try {
 } catch { $caught = $_ }
 if (-not $caught -or $caught.Exception.Message -notmatch 'key-down 16 failed' -or
     ([PtChord]::Releases -join ',') -ne '17') { throw 'Partial injection did not release exactly the accepted keys.' }
+[PtChord]::FailDown = 0
+function Start-Sleep { throw 'Default activation must not add artificial dwell.' }
+$sent = Send-PtChord -Mods @(0x5B,0x10) -Key 0xBF
+if ($sent -ne 6) { throw 'Default chord input count changed.' }
 'PASS: original error preservation, release-all on failure, and partial injection cleanup (fake native boundary).'

@@ -49,6 +49,10 @@ This map covers overlay lifecycle only. Use the recipe table for controls and th
 - The full guide and indicators share one host. Inspect pane/callout content as well as native
   visibility; process existence alone proves neither mode. The host should have `WS_EX_TOOLWINDOW`,
   not `WS_EX_APPWINDOW`. Review actual pixels for theme, localization, glyphs, and clipping.
+- After a short Windows press opens Start, read `Get-PtForegroundWindow` directly and use
+  `Restore-PtForegroundAfterShell -Hwnd <tracked-target>` for the test-owned transition.
+  Start/Search and even the taskbar can be absent from `EnumWindows` during this state.
+  Verify the target again before the next chord; do not infer closure from an empty enumeration.
 
 Before any mutation, capture settings/files and each touched window's page, placement, foreground,
 and pointer position. Restore in `finally` and compare with that baseline; report any unrecorded
@@ -62,7 +66,7 @@ for bytes, registry values and native placement; page/tab/IME state still needs 
 | Assertion | Entry path |
 |---|---|
 | Downstream content/navigation | `Invoke-PtSharedEvent -Name 'ShortcutGuide.Trigger'`; does not prove a keyboard binding |
-| Configured binding or excluded-app gate | `Send-PtChord -Hwnd <tracked-window> -Mods 0x5B,0x10 -Key 0xBF` for the default; its configurable dwell is not a hold-threshold assertion |
+| Configured binding or excluded-app gate | `Send-PtChord -Hwnd <tracked-window> -Mods 0x5B,0x10 -Key 0xBF` for the default; use its no-delay activation default, not recorder-oriented dwell |
 | Hold threshold or release | `Invoke-PtHeldKeys -Hwnd <tracked-window> -Keys 0x5B -Action { ... }`; repeat with `0x5C`, observing while held; release is guaranteed by `finally` during normal exception unwinding |
 | Quick Access integration | Resolve the runner PID, open `Local\PowerToysQuickAccess_<RunnerPid>_Show`, inspect the current UIA tree, and invoke the Shortcut Guide tile |
 | Command Palette integration | Discover the actual PowerToys extension and its module commands; a **Search apps** result for PowerToys is not the command provider |
@@ -138,6 +142,7 @@ a working feature BLOCKED; a reproducible mismatch with a valid checklist remain
 | Symptom | Recovery | Evidence / classification boundary |
 |---|---|---|
 | Empty recorder or failed chord | Follow the activation-binding recipe; recheck focus and input desktop | Capture recorder contents and persisted chord. A failed attempt alone establishes neither a version dependency nor a physical-input blocker |
+| Start/Search retains foreground after early Windows release | Recover the test-owned Shell transition using the actual foreground HWND, then verify the exact target | Preserve the initial state and recovery evidence; do not drop the guard or classify every dependent case as an unrelated environment failure |
 | Missing host or capture dismisses the overlay | Apply **Observation and restoration rules** before repeating input | Log PID/HWND, readiness and foreground before/after capture; name the remaining tool/environment obstacle if blocked |
 | Old manifest/generated shortcut content | Follow **Cached content refresh** | Retain before/after content and disclose the refresh; never credit a restart as a live-update PASS |
 | Empty search reports `Search shortcuts`, or a property returns null | Inspect cleared content and read the supported native UIA property | Accessible-name fallback is not text content; unsupported-property null is not false |

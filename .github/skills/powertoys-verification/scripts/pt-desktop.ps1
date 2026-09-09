@@ -129,13 +129,24 @@ function Wait-PtWindow {
     }
 }
 
+function Get-PtForegroundWindow {
+    <# .SYNOPSIS
+    Read the actual foreground HWND directly; Shell surfaces may be absent from EnumWindows.
+    #>
+    [CmdletBinding()]
+    param()
+    $foreground = [PtDesktop]::GetForegroundWindow().ToInt64()
+    if (-not $foreground) { throw 'No foreground window on the current input desktop.' }
+    Get-PtNativeWindow -Hwnd $foreground
+}
+
 function Invoke-PtWinApp {
     <# .SYNOPSIS
     Run a bounded winapp ui command. Return raw output; throw on timeout or nonzero exit.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string[]]$Arguments,
+        [Parameter(Mandatory)][AllowEmptyString()][ValidateNotNull()][string[]]$Arguments,
         [ValidateRange(1,120)][int]$TimeoutSeconds = 15,
         [switch]$SkipRecording
     )

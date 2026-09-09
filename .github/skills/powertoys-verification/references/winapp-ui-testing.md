@@ -313,6 +313,18 @@ winapp ui wait-for "Primary" -a $AppPid --gone -t 3000
 - **File pickers need `-w <HWND>`** — they run in a separate PickerHost process, so `-a PID` won't find them. Use `list-windows` to discover the picker HWND first
 - **Flyouts need a short `Start-Sleep`** after triggering — the menu items appear in the tree asynchronously
 
+### Restart actions can invalidate their own UIA target
+
+A restart or close action may take effect while `winapp ui invoke` is still
+inspecting its target. The command can then report a missing element or unsupported
+pattern even though the application has exited. Preserve the command error and
+check the recorded PID/start-time transition before retrying; do not conclude that
+the button is inert from that error alone.
+
+For language changes, resolve the replacement Settings window and inspect the
+actual language after restart. Rollback must also handle a disappeared original
+Settings process. Keep this recovery separate from the Normal-path verdict.
+
 ### CRITICAL — `invoke` vs `click`: choose the right verb
 
 **`winapp ui invoke <sel>`** dispatches through UIA's **`InvokePattern` via COM IPC**:

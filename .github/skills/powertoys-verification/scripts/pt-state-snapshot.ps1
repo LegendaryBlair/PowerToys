@@ -145,6 +145,9 @@ function Restore-PtWindowSnapshot {
     param([Parameter(Mandatory)]$Snapshot)
     Assert-PtWindowIdentity -Identity $Snapshot.identity
     $h = [IntPtr][long]$Snapshot.identity.hwnd
+    $expected = $Snapshot | ConvertTo-Json -Depth 8 -Compress
+    $actual = Get-PtWindowSnapshot -Hwnd $h.ToInt64()
+    if (($actual | ConvertTo-Json -Depth 8 -Compress) -ceq $expected) { return $actual }
     $original = $Snapshot.placement
     $placement = [PtDesktop+PLACEMENT]::new()
     $placement.flags = $original.flags
@@ -158,7 +161,6 @@ function Restore-PtWindowSnapshot {
     }
     [PtDesktop]::Place($h, $placement)
     if (-not $Snapshot.visible) { [void][PtDesktop]::ShowWindow($h, 0) }
-    $expected = $Snapshot | ConvertTo-Json -Depth 8 -Compress
     $actual = Get-PtWindowSnapshot -Hwnd $h.ToInt64()
     if (($actual | ConvertTo-Json -Depth 8 -Compress) -cne $expected -and
         $original.ptMinPosition.X -eq -32000 -and $original.ptMinPosition.Y -eq -32000) {

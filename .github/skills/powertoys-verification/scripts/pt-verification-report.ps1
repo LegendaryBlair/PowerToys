@@ -302,7 +302,8 @@ function Open-PtVerificationRun {
 function Get-PtActiveVerificationAttempt {
     [CmdletBinding()]
     param()
-    $value = Get-Variable -Name PtActiveVerificationAttempt -Scope Script -ErrorAction Ignore
+    # Global is runspace-local, unlike script scope which changes inside a copied -ScriptFile.
+    $value = Get-Variable -Name PtActiveVerificationAttempt -Scope Global -ErrorAction Ignore
     if ($value) { $value.Value }
 }
 
@@ -310,7 +311,7 @@ function Set-PtActiveVerificationAttempt {
     [CmdletBinding()]
     param([AllowNull()]$Attempt)
     if ($null -ne $Attempt) { Assert-PtReportAttempt $Attempt }
-    $script:PtActiveVerificationAttempt = $Attempt
+    $global:PtActiveVerificationAttempt = $Attempt
 }
 
 function Assert-PtReportAttempt {
@@ -372,6 +373,24 @@ function New-PtVerificationArtifactPath {
     Resolve-PtReportPath $Attempt.Run $relative
 }
 
+function ConvertTo-PtReportArtifactName {
+    param([Parameter(Mandatory)][string]$Name)
+    $alias = [regex]::Replace($Name, '[^A-Za-z0-9_.-]', '-')
+    $alias = [regex]::Replace($alias, '\.{2,}', '.').TrimEnd('.')
+    if ($alias -notmatch '^[A-Za-z0-9]' -or $alias -match '^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\.|$)') {
+        $alias = "artifact-$alias"
+    }
+    if ($alias.Length -gt 101) {
+        $extension = [IO.Path]::GetExtension($alias)
+        if ($extension.Length -gt 16) { $extension = '' }
+        $hash = (Get-PtReportHash ([Text.Encoding]::UTF8.GetBytes($Name))).Substring(0,12)
+        $suffix = "-$hash$extension"
+        $alias = $alias.Substring(0, 101 - $suffix.Length).TrimEnd('.') + $suffix
+    }
+    Assert-PtReportName $alias
+    $alias
+}
+
 function Add-PtVerificationArtifact {
     [CmdletBinding()]
     param(
@@ -380,25 +399,33 @@ function Add-PtVerificationArtifact {
         [Parameter(Mandatory)][ValidateSet('Evidence','Screenshot','Restoration')][string]$Kind,
         [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Description,
         [string]$StepId = '',
-        [switch]$Synthetic
+        [switch]$Synthetic,
+        [string]$Name
     )
     Assert-PtReportAttempt $Attempt
     $Kind = switch ($Kind) { 'Evidence' { 'Evidence' }; 'Screenshot' { 'Screenshot' }; default { 'Restoration' } }
     Assert-PtReportNoLink $Path
     if (-not [IO.File]::Exists($Path)) { throw "Missing evidence file: $Path" }
     $full = [IO.Path]::GetFullPath($Path)
+    $originalName = [IO.Path]::GetFileName($full)
+    if ($PSBoundParameters.ContainsKey('Name')) { Assert-PtReportName $Name }
     $relative = [IO.Path]::GetRelativePath($Attempt.Run.Workspace, $full)
     $events = @(Read-PtReportEvents $Attempt.Run)
     $reserved = @($events | Where-Object { $_.Type -eq 'ArtifactReserved' -and $_.AttemptId -ceq $Attempt.Id -and $_.Data.Path -ceq $relative })
     if (@($events | Where-Object { $_.Type -eq 'ArtifactAdded' -and $_.Data.File.Path -ceq $relative }).Count) {
         throw 'Artifact already registered; allocate a new path instead of overwriting.'
     }
+    if ($reserved.Count -and $PSBoundParameters.ContainsKey('Name')) {
+        throw 'Name aliases apply to imported files; choose the name when reserving an output path.'
+    }
     if (-not $reserved.Count) {
-        $destination = New-PtVerificationArtifactPath $Attempt ([IO.Path]::GetFileName($full))
+        $alias = if ($PSBoundParameters.ContainsKey('Name')) { $Name } else { ConvertTo-PtReportArtifactName $originalName }
+        $destination = New-PtVerificationArtifactPath $Attempt $alias
         Write-PtReportFile $destination ([IO.File]::ReadAllBytes($full))
         $relative = [IO.Path]::GetRelativePath($Attempt.Run.Workspace, $destination)
     }
     $reference = Get-PtReportFileReference $Attempt.Run $relative $Kind $Description $Synthetic.IsPresent
+    $reference | Add-Member -NotePropertyName OriginalName -NotePropertyValue $originalName
     if ($Kind -eq 'Screenshot') {
         $bytes = [IO.File]::ReadAllBytes((Resolve-PtReportPath $Attempt.Run $relative))
         $png = $bytes.Length -ge 24 -and [BitConverter]::ToString($bytes, 0, 8) -eq '89-50-4E-47-0D-0A-1A-0A'
@@ -422,7 +449,7 @@ function Assert-PtReportEvidence {
             throw 'Evidence must be registered in this attempt; diagnostic/cross-attempt evidence is not Normal evidence.'
         }
         $sealed = $match[0].Data.File
-        if ($file.Kind -cne $sealed.Kind -or $file.Description -cne $sealed.Description -or
+        if ($file.Kind -cne $sealed.Kind -or $file.Description -cne $sealed.Description -or $file.OriginalName -cne $sealed.OriginalName -or
             $file.Length -ne $sealed.Length -or $file.Synthetic -isnot [bool] -or $file.Synthetic -ne $sealed.Synthetic) {
             throw 'Evidence metadata differs from its sealed registration; do not relabel evidence or remove Synthetic.'
         }
@@ -468,7 +495,10 @@ function Invoke-PtVerificationStep {
     $Attempt.StepStack.Add($stepId)
     $clock = [Diagnostics.Stopwatch]::StartNew()
     $original = $null
+    $previousAttempt = Get-PtActiveVerificationAttempt
+    $formatter = $null
     try {
+        Set-PtActiveVerificationAttempt -Attempt $Attempt
         $ErrorActionPreference = 'Stop'
         $PSNativeCommandUseErrorActionPreference = $true
         $invoke = if ($PSCmdlet.ParameterSetName -eq 'File') { "$directory\executed.ps1" } else { $Action }
@@ -482,13 +512,29 @@ function Invoke-PtVerificationStep {
                 { $_ -is [Management.Automation.InformationRecord] } { 'Information'; break }
                 default { 'Output' }
             }
-            $text = if ($null -eq $record) { '' } elseif ($record -is [string]) { $record } else { $record | Out-String -Width 4096 }
+            $typeName = if ($null -eq $record) { 'null' } else { $record.GetType().FullName }
+            $formatRecord = $typeName.StartsWith('Microsoft.PowerShell.Commands.Internal.Format.', [StringComparison]::Ordinal)
+            $text = if ($formatRecord) { [Management.Automation.PSSerializer]::Serialize($record, 20) }
+                elseif ($null -eq $record) { '' } elseif ($record -is [string]) { $record } else { $record | Out-String -Width 4096 }
             $entry = ConvertTo-Json -InputObject @{
-                Stream = $streamName; Text = $text; Type = $(if ($null -eq $record) { 'null' } else { $record.GetType().FullName })
+                Stream = $streamName; Text = $text; Type = $typeName
             } -Compress
             [IO.File]::AppendAllText("$directory\streams.jsonl", $entry + "`n", [Text.UTF8Encoding]::new($false))
             if ($streamName -eq 'Output') {
-                [IO.File]::AppendAllText("$directory\stdout.txt", $text, [Text.UTF8Encoding]::new($false))
+                if ($formatRecord) {
+                    if ($null -eq $formatter) {
+                        $outputPath = "$directory\stdout.txt"
+                        $formatter = {
+                            Out-String -Stream -Width 4096 | ForEach-Object {
+                                [IO.File]::AppendAllText($outputPath, $_ + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+                            }
+                        }.GetNewClosure().GetSteppablePipeline()
+                        $formatter.Begin($true)
+                    }
+                    $formatter.Process($record)
+                } else {
+                    [IO.File]::AppendAllText("$directory\stdout.txt", $text, [Text.UTF8Encoding]::new($false))
+                }
                 $PSCmdlet.WriteObject($record)
             } elseif ($streamName -eq 'Error') {
                 throw $record
@@ -497,6 +543,7 @@ function Invoke-PtVerificationStep {
             } elseif ($streamName -eq 'Debug') { $PSCmdlet.WriteDebug($record.Message)
             } elseif ($streamName -eq 'Information') { $PSCmdlet.WriteInformation($record) }
         }
+        if ($null -ne $formatter) { $formatter.End() }
     } catch {
         $original = $_
         try {
@@ -506,6 +553,15 @@ function Invoke-PtVerificationStep {
             [Console]::Error.WriteLine("Verification error capture failed: $($_.Exception.Message)")
         }
     } finally {
+        try {
+            if ($null -ne $formatter) { $formatter.Dispose() }
+        } catch {
+            if ($original) {
+                $original.Exception.Data['PtVerificationFormatterCleanupFailure'] = $_.Exception.Message
+                [Console]::Error.WriteLine("Formatting cleanup failed: $($_.Exception.Message)")
+            } else { $original = $_ }
+        }
+        $global:PtActiveVerificationAttempt = if ($previousAttempt -and -not $previousAttempt.Closed) { $previousAttempt } else { $null }
         $clock.Stop()
         $endTime = [DateTimeOffset]::UtcNow
         $Attempt.StepStack.RemoveAt($Attempt.StepStack.Count - 1)

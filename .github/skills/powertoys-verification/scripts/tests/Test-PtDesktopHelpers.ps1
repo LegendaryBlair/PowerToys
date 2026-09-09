@@ -46,6 +46,7 @@ function Reject([scriptblock]$Action, [string]$Pattern) {
 }
 
 Check 'Readiness returns evidence and propagates errors' {
+    Get-Command Get-PtForegroundWindow,Restore-PtForegroundAfterShell -ErrorAction Stop | Out-Null
     Require ((Wait-PtCondition -Description ready -Probe { 'ready' }) -eq 'ready') 'Probe result lost'
     Reject { Wait-PtCondition -Description absent -TimeoutSeconds 0.15 -Probe { $false } } 'Timed out'
     Reject { Wait-PtCondition -Description broken -Probe { throw 'probe failure' } } 'probe failure'

@@ -46,8 +46,8 @@ specific checklist.
 | File | Purpose |
 |---|---|
 | `scripts/pt-shared-events.ps1` | `Invoke-PtSharedEvent`, `Test-PtSharedEvent`, `Get-PtSharedEventCatalog` — 56-entry friendly-name map for PT Named Events (CmdPal.Show, AOT.Pin, PowerLauncher.Invoke, LightSwitch.Toggle, ZoomIt.Draw, ...). The deterministic, foreground-free, UIPI-immune way to trigger a module. |
-| `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Invoke-PtHeldKeys`, `Wait-PtHotkeyAccepted` — paced chords, left/right extended keys, and release in `finally`. Prefer Named Events unless the binding/input itself is under test. |
-| `scripts/pt-foreground-guard.ps1` | `Test-PtForeground`, `Force-PtForeground`, `Assert-PtForegroundOrAbort` — accept exact `-Hwnd` or legacy `-AppId`; reject hidden/stale targets before input. |
+| `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Invoke-PtHeldKeys`, `Wait-PtHotkeyAccepted` — no-delay activation by default, optional recorder pacing, left/right extended keys, and release in `finally`. Prefer Named Events unless the binding/input itself is under test. |
+| `scripts/pt-foreground-guard.ps1` | Exact-HWND guards plus explicit `Restore-PtForegroundAfterShell` for a test-opened Start/Search transition. Ordinary guards never dismiss UI automatically. |
 | `scripts/pt-desktop.ps1` | Native window discovery, `Wait-PtCondition`, `Wait-PtWindow`, bounded/recorded `Invoke-PtWinApp`, reusable UIA tree flattening, and `Save-PtPassiveScreenshot`. See [helper workflow](references/helper-workflow.md). |
 | `scripts/pt-state-snapshot.ps1` | Paired file/selected-HKCU-value/window/desktop snapshots and restoration; exact process identity and tracked-window close. Does not infer ownership or restart apps. |
 | `scripts/pt-shortcut-guide.ps1` | SG host/content readiness and read-only taskbar baselines/restoration comparisons. Module semantics stay in its profile/checklist. |
