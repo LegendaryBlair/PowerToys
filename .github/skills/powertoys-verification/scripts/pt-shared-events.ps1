@@ -32,7 +32,11 @@ if (-not ('PtEv' -as [type])) {
 
             public static bool Exists(string fullName) {
                 IntPtr h = OpenEventW(SYNCHRONIZE, false, fullName);
-                if (h == IntPtr.Zero) return false;
+                if (h == IntPtr.Zero) {
+                    int error = Marshal.GetLastWin32Error();
+                    if (error == 2 || error == 3) return false;
+                    throw new System.ComponentModel.Win32Exception(error, "Cannot observe event '" + fullName + "'.");
+                }
                 CloseHandle(h); return true;
             }
         }

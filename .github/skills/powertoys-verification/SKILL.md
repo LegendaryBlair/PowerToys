@@ -49,9 +49,20 @@ specific checklist.
 | `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Invoke-PtHeldKeys`, `Wait-PtHotkeyAccepted` — no-delay activation by default, optional recorder pacing, left/right extended keys, and release in `finally`. Prefer Named Events unless the binding/input itself is under test. |
 | `scripts/pt-foreground-guard.ps1` | Exact-HWND guards plus explicit `Restore-PtForegroundAfterShell` for a test-opened Start/Search transition. Ordinary guards never dismiss UI automatically. |
 | `scripts/pt-desktop.ps1` | Native window discovery, `Wait-PtCondition`, `Wait-PtWindow`, bounded/recorded `Invoke-PtWinApp`, reusable UIA tree flattening, and `Save-PtPassiveScreenshot`. See [helper workflow](references/helper-workflow.md). |
+| `scripts/pt-uia.ps1` | Scoped control resolution and `Select-PtComboBoxItem`: exact type plus AutomationId/name, runtime-identity deduplication, supported-pattern selection and actual readback. Never chooses the first caption match. |
+| `scripts/pt-ui-observation.ps1` | Read-only `Get-PtUiObservation`: typed actual properties, native LiveSetting, structured Missing/Ambiguous/Unsupported/Stale/ReadError failures; no placeholder/default fallback. See [UI observations](references/ui-observations.md). |
+| `scripts/pt-ui-snapshot.ps1` | Offline `Test-PtUiSnapshot`: determine whether a captured tree satisfies explicit structural landmarks, without treating absent virtualized/business rows as zero or requiring expected results as readiness. |
+| `scripts/pt-shortcut-recorder.ps1` | Common WinUI shortcut snapshot, safe readiness handshake, Save/Cancel and original-value restoration. Caller supplies the page/control/settings path; no module activation, Reset shortcut or JSON bypass. See [shortcut recorder](references/shortcut-recorder.md). |
+| `scripts/pt-owned-fixtures.ps1` | `New/Remove-PtNotepadFixture` and `New/Remove-PtExplorerFixture`: persisted ownership receipts, shared Notepad tab cleanup, isolated Explorer windows, explicit unsaved-edit consent and partial-cleanup retry. See [owned fixtures](references/owned-fixtures.md). |
 | `scripts/pt-state-snapshot.ps1` | Paired file/selected-HKCU-value/window/desktop snapshots and restoration; exact process identity and tracked-window close. Does not infer ownership or restart apps. |
+| `scripts/pt-module-lifecycle.ps1` | Profile-driven Resident/RunnerHosted/OnDemand state, explicit UI enable/disable, Diagnostic-only module restart and original-enabled restoration. No implicit Runner restart or process kill. See [module lifecycle](references/module-lifecycle.md). |
+| `scripts/pt-directory-snapshot.ps1` | Bounded byte/file-set/empty-directory snapshots and explicit-owned three-way rollback. Conflicts stop before writes; unrelated changes survive with a partial receipt. See [directory snapshots](references/directory-snapshots.md). |
 | `scripts/pt-shortcut-guide.ps1` | SG host/content readiness and read-only taskbar baselines/restoration comparisons. Module semantics stay in its profile/checklist. |
-| `scripts/pt-verification-report.ps1` | Append-only attempts/steps, immutable source/evidence snapshots, subassertions and fixed report export. Read [recording workflow](references/recording-workflow.md) before the first discovery command. |
+| `scripts/pt-shortcut-guide-flow.ps1` | Owned SG open/observe/close and scoped Windows-key holds with explicit entry/exit semantics, persisted receipts and early-dismissal errors. No automatic retry/restart or input-to-event substitution. See [composed SG flows](references/modules/shortcut-guide/composed-flows.md). |
+| `scripts/pt-taskbar-fixture.ps1` | Disposable uniquely identified taskbar windows, fresh slot mapping, owned-only reorder, guarded digit routing and paired taskbar/pointer cleanup. No pins, registry writes or Explorer restart. See [taskbar fixtures](references/taskbar-fixtures.md). |
+| `scripts/pt-verification-report.ps1` | Thin case lifecycle, incremental `Get-PtVerificationReview`, concise observations with raw-detail attachments, shared source snapshots, compact report plus complete details. Full integrity checks remain in export/archive validation. Read [recording workflow](references/recording-workflow.md) before discovery. |
+| `scripts/pt-verification-operation.ps1` | Stable-key failure/recovery budgets across attempts and processes, explicit Drive/Observe/Record stages, original errors plus cleanup/recording errors. Optional case integration; never retries or assigns product verdicts. See [operation boundaries](references/operation-boundaries.md). |
+| `scripts/pt-verification-render.ps1` | Read-only compact report rendering; complete commands remain in `details.md`. |
 | `scripts/pt-cmdpal-recycle.ps1` | `Reset-CmdPalAppX`, `Reset-CmdPalToHome`, `Test-CmdPalDegraded`, `Invoke-CmdPalQuery` — CmdPal-specific lifecycle (handles TextChanged-broken state, BackButton navigation, AppX recycle). |
 | `scripts/pt-admin-probe.ps1` | `Test-PtAdmin`, `Test-ProcessElevated`, `Test-PtRunnerAdmin` — TokenElevation probes to verify your session and the PT runner have the right elevation for the test. |
 | `scripts/pt-clipboard-diff.ps1` | `Get-PtClipboardFormats`, `Compare-PtClipboardFormatDiff`, `Set-PtClipboardRich` — multi-format clipboard inspection for Advanced Paste tests. |
@@ -108,6 +119,8 @@ Stop-PtVerificationAttempt $preflight -Reason 'Prerequisites recorded'
 
 Use the [helper workflow](references/helper-workflow.md) for paired restoration and desktop smoke
 checks. Use `Invoke-PtWinApp -Arguments @('inspect',...)`, not direct native calls, while recording.
+The [thin run template](templates/verification-run.ps1) provides initialization and guaranteed
+cleanup/export wiring. Use `Invoke-PtVerificationCase` rather than rebuilding attempt handles.
 
 ## Step 2 — Drive techniques
 
@@ -138,7 +151,9 @@ try {
 
 > For shell-extension modules (PowerRename, File Locksmith, Image Resizer, New+) edit the **module-owned** file under `%LOCALAPPDATA%\Microsoft\PowerToys\<Module>\`, then `Restart-PtRunner` (and on stubborn handlers, restart Explorer). See pitfall #12 below.
 >
-> If you need to flip the *enabled* bit for a whole module, debounce isn't enough — call `Restart-PtRunner` after the write.
+> For whole-module enablement, use the shipped Settings toggle and the
+> [explicit lifecycle helper](references/module-lifecycle.md). Do not edit the enabled bit
+> and restart every utility as a substitute for a module-local UI transition.
 
 ### §2.B — Interact with a UI element (2 techniques, most-reliable first)
 
@@ -160,7 +175,7 @@ For elevated targets, AppX windows with stunted UIA trees, or keystrokes that UI
 |---|---|---|
 | **Proves** | The action fires (the path *downstream* of the hotkey). **Not** that the chord is bound. | The full path: real keys → runner hook → action. The **only** method that proves the chord binding itself. |
 | **Robustness** | Highest — no foreground, no input desktop, UIPI-immune; works headless / RDP-minimized. | Lowest — needs an attached input desktop (else `BLK-ENV`), steals foreground, can't inject OS-reserved chords (Win+L / Win+Tab). |
-| **Precondition** | Owning module process is running (the event only exists while it is). | Attached input desktop + foreground. |
+| **Precondition** | The profile's consumer/process readiness contract is satisfied; event existence alone is insufficient. | Attached input desktop + foreground. |
 
 **Pick by what the item asserts:** for "does action Y happen" use C1; for "pressing chord X triggers Y" or "the rebind takes effect", C1 is insufficient (it bypasses the chord) — use C2, or C1 *plus* a runner-log line proving the chord was accepted.
 
@@ -172,7 +187,7 @@ Invoke-PtSharedEvent -Name 'PowerLauncher.Invoke'  # opens PT Run
 Invoke-PtSharedEvent -Name 'LightSwitch.Toggle'    # toggles theme
 Get-PtSharedEventCatalog | Format-Table            # full list
 ```
-No synthetic input — it's a `SetEvent` on the kernel event the module waits on, the same downstream path the runner's hotkey handler signals. Verify the side effect via UIA (`winapp ui list-windows -a <module>`), a log line (`Get-PtRunnerLogTail`), or settings.json diff (`Get-PtModuleSettings`). The event only exists while the owning process runs, so `Test-PtSharedEvent` doubles as an "is the module alive" check.
+No synthetic input — it's a `SetEvent` on the kernel event the module waits on, the same downstream path the runner's hotkey handler signals. Verify the side effect via UIA (`winapp ui list-windows -a <module>`), a log line (`Get-PtRunnerLogTail`), or settings.json diff (`Get-PtModuleSettings`). Event existence proves only that some component holds it open: Runner-owned events can survive module disable. Use the profile's H06 process/host/event contract, not `Test-PtSharedEvent` alone, to establish lifecycle readiness.
 
 #### C2. SendInput chord — last resort / chord-binding verification
 Real synthetic keys. Loud (steals foreground) and fragile, but the only way to prove the activation chord is actually bound. The runner's global keyboard hook catches the chord regardless of focus, so the precondition is just an **attached input desktop** (pitfall #7; on a detached desktop `SendInput` returns `ACCESS_DENIED` and the keys vanish → mark `BLK-ENV`).
@@ -277,6 +292,12 @@ For each item in module:
    6. Record verdict + evidence + cleanup
    7. Next item
 ```
+
+Collect raw observations before committing judgments; review every 3-5 related items. Use one
+run and reopen only affected items for corrections, retaining history and valid product failures.
+Apply the shared [observation/rollback checks and obstacle budget](references/pre-flight.md#one-run-bounded-work-incremental-review);
+new scripts/contexts do not reset repeated failures. Do not turn a verification request into an
+unbounded harness-development session.
 
 When done, run state hygiene cleanup, write the report **including the §G retrospective**, archive the workspace (Step 7), and exit.
 

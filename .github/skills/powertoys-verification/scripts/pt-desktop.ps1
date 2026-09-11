@@ -22,8 +22,8 @@ public static class PtDesktop {
         public RECT Rect;
     }
     delegate bool EnumProc(IntPtr hwnd, IntPtr param);
-    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr param);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+    [DllImport("user32.dll", SetLastError=true)] static extern bool EnumWindows(EnumProc proc, IntPtr param);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
@@ -35,30 +35,79 @@ public static class PtDesktop {
     [DllImport("user32.dll", SetLastError=true)] static extern bool SetWindowPlacement(IntPtr h, ref PLACEMENT p);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll", SetLastError=true)] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
-    [DllImport("user32.dll", SetLastError=true)] public static extern bool GetCursorPos(out POINT point);
-    [DllImport("user32.dll", SetLastError=true)] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll", EntryPoint="GetCursorPos", SetLastError=true)] static extern bool ReadCursor(out POINT point);
+    [DllImport("user32.dll", EntryPoint="SetCursorPos", SetLastError=true)] static extern bool MoveCursor(int x, int y);
     [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    public static bool GetCursorPos(out POINT point) {
+        IntPtr previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try { return ReadCursor(out point); }
+        finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
+    }
+    public static bool SetCursorPos(int x, int y) {
+        IntPtr previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try { return MoveCursor(x,y); }
+        finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
+    }
     public static Window Read(IntPtr h) {
-        if (!IsWindow(h)) throw new ArgumentException("Window no longer exists: " + h);
-        var cls=new StringBuilder(512); var title=new StringBuilder(2048); uint pid; RECT rect;
-        GetWindowThreadProcessId(h, out pid); GetClassName(h, cls, cls.Capacity); GetWindowText(h, title, title.Capacity);
+        if (!IsWindow(h)) throw new Win32Exception(1400, "Window no longer exists: " + h);
+        var cls=new StringBuilder(512); var title=new StringBuilder(2048); uint pid, currentPid; RECT rect;
+        uint thread=GetWindowThreadProcessId(h, out pid);
+        if (thread == 0) throw new Win32Exception(1400, "Window disappeared: " + h);
+        if (GetClassName(h, cls, cls.Capacity) == 0) throw new Win32Exception();
+        GetWindowText(h, title, title.Capacity);
         if (!GetWindowRect(h, out rect)) throw new Win32Exception();
+        if (GetWindowThreadProcessId(h, out currentPid) != thread || pid != currentPid)
+            throw new Win32Exception(1400, "Window identity changed while reading: " + h);
         return new Window { Hwnd=h.ToInt64(), ProcessId=pid, ClassName=cls.ToString(), Title=title.ToString(),
             Visible=IsWindowVisible(h), Minimized=IsIconic(h), Rect=rect };
     }
-    public static Window[] Windows() {
+    public static Window[] Windows() { return Windows(0, null); }
+    public static Window[] Windows(uint processId, string className) {
         var windows=new List<Window>();
-        EnumWindows((h,p) => { if(IsWindow(h)) windows.Add(Read(h)); return true; }, IntPtr.Zero);
+        Exception failure=null;
+        bool completed=EnumWindows((h,p) => {
+            try {
+                uint owner;
+                if (GetWindowThreadProcessId(h, out owner) == 0) return true;
+                if (processId != 0 && owner != processId) return true;
+                if (!String.IsNullOrEmpty(className)) {
+                    var name=new StringBuilder(512);
+                    if (GetClassName(h,name,name.Capacity) == 0) {
+                        int error=Marshal.GetLastWin32Error();
+                        if (!IsWindow(h)) return true;
+                        throw new Win32Exception(error);
+                    }
+                    if (!String.Equals(name.ToString(),className,StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                var window=Read(h);
+                if ((processId == 0 || window.ProcessId == processId) &&
+                    (String.IsNullOrEmpty(className) || String.Equals(window.ClassName,className,StringComparison.OrdinalIgnoreCase))) windows.Add(window);
+            } catch (Win32Exception ex) when (ex.NativeErrorCode == 1400) {
+                // A top-level window may close between enumeration and reading its properties.
+            } catch (Exception ex) {
+                failure=ex;
+                return false; // Never let managed exceptions escape through the native callback.
+            }
+            return true;
+        }, IntPtr.Zero);
+        if (failure != null) throw failure;
+        if (!completed) throw new Win32Exception();
         return windows.ToArray();
     }
     public static PLACEMENT Placement(IntPtr h) {
-        var p=new PLACEMENT(); p.length=Marshal.SizeOf(typeof(PLACEMENT));
-        if (!GetWindowPlacement(h, ref p)) throw new Win32Exception();
-        return p;
+        IntPtr previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try {
+            var p=new PLACEMENT(); p.length=Marshal.SizeOf(typeof(PLACEMENT));
+            if (!GetWindowPlacement(h, ref p)) throw new Win32Exception();
+            return p;
+        } finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
     }
     public static void Place(IntPtr h, PLACEMENT p) {
-        p.length=Marshal.SizeOf(typeof(PLACEMENT));
-        if (!SetWindowPlacement(h, ref p)) throw new Win32Exception();
+        IntPtr previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try {
+            p.length=Marshal.SizeOf(typeof(PLACEMENT));
+            if (!SetWindowPlacement(h, ref p)) throw new Win32Exception();
+        } finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
     }
 }
 '@
@@ -95,13 +144,13 @@ function Get-PtNativeWindow {
     Enumerate native top-level windows in physical screen coordinates; never infer a main window.
     #>
     [CmdletBinding()]
-    param([long]$Hwnd, [int]$ProcessId, [string]$ClassName, [switch]$Visible)
+    param([long]$Hwnd, [ValidateRange(1,2147483647)][int]$ProcessId, [string]$ClassName, [switch]$Visible)
     $dpi = [PtDesktop]::SetThreadDpiAwarenessContext([IntPtr](-4))
     try {
         $windows = if ($PSBoundParameters.ContainsKey('Hwnd')) {
             if ($Hwnd -eq 0) { throw 'HWND=0 is not a target window.' }
             [PtDesktop]::Read([IntPtr]$Hwnd)
-        } else { [PtDesktop]::Windows() }
+        } else { [PtDesktop]::Windows([uint32]$ProcessId, $ClassName) }
         $windows | Where-Object {
             (-not $ProcessId -or $_.ProcessId -eq $ProcessId) -and
             (-not $ClassName -or $_.ClassName -eq $ClassName) -and
@@ -121,8 +170,11 @@ function Wait-PtWindow {
         [switch]$Visible,
         [ValidateRange(0.1,300)][double]$TimeoutSeconds = 9
     )
+    $originalProcess = Get-Process -Id $ProcessId -ErrorAction Stop
+    $started = $originalProcess.StartTime.ToUniversalTime().Ticks
     Wait-PtCondition -Description "window for PID $ProcessId ($ClassName)" -TimeoutSeconds $TimeoutSeconds -Probe {
         $process = Get-Process -Id $ProcessId -ErrorAction Stop
+        if ($process.StartTime.ToUniversalTime().Ticks -ne $started) { throw "Process identity changed while waiting for PID $ProcessId." }
         $windows = @(Get-PtNativeWindow -ProcessId $process.Id -ClassName $ClassName -Visible:$Visible)
         if ($windows.Count -gt 1) { throw "Ambiguous window selection for PID $ProcessId; supply a more specific class or track the exact HWND." }
         if ($windows.Count -eq 1) { $windows[0] }
@@ -136,7 +188,11 @@ function Get-PtForegroundWindow {
     [CmdletBinding()]
     param()
     $foreground = [PtDesktop]::GetForegroundWindow().ToInt64()
-    if (-not $foreground) { throw 'No foreground window on the current input desktop.' }
+    if (-not $foreground) {
+        $error=[InvalidOperationException]::new('No foreground window on the current input desktop.')
+        $error.Data['PtDesktopStatus']='NoForeground'
+        throw $error
+    }
     Get-PtNativeWindow -Hwnd $foreground
 }
 

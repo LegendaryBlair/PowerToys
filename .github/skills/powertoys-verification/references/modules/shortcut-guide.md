@@ -12,6 +12,13 @@
 **Installed manifests**: `%LOCALAPPDATA%\PowerToys\WinUI3Apps\Assets\ShortcutGuide\Manifests`
 **Index generator**: `%LOCALAPPDATA%\PowerToys\WinUI3Apps\PowerToys.ShortcutGuide.IndexYmlGenerator.exe`
 
+**Lifecycle profile**: use [module lifecycle](../module-lifecycle.md) with
+`Model=Resident`, key `Shortcut Guide`, page `ShortcutGuideNavItem`, toggle name
+`Shortcut Guide`, the executable path above and native class
+`WinUIDesktopWin32WindowClass`. For `ShortcutGuide.Trigger`, use
+`WhenEnabled=Present` and `WhenDisabled=Ignore`: Runner's DLL owns the event, so it
+can survive disable. Process/host exit, not event absence, establishes the stop condition.
+
 ## UI state-transition map
 
 This map covers overlay lifecycle only. Use the recipe table for controls and the
@@ -38,6 +45,8 @@ This map covers overlay lifecycle only. Use the recipe table for controls and th
   after showing the host. `MainWindowHandle` is only a hint, and English titles are not identifiers.
   Re-resolve after enable cycles or restarts; do not retain exited process objects.
 - Poll saved enable state, host readiness, and populated content separately.
+  H06 observes native lifecycle; H07/content checks establish the next case's observation
+  surface. A diagnostic cycle invalidates old PID/HWND/UIA references and is not Normal reopen.
   `Wait-PtShortcutGuideContent -Mode FullGuide|Indicators` checks realized mode-specific controls,
   not just visibility. Start the activation
   timeout after host readiness; allow up to 9 seconds for cold full-guide content. A held-key
@@ -58,10 +67,42 @@ Before any mutation, capture settings/files and each touched window's page, plac
 and pointer position. Restore in `finally` and compare with that baseline; report any unrecorded
 transient state rather than claiming exact rollback. Track test-created resources separately from
 user-owned resources; use the corresponding fixture's cleanup procedure.
+Every new SG process can copy shipped `*.yml` files, regenerate `index.yml`, and rewrite
+the generated PowerToys manifest. Before enable/restart cycles, capture the per-user
+directory's exact bytes and declare the shipped manifest basenames plus `index.yml` as
+startup-write ownership. Native host readiness does not prove the copy/index writer has
+finished. Observe writer completion/stable file state before H04 rollback and recompare
+afterward; do not restart the module again after restoring files merely to refresh a cache.
 Use the shared [paired snapshot helpers](../helper-workflow.md#pair-snapshots-with-restoration-before-changing-state)
 for bytes, registry values and native placement; page/tab/IME state still needs explicit handling.
 
 ## Activation selection
+
+Use the [owned composed flows](shortcut-guide/composed-flows.md) for full-guide
+open/observe/close and callback-scoped Windows-key holds. Specify the entry and close
+route explicitly. A failed physical-chord path must not be replaced by a named event
+and credited as the same test; an already-hidden surface cannot pass a close-route assertion.
+
+Use the shared [shortcut recorder](../shortcut-recorder.md) for assignment/restoration.
+Its Ctrl-only readiness handshake establishes that the capture hook responds before the
+main chord, rather than assuming visible dialog controls mean the hook is ready.
+It compares complete saved fields and edit-button HelpText after assignment/restoration;
+the dialog's Windows artwork is not exposed by UIA. Do not use **Reset** as a substitute
+for restoring the captured original.
+
+An inspect result containing only the native host and a `PopupHost` is not an empty shortcut
+page. Use the shared [UI observation contract](../ui-observations.md) to assess the captured
+structure; retain insufficient snapshots and report observer limitations rather than zero rows.
+Collect raw observations and review them against screenshots and exact settings fields before
+committing either successful restoration or a product FAIL. A proven
+observer mistake can reopen only the affected item using the shared recording workflow; do not
+repeat the other checklist items or replace the entire run to correct that judgment.
+
+Before desktop-entry coverage, identify all windows affected by Show Desktop and whether they
+can be restored at the current integrity level. On a shared desktop, block this variant rather
+than minimizing an elevated/user window without a viable restore path. Native snapshots do not
+grant that capability. Declare temporal/speech observers before theme, animation and Narrator
+cases; do not substitute settled images for those assertions.
 
 | Assertion | Entry path |
 |---|---|
@@ -86,18 +127,18 @@ not a substitute for driving the control. Follow the selected scenario's mutatio
 | # | Capability | Drive (control / settings key) |
 |---|---|---|
 | 1 | Enable/disable lifecycle | Settings enable toggle; top-level `enabled."Shortcut Guide"` |
-| 2 | Activation binding | invoke recorder `EditButton`, guard Settings, send the chord, invoke `PrimaryButton`; `properties.open_shortcutguide` |
-| 3 | Windows-key mode | `properties.win_key_action` (`0` off, `1` indicators, `2` full guide) |
+| 2 | Activation binding | common shortcut helper: page `ShortcutGuideNavItem`, control `EditButton`, property segments `properties,open_shortcutguide` |
+| 3 | Windows-key mode | `Select-PtComboBoxItem -AutomationId ShortcutGuide_WindowsKeyAction`; `properties.win_key_action` (`0` off, `1` indicators, `2` full guide) |
 | 4 | Hold threshold | hold-duration control; `properties.press_time` |
 | 5 | Close on Windows-key release | `properties.close_on_windows_key_release` |
 | 6 | Excluded applications | `properties.disabled_apps`; executable names, one per line |
-| 7 | Theme and pane side | `properties.theme`; `properties.window_position` (`0` left, `1` right) |
+| 7 | Theme and pane side | `Select-PtComboBoxItem -ControlName 'Theme'` / `-ControlName 'Window position'`; `properties.theme`; `properties.window_position` (`0` left, `1` right) |
 | 8 | Application rail navigation | invoke runtime rail items; stable IDs include `Microsoft.PowerToys` and `+WindowsNT.Shell` |
 | 9 | Search | `ShortcutGuide_SearchBox` / child `TextBox`; use real `Ctrl+F` when keyboard focus is asserted |
 | 10 | Pin/unpin | shortcut-row context menu; discover the Pin/Unpin action and runtime `PinMenuItem` |
-| 11 | Manifest regeneration | back up the per-user directory, remove it for the regeneration case, and invoke the module |
+| 11 | Manifest regeneration | capture directory bytes/file set with `Get-PtDirectorySnapshot` before removal; invoke the module, capture expected post-state, then use explicit-owned rollback |
 | 12 | Custom manifest reload | installed index generator; see cache refresh below |
-| 13 | PowerToys shortcut reflection | representative module's shortcut control, then `Microsoft.PowerToys` rail page |
+| 13 | PowerToys shortcut reflection | common shortcut helper on a representative module, then separately assert the `Microsoft.PowerToys` rail page |
 | 14 | Reuse/memory | warm the module, then run open/navigate/close cycles against one foreground fixture |
 | 15 | Language override | PowerToys language control and runner restart; `%LOCALAPPDATA%\Microsoft\PowerToys\language.json` |
 
@@ -105,16 +146,39 @@ Read outcomes as follows:
 
 - Read saved JSON and exercise the resulting behavior; a successful UIA invocation is not proof
   of persistence. Pin state is application-scoped in `Pinned.json`.
+- For L48/L49, supply the SG settings file and addressing above. For L69's Color Picker
+  fixture, supply `ColorPickerNavItem`, `ColorPicker\settings.json`, and
+  `properties,ActivationShortcut`. The helper changes/restores the setting; actual binding
+  behavior and SG row updates remain separate case assertions. Final cleanup restores the
+  user's captured original, even when a case temporarily requires the factory default.
+- Supply the exact Settings HWND and observed `-ItemName` to the ComboBox helper; preserve
+  and restore the original selected value. It deduplicates runtime identities, not captions.
+  Activate Settings explicitly before selection; minimized WinUI controls may report
+  `IsOffscreen=false`. See [scoped control selection](../helper-workflow.md#scoped-control-selection).
 - Realize rows by scrolling or filtering before counting recommendations or assessing keyboard
   focus; an incomplete UIA tree is not evidence of missing rows.
 - For no-results announcements, read native `UIA_LiveSettingPropertyId` (`30135`; `1` is Polite).
-  Confirm rendered emptiness separately from the search value.
+  Use `Get-PtUiObservation -Property LiveSetting` on `ShortcutGuide_NoSearchResults`
+  (type `Text`). Its value does not prove actual speech; confirm rendered emptiness separately.
+- For L77/L78, read `-Property Text` from the `TextBox` edit within
+  `ShortcutGuide_SearchBox`. `-Property Name` is the separate accessible label; the
+  placeholder `Search shortcuts` is not an empty query's value.
+- For L68/L85, read `IsSelected` on the application rail's `ListItem` identifiers and
+  `HasKeyboardFocus` on the exact intended control. These facts do not prove visual
+  order, coherent spoken output or exactly-once announcements.
+- A search/navigation snapshot contract can require the `ShortcutGuide_SearchBox`
+  Group, its `TextBox` Edit, and `MenuItemsHost` Group. It must not require
+  `ShortcutGuide_NoSearchResults`, recommended rows or pinned rows to exist. L70/L71
+  counting/absence assertions require a separately established content observation scope.
 - For reuse, record the active PID and private working set, with warm-up, cycle count, idle time,
   and limit taken from the checklist rather than substituted process-private-byte measurements.
 
 **Cached content refresh:** Application manifests and generated PowerToys shortcut pages are
 process-cached. Observe the
 checklist's requested reopen behavior first; a restart is not evidence that live refresh works.
+Use the shared [directory snapshot contract](../directory-snapshots.md) for manifest mutations:
+hash lists alone are not a backup. Declare owned relative files, directories and root existence
+explicitly. A conflict or `WholeTreeMatchesBaseline=false` is not successful full restoration.
 For fixture setup/recovery, regenerate the index after manifest changes, then toggle Shortcut Guide
 off/on through Settings. For representative shortcut changes, refresh the module before inspecting
 the generated page if ordinary reopening still shows old data. Repeat the refresh after restoring
@@ -122,9 +186,10 @@ the original files/settings, and disclose any extra restart in the report.
 
 Use these fixtures for the recipes above:
 
-- Medium-integrity Notepad with a unique temp file for application-page, exclusion, and foreground tests.
-- Modern Notepad may reuse a user process and add a tab. Track/close only the fixture tab, not its
-  launcher PID or the user's process.
+- Use `New-PtNotepadFixture` / `Remove-PtNotepadFixture` for application-page, exclusion and
+  foreground tests; use `New-PtExplorerFixture` / `Remove-PtExplorerFixture` for an isolated
+  Explorer target. Follow the shared [ownership and cleanup contract](../owned-fixtures.md).
+  Do not recreate shared-tab ownership from a launcher PID inside the run.
 - Elevated Notepad only for eligible integrity variants; verify with `Test-ProcessElevated`.
 - Disposable per-user manifest with a unique package/process filter for key-token and page-local-search checks.
 - Three tracked taskbar apps; use the controlled first-slot fixture without closing other user windows.

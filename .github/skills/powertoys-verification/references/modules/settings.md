@@ -61,7 +61,7 @@ JSON/process state.
 | 2 | Change Home utility sorting | `Sort utilities` → Alphabetical or By status |
 | 3 | Toggle a module across surfaces | Home utility row, module-page toggle, or Quick Access All apps toggle |
 | 4 | Open and traverse Quick Access | Tray icon → `More` / `Back`; use focused control names and arrow keys when inspection is empty |
-| 5 | Edit the Quick Access shortcut | `EditButton` named `Activation shortcut`; `PrimaryButton`; `ResetBtn` |
+| 5 | Edit the Quick Access shortcut | Common [shortcut recorder](../shortcut-recorder.md) when the control/schema matches; supply General page and actual root-settings property segments |
 | 6 | Change application language | `Languages_ComboBox`; restart info-bar button named `Restart` |
 | 7 | Change Settings appearance | Theme ComboBox; **Show system tray icon**; **Show a monochrome icon that matches the Windows theme** |
 | 8 | Change elevation/startup state | **Running as user/administrator** expander, restart-elevation action, run-at-startup and always-admin controls |
@@ -74,6 +74,13 @@ JSON/process state.
 
 - Read Home sorting, Quick Access state/shortcut, theme, elevation preference, and module
   enablement from the root `settings.json`.
+- For module enable/disable use the [shared lifecycle contract](../module-lifecycle.md):
+  distinguish configured flags from resident processes, Runner-hosted windows and
+  on-demand utilities. A module-local cycle is not equivalent to restarting PowerToys.
+- Shortcut assignment/restoration should use the shared recorder rather than rebuilding
+  dialog readiness and key handling per run. Preserve the original complete binding;
+  Reset is a product action to test explicitly, not a reliable original-value rollback.
+  The adapter refuses unsupported/empty schemas instead of silently changing their meaning.
 - Read the selected application language from `language.json`; process restart alone is
   not proof that localization loaded.
 - Validate actual integrity with `Test-ProcessElevated`; page text is only a UI assertion.

@@ -145,7 +145,7 @@ function Invoke-PtVerificationReportAcceptance {
         $state = Get-Content $mixedExport.Results -Raw | ConvertFrom-Json
         Require ($state.Metadata.Items[0].Description -ceq $unicode) 'Verbatim Unicode inventory lost'
         Require ($state.Steps[0].Name -eq 'Synthetic preflight') 'Step name was overwritten by recorder locals'
-        $report = [IO.File]::ReadAllText($mixedExport.Report)
+        $report = [IO.File]::ReadAllText($mixedExport.Details)
         Require ($report.Contains('&#124;') -and $report.Contains('&#96;') -and $report.Contains('&lt;tag&gt;')) 'Markdown metacharacters not escaped'
         Require ($report.Contains('**NOT-OBSERVED**')) 'Unobserved assertions not prominent'
         Require ($report.Contains('**Diagnostic**')) 'Diagnostic attempts hidden'
@@ -205,7 +205,8 @@ function Invoke-PtVerificationReportAcceptance {
         $first = New-PtVerificationArtifactPath $a -Name screenshot.png
         [IO.File]::WriteAllBytes($first, [IO.File]::ReadAllBytes($png))
         $proof = Add-PtVerificationArtifact $a $first Screenshot 'Synthetic screenshot' -Synthetic
-        Reject { Add-PtVerificationArtifact $a $first Screenshot duplicate -Synthetic } 'already registered'
+        $reused = Add-PtVerificationArtifact $a $first Screenshot duplicate -Synthetic
+        Require ($reused.Path -ceq $proof.Path) 'Same-attempt reference did not reuse the original artifact'
         $second = New-PtVerificationArtifactPath $a -Name screenshot.png
         [IO.File]::WriteAllBytes($second, [IO.File]::ReadAllBytes($png))
         Add-PtVerificationArtifact $a $second Screenshot 'Second synthetic screenshot' -Synthetic | Out-Null

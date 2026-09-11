@@ -8,12 +8,43 @@ For `Win+1`, temporary pinning/reordering of a harmless fixture and restoration 
 the caller prohibits them. Respect tool approvals and policy. Pinning/reordering is normally
 per-user and does not require elevation.
 
+## Fixed helper path
+
+Prefer the shared [owned taskbar fixture](../../taskbar-fixtures.md) with three disposable
+windows and distinct explicit AppUserModelIDs. This avoids Calculator's shared host and
+pin/unpin mutations entirely. The taskbar captions can all say PowerShell; identify the
+windows by AppID plus HWND/PID/start time, never by those captions.
+
+Use `New-PtTaskbarFixture`, `Get-PtTaskbarSlots`,
+`Move-PtTaskbarFixtureToSlot`, `Invoke-PtTaskbarSlot`, and
+`Remove-PtTaskbarFixture`. Keep all foreign apps' relative order and compare the original
+pin files/definitions. Closing the non-pinned owned windows removes their temporary slots.
+Native drag is the default transport; WinApp drag remains explicit and must
+not be credited merely because its command returned success.
+
+H08's `Invoke-PtShortcutGuideHold -Mode Indicators` owns Windows down/up. Inside its
+callback, call `Invoke-PtTaskbarSlot -WhileWindowsHeld -WindowsKey <same-key>
+-AllowedForegroundTarget $session.GuideTarget` so only the digit is sent. The extra
+identity explicitly authorizes the H08-owned overlay as foreground; it is not a
+process-name-based exception for arbitrary windows. Use another owned fixture window as the initial foreground target;
+pressing Win+1 when slot one is already foreground can minimize it. Observe the exact
+slot-one HWND, still-held key and indicators before release, then hidden indicators and
+unchanged routed foreground afterward. Repeat at least three cycles.
+
+Input acceptance is not delivery completion. Preserve pending gesture/endpoint evidence
+and wait for actual pointer/order state; do not confuse delayed movement with completed
+reorder or silently adopt unexpected pointer coordinates. Keep the pointer away from
+taskbar thumbnails for passive callout captures.
+
+The Calculator recipe below is retained as an alternative, not a requirement or an
+automatic fallback when the owned fixture reports an error.
+
 ## Setup, observation, and restoration
 
 1. Save taskbar app identities, pin status, order, button rectangles, and a screenshot. Capture
    fixture ownership and the restoration baseline before mutation. Do not proceed unless the
    original order can be identified and restored.
-2. Prefer installed Calculator with no user-owned window. Track the new content HWND, owner PID,
+2. If using the Calculator alternative, require no user-owned Calculator window. Track the new content HWND, owner PID,
    and start time; never close user windows to make an app single-instance.
 3. Pin/reorder through normal taskbar UI, trying UIA before guarded mouse gestures. Re-enumerate
    after layout changes and before each cycle: exactly one fixture window must occupy slot one;

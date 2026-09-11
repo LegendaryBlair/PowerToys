@@ -145,7 +145,7 @@ Check 'Generated long screenshot sidecar imports with a bounded immutable name' 
     Require ($proof.OriginalName -ceq [IO.Path]::GetFileName("$image.state.json")) 'Sidecar source name was lost'
     Require ([IO.Path]::GetFileName($proof.Path).Length -le 134) 'Allocated artifact basename exceeded its bounded budget'
     $duplicate = Add-PtVerificationArtifact $attempt "$image.state.json" Evidence 'Same source, new immutable copy'
-    Require ($proof.Path -cne $duplicate.Path -and $proof.Sha256 -ceq $duplicate.Sha256) 'Repeat import overwrote evidence'
+    Require ($proof.Path -ceq $duplicate.Path -and $proof.Sha256 -ceq $duplicate.Sha256) 'Repeat import did not reuse immutable evidence'
     $maximum = New-PtVerificationArtifactPath $attempt (('a' * 97) + '.png')
     [IO.File]::WriteAllText("$maximum.state.json", '{"before":false,"after":false}')
     $maximumProof = Add-PtVerificationArtifact $attempt "$maximum.state.json" Evidence 'Maximum allocated-name sidecar'

@@ -48,11 +48,46 @@ This doc covers the **agent-runtime** environment probing and lifecycle hooks. R
 
 5. **Discipline: try AT LEAST 2 distinct entry-paths before marking a drivable item BLOCKED.** The default missing-elevation skips in check 1 are exempt; do not attempt privileged operations to satisfy this rule. For Peek/FZ/Workspaces/Image Resizer/PowerRename/File Locksmith specifically, the obvious entry-path is the global hotkey but Shell.Application COM driving Explorer also works — see per-module profiles under `references/modules/`. Marking BLOCKED after trying only the CLI launch (a common trap) hides easily-PASS-able items in an interactive session.
 
+6. **Match each required child to an observer before mutation.** Identify UIA, pixels, time-series/video,
+   speech, process or persistence evidence as appropriate. Record an unavailable observer as a specific
+   coverage limitation; do not spend repeated static captures trying to prove animation, first-frame
+   flashes or complete speech. Immediately check the first capture for occlusion and missing landmarks.
+
+7. **Verify rollback capability, not just backup existence.** Identify every affected resource, ownership,
+   integrity level, restore operation and comparison. On a shared non-admin desktop, do not use Show
+   Desktop or equivalent broad mutations if any affected user/elevated window cannot safely be restored.
+   Block that variant or use an already authorized disposable environment; never close user windows
+   or expand privileges to simplify fixtures. Capture page/tab/IME state when it will be changed.
+
+## One run, bounded work, incremental review
+
+- Keep one assessment run; use local reopen/correction for observer mistakes rather than creating a
+  replacement full run. Preserve valid failures and all original evidence.
+- Review 3-5 related items at a time, before broad state changes. Record raw data first, inspect
+  capture quality and exact saved values (including every shortcut modifier), then commit judgments.
+  Use `Get-PtVerificationReview`, not repeated full evidence validation, to locate pending reviews.
+- Use the [operation boundary](operation-boundaries.md) with one stable key for a shared obstacle.
+  Three cumulative failed callbacks or 300 seconds of active failed/recovery work exhaust the
+  default budget across scripts, contexts, dependent items and reopened processes in the same run.
+  Successful Diagnostic recovery does not reset failures. Unrelated work and user/model thinking
+  time do not consume that active-time allowance. Record the concrete limit and affected coverage;
+  cleanup is exempt and must still finish. Synchronous callbacks are not forcibly interrupted.
+- If a shared host disappears, stop dependent driving. Diagnose the originating transition once;
+  recover explicitly as Diagnostic if within budget. Start later independent Normal cases only after
+  readiness is demonstrated. If recovery fails, reference the same obstacle instead of repeated waits.
+- Aim for approximately 30 minutes of eligible driving on a prepared module. At that point report
+  achieved coverage, recurring obstacles and remaining work; stop infrastructure debugging rather than
+  silently extending it for hours. This is not permission to omit inventory, change criteria or abandon
+  restoration, nor a hard stop for independent eligible cases. Account separately for driving,
+  review, cleanup and archive time, and report their total.
+
 ## Bootstrap (paste at start of your verification script)
 
 Use PowerShell 7. Prepare the explicit item/subassertion inventory and actual source-input
 list from [recording-workflow.md](recording-workflow.md) before any UI discovery.
 Do not create a report generator or append report Markdown during driving.
+The optional [thin run template](../templates/verification-run.ps1) owns the common lifecycle;
+`Invoke-PtVerificationCase` handles per-case attempts without hand-built or serialized handles.
 
 ```powershell
 $skill = '<this skill folder>'   # the folder containing SKILL.md
@@ -84,29 +119,24 @@ Wrap any settings/registry mutation in try/finally:
 
 Prefer the [paired snapshot helpers](helper-workflow.md#pair-snapshots-with-restoration-before-changing-state).
 Prepare and persist capture/restore pairs before mutation, including original absence. Native
-window placement is not a backup of application page/tab/IME state. The examples below are
-legacy single-resource snippets, not permission to overwrite unrelated state.
+window placement is not a backup of application page/tab/IME state. The scenario's UI-only
+mutation contract still applies; do not overwrite unrelated state.
 
 ```powershell
-# Per-item: settings.json edits
-$bk = Backup-PtModuleSettings -ModuleDir <ModuleDir>
+$bk = Get-PtFileSnapshot -Path $explicitOwnedSettingsPath
+# Persist the snapshot before the authorized mutation.
 try {
-    # ... mutate + assert ...
+    # Drive the documented user flow and collect observations.
 } finally {
-    Restore-PtModuleSettings -ModuleDir <ModuleDir> -BackupPath $bk
+    Restore-PtFileSnapshot $bk
+    # Register the comparison as Restoration evidence; do not infer it from exit code.
 }
-
-# After GPO/admin tests
-Remove-Item HKLM:\Software\Policies\PowerToys -Recurse -Force -EA SilentlyContinue
-Remove-Item HKCU:\Software\Policies\PowerToys -Recurse -Force -EA SilentlyContinue
-Remove-Item 'C:\Windows\PolicyDefinitions\PowerToys.admx' -Force -EA SilentlyContinue
-Remove-Item 'C:\Windows\PolicyDefinitions\en-US\PowerToys.adml' -Force -EA SilentlyContinue
-
-# Spawned processes (notepad, regedit, etc.) — kill by PID, not by name
-foreach ($pid in $spawnedPids) { Stop-Process -Id $pid -Force -EA SilentlyContinue }
 ```
 
-## Final wrap-up (run AFTER all per-item tables are written)
+Close only tracked test-owned windows/tabs, not shared host processes. Restore only the specific
+files/registry values the case owned; never remove whole policy trees as a cleanup shortcut.
+
+## Final wrap-up (after incremental item review)
 
 1. **Run state-hygiene cleanup** in a Normal Cleanup recording context for everything not restored
    per-item. Register the baseline comparisons as Restoration evidence; a successful command is
@@ -118,7 +148,9 @@ foreach ($pid in $spawnedPids) { Stop-Process -Id $pid -Force -EA SilentlyContin
    # Use -NoFriction instead only when explicitly justified.
    Test-PtVerificationArchive -Workspace $workspace
    ```
-   The exporter generates summary and per-item tables and rejects missing/changed evidence.
+   The exporter generates compact `report.md`, complete `details.md` and machine-readable results,
+   and rejects missing/changed evidence. Historical cleanup failures and the latest restoration
+   receipts are shown separately; the overall signoff gate remains conservative.
    Use `Export-PtVerificationReport` for an interrupted/partial run; do not erase its failed steps.
 3. **Move the workspace to the sign-off archive**, only after validation succeeds:
    ```powershell
@@ -142,4 +174,7 @@ foreach ($pid in $spawnedPids) { Stop-Process -Id $pid -Force -EA SilentlyContin
 - **Never invent test steps for a `[CLARITY: VAGUE-*]` item** — mark it **FAIL (cause: checklist-ambiguous)** and quote the original wording so the user can fix the checklist. The checklist is test code; an undefinable test is a broken test.
 - **Always restore state** before exiting (even on error). State hygiene wraps every mutation in try/finally.
 - **Separate the two FAIL causes**: *product* FAILs are bugs to file; *checklist* FAILs (stale feature or ambiguous spec) are items to rewrite/prune. If a large share of a module's items are checklist-FAILs, the checklist needs an overhaul before re-verifying — don't punt drivable items into a FAIL.
-- **Never continue past 3 consecutive errors against the same item** — mark it BLOCKED with the concrete symptom/obstacle and move on. Per-item budget is ~5 minutes; if stuck longer, it's BLOCKED (name the wall).
+- **Never reset an exhausted obstacle budget by changing scripts, contexts, items or runs.**
+  The helper persists counters in one run; creating a replacement run or renaming the key to
+  evade it is prohibited, not something the helper can infer. Record affected coverage and
+  complete necessary recovery only when that key's failure/active-time limit is reached.

@@ -184,6 +184,7 @@ function Get-PtDesktopSnapshot {
     $point = [PtDesktop+POINT]::new()
     if (-not [PtDesktop]::GetCursorPos([ref]$point)) { throw 'Cannot capture pointer position.' }
     [pscustomobject]@{
+        coordinateSpace = 'Physical'
         foreground = Get-PtWindowIdentity -Hwnd $foreground
         pointer = $point
         windows = @(foreach ($h in $WindowHwnd) { Get-PtWindowSnapshot -Hwnd $h })
@@ -195,6 +196,9 @@ function Restore-PtDesktopSnapshot {
     Attempt every restoration, then surface all errors; never mask partial cleanup as success.
     #>
     param([Parameter(Mandatory)]$Snapshot)
+    if($Snapshot.coordinateSpace -cne 'Physical'){
+        throw 'Desktop snapshot has unspecified coordinate units; do not replay a legacy DPI-dependent pointer position.'
+    }
     $errors = [Collections.Generic.List[string]]::new()
     foreach ($window in $Snapshot.windows) {
         try { Restore-PtWindowSnapshot -Snapshot $window | Out-Null }

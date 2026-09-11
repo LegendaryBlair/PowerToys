@@ -1,6 +1,9 @@
 # Reporting format
 
-This doc defines the **required** report shape for every per-module verification run. Modeled on `PR-validation\Round1\PR-47211-validation\report.md` style — table-driven, reproducible, no prose narratives.
+This doc defines the **required** report shape for every per-module verification run.
+`report.md` is the concise human review view; `details.md` retains the exhaustive, reproducible
+trace modeled on `PR-validation\Round1\PR-47211-validation\report.md`. Compact presentation
+never removes registered assertions, changes verdicts, or replaces the detailed record.
 
 Use the reusable recorder and exporter in [Recording workflow](recording-workflow.md)
 instead of building a report generator during each run. Initialize its explicit item and
@@ -8,7 +11,77 @@ subassertion inventory before discovery; snapshot the actual source inputs, incl
 dirty-worktree helper versions. The templates below describe the rendered report, not
 permission to reconstruct commands or observations after the fact.
 
-## §A — Per-item table (one per checklist item)
+Daily review uses `Get-PtVerificationReview`, an explicitly unvalidated incremental view.
+It is not a substitute for either exported report. Large raw observations belong in
+registered attachments, not `Actual`/`Reason` fields; new observation and assertion text
+has a 4096-byte UTF-8 limit. Export continues to include every registered child and all
+evidence links, with unchanged verdict/signoff rules. Identical execution source bytes
+may share a hash-addressed path while each step retains its exact command and arguments.
+Runs using operation boundaries also include shared-key budget/interruption status and
+operation error history in `details.md`, linked from the compact summary. Pending or
+recording-failed operations add an explicit infrastructure signoff hold; they do not
+assign or rewrite product assertions.
+
+## Compact review and exhaustive details
+
+The exporter writes both views from the same recorded state:
+
+- **`report.md`**: BITS, scenario, supplied signoff and reasons, counts covering every item,
+  blockers, all item descriptions, and every registered child's expected description, actual
+  reason, verdict and required flag. Keep **NOT-OBSERVED** visible even under a **FAIL** item.
+  Show at most two decisive evidence links per child, preferring a screenshot then other
+  evidence, with short labels rather than repeated GUID-heavy directory names. Link each
+  item to its full trace for exact commands, all evidence and historical observations.
+- **`details.md`**: the exact per-item step/artifact template in §A, §C and §F, full Normal
+  and Diagnostic attempts, raw observations, corrected/invalidated judgments, pre-flight,
+  cleanup and retrospective. Do not abbreviate this view to meet compact-report size limits.
+- **`results.json`** and **`artifact-manifest.json`**: the unchanged structured record and
+  integrity inventory. Mandatory integrity validation covers **both Markdown files**, results,
+  the journal, input snapshots and every referenced artifact. The manifest records `DetailsPath`
+  as well as `ReportPath`; the exporter returns `Details` as well as `Report`.
+
+The compact renderer is a definitions-only, dependency-free script:
+`scripts\pt-verification-render.ps1`. Its exact API is:
+
+```powershell
+ConvertTo-PtVerificationSummary -State $state -DetailsName details.md `
+    -ResultsName results.json -ManifestName artifact-manifest.json
+```
+
+It accepts a `Get-PtReportState` object or a previously exported `results.json` object and
+returns **one Markdown string**, without reading the live machine, reading artifact files,
+writing files, or changing state/signoff gates. The caller supplies the output basenames,
+including partial-export prefixes. Render paths as URL paths; escape text and link destinations
+without rewriting descriptions or evidence claims. Synthetic infrastructure acceptance must
+say **not a product signoff**. Never invent a date, build, assertion or no-friction conclusion.
+
+Keep history visible in the compact view: report attempt, Diagnostic and correction/invalidation
+counts and link to details. Full details expose `<a id="item-<Id>"></a>` before each item and
+the `Pre-flight`, `Cleanup performed` and `Retrospective` headings as stable link targets.
+
+**Restoration is scoped, not inferred.** Use the current restoration projection when supplied;
+for older results, select the last **Normal Cleanup** attempt ID and only its receipts. An
+earlier PASS never fills a missing latest receipt. Display current **PASS / BLOCKED / MISSING**,
+the current receipts' original verdicts/reasons, and the count of historical unsuccessful
+receipts separately. Historical FAIL/BLOCKED receipts remain in details; their presence is not
+a statement that current restoration failed. A current PASS proves only the receipt's stated
+comparisons, not broader state equality. Keep the supplied signoff and its reasons unchanged,
+even when an older result's withheld-signoff explanation refers to historical cleanup failures.
+
+Run the portable offline acceptance without product/desktop interaction:
+
+```powershell
+& .\scripts\tests\Test-PtCompactReport.ps1 -Workspace C:\temp\compact-report-new
+```
+
+The workspace must be new. Optional `-ArchivedResults <results.json>` exercises the authentic
+27-item/111-child reference case read-only; optional `-OriginalReport <report.md>` additionally
+compares sizes. Require all descriptions and children to remain present, compact output at most
+200 KiB, and output less than 30% of the original report when supplied. The test writes samples
+only under its workspace, never into the archive; a sample alone is not a complete signed-off
+export.
+
+## §A — Per-item table in details.md (one per checklist item)
 
 ```markdown
 ## Item L<line_num> — <verbatim description from the module's checklist> — **<PASS|FAIL|BLOCKED>** <emoji>
@@ -37,7 +110,10 @@ permission to reconstruct commands or observations after the fact.
 - <Any deviation from the user-documented flow, e.g. "Tested via settings.json write rather than UI checkbox because SelectionItemPattern.Select clobbers other selections in ListView.">
 ```
 
-## §B — Top-of-report summary (write LAST, after all per-item tables)
+## §B — Exhaustive details summary (write LAST, after all per-item tables)
+
+This is the full-trace template, not a requirement to duplicate step tables in `report.md`.
+The compact view follows the contract above and links to these sections.
 
 ```markdown
 # <Module> verification report — <YYYY-MM-DD HH:MM>
@@ -64,7 +140,7 @@ permission to reconstruct commands or observations after the fact.
 <Per §G. If the whole run was frictionless, write exactly: **Everything was smooth — no friction encountered.**>
 ```
 
-## §C — Required rules for step tables
+## §C — Required rules for step tables in details.md
 
 1. **Every `winapp ui ...` command goes in the "winapp / probe commands" cell, verbatim, in backticks**, including `-w <hwnd>` / `-a <appId>` arguments and full selector strings. Reviewers will paste these into their own shell to reproduce.
 2. **Every screenshot path goes in the "Evidence" cell** of the step that produced it, formatted as `screenshot: artifacts/L<line>/step-NN-<name>.png`. Never embed screenshots as `![...](...)` in the table body (breaks GitHub markdown rendering inside cells); just give the path.
@@ -99,8 +175,8 @@ permission to reconstruct commands or observations after the fact.
   copy/paste. Keep raw output outside Markdown. The structured results retain verbatim
   descriptions, observations and Unicode text.
 - Export the mandatory full inventory, machine-readable results and artifact manifest.
-  Validate every referenced file and SHA256, including input snapshots, before accepting
-  the report and again after moving the whole workspace. A missing/corrupt artifact
+  Validate every referenced file and SHA256, including **report.md and details.md** and input
+  snapshots, before accepting the report and again after moving the whole workspace. A missing/corrupt artifact
   invalidates the export; an interrupted step remains explicitly incomplete.
 
 ## §D — Reporting style
@@ -115,14 +191,14 @@ permission to reconstruct commands or observations after the fact.
 
 ## §E — Reporting anti-patterns (extra strict)
 
-- Do NOT collapse multiple probe commands into a single English sentence like "verified via UIA". List every `winapp ui ...` command verbatim in a step row.
-- Do NOT skip the step table for "trivial" items. Even a 1-step item (e.g. "Get-CmdPalSettings shows EnableDock=true") gets a 1-row table.
+- Do NOT collapse multiple probe commands in **details.md** into a single English sentence like "verified via UIA". List every `winapp ui ...` command verbatim in a step row. The compact view links to this trace instead of duplicating it.
+- Do NOT skip the **details.md** step table for "trivial" items. Even a 1-step item (e.g. "Get-CmdPalSettings shows EnableDock=true") gets a 1-row table.
 - Do NOT write screenshot references as `![alt](path)` inside table cells (GitHub renders markdown images poorly in cells). Write them as plain text path: `screenshot: artifacts/L<line>/step-NN-<name>.png`.
 - Do NOT use "the test passed" as a screenshot caption — describe what's visible (e.g. "Settings page with FZ template grid showing 7 templates").
 - Do NOT reference screenshots that you didn't actually capture. The final wrap-up `Test-Path` loop (see `references/pre-flight.md` §Final wrap-up step 3) will catch missing files; failing that check means the report is invalid.
 - Do NOT cite source code line numbers (e.g. `CharacterMappings.cs:273`) without having actually read that line. If you cite source, the path must be real and the line number must contain what you claim.
 
-## §F — Example item (reference: PR-47211 validation report style)
+## §F — Example details.md item (reference: PR-47211 validation report style)
 
 ```markdown
 ## Item L455 — Activate Quick Accent (left Alt + arrow key) on a character, verify accents popup — **PASS** ✅
