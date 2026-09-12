@@ -183,9 +183,13 @@ converts another attempt's observation artifact into fresh evidence.
 
 Run/attempt objects passed as callback arguments are recorded as explicit
 `VerificationRun`/`VerificationAttempt` identities, not recursive copies of their mutable
-event/review caches. The callback still receives the original objects. Other argument
-values remain recorded; unsupported JSON depth errors are surfaced rather than silently
-truncated. Refer to the journal for the state at that step's sequence.
+event/review caches, including inside arrays, dictionaries and custom-object properties.
+Scriptblock arguments retain their text as `RecordedType=ScriptBlock`, without serializing
+runspace state. The callback still receives the original objects. Other argument values
+retain empty/false/zero/null and collection shape; cycles outside recognized handles and
+unsupported JSON depth throw before execution. Refer to the journal for the state at that
+step's sequence. Wrappers must pass actual arguments to `Invoke-PtVerificationStep`, never
+embed serialized callback state into `Command` to bypass this boundary.
 
 The recorder accepts actual `Format-Table`/`Format-List` streams from the diagnostic
 without an `Out-String` workaround. It renders formatting packets through one stateful
@@ -278,11 +282,28 @@ Allowed observation taxonomy:
 |---|---|
 | PASS | Nonempty verification method, as in the reporting format; no PASS subtype. |
 | FAIL | `product`, `checklist-stale`, `checklist-ambiguous` only. |
-| BLOCKED | `BLK-ENV`, `BLK-HARDWARE`, `BLK-DRAG-REQUIRED`, `BLK-DESTRUCTIVE`, `BLK-VISUAL-RENDER`, `BLK-OVERLAY-INPUT-BLOCK`, `BLK-EXTERNAL-APP`, `BLK-INFRASTRUCTURE`. |
+| BLOCKED | `BLK-ENV`, `BLK-HARDWARE`, `BLK-DRAG-REQUIRED`, `BLK-DESTRUCTIVE`, `BLK-VISUAL-RENDER`, `BLK-OVERLAY-INPUT-BLOCK`, `BLK-EXTERNAL-APP`, `BLK-INFRASTRUCTURE`, `BLK-INCOMPLETE`. The last is a coverage gap, not an environment or product diagnosis. |
 | NOT-OBSERVED | `not-observed`, with a specific reason. This is child coverage, not a new product verdict. |
 
 Unfinished inventory is reported as item **BLOCKED / BLK-INCOMPLETE**. Script/command
 errors are execution **Error / BLK-INFRASTRUCTURE**, never inferred product FAILs.
+For an explicitly dispositioned unfinished subcase, both forms below are accepted and
+withhold item approval. They preserve the supplied child status rather than converting
+missing work into an infrastructure failure:
+
+```powershell
+Add-PtVerificationAssertion -Attempt $attempt -AssertionId customBinding `
+    -Verdict NOT-OBSERVED -Category not-observed -Reason 'The custom-binding subcase was not executed.'
+Add-PtVerificationAssertion -Attempt $attempt -AssertionId restartPersistence `
+    -Verdict BLOCKED -Category BLK-INCOMPLETE -Reason 'Restart persistence remains unfinished.'
+```
+
+`BLK-INFRASTRUCTURE` records an execution obstacle; it is not proof of its cause.
+Separate the diagnosis in the reason/evidence: a proven driver/selector/recorder mistake
+is a test bug, a missing required external condition is an infrastructure issue, and an
+unexplained observation error remains untriaged. Only trustworthy contrary product
+observations justify `FAIL/product`. Do not call an unexecuted subcase a failed test.
+
 Valid Normal product/checklist failures remain failures even if another attempt passes.
 Diagnostic recovery cannot replace Normal behavior. A product/checklist change belongs to a
 new run with new inputs; a faulty observer or mistaken judgment does not require repeating

@@ -1,6 +1,7 @@
 #requires -Version 7.2
 param([Parameter(Mandatory)][string]$Workspace,[ValidateRange(1,5)][int]$Cycles=3,
-    [ValidateSet('Indicators','FullGuide')][string]$HoldMode='Indicators')
+    [ValidateSet('Indicators','FullGuide')][string]$HoldMode='Indicators',
+    [ValidateSet('CloseButton','Escape','Chord','OutsidePane')][string]$CloseRoute,[switch]$SkipHolds)
 $ErrorActionPreference='Stop'
 $helpers=Split-Path $PSScriptRoot -Parent
 . "$helpers\pt-shortcut-guide-flow.ps1"
@@ -21,7 +22,9 @@ try{
         if(Test-Path "$Workspace\ready.json"){Get-Content "$Workspace\ready.json" -Raw|ConvertFrom-Json}
     }
     $target=Get-PtWindowIdentity $ready.hwnd
-    foreach($route in @(@{Entry='NamedEvent';Close='CloseButton'},@{Entry='Chord';Close='Escape'},@{Entry='NamedEvent';Close='Chord'})){
+    $routeCases=@(@{Entry='NamedEvent';Close='CloseButton'},@{Entry='Chord';Close='Escape'},@{Entry='NamedEvent';Close='Chord'},@{Entry='Chord';Close='OutsidePane'})
+    if($CloseRoute){$routeCases=@($routeCases|Where-Object Close -eq $CloseRoute)}
+    foreach($route in $routeCases){
         for($index=1;$index -le $Cycles;$index++){
             $image=Join-Path $Workspace "$($route.Entry)-$($route.Close)-$index.png"
             $cycle=Invoke-PtShortcutGuideCycle -ForegroundTarget $target -Workspace $Workspace -Entry $route.Entry -CloseRoute $route.Close `
@@ -32,11 +35,12 @@ try{
                     if($state.Kind -ne 'FullGuide'){throw 'Full guide did not survive passive observation'}
                     $state
                 }
-            $results.Add(@{Name="$($route.Entry) / $($route.Close) / $index";Status='PASS';Receipt=$cycle.Session.ReceiptPath;Image=$image})
+            if($cycle.Output.Count -ne 1 -or $cycle.Output[0].Kind -ne 'FullGuide'){throw 'Cycle Output did not retain the full-guide observation'}
+            $results.Add(@{Name="$($route.Entry) / $($route.Close) / $index";Status='PASS';Receipt=$cycle.Session.ReceiptPath;Image=$image;Input=$cycle.Close.Input})
             $results|ConvertTo-Json -Depth 12|Set-Content "$Workspace\results.json"
         }
     }
-    foreach($key in 91,92){
+    foreach($key in $(if(-not $SkipHolds){@(91,92)})){
         $image=Join-Path $Workspace "hold-$HoldMode-$key.png"
         $hold=Invoke-PtShortcutGuideHold -ForegroundTarget $target -Workspace $Workspace -Mode $HoldMode -WindowsKey $key `
             -ArgumentList @($image,$key,$HoldMode) -Action {

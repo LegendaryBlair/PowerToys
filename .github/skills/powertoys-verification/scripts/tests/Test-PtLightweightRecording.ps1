@@ -121,6 +121,49 @@ Check 'Callback handles are recorded by identity without serializing mutable eve
     Require ($text.Length -lt 2048 -and -not $text.Contains('EventCache')) 'Argument output grew with recorder state'
     Require ([object]::ReferenceEquals($run,$case.Attempt.Run)) 'Actual callback handle was replaced'
 }
+Check 'Nested argument graphs retain values and handle identities, but reject non-handle cycles' {
+    $run=NewRun nested-arguments
+    $attempt=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name nested
+    $nested=[pscustomobject]@{Items=@($run,@{Attempt=$attempt;Values=@('',0,$false,$null,@())});Callback={param($value) $value}}
+    $actual=Invoke-PtVerificationStep $attempt -Name nested -Command 'Observe actual nested object identity' -ArgumentList @($nested) -Action {
+        param($original)
+        [object]::ReferenceEquals($original.Items[0],(Get-PtActiveVerificationAttempt).Run)
+    }
+    Require $actual 'Runtime nested object was replaced by its serialized representation'
+    $step=(Get-PtReportState $run).Steps[0]
+    $reference=@($step.Sources|Where-Object {$_.Path.EndsWith('\arguments.json')})[0]
+    $text=[IO.File]::ReadAllText((Join-Path $run.Workspace $reference.Path))
+    $saved=(ConvertFrom-PtReportJson $text)[0]
+    Require ($saved.Items[0].RecordedType -eq 'VerificationRun' -and $saved.Items[1].Attempt.RecordedType -eq 'VerificationAttempt') 'Nested handles were expanded'
+    Require ($saved.Items[1].Values.Count -eq 5 -and $saved.Items[1].Values[0] -ceq '' -and $saved.Items[1].Values[1] -eq 0 -and
+        $saved.Items[1].Values[2] -ceq $false -and $null -eq $saved.Items[1].Values[3] -and $saved.Items[1].Values[4].Count -eq 0) 'Nested JSON values changed shape'
+    Require ($saved.Callback.RecordedType -eq 'ScriptBlock' -and $saved.Callback.Text -ceq $nested.Callback.ToString()) 'Callback source was not recorded'
+    Require ($text.Length -lt 4096 -and -not $text.Contains('EventCache')) 'Nested state was recursively serialized'
+    $cycle=@{};$cycle.Self=$cycle
+    Reject {Invoke-PtVerificationStep $attempt -Name cycle -Command cycle -ArgumentList @($cycle) -Action {throw 'must not execute'}} 'reference cycle'
+    Stop-PtVerificationAttempt $attempt -Reason 'Nested arguments and explicit rejection observed'
+}
+Check 'Explicit incomplete coverage is accepted without misclassifying it as infrastructure failure' {
+    $run=NewRun incomplete
+    $case=Invoke-PtVerificationCase -Run $run -ItemId L1 -Name gap -Command 'Record a planned subcase that was not executed' -Action {
+        param($attempt)
+        $sequence=Add-PtVerificationObservation $attempt value -Actual 'The custom-shortcut subcase was not executed.'
+        Add-PtVerificationAssertion $attempt value BLOCKED BLK-INCOMPLETE 'Custom-shortcut subcase remains unfinished, not an environment failure.' -ObservationSequence $sequence
+    }
+    Complete-PtVerificationItem $run L1 -Reason 'Explicit coverage gap'
+    $other=Invoke-PtVerificationCase -Run $run -ItemId L2 -Name absent -Command 'Record unobserved coverage' -Action {
+        param($attempt)
+        Add-PtVerificationAssertion $attempt value NOT-OBSERVED not-observed 'No observation obtained for the remaining subcase.'
+    }
+    Complete-PtVerificationItem $run L2 -Reason 'Unobserved child retained'
+    $state=Get-PtReportState $run
+    Require ($state.Items[0].Category -eq 'BLK-INCOMPLETE' -and $state.Items[0].Assertions[0].Verdict -eq 'BLOCKED') 'Explicit gap was reclassified'
+    Require ($state.Items[1].Assertions[0].Verdict -eq 'NOT-OBSERVED') 'Unobserved child was rewritten'
+    Require (@($state.Steps|Where-Object Status -ne 'Completed').Count -eq 0) 'Coverage reporting created a test execution error'
+    SameVerdicts $run
+    $export=Complete-PtVerificationRun $run -NoFriction
+    Require ($export.Signoff -eq 'WITHHELD' -and (Test-PtVerificationArchive $run.Workspace).Valid) 'Incomplete coverage produced approval or an invalid export'
+}
 Check 'Incremental review matches full projection through raw, failure, retry, correction and reopen' {
     $run=NewRun review
     SameVerdicts $run

@@ -103,6 +103,22 @@ Check 'Receipt tampering is rejected before any close route' {
     $session.GuideTarget=[pscustomobject]@{hwnd=99;processId=99;processStartTicks=99;className='Unowned'}
     Reject {Restore-PtShortcutGuideSession $session} 'identity changed'
 }
+Check 'OutsidePane dispatches only its owned click and never substitutes another close route' {
+    $outsideState=@{Clicks=0}
+    function Invoke-PtSgOutsideClick {
+        param($Session,$TimeoutSeconds)
+        Require ($Session.ForegroundTarget.hwnd -eq $foreground.hwnd) 'Outside route lost the underlying identity'
+        $outsideState.Clicks++;$fixture.Kind='Hidden'
+        [pscustomobject]@{Point=@{X=900;Y=300};PointerRestored=$true}
+    }
+    $session=Open-PtShortcutGuide -ForegroundTarget $foreground -Workspace $Workspace -Entry Chord
+    $chords=$fixture.Chords;$closes=$fixture.Closes
+    $closed=Close-PtShortcutGuide $session -Route OutsidePane
+    Require ($closed.Route -eq 'OutsidePane' -and $closed.Input.PointerRestored -and $outsideState.Clicks -eq 1) 'Outside click observations were lost'
+    Require ($fixture.Chords -eq $chords -and $fixture.Closes -eq $closes) 'Outside route silently used a chord or close button'
+    Reject {Close-PtShortcutGuide $session -Route OutsidePane} 'not visible'
+    Require ($outsideState.Clicks -eq 1) 'Already-hidden state was credited as another outside click'
+}
 Check 'A failed full-guide observer is preserved and cleanup does not credit the requested normal route' {
     $fixture.Kind='Hidden'
     $beforeChords=$fixture.Chords;$beforeCloses=$fixture.Closes
@@ -159,5 +175,60 @@ Check 'Cleanup propagates unrelated foreground failures without retry or a resto
     }
     Reject {Restore-PtShortcutGuideSession $session} 'Unrelated foreground read failure'
     Require ($h08ForegroundProbe.Reads -eq 1 -and $session.Phase -eq 'Prepared') 'Unrelated error was retried or cleanup was credited'
+}
+Check 'Recorded holds preserve nested callback handles without recursively embedding the journal' {
+    function Invoke-PtHeldKeys {
+        param($Hwnd,$Keys,$KeyDownDelayMilliseconds,$Action)
+        $fixture.Kind='Indicators'
+        try{& $Action}finally{$fixture.HoldReleases++;$fixture.Kind='Hidden'}
+    }
+    $recordedRun=New-PtVerificationRun -Workspace "$Workspace\recorded-holds" -Module 'SG recording contracts' `
+        -Bits 'Synthetic, no desktop input' -Scenario InfrastructureAcceptance -Inputs @(
+            @{Name='skill.ps1';Role='Skill';Path=$PSCommandPath}
+            @{Name='checklist.ps1';Role='Checklist';Path=$PSCommandPath}
+            @{Name='flow.ps1';Role='Helper';Path="$PSScriptRoot\..\pt-shortcut-guide-flow.ps1"}
+        ) -Items @(@{Id='Hold';Description='Bounded recorded holds';Admin='NO';Clarity='CLEAR';UserVisible=$false
+            Assertions=@(@{Id='output';Description='Actual callback output';Required=$true})})
+    $sizes=[Collections.Generic.List[long]]::new()
+    for($iteration=0;$iteration -lt 8;$iteration++){
+        $case=Invoke-PtVerificationCase -Run $recordedRun -ItemId Hold -Name "hold-$iteration" -Command 'Exercise recorded hold callback arguments' `
+            -ArgumentList @($foreground,$Workspace) -Action {
+                param($caseAttempt,$target,$work)
+                $holder=[pscustomobject]@{Run=$caseAttempt.Run;Values=@('',0,$false,$null)}
+                Invoke-PtShortcutGuideHold -ForegroundTarget $target -Workspace $work -Mode Indicators -TimeoutSeconds 1 `
+                    -ArgumentList @($caseAttempt,$holder) -Action {
+                        param($session,$originalAttempt,$originalHolder)
+                        Require ([object]::ReferenceEquals($originalAttempt,(Get-PtActiveVerificationAttempt))) 'Callback lost its original attempt'
+                        Require ([object]::ReferenceEquals($originalHolder.Run,$originalAttempt.Run)) 'Nested run identity was replaced'
+                        Require ($originalHolder.Values.Count -eq 4 -and $originalHolder.Values[0] -ceq '' -and
+                            $originalHolder.Values[1] -eq 0 -and $originalHolder.Values[2] -ceq $false -and
+                            $null -eq $originalHolder.Values[3]) 'Callback values were changed'
+                        'held-observation'
+                    }
+            }
+        Require ($case.Output[0].Output[0] -ceq 'held-observation') 'Recorded hold lost observation output'
+        $state=Get-PtReportState $recordedRun
+        foreach($step in $state.Steps){
+            Require ($step.Command.Length -lt 4096 -and -not $step.Command.Contains('EventCache')) 'Hold command recursively serialized the run'
+        }
+        $sizes.Add((Get-Item "$($recordedRun.Workspace)\events.jsonl").Length)
+    }
+    Require ($sizes[7] -lt 1MB -and ($sizes[7]-$sizes[6]) -lt 1.5*($sizes[1]-$sizes[0])) 'Journal growth is not bounded and linear'
+    $argumentFiles=@(Get-ChildItem "$($recordedRun.Workspace)\attempts" -Filter arguments.json -Recurse -File)
+    foreach($file in $argumentFiles){
+        Require ($file.Length -lt 16384 -and -not [IO.File]::ReadAllText($file.FullName).Contains('EventCache')) 'Nested recorded arguments embedded event caches'
+    }
+    @{Iterations=8;JournalBytes=$sizes.ToArray();MaxArgumentBytes=($argumentFiles|Measure-Object Length -Maximum).Maximum}|
+        ConvertTo-Json|Set-Content "$Workspace\recording-growth.json"
+    $export=Export-PtVerificationReport $recordedRun
+    Require (Test-PtVerificationArchive $recordedRun.Workspace -ManifestName ([IO.Path]::GetFileName($export.Manifest))).Valid 'Recorded hold export is invalid'
+}
+Check 'Cycle and Hold use Output consistently while preserving the legacy cycle observation property' {
+    foreach($values in @(@(),@('one'),@('one','two'))){
+        $cycle=Invoke-PtShortcutGuideCycle -ForegroundTarget $foreground -Workspace $Workspace -Entry NamedEvent -CloseRoute Escape `
+            -ArgumentList @(,$values) -Action {param($session,$observations) $observations}
+        Require ($cycle.PSObject.Properties['Output'] -and $cycle.Output.Count -eq $values.Count) 'Cycle has no consistent Output collection'
+        Require ([object]::ReferenceEquals($cycle.Output,$cycle.Observation)) 'Legacy Observation no longer aliases the same results'
+    }
 }
 "PASS: $($results.Count) offline SG flow groups. $Workspace"

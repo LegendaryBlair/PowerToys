@@ -551,15 +551,48 @@ function Write-PtReportSource {
 function ConvertTo-PtReportArguments {
     [CmdletBinding()]
     param([object[]]$Arguments)
+    $ancestors = [Collections.Generic.List[object]]::new()
+    function ConvertArgument($Value, [int]$Depth) {
+        if ($Depth -gt 20) { throw 'Recorded arguments exceed the supported JSON depth of 20.' }
+        if ($null -eq $Value) { return ,$null }
+        if ($Value -is [string] -or $Value.GetType().IsValueType) { return ,$Value }
+        if ($Value.PSObject.Properties['StepStack'] -and $Value.PSObject.Properties['Run'] -and
+            $Value.Run.PSObject.Properties['JournalName']) {
+            return [pscustomobject]@{ RecordedType='VerificationAttempt'; RunId=$Value.Run.Id; AttemptId=$Value.Id
+                ItemId=$Value.ItemId; Kind=$Value.Kind; Phase=$Value.Phase; Closed=$Value.Closed }
+        }
+        if ($Value.PSObject.Properties['EventCache'] -and $Value.PSObject.Properties['JournalName']) {
+            return [pscustomobject]@{ RecordedType='VerificationRun'; RunId=$Value.Id; Workspace=$Value.Workspace; JournalName=$Value.JournalName }
+        }
+        if ($Value -is [scriptblock]) { return [pscustomobject]@{ RecordedType='ScriptBlock'; Text=$Value.ToString() } }
+        $dictionary = $Value -is [Collections.IDictionary]
+        $sequence = $Value -is [Collections.IEnumerable] -and $Value -isnot [string]
+        $record = $Value.PSObject.BaseObject -is [Management.Automation.PSCustomObject]
+        if (-not ($dictionary -or $sequence -or $record)) { return ,$Value }
+        foreach ($ancestor in $ancestors) {
+            if ([object]::ReferenceEquals($ancestor,$Value)) { throw 'Recorded arguments contain a reference cycle.' }
+        }
+        $ancestors.Add($Value)
+        try {
+            if ($dictionary) {
+                $copy = [ordered]@{}
+                foreach ($key in $Value.Keys) {
+                    if ($key -isnot [string]) { throw 'Recorded argument dictionary keys must be strings.' }
+                    $copy[$key] = ConvertArgument $Value[$key] ($Depth + 1)
+                }
+                return ,$copy
+            }
+            if ($sequence) {
+                $copy = @(foreach ($entry in $Value) { ConvertArgument $entry ($Depth + 1) })
+                return ,$copy
+            }
+            $copy = [ordered]@{}
+            foreach ($property in $Value.PSObject.Properties) { $copy[$property.Name] = ConvertArgument $property.Value ($Depth + 1) }
+            [pscustomobject]$copy
+        } finally { $ancestors.RemoveAt($ancestors.Count - 1) }
+    }
     foreach ($argument in $Arguments) {
-        if ($null -ne $argument -and $argument.PSObject.Properties['StepStack'] -and
-            $argument.PSObject.Properties['Run'] -and $argument.Run.PSObject.Properties['JournalName']) {
-            [pscustomobject]@{ RecordedType='VerificationAttempt'; RunId=$argument.Run.Id; AttemptId=$argument.Id
-                ItemId=$argument.ItemId; Kind=$argument.Kind; Phase=$argument.Phase; Closed=$argument.Closed }
-        } elseif ($null -ne $argument -and $argument.PSObject.Properties['EventCache'] -and
-            $argument.PSObject.Properties['JournalName']) {
-            [pscustomobject]@{ RecordedType='VerificationRun'; RunId=$argument.Id; Workspace=$argument.Workspace; JournalName=$argument.JournalName }
-        } else { $PSCmdlet.WriteObject($argument, $false) }
+        $PSCmdlet.WriteObject((ConvertArgument $argument 0), $false)
     }
 }
 
@@ -725,7 +758,7 @@ function Add-PtVerificationAssertion {
         }
         if (-not $Evidence.Count) { $Evidence = @($raw[0].Data.Evidence) }
     }
-    $blocked = @('BLK-ENV','BLK-HARDWARE','BLK-DRAG-REQUIRED','BLK-DESTRUCTIVE','BLK-VISUAL-RENDER','BLK-OVERLAY-INPUT-BLOCK','BLK-EXTERNAL-APP','BLK-INFRASTRUCTURE')
+    $blocked = @('BLK-ENV','BLK-HARDWARE','BLK-DRAG-REQUIRED','BLK-DESTRUCTIVE','BLK-VISUAL-RENDER','BLK-OVERLAY-INPUT-BLOCK','BLK-EXTERNAL-APP','BLK-INFRASTRUCTURE','BLK-INCOMPLETE')
     if (($Verdict -eq 'FAIL' -and $Category -cnotin @('product','checklist-stale','checklist-ambiguous')) -or
         ($Verdict -eq 'BLOCKED' -and $Category -cnotin $blocked) -or
         ($Verdict -eq 'NOT-OBSERVED' -and $Category -cne 'not-observed')) { throw 'Unknown verdict taxonomy category.' }

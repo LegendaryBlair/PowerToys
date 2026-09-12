@@ -8,6 +8,91 @@ Ready means the declared native lifecycle contract, not rendered content or func
 #>
 foreach($dependency in 'pt-ui-observation','pt-shared-events'){. "$PSScriptRoot\$dependency.ps1"}
 
+if(-not ('PtLifecycleProcess' -as [type])){
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+public static class PtLifecycleProcess {
+    public sealed class Identity {
+        public int processId;
+        public long processStartTicks;
+        public int sessionId;
+        public string path;
+    }
+    [DllImport("kernel32.dll", SetLastError=true)]
+    static extern SafeProcessHandle OpenProcess(uint access, bool inherit, int processId);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    static extern bool GetProcessTimes(SafeProcessHandle process, out long creation, out long exit, out long kernel, out long user);
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    static extern bool QueryFullProcessImageName(SafeProcessHandle process, uint flags, StringBuilder name, ref int size);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    static extern bool GetExitCodeProcess(SafeProcessHandle process, out uint code);
+
+    static Win32Exception Failure(int code, string stage, Identity identity) {
+        var error=new Win32Exception(code, stage + " failed for lifecycle PID " + identity.processId + ": " + new Win32Exception(code).Message);
+        error.Data["LifecycleProcessStage"]=stage;
+        error.Data["LifecycleProcessIdentity"]=identity;
+        return error;
+    }
+    static int? FindSession(int processId) {
+        // Enumeration supplies session/liveness without opening a second, higher-rights handle.
+        var all=Process.GetProcesses();
+        try {
+            foreach(var process in all) {
+                if(process.Id == processId) return process.SessionId;
+            }
+            return null;
+        } finally { foreach(var process in all) process.Dispose(); }
+    }
+    static bool Exited(SafeProcessHandle handle, Identity identity, string stage) {
+        if(!GetExitCodeProcess(handle,out uint code)) throw Failure(Marshal.GetLastWin32Error(),stage,identity);
+        // STILL_ACTIVE is also a legal exit code; a fresh process snapshot disambiguates it.
+        return code != 259;
+    }
+    public static Identity Read(int processId) {
+        if(processId <= 0) throw new ArgumentOutOfRangeException(nameof(processId));
+        var identity=new Identity { processId=processId, sessionId=-1 };
+        using(var handle=OpenProcess(0x1000,false,processId)) {
+            if(handle.IsInvalid) {
+                int code=Marshal.GetLastWin32Error();
+                if(code == 87 && !FindSession(processId).HasValue) return null;
+                throw Failure(code,"OpenProcess",identity);
+            }
+            // Keep one handle alive through every read: a recycled PID cannot mix identities.
+            int? session=FindSession(processId);
+            if(!session.HasValue || Exited(handle,identity,"GetExitCodeProcess.Before")) return null;
+            identity.sessionId=session.Value;
+            if(!GetProcessTimes(handle,out long created,out long exited,out long kernel,out long user))
+                throw Failure(Marshal.GetLastWin32Error(),"GetProcessTimes",identity);
+            identity.processStartTicks=DateTime.FromFileTimeUtc(created).Ticks;
+            var path=new StringBuilder(32768);
+            int length=path.Capacity;
+            if(!QueryFullProcessImageName(handle,0,path,ref length)) {
+                int code=Marshal.GetLastWin32Error();
+                var original=Failure(code,"QueryFullProcessImageName",identity);
+                // A terminating process can lose its image before the next name enumeration.
+                if(code == 31) {
+                    try {
+                        if(Exited(handle,identity,"GetExitCodeProcess.AfterImageFailure") || !FindSession(processId).HasValue) return null;
+                    } catch(Exception confirmation) {
+                        original.Data["LifecycleExitConfirmationFailure"]=confirmation;
+                    }
+                }
+                throw original;
+            }
+            identity.path=path.ToString();
+            if(Exited(handle,identity,"GetExitCodeProcess.After") || !FindSession(processId).HasValue) return null;
+            return identity;
+        }
+    }
+}
+'@ -ErrorAction Stop
+}
+
 function Assert-PtModuleLifecycleProfile {
     param([Parameter(Mandatory)]$Profile)
     $allowed=@('Id','ModuleKey','PageAutomationId','ToggleAutomationId','ToggleName','WithinAutomationId','Model','ProcessName','ProcessPath','WindowClass','Events','SettingsPath')
@@ -49,42 +134,67 @@ function Assert-PtModuleLifecycleProfile {
 }
 
 function Get-PtLifecycleProcessIdentity {
-    param([Parameter(Mandatory)]$Process)
-    if($Process.get_HasExited()){throw [InvalidOperationException]::new('Process already exited during lifecycle observation.')}
-    # Property syntax can suppress a failing .NET getter and yield null in PowerShell.
-    $started=$Process.get_StartTime()
-    $session=$Process.get_SessionId()
-    $module=$Process.get_MainModule()
-    if(-not $module){throw [InvalidOperationException]::new('Process module is unavailable during lifecycle observation.')}
-    [pscustomobject]@{
-        processId=$Process.Id;processStartTicks=$started.ToUniversalTime().Ticks
-        sessionId=$session;path=$module.get_FileName()
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Process,[switch]$AllowExited,[string]$ExpectedPath)
+    try{$identity=Get-PtLifecycleProcessProbe -ProcessId $Process.Id}
+    catch{
+        $cause=$_.Exception
+        $native=$cause.GetBaseException()
+        if($native -isnot [ComponentModel.Win32Exception] -or -not $native.Data.Contains('LifecycleProcessStage')){throw}
+        $observed=$native.Data['LifecycleProcessIdentity']
+        $details=[pscustomobject]@{
+            Status='ReadError';Stage=$native.Data['LifecycleProcessStage'];NativeErrorCode=$native.NativeErrorCode
+            processId=$Process.Id;processStartTicks=$observed.processStartTicks
+            sessionId=$Process.SessionId;path=$observed.path;ExpectedPath=$ExpectedPath
+            ObservedSessionId=$observed.sessionId;RequestedAccess='PROCESS_QUERY_LIMITED_INFORMATION (0x1000)'
+        }
+        $error=[InvalidOperationException]::new("Lifecycle process observation failed: PID $($Process.Id), session $($Process.SessionId), stage $($details.Stage), native error $($details.NativeErrorCode); expected path '$ExpectedPath'.",$cause)
+        $error.Data['LifecycleProcessObservation']=$details
+        $record=[Management.Automation.ErrorRecord]::new($error,'PtLifecycleProcess.ReadError',[Management.Automation.ErrorCategory]::ReadError,$details)
+        $PSCmdlet.ThrowTerminatingError($record)
     }
+    if($null -eq $identity){
+        if($AllowExited){return}
+        throw [InvalidOperationException]::new("Process $($Process.Id) already exited during lifecycle observation.")
+    }
+    $identity
+}
+
+function Get-PtLifecycleProcessProbe {
+    param([Parameter(Mandatory)][int]$ProcessId)
+    [PtLifecycleProcess]::Read($ProcessId)
+}
+
+function Get-PtLifecycleProcessCandidates {
+    param([Parameter(Mandatory)][string]$Name)
+    $all=[Diagnostics.Process]::GetProcessesByName($Name)
+    try{
+        foreach($process in $all){
+            [pscustomobject]@{Id=$process.Id;SessionId=$process.get_SessionId()}
+        }
+    }finally{foreach($process in $all){$process.Dispose()}}
 }
 
 function Get-PtLifecycleRunner {
     $session=[Diagnostics.Process]::GetCurrentProcess().SessionId
-    $all=[Diagnostics.Process]::GetProcessesByName('PowerToys')
-    try{
-        $runners=@($all|Where-Object {$_.get_SessionId() -eq $session})
-        if($runners.Count -ne 1){throw 'Exactly one Runner in the current session is required; no Runner will be started or replaced automatically.'}
-        Get-PtLifecycleProcessIdentity $runners[0]
-    }finally{foreach($process in $all){$process.Dispose()}}
+    $runners=@(foreach($candidate in @(Get-PtLifecycleProcessCandidates 'PowerToys')){
+        if($candidate.SessionId -ne $session){continue}
+        $identity=Get-PtLifecycleProcessIdentity $candidate -AllowExited
+        if($identity -and $identity.sessionId -eq $session -and [IO.Path]::GetFileNameWithoutExtension($identity.path) -ieq 'PowerToys'){$identity}
+    })
+    if($runners.Count -ne 1){throw 'Exactly one Runner in the current session is required; no Runner will be started or replaced automatically.'}
+    $runners[0]
 }
 
 function Get-PtLifecycleProcesses {
     param($Profile,[int]$SessionId)
     if(-not $Profile.ProcessName){return}
-    foreach($process in [Diagnostics.Process]::GetProcessesByName($Profile.ProcessName)){
-        try{
-            if($process.get_HasExited()){continue}
-            if($process.get_SessionId() -ne $SessionId){continue}
-            $identity=Get-PtLifecycleProcessIdentity $process
-            if($identity.path -ieq $Profile.ProcessPath){$identity}
-        }catch [InvalidOperationException] {
-            if(-not $process.get_HasExited()){throw}
-        }finally{$process.Dispose()}
-    }
+    $matches=@(foreach($candidate in @(Get-PtLifecycleProcessCandidates $Profile.ProcessName)){
+        if($candidate.SessionId -ne $SessionId){continue}
+        $identity=Get-PtLifecycleProcessIdentity $candidate -AllowExited -ExpectedPath $Profile.ProcessPath
+        if($identity -and $identity.sessionId -eq $SessionId -and $identity.path -ieq $Profile.ProcessPath){$identity}
+    })
+    $matches
 }
 
 function Get-PtLifecycleConfiguredEnabled {

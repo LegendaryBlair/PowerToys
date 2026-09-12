@@ -88,6 +88,170 @@ function Get-PtShortcutGuidePresentation {
     [pscustomobject]$state
 }
 
+function Get-PtSgHoldExpander {
+    param($SettingsTarget)
+    $container=Resolve-PtUiElement -Hwnd $SettingsTarget.hwnd -ControlType Group -AutomationId ShortcutGuideWindowsKeyAction
+    $condition=[Windows.Automation.AndCondition]::new(
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button),
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsExpandCollapsePatternAvailableProperty,$true))
+    $element=Select-PtUniqueUiElement -Elements @($container.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)) `
+        -Description 'SG hold-settings expander'
+    $element.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
+}
+
+function Set-PtShortcutGuideCloseOnRelease {
+    <# .SYNOPSIS
+    Set the actual SG CheckBox through TogglePattern and verify UI plus persisted state. Caller restores Before.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$SettingsTarget,[Parameter(Mandatory)][bool]$Enabled,
+        [ValidateRange(0.2,15)][double]$TimeoutSeconds=5,[switch]$SkipRecording)
+    $active=Get-PtActiveVerificationAttempt
+    if($active -and -not $SkipRecording){
+        return Invoke-PtVerificationStep $active -Name 'Set SG close-on-release CheckBox' `
+            -Command 'Set-PtShortcutGuideCloseOnRelease -SettingsTarget $target -Enabled $value -TimeoutSeconds $timeout' `
+            -Implementation ${function:Set-PtShortcutGuideCloseOnRelease} -ArgumentList @($SettingsTarget,$Enabled,$TimeoutSeconds) -Action {
+                param($target,$value,$timeout)
+                Set-PtShortcutGuideCloseOnRelease -SettingsTarget $target -Enabled $value -TimeoutSeconds $timeout -SkipRecording
+            }
+    }
+    Assert-PtWindowIdentity $SettingsTarget
+    $window=Get-PtNativeWindow -Hwnd $SettingsTarget.hwnd
+    if(-not $window.Visible -or $window.Minimized){throw 'Settings must be visible and not minimized.'}
+    $configuration=Get-PtSgFlowConfiguration
+    if($configuration.HoldAction -ne 2){throw 'Select Open Shortcut Guide explicitly before changing close-on-release.'}
+    $expander=Get-PtSgHoldExpander $SettingsTarget
+    $expanded=$false;$failure=$null
+    try{
+        $expandState=$expander.Current.ExpandCollapseState
+        if($expandState -notin [Windows.Automation.ExpandCollapseState]::Collapsed,[Windows.Automation.ExpandCollapseState]::Expanded){
+            throw 'Hold-settings expander state is not actionable.'
+        }
+        if($expandState -eq [Windows.Automation.ExpandCollapseState]::Collapsed){
+            $expanded=$true;$expander.Expand()
+        }
+        $control=Wait-PtCondition -Description 'realized SG close-on-release CheckBox' -TimeoutSeconds $TimeoutSeconds -Probe {
+            try{
+                $candidate=Resolve-PtUiElement -Hwnd $SettingsTarget.hwnd -ControlType CheckBox -AutomationId ShortcutGuide_CloseOnWindowsKeyRelease
+                if(-not $candidate.Current.IsOffscreen){$candidate}
+            }
+            catch{if($_.Exception.Data['PtUiResolutionStatus'] -ne 'Missing'){throw}}
+        }
+        if(-not $control.Current.IsEnabled -or $control.Current.IsOffscreen){throw 'Close-on-release CheckBox is disabled or offscreen.'}
+        $pattern=$control.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+        $before=$pattern.Current.ToggleState
+        if($before -notin [Windows.Automation.ToggleState]::On,[Windows.Automation.ToggleState]::Off){throw 'Close-on-release CheckBox is indeterminate.'}
+        $original=($before -eq [Windows.Automation.ToggleState]::On)
+        if($configuration.CloseOnRelease -ne $original){throw 'Close-on-release UI and saved configuration disagree before mutation.'}
+        if($original -ne $Enabled){$pattern.Toggle()}
+        Wait-PtCondition -Description 'SG close-on-release UI and saved readback' -TimeoutSeconds $TimeoutSeconds -Probe {
+            Assert-PtWindowIdentity $SettingsTarget
+            $saved=Get-PtSgFlowConfiguration
+            if($saved.HoldAction -ne 2){throw 'Hold mode changed during close-on-release observation.'}
+            $actual=$pattern.Current.ToggleState
+            $expected=if($Enabled){[Windows.Automation.ToggleState]::On}else{[Windows.Automation.ToggleState]::Off}
+            if($actual -eq $expected -and $saved.CloseOnRelease -eq $Enabled){
+                [pscustomobject]@{Before=$original;Requested=$Enabled;Actual=$Enabled;Changed=($original -ne $Enabled)
+                    AutomationId='ShortcutGuide_CloseOnWindowsKeyRelease';ControlType='CheckBox';SettingsTarget=$SettingsTarget}
+            }
+        }
+    }catch{$failure=$_;throw}
+    finally{
+        if($expanded){
+            try{
+                $expander.Collapse()
+                Wait-PtCondition -Description 'original collapsed hold-settings expander' -TimeoutSeconds $TimeoutSeconds -Probe {
+                    $expander.Current.ExpandCollapseState -eq [Windows.Automation.ExpandCollapseState]::Collapsed
+                }|Out-Null
+            }
+            catch{
+                if($failure){$failure.Exception.Data['ExpanderCleanupFailure']=$_.Exception.Message;[Console]::Error.WriteLine($_.Exception.Message)}
+                else{throw}
+            }
+        }
+    }
+}
+
+function Get-PtSgOutsidePoint {
+    param($ContentBounds,$HostRect,$TargetRect)
+    foreach($number in @($ContentBounds.X,$ContentBounds.Y,$ContentBounds.Width,$ContentBounds.Height,
+        $HostRect.Left,$HostRect.Top,$HostRect.Right,$HostRect.Bottom,$TargetRect.Left,$TargetRect.Top,$TargetRect.Right,$TargetRect.Bottom)){
+        if($null -eq $number -or -not [double]::IsFinite([double]$number)){throw 'Outside click requires finite, observed geometry.'}
+    }
+    if($ContentBounds.Width -le 0 -or $ContentBounds.Height -le 0){throw 'Guide content geometry is empty.'}
+    $left=[Math]::Max($HostRect.Left+16,$TargetRect.Left+16)
+    $right=[Math]::Min($HostRect.Right-16,$TargetRect.Right-16)
+    $top=[Math]::Max($ContentBounds.Y+16,[Math]::Max($HostRect.Top+16,$TargetRect.Top+64))
+    $bottom=[Math]::Min($ContentBounds.Y+$ContentBounds.Height-16,[Math]::Min($HostRect.Bottom-16,$TargetRect.Bottom-16))
+    $regions=@(
+        @{Left=$left;Right=[Math]::Min($right,$ContentBounds.X-16)}
+        @{Left=[Math]::Max($left,$ContentBounds.X+$ContentBounds.Width+16);Right=$right}
+    )
+    $region=@($regions|Where-Object {$_.Right-$_.Left -ge 2}|Sort-Object {$_.Right-$_.Left} -Descending|Select-Object -First 1)
+    if($bottom-$top -lt 2 -or $region.Count -ne 1){throw 'Owned foreground window has no safe point outside the full guide content.'}
+    [pscustomobject]@{X=[int][Math]::Floor(($region[0].Left+$region[0].Right)/2);Y=[int][Math]::Floor(($top+$bottom)/2)}
+}
+
+function Invoke-PtSgOutsideClick {
+    param($Session,[double]$TimeoutSeconds)
+    if(-not (Get-Command Initialize-PtTaskbarNative -ErrorAction Ignore)){. "$PSScriptRoot\pt-taskbar-fixture.ps1"}
+    Initialize-PtTaskbarNative
+    Assert-PtShortcutInputIdle
+    foreach($key in 1,2,4,5,6){if(([PtChord]::GetAsyncKeyState($key) -band 0x8000) -ne 0){throw 'Outside click requires released mouse buttons.'}}
+    Assert-PtWindowIdentity $Session.ForegroundTarget
+    $hostWindow=Get-PtNativeWindow -Hwnd $Session.GuideTarget.hwnd
+    $underlying=Get-PtNativeWindow -Hwnd $Session.ForegroundTarget.hwnd
+    if(-not $underlying.Visible -or $underlying.Minimized){throw 'Owned underlying window is hidden or minimized.'}
+    $content=Get-PtUiObservation -Target $Session.GuideTarget -AutomationId WindowSelector -ControlType Custom -Property BoundingRectangle
+    $point=Get-PtSgOutsidePoint $content.Value $hostWindow.Rect $underlying.Rect
+    $oldPointer=New-Object PtDesktop+POINT
+    if(-not [PtDesktop]::GetCursorPos([ref]$oldPointer)){throw 'Cannot capture pointer before outside click.'}
+    $moved=$false;$pressed=$false;$failure=$null
+    try{
+        if(-not (Test-PtForeground -Hwnd $Session.GuideTarget.hwnd)){throw 'Guide lost foreground before outside click.'}
+        $covered=@(Get-PtNativeWindow -Visible|Where-Object {
+            $_.Hwnd -ne $Session.GuideTarget.hwnd -and -not $_.Minimized -and
+            $point.X -ge $_.Rect.Left -and $point.X -lt $_.Rect.Right -and $point.Y -ge $_.Rect.Top -and $point.Y -lt $_.Rect.Bottom
+        })
+        if(-not $covered.Count -or $covered[0].Hwnd -ne $Session.ForegroundTarget.hwnd){throw 'Outside click would land above an unowned underlying window.'}
+        if([PtTaskbarNative]::PointWindow($point.X,$point.Y) -ne $Session.GuideTarget.hwnd){throw 'Outside point is not covered by the owned guide.'}
+        $moved=$true
+        if(-not [PtDesktop]::SetCursorPos($point.X,$point.Y)){throw 'Outside-click pointer move failed.'}
+        Wait-PtCondition -Description 'outside-click pointer delivery' -TimeoutSeconds $TimeoutSeconds -Probe {
+            $actual=New-Object PtDesktop+POINT
+            if(-not [PtDesktop]::GetCursorPos([ref]$actual)){throw 'Cannot read outside-click pointer delivery.'}
+            $actual.X -eq $point.X -and $actual.Y -eq $point.Y
+        }|Out-Null
+        Assert-PtWindowIdentity $Session.GuideTarget
+        Assert-PtWindowIdentity $Session.ForegroundTarget
+        if(-not (Test-PtForeground -Hwnd $Session.GuideTarget.hwnd) -or
+            [PtTaskbarNative]::PointWindow($point.X,$point.Y) -ne $Session.GuideTarget.hwnd){throw 'Guide or point ownership changed before click.'}
+        $pressed=$true
+        if([PtTaskbarNative]::Mouse('Down',0,0) -ne 1){throw 'Outside-click mouse down was not accepted.'}
+    }catch{$failure=$_;throw}
+    finally{
+        try{
+            if($pressed){
+                if([PtTaskbarNative]::Mouse('Up',0,0) -ne 1){throw 'Outside-click mouse release was not accepted.'}
+                Wait-PtCondition -Description 'outside-click button release' -TimeoutSeconds $TimeoutSeconds -Probe {
+                    ([PtChord]::GetAsyncKeyState(1) -band 0x8000) -eq 0
+                }|Out-Null
+            }
+        }catch{if($failure){$failure.Exception.Data['OutsideClickReleaseFailure']=$_.Exception.Message}else{$failure=$_}}
+        try{
+            if($moved){
+                $actual=New-Object PtDesktop+POINT
+                if(-not [PtDesktop]::GetCursorPos([ref]$actual)){throw 'Cannot read pointer before restoration.'}
+                if($actual.X -ne $point.X -or $actual.Y -ne $point.Y){throw 'Pointer changed outside the owned click; restoration refused.'}
+                if(-not [PtDesktop]::SetCursorPos($oldPointer.X,$oldPointer.Y)){throw 'Outside-click pointer restore failed.'}
+                if(-not [PtDesktop]::GetCursorPos([ref]$actual) -or $actual.X -ne $oldPointer.X -or $actual.Y -ne $oldPointer.Y){throw 'Outside-click pointer restoration was not observed.'}
+            }
+        }catch{if($failure){$failure.Exception.Data['OutsideClickPointerFailure']=$_.Exception.Message}else{$failure=$_}}
+        if($failure){throw $failure}
+    }
+    [pscustomobject]@{Point=$point;ContentBounds=$content.Value;UnderlyingTarget=$Session.ForegroundTarget;PointerRestored=$true}
+}
+
 function New-PtSgFlowSession {
     param($ForegroundTarget,[string]$Workspace,[string]$Entry,[string]$Mode)
     Assert-PtWindowIdentity $ForegroundTarget
@@ -210,7 +374,7 @@ function Close-PtShortcutGuide {
     Apply one requested close route to an owned visible full guide, then observe stable hidden state.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Session,[Parameter(Mandatory)][ValidateSet('CloseButton','Escape','Chord')][string]$Route,
+    param([Parameter(Mandatory)]$Session,[Parameter(Mandatory)][ValidateSet('CloseButton','Escape','Chord','OutsidePane')][string]$Route,
         [ValidateRange(0.2,15)][double]$TimeoutSeconds=5)
     Assert-PtSgFlowSession $Session
     if(-not $Session.ActivationIssued){throw 'This receipt does not own an issued activation.'}
@@ -218,7 +382,10 @@ function Close-PtShortcutGuide {
         param($owned,$closeRoute,$timeout)
         $state=Get-PtShortcutGuidePresentation $owned.GuideTarget
         if($state.Kind -ne 'FullGuide'){throw 'The owned full guide is not visible before the requested close route; close cannot be credited.'}
-        if($closeRoute -eq 'CloseButton'){
+        $inputObservation=$null
+        if($closeRoute -eq 'OutsidePane'){
+            $inputObservation=Invoke-PtSgOutsideClick $owned $timeout
+        }elseif($closeRoute -eq 'CloseButton'){
             (Resolve-PtUiElement -Hwnd $owned.GuideTarget.hwnd -AutomationId CloseButton -ControlType Button).GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         }else{
             if($closeRoute -eq 'Escape'){
@@ -235,7 +402,7 @@ function Close-PtShortcutGuide {
         }
         $owned.Last=Wait-PtSgPresentation $owned Hidden $timeout
         $owned.Phase='Closed';Save-PtSgFlowSession $owned
-        [pscustomobject]@{Route=$closeRoute;After=$owned.Last;ReceiptPath=$owned.ReceiptPath}
+        [pscustomobject]@{Route=$closeRoute;After=$owned.Last;ReceiptPath=$owned.ReceiptPath;Input=$inputObservation}
     }
     $active=Get-PtActiveVerificationAttempt
     if($active){
@@ -283,7 +450,7 @@ function Invoke-PtShortcutGuideCycle {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$ForegroundTarget,[Parameter(Mandatory)][string]$Workspace,
         [Parameter(Mandatory)][ValidateSet('NamedEvent','Chord')][string]$Entry,
-        [Parameter(Mandatory)][ValidateSet('CloseButton','Escape','Chord')][string]$CloseRoute,
+        [Parameter(Mandatory)][ValidateSet('CloseButton','Escape','Chord','OutsidePane')][string]$CloseRoute,
         [Parameter(Mandatory)][scriptblock]$Action,[object[]]$ArgumentList=@(),
         [ValidateRange(0.2,15)][double]$TimeoutSeconds=5)
     $session=$null;$original=$null
@@ -298,7 +465,9 @@ function Invoke-PtShortcutGuideCycle {
             throw 'SG disappeared during the supplied observation; normal close was not attempted or credited.'
         }
         $closed=Close-PtShortcutGuide $session -Route $CloseRoute -TimeoutSeconds $TimeoutSeconds
-        [pscustomobject]@{Entry=$Entry;CloseRoute=$CloseRoute;Session=$session;Observation=$observed;Close=$closed}
+        $result=[pscustomobject]@{Entry=$Entry;CloseRoute=$CloseRoute;Session=$session;Output=$observed;Close=$closed}
+        $result|Add-Member -MemberType AliasProperty -Name Observation -Value Output
+        $result
     }catch{
         $original=$_
         if($session){
@@ -332,14 +501,12 @@ function Invoke-PtShortcutGuideHold {
     $active=Get-PtActiveVerificationAttempt
     if($active -and -not $SkipRecording){
         $targetText=(ConvertTo-Json $ForegroundTarget -Compress).Replace("'","''")
-        $actionText=$Action.ToString().Replace("'","''")
-        $argsText=(ConvertTo-Json -InputObject $ArgumentList -Depth 20 -Compress).Replace("'","''")
         return Invoke-PtVerificationStep $active -Name "Hold SG $Mode with VK $WindowsKey" `
-            -Command "Invoke-PtShortcutGuideHold -ForegroundTarget (ConvertFrom-PtReportJson '$targetText') -Workspace '$($Workspace.Replace("'","''"))' -Mode $Mode -WindowsKey $WindowsKey -TimeoutSeconds $TimeoutSeconds -Action ([scriptblock]::Create('$actionText')) -ArgumentList (ConvertFrom-PtReportJson '$argsText')" `
-            -Implementation ${function:Invoke-PtShortcutGuideHold} -ArgumentList @($ForegroundTarget,$Workspace,$Mode,$WindowsKey,$TimeoutSeconds) -Action {
-                param($target,$work,$presentation,$key,$timeout)
+            -Command "Invoke-PtShortcutGuideHold -ForegroundTarget (ConvertFrom-PtReportJson '$targetText') -Workspace '$($Workspace.Replace("'","''"))' -Mode $Mode -WindowsKey $WindowsKey -TimeoutSeconds $TimeoutSeconds -Action `$callbackAction -ArgumentList `$callbackValues" `
+            -Implementation ${function:Invoke-PtShortcutGuideHold} -ArgumentList @($ForegroundTarget,$Workspace,$Mode,$WindowsKey,$TimeoutSeconds,$Action,$ArgumentList) -Action {
+                param($target,$work,$presentation,$key,$timeout,$callbackAction,$callbackValues)
                 Invoke-PtShortcutGuideHold -ForegroundTarget $target -Workspace $work -Mode $presentation -WindowsKey $key `
-                    -TimeoutSeconds $timeout -Action $sgHoldAction -ArgumentList $sgHoldArguments -SkipRecording
+                    -TimeoutSeconds $timeout -Action $callbackAction -ArgumentList $callbackValues -SkipRecording
             }
     }
     $session=New-PtSgFlowSession $ForegroundTarget $Workspace WindowsHold $Mode

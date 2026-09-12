@@ -68,6 +68,36 @@ references after **every** transition, even if a handle value is later recycled.
 Use returned identities for subsequent observations. A restored enabled module may
 have a new process/window; restoring an old PID or private in-memory state is not claimed.
 
+An access-denied error from `Process.HasExited` is a **probe failure**, not proof that
+the UI toggle failed or the module crashed. Preserve the original error and inspect
+the saved enabled flag before repeating a transition. A separate read-only CIM query
+scoped to the recorded PID/session, together with native host observations, can establish
+what actually changed. Record that alternative as Diagnostic evidence; do not silently
+replace the lifecycle result, elevate the session, or restart unrelated utilities.
+Cleanup must still restore the original enabled value through the shipped toggle and
+record an explicit comparison even when the lifecycle probe cannot complete.
+
+The process probe now opens one `PROCESS_QUERY_LIMITED_INFORMATION` (`0x1000`)
+handle per candidate. It reads creation time and the full executable path on that
+handle, not `Process.HasExited` (which additionally requests `SYNCHRONIZE`) or
+`MainModule` (module enumeration requests query/VM-read rights). Fresh process
+enumeration supplies the session and confirms presence while the handle pins the PID.
+An actual exit code other than `STILL_ACTIVE`, or confirmed absence from enumeration,
+is exit evidence; `STILL_ACTIVE` alone is not, since a process can also exit with code
+259. A disappearing image (native error 31) requires independent exit confirmation.
+Access denied is never converted to exit, including during that confirmation.
+
+Required same-name/current-session candidates that cannot be queried stop observation
+with `PtLifecycleProcess.ReadError`. `Exception.Data['LifecycleProcessObservation']`
+records the stage, native error code, candidate PID/session, observed start/path/session
+when available, expected path and requested access. The original exception remains in
+the inner-exception chain; a failed secondary exit confirmation is retained on the
+native exception as `LifecycleExitConfirmationFailure`. No partial process set or
+ready/disabled state is returned. A same-name candidate with an unreadable path cannot
+be assumed unrelated. Readable wrong-path/other-session instances are excluded; all
+exact matches are retained so ambiguity still fails. A new start time resets the
+existing two-observation stability check even when the PID is reused.
+
 ## Paired use and error boundaries
 
 Navigate/make Settings visible first. The helper refuses a wrong page, minimized window,
@@ -120,6 +150,13 @@ pwsh -NoProfile -File "$skill\scripts\tests\Test-PtModuleLifecycle.ps1" -Workspa
 pwsh -NoProfile -STA -File "$skill\scripts\tests\Test-PtInstalledModuleLifecycle.ps1" `
     -Workspace <new-folder> -SettingsHwnd <owned-settings-hwnd>
 ```
+
+The first command is offline with respect to PowerToys and the desktop. It includes
+one short-lived, no-window child with a temporarily restricted process DACL, reproduces
+the old `HasExited` access denial, verifies limited-rights identity and structured
+required-access denial, and restores the DACL before the child exits. It also covers
+exiting candidates, PID reuse, path/session filtering, ambiguity and error provenance;
+`results.json` and `native-probe-evidence.json` are written to the new workspace.
 
 The installed acceptance uses SG (`Resident`) and Find My Mouse (`RunnerHosted`),
 does not invoke either module's feature, and leaves its recorded run open for the

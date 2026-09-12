@@ -164,6 +164,12 @@ The compact view follows the contract above and links to these sections.
   item PASS. Unfinished items remain **BLOCKED / BLK-INCOMPLETE**; command/capture errors
   are **BLK-INFRASTRUCTURE**, not inferred product defects. These two recording categories
   supplement, rather than replace, the existing environment/hardware BLOCKED reasons.
+  Explicit child `BLOCKED / BLK-INCOMPLETE` is supported for unfinished coverage;
+  `NOT-OBSERVED / not-observed` remains distinct. Neither establishes an infrastructure
+  root cause. Describe proven test bugs as test bugs in the reason and retrospective;
+  do not relabel a wrong selector, return-property misuse or recursive serialization as
+  merely unclear documentation. Unexplained errors remain untriaged until evidence
+  separates test defects from unavailable external conditions.
 - Include **BITS**, explicit cleanup/restoration receipts and **Signoff: APPROVED or
   WITHHELD** in the summary. Withhold signoff for failed, blocked, unobserved or incomplete
   coverage, execution/cleanup errors, missing evidence or unrecorded restoration.
