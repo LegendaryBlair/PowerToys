@@ -2,7 +2,7 @@
 .SYNOPSIS
 Reproduce real verification invocation contracts without driving product UI.
 .DESCRIPTION
-Uses actual formatting commands, a copied script scope, CLI help, and owned local event/files.
+Uses actual formatting commands, original script scope, CLI help, and owned local event/files.
 #>
 param([string]$Workspace = (Join-Path $env:TEMP "pt-invocation-contracts-$([Guid]::NewGuid().ToString('N'))"))
 $ErrorActionPreference = 'Stop'
@@ -27,7 +27,7 @@ function NewRun([string]$Name) {
             @{ Name = 'desktop.ps1'; Role = 'Helper'; Path = "$helpers\pt-desktop.ps1" }
             @{ Name = 'events.ps1'; Role = 'Helper'; Path = "$helpers\pt-shared-events.ps1" }
         ) -Items @(@{ Id = 'I1'; Description = $Name; Admin = 'NO'; Clarity = 'CLEAR'; UserVisible = $false
-            Assertions = @(@{ Id = 'contract'; Description = $Name; Required = $true }) })
+            Assertions = @(@{ Id = 'contract'; Description = $Name }) })
 }
 function Check([string]$Name, [scriptblock]$Action) {
     $clock = [Diagnostics.Stopwatch]::StartNew()
@@ -87,16 +87,16 @@ Check 'Documented preflight runs without a caller Out-String workaround' {
     Require (@($data | Where-Object { $_ -is [bool] }).Count -eq 1) 'Formatting interrupted the later admin probe'
     Require (@($data | Where-Object { $_.PSObject.Properties['Found'] }).Count -eq 1) 'Runner probe was lost'
 }
-Check 'Copied ScriptFile inherits helpers and automatically records its internal CLI call' {
+Check 'Original-path ScriptFile inherits helpers and automatically records its internal CLI call' {
     $run = NewRun 'script-scope'
     $prior = Start-PtVerificationAttempt $run -Context Preflight -Kind Normal -Name caller -Activate
     $attempt = Start-PtVerificationAttempt $run -ItemId I1 -Kind Normal -Name child
     $eventName = "Local\PowerToysVerificationContract-$([Guid]::NewGuid().ToString('N'))"
     $owned = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, $eventName)
     try {
-        $result = Invoke-PtVerificationStep $attempt -Name 'Copied probe' -Command 'Invoke-PtRecordedProbeFixture.ps1' `
+        $result = Invoke-PtVerificationStep $attempt -Name 'Recorded probe' -Command 'Invoke-PtRecordedProbeFixture.ps1' `
             -ScriptFile "$PSScriptRoot\Invoke-PtRecordedProbeFixture.ps1" -ArgumentList @($eventName,$attempt.Id)
-        Require ($owned.WaitOne(0)) 'The copied script did not signal the owned test event'
+        Require ($owned.WaitOne(0)) 'The recorded script did not signal the owned test event'
         Require ($result.AttemptId -eq $attempt.Id -and $result.Help -match 'inspect') 'Script invocation contract failed'
         Require ((Get-PtActiveVerificationAttempt).Id -eq $prior.Id) 'Caller recording context was not restored'
         $steps = @(Read-PtReportEvents $run | Where-Object Type -eq StepStarted)

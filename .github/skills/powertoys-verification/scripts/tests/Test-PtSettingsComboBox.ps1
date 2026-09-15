@@ -14,7 +14,7 @@ $run=New-PtVerificationRun -Workspace $Workspace -Module 'H01 Settings control a
         @{Name='uia.ps1';Role='Helper';Path="$helpers\pt-uia.ps1"}
         @{Name='desktop.ps1';Role='Helper';Path="$helpers\pt-desktop.ps1"}
     ) -Items @(@{Id='H01';Description='Scoped WinUI ComboBox selection and restoration';Admin='NO';Clarity='CLEAR';UserVisible=$false
-        Assertions=@(@{Id='selection';Description='Three control selectors select/read back and restore';Required=$true})})
+        Assertions=@(@{Id='selection';Description='Three control selectors select/read back and restore'})})
 $desktop=Get-PtDesktopSnapshot -WindowHwnd $Hwnd
 $file=Get-PtFileSnapshot $filePath
 $desktop|ConvertTo-Json -Depth 15|Set-Content "$Workspace\desktop-before.json"

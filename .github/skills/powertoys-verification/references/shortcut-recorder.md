@@ -56,9 +56,9 @@ try {
 }
 ```
 
-In a recorded run, prefer `Invoke-PtVerificationCase -OperationKey <stable-lowercase-key>`
+In a recorded run, prefer `Invoke-PtVerificationCase`
 with the assignment in `-Action` and `Restore-PtShortcutSnapshot` in `-Cleanup`. H10
-retains the primary and restoration errors and does not budget-gate cleanup. Pass
+retains the primary and restoration errors and always attempts owned cleanup. Pass
 callback arguments explicitly rather than relying on generic outer variable names.
 The shortcut helper automatically records its composed operation inside an active attempt.
 

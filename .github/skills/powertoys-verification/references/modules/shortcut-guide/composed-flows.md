@@ -4,6 +4,8 @@ Load `scripts/pt-shortcut-guide-flow.ps1`. These operations compose the existing
 identity, input, observation and recording helpers. They do not enable/restart SG,
 change settings, retry activation or substitute a named event for a physical chord.
 The caller owns its foreground fixture and final desktop/settings restoration.
+For Quick Access and the rail's Settings action, use the separate
+[entry-transition helpers](entry-points.md), including fresh-process startup readiness.
 
 ## Explicit operations
 

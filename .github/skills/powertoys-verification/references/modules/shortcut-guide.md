@@ -109,7 +109,8 @@ cases; do not substitute settled images for those assertions.
 | Downstream content/navigation | `Invoke-PtSharedEvent -Name 'ShortcutGuide.Trigger'`; does not prove a keyboard binding |
 | Configured binding or excluded-app gate | `Send-PtChord -Hwnd <tracked-window> -Mods 0x5B,0x10 -Key 0xBF` for the default; use its no-delay activation default, not recorder-oriented dwell |
 | Hold threshold or release | `Invoke-PtHeldKeys -Hwnd <tracked-window> -Keys 0x5B -Action { ... }`; repeat with `0x5C`, observing while held; release is guaranteed by `finally` during normal exception unwinding |
-| Quick Access integration | Resolve the runner PID, open `Local\PowerToysQuickAccess_<RunnerPid>_Show`, inspect the current UIA tree, and invoke the Shortcut Guide tile |
+| Quick Access integration | After fresh SG startup completion, signal `Local\PowerToysQuickAccess_<RunnerPid>_Show` once; wait for actual QA foreground/uncloaked state and tile availability, then invoke the tile. See [entry transitions](shortcut-guide/entry-points.md). |
+| Settings rail navigation | Click the actual Settings item, then wait for the existing Settings HWND foreground with SG selected; retain guide visibility separately, never force the destination or credit an already-selected background page. |
 | Command Palette integration | Discover the actual PowerToys extension and its module commands; a **Search apps** result for PowerToys is not the command provider |
 
 Use `Assert-PtForegroundOrAbort -Hwnd` when an app has multiple windows. For

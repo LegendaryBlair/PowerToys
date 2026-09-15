@@ -51,8 +51,8 @@ function Invoke-PtVerificationReportAcceptance {
     function Item([string]$Id, [bool]$Visible = $false) {
         @{ Id = $Id; Description = $unicode; Admin = 'NO'; Clarity = 'CLEAR'; UserVisible = $Visible
            Assertions = @(
-               @{ Id = 'opens'; Description = "Observed opening: $unicode"; Required = $true }
-               @{ Id = 'content'; Description = 'Observed content'; Required = $true }
+               @{ Id = 'opens'; Description = "Observed opening: $unicode" }
+               @{ Id = 'content'; Description = 'Observed content' }
            ) }
     }
     function NewRun([string]$Name, [object[]]$Items = @((Item 'L1'))) {
@@ -100,6 +100,115 @@ function Invoke-PtVerificationReportAcceptance {
         $badInputs = @(@{ Name = 'source'; Role = 'Skill'; Path = "$Workspace\absent" })
         Reject { New-PtVerificationRun -Workspace "$Workspace\missing-input" -Module fixture -Bits fixture -Scenario InfrastructureAcceptance -Items @((Item 'L1')) -Inputs $badInputs } 'real file'
         Require (-not (Test-Path "$Workspace\bad-duplicate")) 'Invalid inventory created a workspace'
+    }
+
+    Check 'New inventories reject optional assertions instead of silently changing coverage' {
+        $bad=Item L1
+        $bad.Assertions[1].Required=$false
+        Reject {NewRun optional-rejected @($bad)} 'Optional assertions are not supported'
+        Require (-not (Test-Path "$Workspace\optional-rejected")) 'Rejected optional inventory created a run'
+        $bad.Assertions[1].Required='true'
+        Reject {NewRun string-required @($bad)} 'Required.*boolean true'
+        $bad.Assertions[1].Required=$null
+        Reject {NewRun null-required @($bad)} 'Required.*boolean true'
+        $bad.Assertions[1]=[pscustomobject]@{Id='content';Description='Optional object';Required=$false}
+        Reject {NewRun object-optional @($bad)} 'Optional assertions are not supported'
+    }
+
+    Check 'Every declared assertion is mandatory without a Required flag and retains its actual outcome' {
+        foreach($outcome in 'PASS','FAIL','BLOCKED','NOT-OBSERVED'){
+            $item=Item L1
+            $before=ConvertTo-Json $item -Depth 8 -Compress
+            $run=NewRun "mandatory-$outcome" @($item)
+            Require ((ConvertTo-Json $item -Depth 8 -Compress) -ceq $before) 'Inventory registration mutated the caller'
+            Preflight $run
+            $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name outcome
+            Invoke-PtVerificationStep $a -Name observation -Command 'Synthetic required and conditional observations' -Action {'observed'}|Out-Null
+            $proof=Add-PtVerificationArtifact $a $fixture Evidence 'Synthetic observed value' -Synthetic
+            Add-PtVerificationAssertion $a opens PASS synthetic 'Observed expected value' -Evidence @($proof)
+            $category=switch($outcome){PASS {'synthetic'} FAIL {'product'} BLOCKED {'BLK-ENV'} default {'not-observed'}}
+            $reason=switch($outcome){
+                PASS {'Observed expected value'}
+                FAIL {'Observed a value contrary to the expectation'}
+                BLOCKED {'Declared second-monitor condition is unsatisfied in this synthetic fixture'}
+                default {'No observation was collected; this is unfinished coverage, not an optional assertion'}
+            }
+            Add-PtVerificationAssertion $a content $outcome $category $reason -Evidence @($proof)
+            Stop-PtVerificationAttempt $a -Reason 'Explicit outcome retained'
+            Complete-PtVerificationItem $run L1 -Reason 'Outcome reviewed'
+            Cleanup $run
+            $export=Complete-PtVerificationRun $run -NoFriction
+            $state=Get-PtReportState $run
+            $expectedItem=if($outcome -eq 'NOT-OBSERVED'){'BLOCKED'}else{$outcome}
+            Require ($state.Items[0].Verdict -eq $expectedItem) 'A declared assertion was treated as optional'
+            Require (@($state.Items[0].Assertions|Where-Object {-not $_.Required}).Count -eq 0) 'Implicit mandatory assertions were not projected'
+            Require ($state.Items[0].Assertions[1].Reason -ceq $reason) 'Condition or unfinished-coverage reason was changed'
+            Require (($export.Signoff -eq 'APPROVED') -eq ($outcome -eq 'PASS')) 'Non-passing coverage was approved'
+            Require (-not ([IO.File]::ReadAllText($export.Report)).Contains('required:')) 'New report still advertises an optional/required choice'
+            Require (Test-PtVerificationArchive $run.Workspace).Valid 'Mandatory assertion archive is invalid'
+        }
+    }
+
+    Check 'Legacy true is accepted as metadata without changing the caller inventory' {
+        $item=Item L1
+        $item.Assertions[1]=[pscustomobject]@{Id='content';Description='Legacy caller';Required=$true}
+        $before=ConvertTo-Json $item -Depth 8 -Compress
+        $run=NewRun legacy-true @($item)
+        Require ((ConvertTo-Json $item -Depth 8 -Compress) -ceq $before) 'Legacy caller inventory was rewritten'
+        Require ((Get-PtReportState $run).Items[0].Verdict -eq 'BLOCKED') 'Legacy true bypassed missing coverage'
+    }
+
+    Check 'Legacy false never excludes an assertion from review, item verdict or passing categories' {
+        foreach($outcome in 'MISSING','PASS','FAIL','BLOCKED','NOT-OBSERVED'){
+            $run=NewRun "legacy-$outcome"
+            $initial=@(Read-PtReportEvents $run)
+            Require ($initial.Count -eq 1 -and $initial[0].Type -eq 'RunStarted') 'Legacy fixture must have no attempts'
+            # Construct the old on-disk format only in this fresh synthetic fixture.
+            $metadataPath=Join-Path $run.Workspace 'run.json'
+            $metadata=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($metadataPath))
+            $metadata.Items[0].Assertions[1]|Add-Member NoteProperty Required $false
+            [IO.File]::WriteAllText($metadataPath,(ConvertTo-Json $metadata -Depth 30))
+            $initial[0].Data.Metadata=Get-PtReportFileReference $run 'run.json' Inventory 'Synthetic legacy inventory'
+            $payload=ConvertTo-Json $initial[0] -Depth 40 -Compress
+            $envelope=@{Payload=$payload;Sha256=(Get-PtReportHash ([Text.Encoding]::UTF8.GetBytes($payload)))}
+            $journalPath=Join-Path $run.Workspace 'events.jsonl'
+            [IO.File]::WriteAllText($journalPath,((ConvertTo-Json $envelope -Compress)+"`n"))
+            $originalMetadataHash=(Get-FileHash -LiteralPath $metadataPath).Hash
+            $originalJournal=[IO.File]::ReadAllText($journalPath)
+            $run=Open-PtVerificationRun $run.Workspace
+            Preflight $run
+            $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Continue synthetic legacy run'
+            Invoke-PtVerificationStep $a -Name observation -Command 'Synthetic declared assertion outcomes' -Action {'observed'}|Out-Null
+            $proof=Add-PtVerificationArtifact $a $fixture Evidence 'Synthetic legacy observation' -Synthetic
+            Add-PtVerificationAssertion $a opens PASS synthetic 'Observed expected value' -Evidence @($proof)
+            if($outcome -ne 'MISSING'){
+                $category=switch($outcome){PASS {'legacy-proof'} FAIL {'product'} BLOCKED {'BLK-ENV'} default {'not-observed'}}
+                $reason=switch($outcome){
+                    PASS {'Observed the second expected value'}
+                    FAIL {'Observed a value contrary to the expectation'}
+                    BLOCKED {'Declared second-monitor condition is unsatisfied in this synthetic fixture'}
+                    default {'No usable observation was collected'}
+                }
+                Add-PtVerificationAssertion $a content $outcome $category $reason -Evidence @($proof)
+            }
+            Stop-PtVerificationAttempt $a -Reason 'Synthetic continuation recorded'
+            Complete-PtVerificationItem $run L1 -Reason 'All declared outcomes reviewed'
+            $expectedItem=if($outcome -in 'MISSING','NOT-OBSERVED'){'BLOCKED'}else{$outcome}
+            $review=Get-PtVerificationReview -Run $run
+            Require ($review.Items[0].Verdict -eq $expectedItem) "Legacy false excluded $outcome from incremental review"
+            Cleanup $run
+            $export=Complete-PtVerificationRun $run -NoFriction
+            $state=Get-PtReportState $run
+            Require ($state.Items[0].Verdict -eq $expectedItem) "Legacy false excluded $outcome from the item verdict"
+            Require ($state.Items[0].Assertions[1].Required -ceq $false) 'Original legacy metadata was erased'
+            if($outcome -eq 'PASS'){
+                Require ($state.Items[0].Category -match 'legacy-proof') 'Legacy false excluded a passing assertion category'
+            }
+            Require (($export.Signoff -eq 'APPROVED') -eq ($outcome -eq 'PASS')) 'Legacy metadata changed acceptance'
+            Require ((Get-FileHash -LiteralPath $metadataPath).Hash -ceq $originalMetadataHash) 'Legacy inventory was rewritten'
+            Require ([IO.File]::ReadAllText($journalPath).StartsWith($originalJournal,[StringComparison]::Ordinal)) 'Legacy event history was rewritten'
+            Require (Test-PtVerificationArchive $run.Workspace).Valid 'Legacy assertion archive is invalid'
+        }
     }
 
     Check 'Mixed inventory: Normal pass, sticky Normal failure, diagnostic recovery, unobserved children' {
@@ -320,13 +429,13 @@ Invoke-PtVerificationStep `$attempt -Name interruption -Command '[Environment]::
         Require (@($state.References | Where-Object Path -Like '*implementation.ps1').Count -eq 2) 'Executed helper implementation missing'
     }
 
-    Check 'Script-file snapshots execute the archived version; native failure is infrastructure only' {
+    Check 'Script-file revisions execute from their original paths with distinct archived sources; native failure is infrastructure only' {
         $run = NewRun 'script-files'
         $a = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name scripts
         $scriptFile = "$Workspace\version.ps1"
         [IO.File]::WriteAllText($scriptFile, "param(`$value) 'version-one:' + `$value")
         $output = Invoke-PtVerificationStep $a -Name version-one -Command '.\version.ps1 payload' -ScriptFile $scriptFile -ArgumentList @('payload')
-        Require ($output -eq 'version-one:payload') 'Archived script not executed'
+        Require ($output -eq 'version-one:payload') 'Original script revision not executed'
         [IO.File]::WriteAllText($scriptFile, "'version-two'")
         $output = Invoke-PtVerificationStep $a -Name version-two -Command '.\version.ps1' -ScriptFile $scriptFile
         Require ($output -eq 'version-two') 'Second script revision not executed'
@@ -491,7 +600,7 @@ Invoke-PtVerificationStep `$attempt -Name interruption -Command '[Environment]::
         Require ($state.Items[0].Verdict -eq 'BLOCKED' -and $state.Signoff -eq 'WITHHELD') 'Synthetic screenshot approved product signoff'
     }
 
-    Check 'Complete Normal rerun supersedes driver errors, never product failures or missing coverage' {
+    Check 'Normal recovery retains driver history and combines independently observed assertions' {
         $run = NewRun 'driver-recovery'
         Preflight $run
         $failed = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Driver not ready'
@@ -510,7 +619,7 @@ Invoke-PtVerificationStep `$attempt -Name interruption -Command '[Environment]::
         Require ($state.Items[0].Verdict -eq 'PASS' -and $state.Signoff -eq 'APPROVED') 'Closed driver errors permanently blocked a complete Normal rerun'
         Require (@($state.Steps | Where-Object Status -eq 'Error').Count -eq 2) 'Earlier error evidence was erased'
 
-        $run = NewRun 'no-cross-attempt-coverage'
+        $run = NewRun 'partial-attempt-coverage'
         foreach ($child in 'opens','content') {
             $attempt = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name "Only $child observed"
             Invoke-PtVerificationStep $attempt -Name 'Partial probe' -Command $child -Action { 'partial evidence' } | Out-Null
@@ -518,9 +627,10 @@ Invoke-PtVerificationStep `$attempt -Name interruption -Command '[Environment]::
             Add-PtVerificationAssertion $attempt $child PASS 'synthetic comparison' 'Only this child observed' -Evidence @($proof)
             Stop-PtVerificationAttempt $attempt -Reason 'Partial attempt'
         }
-        Complete-PtVerificationItem $run L1 -Reason 'Cannot combine stale attempts into full coverage'
+        Complete-PtVerificationItem $run L1 -Reason 'Each assertion has its own Normal observation'
         $state = Get-PtReportState $run
-        Require ($state.Items[0].Verdict -eq 'BLOCKED' -and $state.Items[0].Assertions[0].Verdict -eq 'NOT-OBSERVED') 'Stale assertions were combined across attempts'
+        Require ($state.Items[0].Verdict -eq 'PASS' -and @($state.Items[0].Assertions | Where-Object Verdict -eq PASS).Count -eq 2) 'Partial attempts discarded valid assertion coverage'
+        Require (@($state.Items[0].Assertions.AttemptId | Select-Object -Unique).Count -eq 2) 'Combined assertions lost their distinct Normal origins'
     }
 
     Check 'Unwritten reservations remain exportable as incomplete, not missing registered evidence' {

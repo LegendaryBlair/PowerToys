@@ -4,7 +4,7 @@
 Read typed UIA observations without default-value, placeholder or accessible-name fallback.
 .NOTES
 No activation, focus, scrolling, retries, input or property writes. Observed is not PASS.
-Native UIA calls are synchronous; H10 budgets cannot forcibly interrupt a hung provider.
+Native UIA calls are synchronous; operation recording cannot forcibly interrupt a hung provider.
 #>
 foreach($dependency in 'pt-uia','pt-state-snapshot','pt-verification-report'){. "$PSScriptRoot\$dependency.ps1"}
 

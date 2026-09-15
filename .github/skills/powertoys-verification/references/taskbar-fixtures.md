@@ -1,22 +1,27 @@
-# Owned taskbar fixtures (H11)
+# Calculator taskbar fixture (H11)
 
-`scripts\pt-taskbar-fixture.ps1` creates three harmless WinForms windows in three
-dedicated `pwsh -STA` processes. Each process sets its explicit AppUserModelID before
-creating its window: `PowerToys.Verification.H11.<32-hex-token>.<1-based-index>`.
-Resolve the **exact** taskbar AutomationId `Appid: <AppUserModelID>`, not the accessible
-caption (which can still say PowerShell7). No Calculator, shared app host, pin/unpin,
-registry writes, settings changes, Explorer restart, process kill or installed-bit
-replacement is involved.
+`scripts\pt-taskbar-fixture.ps1` opens one system Calculator window. No custom dummy
+application is built or launched. Its taskbar identity is
+`Appid: Microsoft.WindowsCalculator_8wekyb3d8bbwe!App`; localized captions are not identifiers.
+Calculator must be installed and have no existing open window. Never close a user window
+to satisfy this condition. The fixture identifies the new top-level HWND and the actual
+Calculator content process separately, including a shared ApplicationFrameHost.
+
+Only Calculator is moved. Other existing app buttons can supply the additional observed
+slots required by the SG checklist; they need not be newly launched. No pin/unpin, registry
+writes, Calculator settings changes, Explorer restart, process kill or installed-bit
+replacement is involved. If Calculator was already pinned, its original slot is restored
+before closing its test-created window. If it was not pinned, closing removes its slot.
 
 ## Public APIs
 
 | API | Contract |
 |---|---|
-| `New-PtTaskbarFixture -Workspace [-Count 3]` | Existing local workspace; count 1-9. Returns the ownership receipt object, including `ReceiptPath`, `Apps[].AppId` and exact `Apps[].Identity`. |
+| `New-PtTaskbarFixture -Workspace` | Opens one system Calculator. Returns its receipt, `Apps[0].AppId`, exact top-level `Identity` and `ContentProcess`. Legacy `-Count 1` is accepted; larger counts are rejected rather than launching dummy apps. |
 | `Get-PtTaskbarSlots` | Fresh direct UIA observations: `Taskbar`, `CoordinateSpace`, `ObservedAtUtc`, `Bounds`, and shallow `Apps[]` with `Slot`, `AutomationId`, `AppId`, physical bounds and centers. No full UIA trees or caption-based inference. |
 | `Move-PtTaskbarFixtureToSlot -Fixture [-AppIndex 1] [-Slot 1] [-DragMethod Native]` | `Native` or explicit `WinApp`. Moves only the selected owned app. Returns observed `Changed`, `AppId`, `Slot`, `Target`, `DragMethod`, changed-order identities, Native `Pointer` facts and `PointerCleanup` facts. Already-correct placement is a read-only no-op. |
 | `Invoke-PtTaskbarSlot -Fixture [-Slot 1] [-WhileWindowsHeld] [-WindowsKey 0x5B] [-AllowedForegroundTarget <H02 identity>]` | Windows key is `0x5B` or `0x5C`. The optional foreground target is legal only while Windows is held. Returns observed mapping, exact target/foreground HWND, previous foreground and Windows-key facts, **not a product PASS**. |
-| `Remove-PtTaskbarFixture -Fixture` or `-ReceiptPath` | Closes only identity-checked owned HWNDs, waits for their dedicated processes to exit normally, attempts every resource, restores a conflict-free desktop and always compares the original taskbar baseline. Retains receipts/state/evidence. |
+| `Remove-PtTaskbarFixture -Fixture` or `-ReceiptPath` | Restores any pre-existing pinned Calculator slot, closes only its identity-checked test-created HWND, restores a conflict-free desktop and compares the original taskbar baseline. Does not require the Calculator/shared host process to exit. |
 
 Dot-source the library once. Use the standard H09 case/step recorder and optional H10
 operation boundary around these calls; there is no second recorder. Slot observations
@@ -31,7 +36,8 @@ $fixture = $null
 try {
     $fixture = New-PtTaskbarFixture -Workspace $workspace
     Move-PtTaskbarFixtureToSlot -Fixture $fixture -AppIndex 1 -Slot 1
-    # Parent owns SG setup, foreground baseline and all live observations.
+    $original = (Read-PtTaskbarFixture $fixture).Marker.Desktop.foreground
+    Assert-PtForegroundOrAbort -Hwnd $original.hwnd
     Invoke-PtTaskbarSlot -Fixture $fixture -Slot 1
 } finally {
     if ($fixture) { Remove-PtTaskbarFixture -ReceiptPath $fixture.ReceiptPath }
@@ -59,13 +65,18 @@ the foreground observation. The parent retains overlay cleanup responsibility.
 
 ## Ownership, guards and recovery
 
-Creation captures `Get-PtDesktopSnapshot` and `Get-PtShortcutGuideTaskbarSnapshot`
-**before launching**. The latter includes app identity order, pin-file hashes and
-read-only raw Taskband evidence. An immutable hashed marker holds these baselines.
-Same-directory atomic JSON writes persist the receipt and each launch/drag/route/close
-intent before its mutation. The child waits for its exact PID/start-time launch
-permission in that receipt before creating a window and atomically publishes its
-actual HWND/PID/start time/AppUserModelID after showing it.
+Creation captures `Get-PtDesktopSnapshot`, `Get-PtShortcutGuideTaskbarSnapshot`, existing
+top-level HWNDs and the registered Calculator package **before launching**. The taskbar
+snapshot includes app identity order, pin-file hashes and read-only Taskband evidence.
+An immutable hashed marker holds these baselines. Same-directory atomic JSON writes persist
+each launch/drag/route/close intent before mutation. Calculator is activated by its registered
+application identity; a launcher PID is never mistaken for the content or shared host PID.
+Only one newly observed Calculator HWND outside the prelaunch window set can be owned.
+Both its top-level and content-process identities are retained and checked on later calls.
+
+New receipts use version 2. Version 1 receipts remain readable for recovery of earlier runs;
+their old launcher is no longer shipped. The offline suite retains synthetic version 1 data
+to exercise shared drag and cleanup guards, without creating a real dummy application.
 
 Every mutation validates the receipt, marker, exact native identities and fresh app
 mapping. Mutation from a stale/edited in-memory object is rejected; reload the saved
@@ -81,14 +92,23 @@ secondary/vertical taskbars and unsupported geometry fail closed. Auto-hide, ove
 virtual desktops, grouped extra windows and providers that omit app buttons are not
 supported: a valid exposed tree is not proof that an inaccessible overflow is complete.
 The caller must establish that all primary app slots are exposed before live use.
-All owned apps must have exactly one actual visible window and one exact app button.
+Calculator must have exactly one actual visible window and one exact app button.
 UIA calls are synchronous; polling deadlines do not interrupt a hung provider COM call.
-Prepare the intended original foreground before creation. Unexpected foreground,
+Prepare a stable original foreground that will remain open until fixture cleanup; do not
+capture a Settings window that the scenario subsequently closes/replaces. Unexpected foreground,
 pointer or original-window changes are checked before further driving as well as
 before restoration; these are not silently adopted as fixture-owned changes.
 
-Before and after dragging, filtering out owned IDs must leave the **same foreign app
-set and relative order** as the baseline. The source is the fresh owned button center.
+After launching Calculator, allow the taskbar to settle with a bounded read-only wait.
+Require two observations with its button present and the original foreign order intact.
+Transient foreign-order differences are recorded with expected/actual IDs, added/removed
+IDs and observation time in `AdmissionConflict`; a persistent difference times out before
+any drag. The wait does not repeat the launch or adopt a new baseline.
+
+Before and after dragging, filtering Calculator out of both current and baseline lists
+must leave the **same foreign app set and relative order**. Guard failures include the
+actual diff in `Exception.Data['PtTaskbarForeignOrder']` and the error text.
+The source is the fresh Calculator button center.
 For slot 1 the destination is the physical pixel immediately before the first app's
 left edge, still inside the taskbar; unavailable space fails before input. Other
 destinations use the fresh button's left quarter when moving left, or right quarter
@@ -178,12 +198,13 @@ Cleanup can restore a persisted, exactly observed and released intermediate Nati
 point after a partial failure. An unverified movement, unexpected pointer or interrupted receipt
 write remains a conflict rather than permission to move a possibly user-controlled cursor.
 
-Cleanup tries every owned window even if another close fails. No shared/name-selected
-process is killed, and no unknown window is closed. Process exit, missing state,
-recycled PID/HWND, multiple windows, missing launch identity or failed receipt writes
-remain explicit errors; unresolved creation and partial cleanup can be retried via
-`-ReceiptPath`. A child without persisted launch permission times out without creating
-a window. Normal WM_CLOSE has no unsaved-document prompt in this purpose-built host.
+Cleanup closes only the newly created Calculator window, with no calculator input or document
+editing. It never terminates Calculator or ApplicationFrameHost: either can outlive the window.
+Recycled PID/HWND, multiple windows, unresolved activation or failed receipt writes remain
+explicit errors; retry partial cleanup via `-ReceiptPath`. An unresolved launch with no captured
+window is not called successfully cleaned up, because delayed activation may still create it.
+If restoring an original pinned slot is unsafe or fails, retain the window and receipt for
+recovery rather than closing it and abandoning the changed pin order.
 
 Unknown/concurrent foreign order, pins, foreground, original foreground-window
 placement/visibility or pointer changes survive with
@@ -228,6 +249,10 @@ partial cleanup/conflict retry. `results.json` and `source-hashes.json` are reta
 **Live acceptance belongs to the parent desktop driver.** Offline acceptance does not
 prove WinApp/native drag behavior, Windows slot routing, taskbar grouping, timing,
 integrity-level compatibility or original-state restoration on an installed desktop.
-Parent must observe all three distinct app IDs, establish the requested slots, verify
-guarded Win+1 against the exact owned HWND, and compare taskbar/pin/desktop baselines
-after removal before crediting the approved H11 behavior.
+Run `Test-PtTaskbarFixtureDesktop.ps1 -Workspace <new-local-folder>` for recorded Calculator
+placement, three standalone Win+1 routes and paired restoration. The caller's original
+foreground must stay alive and be distinct from Calculator. For SG composition, use
+`Test-PtShortcutGuideTaskbarFlow.ps1`; observe at least three distinct taskbar app slots,
+but control only Calculator in slot one. Verify Win+1 against its exact HWND and compare
+taskbar/pin/desktop baselines after removal before crediting the behavior. UI evidence
+for SG indicator retention is still required separately.

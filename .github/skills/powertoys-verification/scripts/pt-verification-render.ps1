@@ -160,7 +160,13 @@ function ConvertTo-PtVerificationSummary {
     $operations=@(Get-Field $State 'Operations' | Where-Object {$null -ne $_})
     if($operations.Count){
         $lines.Add('')
-        $lines.Add("**Operation boundaries**: $($operations.Count) shared keys; $(@($operations|Where-Object Blocked).Count) stopped. $(Link 'Budgets, interruptions and cleanup errors' $DetailsName 'operation-boundaries'). These are infrastructure facts, not product verdicts.")
+        if(@($operations|Where-Object {(Get-Field $_ 'InformationOnly') -ne $true}).Count -eq 0){
+            $invocations=($operations|Measure-Object InvocationCount -Sum).Sum
+            $gaps=@($operations|ForEach-Object {$_.PendingOperations;$_.UncertainOperations}).Count
+            $lines.Add("**Operation history**: $invocations recorded invocations; $gaps unresolved execution records. $(Link 'Invocation details and cleanup errors' $DetailsName 'operation-boundaries'). Labels do not lock execution.")
+        }else{
+            $lines.Add("**Legacy operation history**: $($operations.Count) recorded keys; $(@($operations|Where-Object Blocked).Count) recorded stops. $(Link 'Original operation history' $DetailsName 'operation-boundaries'). Historical state, not current execution permission.")
+        }
     }
     $lines.Add('')
     $lines.Add("Review the $(Link 'pre-flight trace' $DetailsName 'pre-flight'), $(Link 'structured results' $ResultsName) and $(Link 'integrity manifest' $ManifestName). Exact commands, raw observations and remaining artifacts are in the full traces, not repeated here.")
@@ -183,7 +189,14 @@ function ConvertTo-PtVerificationSummary {
         $lines.Add("$(Link 'Full trace and remaining evidence' $DetailsName "item-$($item.Id)") - $($itemAttempts.Count) attempts; $(@($itemAttempts | Where-Object Kind -eq 'Diagnostic').Count) diagnostic; $($itemCorrections.Count) correction/invalidation events.")
         foreach ($child in $item.Assertions) {
             $lines.Add('')
-            $lines.Add("- **$(Escape-Text "$($item.Id)/$($child.Id)") - $(Escape-Text $child.Verdict)**; required: $(Escape-Text ([string]$child.Required)). **Expected**: $(Escape-Text $child.Description)<br>**Actual / reason**: $(Escape-Text $child.Reason)<br>**Category**: $(Escape-Text $child.Category). $(Evidence-Links (Get-Field $child 'Evidence'))")
+            $required = Get-Field $child 'Required'
+            $legacy = if ($required -is [bool] -and -not $required) { '**Legacy metadata: Required=false.** ' } else { '' }
+            $sequence = Get-Field $child 'Sequence'
+            $observationSequence = Get-Field $child 'ObservationSequence'
+            $origin = if ($sequence) { '<br>**Origin**: ' + (Link "Normal judgment $sequence" $DetailsName "item-$($item.Id)") }
+                elseif ($observationSequence) { '<br>**Origin**: ' + (Link "Normal observation $observationSequence (awaiting review)" $DetailsName "item-$($item.Id)") }
+                else { '' }
+            $lines.Add("- **$(Escape-Text "$($item.Id)/$($child.Id)") - $(Escape-Text $child.Verdict)**. $legacy**Expected**: $(Escape-Text $child.Description)<br>**Actual / reason**: $(Escape-Text $child.Reason)<br>**Category**: $(Escape-Text $child.Category). $(Evidence-Links (Get-Field $child 'Evidence'))$origin")
         }
         if (Get-Field $item 'Caveats') {
             $lines.Add('')

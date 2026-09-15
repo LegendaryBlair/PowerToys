@@ -68,7 +68,7 @@ $state = @{
     ParkingFrames = @(); OccludedInterior = $false; PointerSetCount = 0
     LateParkingFrames = @(); LateParkingQueued = $false
     PendingLayout = $null; LayoutDelayReads = 1; LayoutReads = 0; OrderAtRelease = @()
-    CloseForeground = $null; TaskbarIdentityOverride = $null
+    CloseForeground = $null; TaskbarIdentityOverride = $null; PinnedCalculator = $false
     AlwaysOverlap = $false; LayoutFaults = 0; LayoutFaultKind = 'Geometry'
 }
 $script:TaskbarFakeState = $state
@@ -95,6 +95,7 @@ function Reset-Fake {
     $state.LateParkingFrames = @(); $state.LateParkingQueued = $false
     $state.PendingLayout = $null; $state.LayoutDelayReads = 1; $state.LayoutReads = 0; $state.OrderAtRelease = @()
     $state.CloseForeground = $null; $state.TaskbarIdentityOverride = $null
+    $state.PinnedCalculator = $false
     $state.AlwaysOverlap = $false; $state.LayoutFaults = 0; $state.LayoutFaultKind = 'Geometry'
     [PtChord]::Held.Clear(); [PtChord]::Events.Clear(); [PtChord]::FailDown = 0; [PtChord]::FailUp = 0; [PtChord]::Digit = 0
 }
@@ -142,7 +143,7 @@ function Get-PtNativeWindow {
     param($ProcessId,$Hwnd,[switch]$Visible)
     $state = $script:TaskbarFakeState
     foreach ($window in @($state.Windows.Values)) {
-        if (($ProcessId -and $window.ProcessId -eq $ProcessId) -or ($Hwnd -and $window.Hwnd -eq $Hwnd)) { $window }
+        if ((-not $ProcessId -and -not $Hwnd) -or ($ProcessId -and $window.ProcessId -eq $ProcessId) -or ($Hwnd -and $window.Hwnd -eq $Hwnd)) { $window }
     }
 }
 function Get-PtTaskbarPointWindow {
@@ -253,6 +254,42 @@ function Start-PtTaskbarChild {
         Hwnd = $hwnd; ProcessId = $processId; ProcessStartTicks = $process.ProcessStartTicks; AppId = $App.AppId })
     Copy-Value $process
 }
+function New-LegacyTaskbarTestRecord {
+    param([string]$Workspace,[int]$Count=3)
+    # Historical receipt fixtures exercise shared routing/cleanup logic without launching any app.
+    $id=[Guid]::NewGuid().ToString('N')
+    $desktop=Get-PtDesktopSnapshot
+    $baseline=Get-PtShortcutGuideTaskbarSnapshot
+    $f=[pscustomobject]@{Kind='Taskbar';Version=1;Id=$id;Workspace=$Workspace
+        ReceiptPath=(Join-Path $Workspace "taskbar-$id.json");MarkerPath=(Join-Path $Workspace "taskbar-$id.marker.json")
+        MarkerHash='';Phase='Creating';Pending=$null;LastOperation=$null;LastDesktop=$desktop
+        DesktopRestored=$false;CleanupErrors=@()
+        Apps=@(for($i=1;$i -le $Count;$i++){
+            [pscustomobject]@{AppIndex=$i;AppId="PowerToys.Verification.H11.$id.$i"
+                StatePath=(Join-Path $Workspace "taskbar-$id.$i.state.json")
+                StartRequested=$false;Launcher=$null;Identity=$null;CloseRequested=$false;Closed=$false}
+        })}
+    $marker=@{Kind='Taskbar';Version=1;Id=$id;Count=$Count;Workspace=$Workspace;ReceiptPath=$f.ReceiptPath
+        Desktop=$desktop;ForegroundWindow=(Get-PtWindowSnapshot $desktop.foreground.hwnd);Taskbar=$baseline}
+    Assert-PtTaskbarForeignOrder $f $marker (Get-PtTaskbarSlots)
+    Write-PtTaskbarJson $f.MarkerPath $marker -Create
+    $f.MarkerHash=(Get-FileHash $f.MarkerPath).Hash
+    Save-PtTaskbarFixture $f -Create
+    foreach($app in $f.Apps){
+        Get-PtTaskbarGuardedDesktop $f $marker|Out-Null
+        Assert-PtTaskbarForeignOrder $f $marker (Get-PtTaskbarSlots)
+        $app.StartRequested=$true
+        Save-PtTaskbarFixture $f
+        $app.Launcher=Start-PtTaskbarChild $f $app
+        Save-PtTaskbarFixture $f
+        $app.Identity=Resolve-PtTaskbarOwnedWindow $f $app
+        $f.LastDesktop=Get-PtTaskbarGuardedDesktop $f $marker
+        Save-PtTaskbarFixture $f
+    }
+    $f.Phase='Ready'
+    Save-PtTaskbarFixture $f
+    $f
+}
 function Close-PtTrackedWindow {
     param($Identity)
     $state = $script:TaskbarFakeState
@@ -260,7 +297,9 @@ function Close-PtTrackedWindow {
     $state.CloseCount++
     if ($Identity.hwnd -eq $state.FailClose) { throw 'Injected owned close failure.' }
     $window = $state.Windows[[long]$Identity.hwnd]
-    [void]$state.Order.Remove("Appid: $($window.AppId)")
+    if (-not ($state.PinnedCalculator -and $window.AppId -eq 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App')) {
+        [void]$state.Order.Remove("Appid: $($window.AppId)")
+    }
     $state.Windows.Remove([long]$Identity.hwnd); $state.Processes.Remove([int]$Identity.processId)
     if ($state.Foreground.hwnd -eq $Identity.hwnd) {
         $state.Foreground = if ($state.CloseForeground) { Copy-Value $state.CloseForeground } else { Copy-Value $originalForeground }
@@ -334,7 +373,7 @@ Check 'Offline ABI and source parse; no native entry points invoked' {
     Initialize-PtTaskbarNative
     Require ([Runtime.InteropServices.Marshal]::SizeOf([type][PtTaskbarNative+INPUT]) -eq 40) 'Incorrect INPUT size'
     Require ([Runtime.InteropServices.Marshal]::OffsetOf([type][PtTaskbarNative+INPUT], 'data').ToInt32() -eq 8) 'Incorrect union offset'
-    foreach ($path in @("$PSScriptRoot\..\pt-taskbar-fixture.ps1","$PSScriptRoot\..\fixtures\Show-PtTaskbarFixture.ps1",$PSCommandPath)) {
+    foreach ($path in @("$PSScriptRoot\..\pt-taskbar-fixture.ps1",$PSCommandPath)) {
         $tokens = $null; $parseErrors = $null
         [Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$parseErrors) | Out-Null
         Require ($parseErrors.Count -eq 0) "Parse errors: $path"
@@ -374,7 +413,7 @@ Check 'Slots reject invalid namespace, duplicate, empty, zero, overlap and offsc
 }
 Check 'Three distinct owned identities, prelaunch baselines, no-op placement and idempotent cleanup' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     Require ($f.Apps.Count -eq 3 -and @($f.Apps.AppId | Select-Object -Unique).Count -eq 3) 'Default app identities not distinct'
     Require ($state.Calls.IndexOf('BaselineTaskbar') -lt $state.Calls.IndexOf('Launch') -and
         $state.Calls.IndexOf('Desktop') -lt $state.Calls.IndexOf('Launch')) 'Baselines followed launch'
@@ -390,7 +429,7 @@ Check 'Three distinct owned identities, prelaunch baselines, no-op placement and
 }
 Check 'Owned-only drag verifies actual mapping and preserves foreign relative order' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $result = Move-PtTaskbarFixtureToSlot $f -AppIndex 1 -Slot 1
     Require ($result.Changed -and $result.DragMethod -ceq 'Native' -and $state.DragCount -eq 0 -and
         $state.MoveCount -eq 61 -and $state.PointerSetCount -eq 1 -and $result.PointerCleanup.Completed -and
@@ -407,7 +446,7 @@ Check 'CLI acceptance without observed reordering fails without hidden Native re
         $slots
     }
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.NoOpDrag = $true
     $caught = Reject { Move-PtTaskbarFixtureToSlot $f -Slot 1 -DragMethod WinApp } 'actual taskbar order'
     Require ($state.DragCount -eq 1 -and $state.MouseEvents.Count -eq 0 -and $f.Phase -eq 'Faulted') 'Unobserved drag credited or silently retried'
@@ -425,7 +464,7 @@ Check 'CLI acceptance without observed reordering fails without hidden Native re
 }
 Check 'Insertion targets the fresh destination quarter on each direction without extra drags' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $left = Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1
     Require ($left.Insertion.Side -ceq 'BeforeFirst' -and $left.Insertion.AutomationId -ceq 'Appid: user.A' -and
         $left.Pointer.Source.X -eq 425 -and $left.Pointer.Destination.X -eq 99 -and
@@ -439,7 +478,7 @@ Check 'Insertion targets the fresh destination quarter on each direction without
 }
 Check 'Delayed Shell layout is observed while held; unresolved order releases cleanly' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.LayoutDelayReads = 3
     $facts = Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1
     Require ($state.LayoutReads -eq 3 -and $facts.Pointer.OrderVerifiedWhileHeld -and
@@ -448,7 +487,7 @@ Check 'Delayed Shell layout is observed while held; unresolved order releases cl
         @($state.MouseEvents | Where-Object { $_ -eq 'Up' }).Count -eq 1) 'Drag released early or retried instead of observing delayed layout'
     Remove-PtTaskbarFixture $f | Out-Null
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.NoOpDrag = $true
     Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'requested taskbar order while owned left button is held' | Out-Null
     Require (-not $f.Pending.Pointer.OrderVerifiedWhileHeld -and [PtChord]::Held.Count -eq 0 -and
@@ -459,7 +498,7 @@ Check 'Delayed Shell layout is observed while held; unresolved order releases cl
 }
 Check 'Only typed transient geometry is deferred during held layout; pre-action and other errors remain strict' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.AlwaysOverlap = $true
     $caught = Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'Taskbar slot geometry'
     Require ($caught.FullyQualifiedErrorId.Split(',')[0] -ceq 'PtTaskbarGeometryUnavailable' -and
@@ -472,7 +511,7 @@ Check 'Only typed transient geometry is deferred during held layout; pre-action 
         ($state.OrderAtRelease -join '|') -ceq ($facts.Order -join '|') -and $state.MoveCount -eq 61) 'Transient overlap was used as order success or caused another gesture'
     Remove-PtTaskbarFixture $f | Out-Null
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.LayoutFaults = 1; $state.LayoutFaultKind = 'Identity'
     Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'duplicate taskbar app identity' | Out-Null
     Require ($f.Pending.Pointer.GeometryUnavailableCount -eq 0 -and [PtChord]::Held.Count -eq 0) 'Unrelated identity error was swallowed or leaked the held button'
@@ -480,7 +519,7 @@ Check 'Only typed transient geometry is deferred during held layout; pre-action 
 }
 Check 'Foreign order/set, stale geometry, user-held input and unowned slots gate mutations' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     Reject { Invoke-PtTaskbarSlot $f -Slot 1 } 'not exactly one owned' | Out-Null
     [void][PtChord]::Held.Add(1)
     Reject { Move-PtTaskbarFixtureToSlot $f -Slot 1 } 'not idle' | Out-Null
@@ -499,7 +538,7 @@ Check 'Foreign order/set, stale geometry, user-held input and unowned slots gate
     $state.Order.Reverse(0,3)
     Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath | Out-Null
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $counter = @{ Reads = 0 }
     $state.ReadHook = { $counter.Reads++; if ($counter.Reads -eq 2) { $state.Order.Add('Appid: concurrent') } }
     Reject { Move-PtTaskbarFixtureToSlot $f -Slot 1 } 'Foreign taskbar' | Out-Null
@@ -509,7 +548,7 @@ Check 'Foreign order/set, stale geometry, user-held input and unowned slots gate
 }
 Check 'Held Windows routing sends only digit; ordinary routing owns and releases its own hold' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     Move-PtTaskbarFixtureToSlot $f -Slot 1 | Out-Null
     [void][PtChord]::Held.Add(0x5C)
     $facts = Invoke-PtTaskbarSlot $f -Slot 1 -WhileWindowsHeld -WindowsKey 0x5C
@@ -523,7 +562,7 @@ Check 'Held Windows routing sends only digit; ordinary routing owns and releases
 }
 Check 'Explicit held overlay is live/current and allowed only for its routing operation' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     Move-PtTaskbarFixtureToSlot $f -Slot 1 | Out-Null
     $state.Processes[2100] = [pscustomobject]@{ ProcessId = 2100; ProcessStartTicks = 21000 }
     $state.Windows[[long]2200] = [pscustomobject]@{ Hwnd = 2200; ProcessId = 2100; ClassName = 'BorrowedOverlay'
@@ -553,14 +592,14 @@ Check 'Explicit held overlay is live/current and allowed only for its routing op
 }
 Check 'Routing failure never forces foreground and releases only accepted owned keys' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     Move-PtTaskbarFixtureToSlot $f -Slot 1 | Out-Null
     $state.NoRoute = $true; $state.Foreground = Copy-Value $originalForeground
     Reject { Invoke-PtTaskbarSlot $f -Slot 1 } 'exact routed foreground' | Out-Null
     Require ([PtChord]::Held.Count -eq 0 -and $state.Foreground.hwnd -eq 10 -and $state.RestoreCount -eq 0) 'Route forced foreground or leaked keys'
     Remove-PtTaskbarFixture $f | Out-Null
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     Move-PtTaskbarFixtureToSlot $f -Slot 1 | Out-Null
     $state.Foreground = Copy-Value $originalForeground; [PtChord]::FailDown = 49
     Reject { Invoke-PtTaskbarSlot $f -Slot 1 } 'key-down 49 failed' | Out-Null
@@ -570,7 +609,7 @@ Check 'Routing failure never forces foreground and releases only accepted owned 
 }
 Check 'Explicit Native drag uses 60 steps and releases only its accepted left-button down' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $facts = Move-PtTaskbarFixtureToSlot $f -Slot 1 -DragMethod Native
     Require ($facts.DragMethod -ceq 'Native' -and $state.MoveCount -eq 61 -and $state.PointerSetCount -eq 1 -and
         @($state.MouseEvents | Where-Object { $_ -eq 'Up' }).Count -eq 1 -and [PtChord]::Held.Count -eq 0) 'Native sequence or cleanup wrong'
@@ -592,7 +631,7 @@ Check 'Explicit Native drag uses 60 steps and releases only its accepted left-bu
 }
 Check 'Native partial movement persists only verified pointer ownership and the primary error for cleanup' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.FailMove = 3
     $caught = Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'move 2 failed'
     $saved = (Read-PtTaskbarFixture -ReceiptPath $f.ReceiptPath).Fixture
@@ -605,7 +644,7 @@ Check 'Native partial movement persists only verified pointer ownership and the 
     $saved = (Read-PtTaskbarFixture -ReceiptPath $f.ReceiptPath).Fixture
     Require ($saved.LastOperation.Error.Message -ceq $caught.Exception.Message) 'Successful cleanup erased the original gesture failure'
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.FailDesktopAfterUp = $true
     $caught = Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'post-drag desktop observation failure'
     $saved = (Read-PtTaskbarFixture -ReceiptPath $f.ReceiptPath).Fixture
@@ -618,7 +657,7 @@ Check 'Native partial movement persists only verified pointer ownership and the 
     Require ($saved.Phase -ceq 'Closed' -and $saved.LastOperation.Error.Message -ceq $caught.Exception.Message -and
         $state.Pointer.X -eq 80 -and $state.Pointer.Y -eq 80) 'Cleanup lost endpoint ownership or the post-drag operation cause'
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.DriftMove = 3
     Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'owned physical drag pointer' | Out-Null
     $saved = (Read-PtTaskbarFixture -ReceiptPath $f.ReceiptPath).Fixture
@@ -631,7 +670,7 @@ Check 'Native partial movement persists only verified pointer ownership and the 
 }
 Check 'Queued native delivery waits for endpoint and release together; off-path and timeout stay explicit' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.DeliveryReceiptPath = $f.ReceiptPath; $state.PreDeliveryPointer = Copy-Value $f.LastDesktop.pointer
     $state.FinalMoveFrames = @(
         @{ X = 191; Y = 1040; LeftHeld = $true },
@@ -655,7 +694,7 @@ Check 'Queued native delivery waits for endpoint and release together; off-path 
     Require ($state.Pointer.X -eq 80 -and $state.Pointer.Y -eq 80 -and $state.CloseCount -eq 3) 'Settled asynchronous drag did not restore baseline'
     foreach ($failure in 'OffPath','Timeout') {
         Reset-Fake
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         $state.DeliveryReceiptPath = $f.ReceiptPath; $state.PreDeliveryPointer = Copy-Value $f.LastDesktop.pointer
         $state.LateParkingFrames = @(@{ X = 191; Y = $(if ($failure -eq 'OffPath') { 1100 } else { 1040 }); LeftHeld = $false })
         $pattern = if ($failure -eq 'OffPath') { 'left the planned path' } else { 'native drag endpoint and button release' }
@@ -672,7 +711,7 @@ Check 'Queued native delivery waits for endpoint and release together; off-path 
     }
     Check 'Verified drops leave taskbar hover safely, including queued pointer cleanup and owned-interior fallback' {
         Reset-Fake
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         $state.DeliveryReceiptPath = $f.ReceiptPath; $state.PreDeliveryPointer = Copy-Value $f.LastDesktop.pointer
         $state.ParkingFrames = @(
             @{ X = 125; Y = 1040; LeftHeld = $false },
@@ -689,7 +728,7 @@ Check 'Queued native delivery waits for endpoint and release together; off-path 
         Remove-PtTaskbarFixture $f | Out-Null
         Reset-Fake
         $state.Pointer = [pscustomobject]@{ X = 125; Y = 1040 }
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         $facts = Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1
         Require ($facts.PointerCleanup.Kind -ceq 'OwnedInterior' -and
             $facts.PointerCleanup.Window.hwnd -eq $f.Apps[2].Identity.hwnd -and
@@ -699,13 +738,13 @@ Check 'Queued native delivery waits for endpoint and release together; off-path 
         Require ($state.Pointer.X -eq 125 -and $state.Pointer.Y -eq 1040) 'Final cleanup lost the original taskbar pointer baseline'
         Reset-Fake
         $state.Pointer = [pscustomobject]@{ X = 125; Y = 1040 }
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         $state.OccludedInterior = $true
         Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'interior is occluded' | Out-Null
         Require ($state.MoveCount -eq 61) 'Occluded owned interior still received pointer input'
         Remove-PtTaskbarFixture $f | Out-Null
         Reset-Fake
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         $state.ParkingFrames = @(@{ X = 777; Y = 777; LeftHeld = $false })
         Reject { Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 } 'Timed out waiting for post-drag pointer cleanup' | Out-Null
         Require ($state.PointerSetCount -eq 1 -and -not $f.Pending.PointerCleanup.Completed -and
@@ -717,7 +756,7 @@ Check 'Queued native delivery waits for endpoint and release together; off-path 
 }
 Check 'Marker, receipt and child ownership checks reject tampering before mutation' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $changed = Copy-Value $f; $changed.Apps[0].Identity.hwnd = 999
     Reject { Remove-PtTaskbarFixture $changed } 'stale or changed' | Out-Null
     $changed = Copy-Value $f; $changed.Apps[0].AppId = $changed.Apps[1].AppId
@@ -738,7 +777,7 @@ Check 'Marker, receipt and child ownership checks reject tampering before mutati
 }
 Check 'Duplicate owned HWND and recycled PID refuse action; cleanup still tries other resources' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $extra = Copy-Value $state.Windows[[long]2001]; $extra.Hwnd = 9999
     $state.Windows[[long]9999] = $extra
     Reject { Move-PtTaskbarFixtureToSlot $f -Slot 1 } 'exactly one owned fixture window' | Out-Null
@@ -751,7 +790,7 @@ Check 'Duplicate owned HWND and recycled PID refuse action; cleanup still tries 
 }
 Check 'Partial close retries persist progress; pin/desktop conflicts survive with final comparison' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.FailClose = 2002
     Reject { Remove-PtTaskbarFixture $f } 'owned close failure' | Out-Null
     Require ($state.CloseCount -eq 3 -and $f.Apps[0].Closed -and -not $f.Apps[1].Closed -and $f.Apps[2].Closed) 'Cleanup did not attempt all apps'
@@ -759,14 +798,14 @@ Check 'Partial close retries persist progress; pin/desktop conflicts survive wit
     Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath | Out-Null
     Require ($state.CloseCount -eq 4 -and $state.CompareCount -eq 2) 'Retry repeated completed closes or skipped final comparison'
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.Pointer.X = 999; $state.PinsChanged = $true
     Reject { Remove-PtTaskbarFixture $f } 'Desktop cleanup conflict.*pin files' | Out-Null
     Require ($state.CloseCount -eq 3 -and $state.RestoreCount -eq 0 -and $state.Pointer.X -eq 999) 'Conflict overwrote user desktop'
     $state.Pointer.X = 80; $state.PinsChanged = $false
     Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath | Out-Null
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $state.PlacementChanged = $true
     Reject { Remove-PtTaskbarFixture $f } 'placement/visibility changed' | Out-Null
     Require ($state.PlacementChanged -and $state.RestoreCount -eq 0 -and $state.CloseCount -eq 3) 'User window placement was overwritten'
@@ -775,7 +814,7 @@ Check 'Partial close retries persist progress; pin/desktop conflicts survive wit
 }
 Check 'Cleanup admits only the live immutable taskbar foreground and preserves pointer guards' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     Move-PtTaskbarFixtureToSlot $f -Slot 1 | Out-Null
     $state.CloseForeground = Copy-Value $taskbar
     $result = Remove-PtTaskbarFixture $f
@@ -790,7 +829,7 @@ Check 'Cleanup admits only the live immutable taskbar foreground and preserves p
     Require ($state.CloseCount -eq 3 -and $state.Foreground.hwnd -eq $originalForeground.hwnd) 'Cleanup reload closed another window or failed to restore'
     foreach ($conflict in 'OtherShell','ReusedTaskbar','Pointer') {
         Reset-Fake
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         $state.CloseForeground = Copy-Value $taskbar
         if ($conflict -eq 'OtherShell') { $state.CloseForeground.hwnd = 91 }
         elseif ($conflict -eq 'ReusedTaskbar') {
@@ -806,7 +845,7 @@ Check 'Cleanup admits only the live immutable taskbar foreground and preserves p
 }
 Check 'Untouched fixture cleanup does not restore an already matching desktop' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace -Count 1
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace -Count 1
     $state.Foreground = Copy-Value $originalForeground
     Remove-PtTaskbarFixture $f | Out-Null
     Require ($state.RestoreCount -eq 0 -and $state.Order.Count -eq 3 -and [PtChord]::Events.Count -eq 0) 'Unmodified desktop or user inputs changed'
@@ -815,7 +854,7 @@ Check 'Native 3/2/1 reorder and owned foreground close restore baseline, includi
     foreach ($reload in @($false,$true)) {
         Reset-Fake
         foreach ($id in 'user.D','user.E','user.F','user.G','user.H','owned.Settings') { $state.Order.Add("Appid: $id") }
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         foreach ($index in 3,2,1) {
             Move-PtTaskbarFixtureToSlot $f -AppIndex $index -Slot 1 | Out-Null
         }
@@ -842,7 +881,7 @@ Check 'Native 3/2/1 reorder and owned foreground close restore baseline, includi
 Check 'Cleaning reload rejects genuine foreground/pointer changes and records which guard failed' {
     foreach ($change in 'Foreground','Pointer') {
         Reset-Fake
-        $f = New-PtTaskbarFixture -Workspace $Workspace
+        $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
         Move-PtTaskbarFixtureToSlot $f -AppIndex 3 -Slot 1 | Out-Null
         foreach ($app in $f.Apps) {
             Close-PtTrackedWindow $app.Identity
@@ -867,21 +906,151 @@ Check 'Cleaning reload rejects genuine foreground/pointer changes and records wh
 }
 Check 'Interrupted creation and close progress can reload without guessing an unknown process' {
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $f.Phase = 'Creating'; $f.Apps[1].Identity = $null
     Save-PtTaskbarFixture $f
     $result = Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath
     Require ($result.Closed -and $state.CloseCount -eq 3) 'Persisted child state did not recover unresolved HWND'
     Reset-Fake
-    $f = New-PtTaskbarFixture -Workspace $Workspace
+    $f = New-LegacyTaskbarTestRecord -Workspace $Workspace
     $f.Apps[0].Identity = $null; $f.Apps[0].Launcher = $null; $f.Phase = 'Creating'
     Save-PtTaskbarFixture $f
     Reject { Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath } 'no persisted process identity' | Out-Null
     Require ($state.CloseCount -eq 2 -and $state.Windows.ContainsKey([long]2001) -and $state.CompareCount -eq 1) 'Unknown launcher was guessed or other cleanup skipped'
     # The fake resource is retained as conflict evidence, not closed by a fabricated identity.
 }
+function Get-PtTaskbarCalculator {
+    [pscustomobject]@{AppId='Microsoft.WindowsCalculator_8wekyb3d8bbwe!App'
+        ExecutablePath='C:\SyntheticCalculator\CalculatorApp.exe';PackageFullName='SyntheticCalculator'}
+}
+function Get-PtTaskbarCalculatorWindows {
+    param($Calculator)
+    foreach($window in @($script:TaskbarFakeState.Windows.Values|Where-Object AppId -eq $Calculator.AppId)){
+        [pscustomobject]@{Identity=(Get-PtWindowIdentity $window.Hwnd);ContentProcess=$window.ContentProcess}
+    }
+}
+function Start-PtTaskbarCalculator {
+    param($Calculator)
+    $state=$script:TaskbarFakeState
+    $state.Calls.Add('CalculatorLaunch');$state.LaunchCount++
+    $process=[pscustomobject]@{ProcessId=1001;ProcessStartTicks=[DateTime]::UtcNow.Ticks}
+    $state.Processes[1001]=$process
+    $state.Windows[[long]2001]=[pscustomobject]@{Hwnd=2001L;ProcessId=1001;ClassName='ApplicationFrameWindow'
+        Visible=$true;Minimized=$false;AppId=$Calculator.AppId
+        ContentProcess=[pscustomobject]@{ProcessId=3001;ProcessStartTicks=$process.ProcessStartTicks;Path=$Calculator.ExecutablePath}
+        Rect=[pscustomobject]@{Left=240;Top=180;Right=740;Bottom=440}}
+    if("Appid: $($Calculator.AppId)" -cnotin $state.Order){$state.Order.Add("Appid: $($Calculator.AppId)")}
+    $state.Foreground=Get-PtWindowIdentity 2001
+}
+Check 'Default fixture launches only Calculator; count-three callers cannot create dummy apps' {
+    Reset-Fake
+    Reject {New-PtTaskbarFixture -Workspace $Workspace -Count 3} 'range|greater than|ValidateRange'|Out-Null
+    Require ($state.LaunchCount -eq 0) 'Invalid count launched an app'
+    $f=New-PtTaskbarFixture -Workspace $Workspace
+    Require ($f.Version -eq 2 -and $f.Apps.Count -eq 1 -and $f.Apps[0].AppId -eq 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App') 'Default fixture is not Calculator'
+    Require ($state.LaunchCount -eq 1 -and $state.Calls.IndexOf('BaselineTaskbar') -lt $state.Calls.IndexOf('CalculatorLaunch')) 'Calculator launch preceded baseline'
+    Move-PtTaskbarFixtureToSlot $f -Slot 1|Out-Null
+    $state.Foreground=Copy-Value $originalForeground
+    $route=Invoke-PtTaskbarSlot $f -Slot 1
+    Require ($route.ForegroundHwnd -eq 2001 -and -not $route.WindowsHeldAfter) 'Calculator slot did not route'
+    $cleanup=Remove-PtTaskbarFixture $f
+    Require ($cleanup.Closed -and $cleanup.TaskbarCompared -and $state.CloseCount -eq 1 -and $state.Order.Count -eq 3) 'Calculator was not restored'
+    Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath|Out-Null
+    Require ($state.CloseCount -eq 1) 'Repeated cleanup closed another window'
+}
+Check 'Already-open Calculator is never adopted, relaunched or closed' {
+    Reset-Fake
+    Start-PtTaskbarCalculator (Get-PtTaskbarCalculator)
+    Reject {New-PtTaskbarFixture -Workspace $Workspace} 'already open'|Out-Null
+    Require ($state.LaunchCount -eq 1 -and $state.CloseCount -eq 0 -and $state.Windows.Count -eq 1) 'Existing Calculator was mutated'
+}
+Check 'Pinned Calculator returns to its original slot and retains the pin after normal close' {
+    Reset-Fake
+    $state.PinnedCalculator=$true
+    $state.Order.Insert(2,'Appid: Microsoft.WindowsCalculator_8wekyb3d8bbwe!App')
+    $f=New-PtTaskbarFixture -Workspace $Workspace
+    Require ((Read-PtTaskbarFixture $f).Marker.OriginalSlot -eq 3) 'Pinned position not captured'
+    Move-PtTaskbarFixtureToSlot $f -Slot 1|Out-Null
+    Require ($state.Order[0] -match 'WindowsCalculator') 'Calculator not first'
+    $cleanup=Remove-PtTaskbarFixture $f
+    Require ($cleanup.Closed -and $state.Order[2] -match 'WindowsCalculator' -and $state.Order.Count -eq 4 -and $state.CloseCount -eq 1) 'Pinned Calculator order or lifetime not restored'
+}
+Check 'Calculator creation waits through a transient foreign-order observation and retains its exact diff' {
+    Reset-Fake
+    $state.ReadHook={
+        $state=$script:TaskbarFakeState
+        if($state.LaunchCount -eq 1){
+            if(-not $state.ContainsKey('AdmissionReads')){$state.AdmissionReads=0}
+            $state.AdmissionReads++
+            if($state.AdmissionReads -eq 1){$state.Order.Insert(0,'Appid: transient')}
+            if($state.AdmissionReads -eq 2){[void]$state.Order.Remove('Appid: transient')}
+        }
+    }
+    $f=New-PtTaskbarFixture -Workspace $Workspace
+    Require ($f.Phase -eq 'Ready' -and $f.AdmissionConflict.Added -contains 'Appid: transient' -and $state.LaunchCount -eq 1) 'Transient mapping was either lost or triggered another launch'
+    $state.ReadHook=$null
+    Remove-PtTaskbarFixture $f|Out-Null
+    $state.Remove('AdmissionReads')
+}
+Check 'Persistent foreign-order conflict never permits movement and remains actionable in the receipt' {
+    Reset-Fake
+    $state.ReadHook={if($script:TaskbarFakeState.LaunchCount -and 'Appid: foreign' -cnotin $script:TaskbarFakeState.Order){$script:TaskbarFakeState.Order.Add('Appid: foreign')}}
+    $error=Reject {New-PtTaskbarFixture -Workspace $Workspace} 'stable foreign order'
+    $state.ReadHook=$null
+    $f=(Read-PtTaskbarFixture -ReceiptPath $error.Exception.Data['FixtureReceipt']).Fixture
+    Require ($f.AdmissionConflict.Added -contains 'Appid: foreign' -and $state.MoveCount -eq 0 -and $state.CloseCount -eq 1) 'Conflict lost evidence or moved user apps'
+    [void]$state.Order.Remove('Appid: foreign')
+    Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath|Out-Null
+}
+Check 'Calculator shared content and root identities are both checked before routing or closing' {
+    Reset-Fake
+    $f=New-PtTaskbarFixture -Workspace $Workspace
+    $state.Windows[[long]2001].ContentProcess.ProcessStartTicks++
+    Reject {Remove-PtTaskbarFixture $f} 'Calculator identity changed'|Out-Null
+    Require ($state.CloseCount -eq 0) 'Replaced Calculator content was closed'
+    $state.Windows[[long]2001].ContentProcess.ProcessStartTicks--
+    Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath|Out-Null
+}
+Check 'A reused background Calculator process is allowed only for a newly created frame' {
+    Reset-Fake
+    $launchCalculator=${function:Start-PtTaskbarCalculator}
+    function Start-PtTaskbarCalculator {
+        param($Calculator)
+        & $launchCalculator $Calculator
+        $script:TaskbarFakeState.Windows[[long]2001].ContentProcess.ProcessStartTicks=100L
+    }
+    try{
+        $f=New-PtTaskbarFixture -Workspace $Workspace
+        Require ($f.Apps[0].ContentProcess.ProcessStartTicks -eq 100) 'Background content process was mistaken for a user-owned window'
+        Remove-PtTaskbarFixture $f|Out-Null
+    }finally{Set-Item Function:\Start-PtTaskbarCalculator $launchCalculator}
+}
+Check 'An unobservable existing Calculator frame is not silently reported closed' {
+    Reset-Fake
+    $f=New-PtTaskbarFixture -Workspace $Workspace
+    $readCalculator=${function:Get-PtTaskbarCalculatorWindows}
+    function Get-PtTaskbarCalculatorWindows {param($Calculator)}
+    try{
+        Reject {Remove-PtTaskbarFixture $f} 'window still exists'|Out-Null
+        Require ($state.CloseCount -eq 0 -and -not $f.Apps[0].Closed) 'Missing content observation became a successful close'
+    }finally{Set-Item Function:\Get-PtTaskbarCalculatorWindows $readCalculator}
+    Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath|Out-Null
+}
+Check 'Failed original pinned-slot restoration preserves Calculator and permits a scoped retry' {
+    Reset-Fake
+    $state.PinnedCalculator=$true
+    $state.Order.Insert(2,'Appid: Microsoft.WindowsCalculator_8wekyb3d8bbwe!App')
+    $f=New-PtTaskbarFixture -Workspace $Workspace
+    Move-PtTaskbarFixtureToSlot $f -Slot 1|Out-Null
+    $state.NoOpDrag=$true
+    Reject {Remove-PtTaskbarFixture $f} 'Calculator order restoration'|Out-Null
+    Require ($state.CloseCount -eq 0 -and $state.Windows.ContainsKey([long]2001)) 'Order restoration failure abandoned a moved pin'
+    $state.NoOpDrag=$false
+    $cleanup=Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath
+    Require ($cleanup.Closed -and $state.Order[2] -match 'WindowsCalculator' -and $state.CloseCount -eq 1) 'Pinned-slot retry failed to restore and close'
+}
 ConvertTo-Json -InputObject @(
-    Get-FileHash -LiteralPath "$PSScriptRoot\..\pt-taskbar-fixture.ps1","$PSScriptRoot\..\fixtures\Show-PtTaskbarFixture.ps1",$PSCommandPath
+    Get-FileHash -LiteralPath "$PSScriptRoot\..\pt-taskbar-fixture.ps1",$PSCommandPath
     Get-FileHash -LiteralPath "$PSScriptRoot\..\..\references\taskbar-fixtures.md"
 ) -Depth 4 | Set-Content -LiteralPath "$Workspace\source-hashes.json"
 "PASS: $($results.Count) offline H11 contract groups. Results: $Workspace\results.json"

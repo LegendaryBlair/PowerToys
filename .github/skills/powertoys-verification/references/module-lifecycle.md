@@ -109,7 +109,7 @@ close only a surface it explicitly owns.
 $snapshot = Get-PtModuleLifecycleSnapshot -Profile $profile `
     -SettingsTarget $settingsIdentity -Workspace $workspace
 $case = Invoke-PtVerificationCase -Run $run -ItemId $itemId -Name 'Explicit module enable' `
-    -OperationKey "lifecycle-$($profile.Id)" -Stage Drive -Command 'Enable the declared module through Settings' `
+    -Stage Drive -Command 'Enable the declared module through Settings' `
     -ArgumentList @($snapshot) -Action {
         param($attempt,$captured)
         Set-PtModuleEnabled -Snapshot $captured -Enabled $true
@@ -120,8 +120,8 @@ $case = Invoke-PtVerificationCase -Run $run -ItemId $itemId -Name 'Explicit modu
 ```
 
 Active recorder contexts retain transitions and their actual source/arguments. H10
-owns shared failure budgets and primary/cleanup error preservation; cleanup is not
-budget-gated. A timeout does not automatically trigger `Restart-PtModuleLifecycle`.
+preserves primary/cleanup errors and diagnostic history without cumulative failure/time
+stops or label locks. A timeout does not automatically trigger `Restart-PtModuleLifecycle`.
 Record recovery in a separate Diagnostic context; it cannot replace a Normal failure.
 When the checklist itself requests an enable cycle, record its individual transitions
 as Normal. A module disable/enable cycle is **not** a full PowerToys restart.
@@ -129,7 +129,7 @@ as Normal. A module disable/enable cycle is **not** a full PowerToys restart.
 The receipt retains original fields and a pending desired state before toggling, using
 atomic file replacement. Recover with `Restore-PtModuleLifecycleSnapshot -ReceiptPath`.
 Do not deserialize captured timestamps with a lossy reader, alter original targets,
-reset budgets or guess ownership after Runner/Settings has restarted.
+erase failure history or guess ownership after Runner/Settings has restarted.
 
 ## Restoration scope and acceptance
 

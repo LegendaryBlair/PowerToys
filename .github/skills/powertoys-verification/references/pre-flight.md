@@ -66,14 +66,14 @@ This doc covers the **agent-runtime** environment probing and lifecycle hooks. R
 - Review 3-5 related items at a time, before broad state changes. Record raw data first, inspect
   capture quality and exact saved values (including every shortcut modifier), then commit judgments.
   Use `Get-PtVerificationReview`, not repeated full evidence validation, to locate pending reviews.
-- Use the [operation boundary](operation-boundaries.md) with one stable key for a shared obstacle.
-  Three cumulative failed callbacks or 300 seconds of active failed/recovery work exhaust the
-  default budget across scripts, contexts, dependent items and reopened processes in the same run.
-  Successful Diagnostic recovery does not reset failures. Unrelated work and user/model thinking
-  time do not consume that active-time allowance. Record the concrete limit and affected coverage;
-  cleanup is exempt and must still finish. Synchronous callbacks are not forcibly interrupted.
+- Use the [operation boundary](operation-boundaries.md) for recorded execution and cleanup.
+  Calls need no operation key, and old labels/policies never control later execution.
+  Do not use failure counters or an unrelated recording error to mark other cases unavailable.
+  No automatic retry is added. Keep per-call timeouts, target/input guards and explicit
+  restoration. For interrupted or untrustworthily recorded execution, inspect and recover
+  the actual affected resources before requesting a new invocation; do not replay the old gesture.
 - If a shared host disappears, stop dependent driving. Diagnose the originating transition once;
-  recover explicitly as Diagnostic if within budget. Start later independent Normal cases only after
+  recover explicitly as Diagnostic. Start later independent Normal cases only after
   readiness is demonstrated. If recovery fails, reference the same obstacle instead of repeated waits.
 - Aim for approximately 30 minutes of eligible driving on a prepared module. At that point report
   achieved coverage, recurring obstacles and remaining work; stop infrastructure debugging rather than
@@ -174,7 +174,7 @@ files/registry values the case owned; never remove whole policy trees as a clean
 - **Never invent test steps for a `[CLARITY: VAGUE-*]` item** — mark it **FAIL (cause: checklist-ambiguous)** and quote the original wording so the user can fix the checklist. The checklist is test code; an undefinable test is a broken test.
 - **Always restore state** before exiting (even on error). State hygiene wraps every mutation in try/finally.
 - **Separate the two FAIL causes**: *product* FAILs are bugs to file; *checklist* FAILs (stale feature or ambiguous spec) are items to rewrite/prune. If a large share of a module's items are checklist-FAILs, the checklist needs an overhaul before re-verifying — don't punt drivable items into a FAIL.
-- **Never reset an exhausted obstacle budget by changing scripts, contexts, items or runs.**
-  The helper persists counters in one run; creating a replacement run or renaming the key to
-  evade it is prohibited, not something the helper can infer. Record affected coverage and
-  complete necessary recovery only when that key's failure/active-time limit is reached.
+- **Never treat failure counters as proof that other cases cannot run.** Record the actual
+  failed operation and affected prerequisites, preserve its error, and continue independent
+  coverage when safe. Missing execution records and interrupted gestures are not ordinary
+  completed failures: restore owned state and retain those evidence gaps.

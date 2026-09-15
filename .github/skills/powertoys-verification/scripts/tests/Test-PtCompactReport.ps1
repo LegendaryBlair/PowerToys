@@ -56,7 +56,7 @@ function Assert-Coverage($State, [string]$Report) {
     $decoded = [Net.WebUtility]::HtmlDecode($Report)
     $children = @($State.Items | ForEach-Object Assertions)
     Require ([regex]::Matches($Report, '(?m)^### ').Count -eq $State.Items.Count) 'Item count changed in report.'
-    Require ([regex]::Matches($Report, '(?m)^- \*\*.*\*\*; required: ').Count -eq $children.Count) 'Child count changed in report.'
+    Require ([regex]::Matches($Report, '(?m)^- \*\*.* - (?:PASS|FAIL|BLOCKED|NOT-OBSERVED)\*\*\.').Count -eq $children.Count) 'Child count changed in report.'
     foreach ($item in $State.Items) {
         Require ($decoded.Contains("### $($item.Id) - **$($item.Verdict)**")) "Missing item verdict: $($item.Id)"
         Require ($decoded.Contains((Visible $item.Description))) "Missing item description: $($item.Id)"
@@ -65,7 +65,12 @@ function Assert-Coverage($State, [string]$Report) {
             $key = "$($item.Id)/$($child.Id)"
             $row = @($decoded -split "`n" | Where-Object { $_.StartsWith("- **$key - ") })
             Require ($row.Count -eq 1) "Missing or duplicated child: $key"
-            Require ($row[0].Contains("**$key - $($child.Verdict)**; required: $($child.Required).")) "Verdict or required flag changed: $key"
+            Require ($row[0].Contains("**$key - $($child.Verdict)**.")) "Verdict changed: $key"
+            if($child.Required -ceq $false){
+                Require ($row[0].Contains('Legacy metadata: Required=false.')) "Legacy metadata lost: $key"
+            }else{
+                Require (-not $row[0].Contains('required:')) "New report suggests an optional assertion choice: $key"
+            }
             Require ($row[0].Contains("**Expected**: $(Visible $child.Description)<br>")) "Expected description changed: $key"
             Require ($row[0].Contains("**Actual / reason**: $(Visible $child.Reason)<br>")) "Actual reason changed: $key"
             $rawRow = @($Report -split "`n" | Where-Object { [Net.WebUtility]::HtmlDecode($_).StartsWith("- **$key - ") })

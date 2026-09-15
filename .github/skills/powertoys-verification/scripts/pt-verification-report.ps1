@@ -237,11 +237,19 @@ function New-PtVerificationRun {
         if (-not @($item.Assertions).Count) { throw "Missing subassertions: $($item.Id)" }
         foreach ($child in $item.Assertions) {
             Assert-PtReportName $child.Id
-            if (-not $children.Add($child.Id) -or [string]::IsNullOrWhiteSpace($child.Description) -or $child.Required -isnot [bool]) {
-                throw "Subassertions require unique IDs, descriptions and boolean Required: $($item.Id)"
+            if (-not $children.Add($child.Id) -or [string]::IsNullOrWhiteSpace($child.Description)) {
+                throw "Subassertions require unique IDs and descriptions: $($item.Id)"
+            }
+            $hasRequired = if ($child -is [Collections.IDictionary]) {
+                @($child.Keys | Where-Object { $_ -is [string] -and $_ -ieq 'Required' }).Count -gt 0
+            } else { $null -ne $child.PSObject.Properties['Required'] }
+            if ($hasRequired) {
+                if ($child.Required -isnot [bool]) { throw "Legacy Required must be boolean true or omitted: $($item.Id)/$($child.Id)" }
+                if (-not $child.Required) {
+                    throw "Optional assertions are not supported: $($item.Id)/$($child.Id). Record a concrete unmet condition or unfinished coverage instead."
+                }
             }
         }
-        if (-not @($item.Assertions | Where-Object Required).Count) { throw 'At least one required assertion per item is necessary.' }
     }
     $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($inputFile in $Inputs) {
@@ -615,9 +623,11 @@ function Invoke-PtVerificationStep {
     Write-PtReportText "$directory\command.txt" $Command
     $recordedArguments = @(ConvertTo-PtReportArguments $ArgumentList)
     Write-PtReportText "$directory\arguments.json" (ConvertTo-Json -InputObject $recordedArguments -Depth 20 -WarningAction Stop)
+    $scriptPath = $null
     if ($PSCmdlet.ParameterSetName -eq 'File') {
-        Assert-PtReportNoLink $ScriptFile
-        $scriptBytes = [IO.File]::ReadAllBytes($ScriptFile)
+        $scriptPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ScriptFile)
+        Assert-PtReportNoLink $scriptPath
+        $scriptBytes = [IO.File]::ReadAllBytes($scriptPath)
     } else { $scriptBytes = [Text.UTF8Encoding]::new($false).GetBytes($Action.ToString()) }
     $scriptSource = Write-PtReportSource $Attempt.Run $scriptBytes 'executed.ps1'
     $sources = @(
@@ -635,17 +645,28 @@ function Invoke-PtVerificationStep {
     $parent = if ($Attempt.StepStack.Count) { $Attempt.StepStack[-1] } else { $null }
     Add-PtReportEvent $Attempt.Run 'StepStarted' @{
         Name = $Name; Command = $Command; Start = $start.ToString('o'); Sources = $sources; OutputPaths = $outputs; ParentStepId = $parent
+        ScriptFile = $scriptPath
     } $Attempt $stepId
     $Attempt.StepStack.Add($stepId)
     $clock = [Diagnostics.Stopwatch]::StartNew()
     $original = $null
     $previousAttempt = Get-PtActiveVerificationAttempt
     $formatter = $null
+    $executionFileLease = $null
+    $executionStarted = $false
     try {
         Set-PtActiveVerificationAttempt -Attempt $Attempt
         $ErrorActionPreference = 'Stop'
         $PSNativeCommandUseErrorActionPreference = $true
-        $invoke = if ($PSCmdlet.ParameterSetName -eq 'File') { Resolve-PtReportPath $Attempt.Run $scriptSource.Path } else { $Action }
+        if ($PSCmdlet.ParameterSetName -eq 'File') {
+            Assert-PtReportNoLink $scriptPath
+            $executionFileLease = [IO.File]::Open($scriptPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+            if ((Get-PtReportHash ([IO.File]::ReadAllBytes($scriptPath))) -cne $scriptSource.Sha256) {
+                throw "Script source changed after recording; execution was not started: $scriptPath"
+            }
+            $invoke = $scriptPath
+        } else { $invoke = $Action }
+        $executionStarted = $true
         & $invoke @ArgumentList *>&1 | ForEach-Object {
             $record = $_
             $streamName = switch ($record) {
@@ -698,6 +719,14 @@ function Invoke-PtVerificationStep {
         }
     } finally {
         try {
+            if ($null -ne $executionFileLease) { $executionFileLease.Dispose() }
+        } catch {
+            if ($original) {
+                $original.Exception.Data['PtVerificationScriptReleaseFailure'] = $_.Exception.Message
+                [Console]::Error.WriteLine("Script source release failed: $($_.Exception.Message)")
+            } else { $original = $_ }
+        }
+        try {
             if ($null -ne $formatter) { $formatter.Dispose() }
         } catch {
             if ($original) {
@@ -715,6 +744,7 @@ function Invoke-PtVerificationStep {
             Add-PtReportEvent $Attempt.Run 'StepEnded' @{
                 End = $endTime.ToString('o'); DurationMs = ($endTime - $start).TotalMilliseconds
                 ActionDurationMs = $clock.Elapsed.TotalMilliseconds
+                ActionStarted = $executionStarted
                 Status = $(if ($original) { 'Error' } else { 'Completed' }); Files = $files
                 Error = $(if ($original) {
                     @{ Message = $original.Exception.Message; Type = $original.Exception.GetType().FullName
@@ -833,19 +863,17 @@ function Invoke-PtVerificationCase {
         [ValidateSet('Drive','Observe','Record')][string]$Stage='Drive',
         [scriptblock]$Cleanup,
         [object[]]$CleanupArgumentList=@(),
-        [ValidateRange(1,1000)][int]$MaxFailures=3,
-        [ValidateRange(1,86400)][int]$MaxRecoverySeconds=300
+        [int]$MaxFailures,
+        [int]$MaxRecoverySeconds
     )
-    if (-not $OperationKey -and @('Stage','Cleanup','CleanupArgumentList','MaxFailures','MaxRecoverySeconds' |
-        Where-Object { $PSBoundParameters.ContainsKey($_) }).Count) {
-        throw 'Operation stage, cleanup and budget parameters require a stable OperationKey.'
-    }
+    $operationBoundary = @('OperationKey','Stage','Cleanup','CleanupArgumentList','MaxFailures','MaxRecoverySeconds' |
+        Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -gt 0
     $selector = if ($ItemId) { @{ItemId=$ItemId} } else { @{Context=$Context} }
     $attempt = Start-PtVerificationAttempt -Run $Run @selector -Kind $Kind -Name $Name
     $execution = if ($PSCmdlet.ParameterSetName.EndsWith('File')) { @{ScriptFile=$ScriptFile} } else { @{Action=$Action} }
     $original = $null
     try {
-        if ($OperationKey) {
+        if ($operationBoundary) {
             if (-not (Get-Command Invoke-PtVerificationOperation -ErrorAction Ignore)) { . "$PSScriptRoot\pt-verification-operation.ps1" }
             $policy=@{}
             foreach($key in 'MaxFailures','MaxRecoverySeconds'){
@@ -878,7 +906,7 @@ function Invalidate-PtVerificationAssertion {
     Append a reviewed correction for an invalid observation/judgment. Never assigns replacement PASS.
     .NOTES
     Requires fresh evidence in a Normal rerun of the same item. Product fixes or Diagnostic
-    recovery are not observation errors. Repeat the affected item's required coverage.
+    recovery are not observation errors. Repeat the affected assertions.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Attempt, [Parameter(Mandatory)][long]$Sequence,
@@ -916,6 +944,9 @@ function Add-PtVerificationRestoration {
         throw 'Restoration PASS requires explicit Restoration evidence (including a no-mutation baseline comparison).'
     }
     Assert-PtReportEvidence $Attempt $Evidence
+    if ($Verdict -eq 'PASS' -and -not @($Evidence | Where-Object { $_.Kind -eq 'Restoration' -and -not $_.ReferenceOnly }).Count) {
+        throw 'Restoration PASS requires fresh Restoration evidence from the current cleanup, not an earlier receipt.'
+    }
     Add-PtReportEvent $Attempt.Run 'RestorationObserved' @{ Verdict = $Verdict; Reason = $Reason; Evidence = $Evidence } $Attempt
 }
 
@@ -988,8 +1019,10 @@ function ConvertTo-PtReportState {
                 End = $(if ($end.Count) { $end[0].Data.End } else { $null })
                 DurationMs = $(if ($end.Count) { $end[0].Data.DurationMs } else { $null })
                 ActionDurationMs = $(if ($end.Count) { $end[0].Data.ActionDurationMs } else { $null })
+                ActionStarted = $(if ($end.Count -and $end[0].Data.PSObject.Properties['ActionStarted']) { $end[0].Data.ActionStarted } else { $null })
                 Status = $(if ($end.Count) { $end[0].Data.Status } else { 'INCOMPLETE' })
                 Sources = $start.Data.Sources; Outputs = $raw; ParentStepId = $start.Data.ParentStepId
+                ScriptFile = $(if ($start.Data.PSObject.Properties['ScriptFile']) { $start.Data.ScriptFile } else { $null })
                 Error = $(if ($end.Count) { $end[0].Data.Error } else { $null })
             }
         }
@@ -1016,28 +1049,45 @@ function ConvertTo-PtReportState {
             $corrections = @($events | Where-Object { $_.Type -eq 'AssertionInvalidated' -and $_.ItemId -ceq $item.Id })
             $validObservations = @($observations | Where-Object { $_.Sequence -notin @($corrections.Data.Sequence) })
             $allNormal = @($validObservations | Where-Object AttemptId -CIn $normalIds)
-            $normal = @($validObservations | Where-Object AttemptId -CIn $latestIds)
             $completion = @(Get-PtReportItemCompletion $events $item.Id)
             $rawObservations = @($events | Where-Object { $_.Type -eq 'ObservationRecorded' -and $_.ItemId -ceq $item.Id })
-            $pendingReviews = @($rawObservations | Where-Object {
-                $_.AttemptId -cin $latestIds -and $_.Sequence -notin @($observations.Data.ObservationSequence)
+            $assertionEvents = @($events | Where-Object {
+                $_.AttemptId -cin $normalIds -and $_.Type -in 'AssertionObserved','ObservationRecorded','AssertionInvalidated'
             })
+            $assertionAttempts = @{}
+            $currentRawObservations = @(foreach ($child in $item.Assertions) {
+                $touched = @($assertionEvents | Where-Object { $_.Data.AssertionId -ceq $child.Id })
+                $assertionAttempts[$child.Id] = $normalIds | Where-Object { $_ -cin $touched.AttemptId } | Select-Object -Last 1
+                $rawObservations | Where-Object { $_.AttemptId -ceq $assertionAttempts[$child.Id] -and $_.Data.AssertionId -ceq $child.Id } | Select-Object -Last 1
+            })
+            $pendingReviews = @($currentRawObservations | Where-Object {
+                $_.Sequence -notin @($observations.Data.ObservationSequence)
+            })
+            $effectiveNormal = [Collections.Generic.List[object]]::new()
             $assertions = @(
                 foreach ($child in $item.Assertions) {
-                    $seen = @($normal | Where-Object { $_.Data.AssertionId -ceq $child.Id })
+                    $seen = @($allNormal | Where-Object {
+                        $_.Data.AssertionId -ceq $child.Id -and $_.AttemptId -ceq $assertionAttempts[$child.Id]
+                    } | Sort-Object { if ($_.Data.ObservationSequence) { $_.Data.ObservationSequence } else { $_.Sequence } })
                     $failure = @($allNormal | Where-Object { $_.Data.AssertionId -ceq $child.Id -and $_.Data.Verdict -eq 'FAIL' })
-                    $effective = if ($failure.Count) { $failure[0] } elseif ($seen.Count) { $seen[-1] } else { $null }
+                    $pending = @($pendingReviews | Where-Object { $_.Data.AssertionId -ceq $child.Id })
+                    $effective = if ($failure.Count) { $failure[0] } elseif ($pending.Count) { $null } elseif ($seen.Count) { $seen[-1] } else { $null }
+                    if ($effective) { $effectiveNormal.Add($effective) }
                     [pscustomobject]@{
-                        Id = $child.Id; Description = $child.Description; Required = $child.Required
+                        Id = $child.Id; Description = $child.Description
+                        Required = $(if ($child.PSObject.Properties['Required']) { $child.Required } else { $true })
+                        AttemptId = $(if ($effective) { $effective.AttemptId } elseif ($pending.Count) { $pending[0].AttemptId } else { $null })
+                        Sequence = $(if ($effective) { $effective.Sequence } else { $null })
+                        ObservationSequence = $(if ($effective) { $effective.Data.ObservationSequence } elseif ($pending.Count) { $pending[0].Sequence } else { $null })
                         Verdict = $(if ($effective) { $effective.Data.Verdict } else { 'NOT-OBSERVED' })
                         Category = $(if ($effective) { $effective.Data.Category } else { 'not-observed' })
-                        Reason = $(if ($effective) { $effective.Data.Reason } else { 'No reviewed Normal-path observation was recorded.' })
-                        Evidence = $(if ($effective) { @($effective.Data.Evidence) } else { @() })
+                        Reason = $(if ($effective) { $effective.Data.Reason } elseif ($pending.Count) { "Latest Normal observation awaits review: $($pending[0].Sequence)." } else { 'No reviewed Normal-path observation was recorded.' })
+                        Evidence = $(if ($effective) { @($effective.Data.Evidence) } elseif ($pending.Count) { @($pending[0].Data.Evidence) } else { @() })
                     }
                 }
             )
             $failures = @($allNormal | Where-Object { $_.Data.Verdict -eq 'FAIL' })
-            $missing = @($assertions | Where-Object { $_.Required -and $_.Verdict -ne 'PASS' })
+            $missing = @($assertions | Where-Object { $_.Verdict -ne 'PASS' })
             $itemSteps = @($steps | Where-Object ItemId -CEQ $item.Id)
             $currentSteps = @($itemSteps | Where-Object AttemptId -CIn $latestIds)
             $unfinished = @($attempts | Where-Object { $_.ItemId -ceq $item.Id -and -not $_.Complete })
@@ -1045,7 +1095,7 @@ function ConvertTo-PtReportState {
                 $_.Type -eq 'ArtifactAdded' -and $_.Data.File.Kind -eq 'Screenshot' -and $_.AttemptId -cin $normalIds -and
                 $_.StepId -cin @($itemSteps | Where-Object Status -eq 'Completed' | ForEach-Object Id)
             } | ForEach-Object { $_.Data.File.Path })
-            $screenshot = @($normal | Where-Object { $_.Data.Verdict -eq 'PASS' } | ForEach-Object { $_.Data.Evidence } |
+            $screenshot = @($effectiveNormal | Where-Object { $_.Data.Verdict -eq 'PASS' } | ForEach-Object { $_.Data.Evidence } |
                 Where-Object { $_.Kind -eq 'Screenshot' -and $_.Path -cin $capturedScreenshots -and
                     -not $_.ReferenceOnly -and (-not $_.Synthetic -or $metadata.Scenario -eq 'InfrastructureAcceptance') })
             $verdict = 'BLOCKED'
@@ -1056,7 +1106,7 @@ function ConvertTo-PtReportState {
             if ($unfinished.Count) { $issues.Add('Attempt remains open/interrupted.') }
             if (@($currentSteps | Where-Object Status -ne 'Completed').Count) { $issues.Add('Latest Normal attempt has step errors/incomplete execution; infrastructure is not a product verdict.') }
             if (-not $currentSteps.Count) { $issues.Add('No Normal command/probe step was recorded.') }
-            if ($missing.Count) { $issues.Add('Required subassertions are failed, blocked or NOT-OBSERVED: ' + ($missing.Id -join ', ')) }
+            if ($missing.Count) { $issues.Add('Subassertions are failed, blocked or NOT-OBSERVED: ' + ($missing.Id -join ', ')) }
             if ($item.UserVisible -and -not $screenshot.Count) { $issues.Add('Missing Normal-path screenshot evidence for user-visible behavior.') }
             if ($failures.Count) {
                 $verdict = 'FAIL'
@@ -1064,14 +1114,14 @@ function ConvertTo-PtReportState {
             } elseif (@($currentSteps | Where-Object Status -eq 'Error').Count) {
                 $category = 'BLK-INFRASTRUCTURE'
             } elseif (-not $issues.Count) {
-                $verdict = 'PASS'; $category = ($assertions | Where-Object Required | ForEach-Object Category | Select-Object -Unique) -join '; '
+                $verdict = 'PASS'; $category = ($assertions | ForEach-Object Category | Select-Object -Unique) -join '; '
             } elseif (@($missing | Where-Object Verdict -eq 'BLOCKED').Count) {
                 $category = @($missing | Where-Object Verdict -eq 'BLOCKED')[0].Category
             }
             [pscustomobject]@{
                 Id = $item.Id; Description = $item.Description; Admin = $item.Admin; Clarity = $item.Clarity; UserVisible = $item.UserVisible
                 Verdict = $verdict; Category = $category; Assertions = $assertions; Observations = $observations; Issues = $issues.ToArray()
-                RawObservations = $rawObservations; Corrections = $corrections
+                RawObservations = $rawObservations; CurrentRawObservations = $currentRawObservations; Corrections = $corrections
                 Reason = $(if ($completion.Count) { $completion[-1].Data.Reason } else { 'Item incomplete.' })
                 Caveats = $(if ($completion.Count) { $completion[-1].Data.Caveats } else { '' })
             }
@@ -1083,7 +1133,7 @@ function ConvertTo-PtReportState {
     $problems = [Collections.Generic.List[string]]::new()
     if (@($items | Where-Object Verdict -ne 'PASS').Count) { $problems.Add('Inventory contains failed, blocked or unobserved/incomplete items.') }
     if (@($items | ForEach-Object Assertions | Where-Object Verdict -ne 'PASS').Count) {
-        $problems.Add('Subassertion inventory contains non-passing Normal coverage, including optional/unobserved assertions.')
+        $problems.Add('Subassertion inventory contains non-passing Normal coverage.')
     }
     $diagnosticIds = @($attempts | Where-Object Kind -eq 'Diagnostic' | ForEach-Object Id)
     if (@($events | Where-Object {
@@ -1097,7 +1147,7 @@ function ConvertTo-PtReportState {
     if ($pendingArtifacts.Count) { $problems.Add('Unregistered artifact reservations remain.') }
     if (-not @($attempts | Where-Object { $_.Phase -eq 'Preflight' -and $_.Kind -eq 'Normal' -and $_.Complete }).Count -or
         -not @($steps | Where-Object Phase -eq 'Preflight').Count) { $problems.Add('Recorded preflight is missing.') }
-    if (-not $currentRestoration.Count -or @($restoration | Where-Object { $_.Data.Verdict -ne 'PASS' }).Count) {
+    if (-not $currentRestoration.Count -or @($currentRestoration | Where-Object { $_.Data.Verdict -ne 'PASS' }).Count) {
         $problems.Add('Latest Normal Cleanup attempt lacks successful restoration evidence, or cleanup failed.')
     }
     if (-not $finished.Count) { $problems.Add('Run has not been explicitly finalized; retrospective is NOT-OBSERVED.') }
@@ -1115,16 +1165,17 @@ function Get-PtReportState {
     param($Run)
     # Final export/validation never trusts a same-size/timestamp live cache.
     $state=ConvertTo-PtReportState -Run $Run -Events @(Read-PtReportEvents $Run -Fresh)
-    $keys=@($state.Events|Where-Object Type -eq OperationPolicyLocked|ForEach-Object {$_.Data.OperationKey}|Select-Object -Unique)
+    $keys=@($state.Events|Where-Object {$_.Type -in 'OperationStarted','OperationPolicyLocked','OperationRejected'}|
+        ForEach-Object {[string]$_.Data.OperationKey}|Select-Object -Unique)
     $operations=@(if($keys.Count){
         if(-not (Get-Command Get-PtVerificationOperationStatus -ErrorAction Ignore)){. "$PSScriptRoot\pt-verification-operation.ps1"}
         foreach($key in $keys){Get-PtVerificationOperationStatus -Run $Run -OperationKey $key}
     })
     $state|Add-Member NoteProperty Operations $operations
     foreach($operation in $operations){
-        if($operation.BlockReason -in 'Interrupted','RecordingError'){
+        foreach($issue in @($operation.PendingOperations)+@($operation.UncertainOperations)){
             $state.Signoff='WITHHELD'
-            $state.SignoffReasons=@($state.SignoffReasons)+@("Operation '$($operation.OperationKey)' requires infrastructure recovery: $($operation.BlockReason).")
+            $state.SignoffReasons=@($state.SignoffReasons)+@("Operation invocation '$($issue.OperationId)' has incomplete execution evidence: $($issue.Reason).")
         }
     }
     $state
@@ -1182,9 +1233,9 @@ function Get-PtVerificationReview {
         $state=$bucket.State
         $attempts=@($bucket.Events | Where-Object { $_.Type -eq 'AttemptStarted' -and $_.Data.Kind -eq 'Normal' })
         $latest=if($attempts.Count){$attempts[-1].AttemptId}else{''}
-        $observations=@(foreach($observation in @($state.RawObservations | Where-Object AttemptId -CEQ $latest)){
+        $observations=@(foreach($observation in $state.CurrentRawObservations){
             [pscustomobject]@{
-                Sequence=$observation.Sequence; AssertionId=$observation.Data.AssertionId
+                Sequence=$observation.Sequence; AssertionId=$observation.Data.AssertionId; AttemptId=$observation.AttemptId
                 Reviewed=[bool]@($state.Observations | Where-Object { $_.Data.ObservationSequence -eq $observation.Sequence }).Count
                 ActualPreview=Get-PtReportPreview $observation.Data.Actual $MaxTextCharacters
                 Truncated=$observation.Data.Actual.Length -gt $MaxTextCharacters
@@ -1198,6 +1249,7 @@ function Get-PtVerificationReview {
             Assertions=@(foreach($assertion in $state.Assertions){
                 [pscustomobject]@{
                     Id=$assertion.Id; Description=$assertion.Description; Required=$assertion.Required
+                    AttemptId=$assertion.AttemptId; Sequence=$assertion.Sequence; ObservationSequence=$assertion.ObservationSequence
                     Verdict=$assertion.Verdict; Category=$assertion.Category
                     ReasonPreview=Get-PtReportPreview $assertion.Reason $MaxTextCharacters
                     Truncated=$assertion.Reason.Length -gt $MaxTextCharacters
@@ -1249,6 +1301,7 @@ function Add-PtReportStepTable {
         $command = if (($step.Command -split "\r\n|\n|\r").Count -gt 3) {
             "script: $(Format-PtReportLink $scriptFile); exact command: $(Format-PtReportLink $commandFile)"
         } else { "<code>$(ConvertTo-PtReportCell $step.Command)</code><br>copy/paste: $(Format-PtReportLink $commandFile)" }
+        if ($step.ScriptFile) { $command += "<br>executed from: <code>$(ConvertTo-PtReportCell $step.ScriptFile)</code>" }
         $files = @($step.Outputs) + @($State.Events | Where-Object { $_.Type -eq 'ArtifactAdded' -and $_.StepId -ceq $step.Id } | ForEach-Object { $_.Data.File })
         $links = @($files | ForEach-Object { "$(if ($_.Kind -eq 'Screenshot') { 'screenshot: ' })$(Format-PtReportLink $_)" }) -join '<br>'
         $errorText = if ($step.Error) { '<br>Infrastructure error: ' + (ConvertTo-PtReportCell $step.Error.Message) } else { '' }
@@ -1315,11 +1368,13 @@ function Export-PtVerificationReport {
             $lines.Add('')
             $lines.Add('### Verdict reasoning')
             $lines.Add('')
-            $lines.Add('| Subassertion | Required | Normal verdict | Reason / evidence |')
-            $lines.Add('|---|---|---|---|')
+            $lines.Add('| Subassertion | Normal verdict | Reason / evidence |')
+            $lines.Add('|---|---|---|')
             foreach ($child in $item.Assertions) {
                 $links = @($child.Evidence | ForEach-Object { Format-PtReportLink $_ }) -join '<br>'
-                $lines.Add("| $($child.Id): $(ConvertTo-PtReportCell $child.Description) | $($child.Required) | **$($child.Verdict)** | $(ConvertTo-PtReportCell $child.Reason)<br>$links |")
+                $legacy = if ($child.Required -ceq $false) { 'Legacy metadata: Required=false. ' } else { '' }
+                $origin = if ($child.AttemptId) { "<br>Normal attempt: $($child.AttemptId); judgment: $($child.Sequence); observation: $($child.ObservationSequence)" } else { '' }
+                $lines.Add("| $($child.Id): $(ConvertTo-PtReportCell $child.Description) | **$($child.Verdict)** | $legacy$(ConvertTo-PtReportCell $child.Reason)$origin<br>$links |")
             }
             $lines.Add('')
             foreach ($observation in $item.Observations) {
@@ -1351,24 +1406,36 @@ function Export-PtVerificationReport {
         if (-not $state.Restoration.Count) { $lines.Add('**NOT-OBSERVED: no restoration evidence recorded.**') }
         foreach ($receipt in $state.Restoration) {
             $links = @($receipt.Data.Evidence | ForEach-Object { Format-PtReportLink $_ }) -join '; '
-            $lines.Add("- **$($receipt.Data.Verdict)**: $(ConvertTo-PtReportCell $receipt.Data.Reason) $links")
+            $scope = if ($receipt.Sequence -in $state.CurrentRestoration.Sequence) { 'Current cleanup' } else { 'Historical cleanup' }
+            $lines.Add("- **$($receipt.Data.Verdict)**: $(ConvertTo-PtReportCell $receipt.Data.Reason) $links ($scope; attempt $($receipt.AttemptId); receipt $($receipt.Sequence))")
         }
         if ($state.Operations.Count) {
             $lines.Add('')
             $lines.Add('## Operation boundaries')
-            $lines.Add('Infrastructure accounting only. No automatic retries, product judgments or verified restoration are inferred.')
-            $lines.Add('| Operation key | Failures / limit | Active recovery seconds / limit | Pending | Stop reason |')
-            $lines.Add('|---|---|---|---|---|')
+            $lines.Add('Invocation history only. No label-based execution locks, cumulative limits, automatic retries or inferred product/restoration judgments. Old policies and rejections below are historical records, not execution rules.')
+            $lines.Add('| Legacy label | Invocations | Failures | Failed/diagnostic seconds | Pending records | Uncertain records |')
+            $lines.Add('|---|---|---|---|---|---|')
             foreach($operation in $state.Operations){
-                $lines.Add("| $(ConvertTo-PtReportCell $operation.OperationKey) | $($operation.FailureCount) / $($operation.MaxFailures) | $($operation.ActiveRecoverySeconds) / $($operation.MaxRecoverySeconds) | $(@($operation.PendingOperations).Count) | $(ConvertTo-PtReportCell $operation.BlockReason) |")
+                $label=if($operation.OperationKey){ConvertTo-PtReportCell $operation.OperationKey}else{'(none)'}
+                $lines.Add("| $label | $($operation.InvocationCount) | $($operation.FailureCount) | $($operation.ActiveRecoverySeconds) | $(@($operation.PendingOperations).Count) | $(@($operation.UncertainOperations).Count) |")
+            }
+            $incompleteEvidence=@($state.Operations|ForEach-Object {$_.PendingOperations;$_.UncertainOperations})
+            if($incompleteEvidence.Count){
+                $lines.Add('')
+                $lines.Add('| Invocation | Attempt | Stage | Evidence gap |')
+                $lines.Add('|---|---|---|---|')
+                foreach($issue in $incompleteEvidence){
+                    $lines.Add("| $($issue.OperationId) | $($issue.AttemptId) | $($issue.Stage) | $($issue.Reason) |")
+                }
             }
             $lines.Add('')
-            $lines.Add('| Event sequence | Type | Operation key | Stage | Outcome / error |')
-            $lines.Add('|---|---|---|---|---|')
+            $lines.Add('| Event sequence | Type | Invocation | Legacy label | Stage | Outcome / error |')
+            $lines.Add('|---|---|---|---|---|---|')
             foreach($event in @($state.Events|Where-Object {$_.Type -like 'Operation*'})){
                 $data=$event.Data
                 $outcome=(@($data.Outcome,$data.Reason,$data.Error.Message)|Where-Object {$_}) -join '; '
-                $lines.Add("| $($event.Sequence) | $($event.Type) | $(ConvertTo-PtReportCell $data.OperationKey) | $(ConvertTo-PtReportCell $data.Stage) | $(ConvertTo-PtReportCell $outcome) |")
+                if($event.Type -eq 'OperationPolicyLocked'){$outcome=ConvertTo-Json $data -Compress}
+                $lines.Add("| $($event.Sequence) | $($event.Type) | $(ConvertTo-PtReportCell $data.OperationId) | $(ConvertTo-PtReportCell $data.OperationKey) | $(ConvertTo-PtReportCell $data.Stage) | $(ConvertTo-PtReportCell $outcome) |")
             }
         }
         $lines.Add('')

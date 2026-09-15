@@ -59,9 +59,10 @@ specific checklist.
 | `scripts/pt-directory-snapshot.ps1` | Bounded byte/file-set/empty-directory snapshots and explicit-owned three-way rollback. Conflicts stop before writes; unrelated changes survive with a partial receipt. See [directory snapshots](references/directory-snapshots.md). |
 | `scripts/pt-shortcut-guide.ps1` | SG host/content readiness and read-only taskbar baselines/restoration comparisons. Module semantics stay in its profile/checklist. |
 | `scripts/pt-shortcut-guide-flow.ps1` | Owned SG open/observe/close and scoped Windows-key holds with explicit entry/exit semantics, persisted receipts and early-dismissal errors. No automatic retry/restart or input-to-event substitution. See [composed SG flows](references/modules/shortcut-guide/composed-flows.md). |
-| `scripts/pt-taskbar-fixture.ps1` | Disposable uniquely identified taskbar windows, fresh slot mapping, owned-only reorder, guarded digit routing and paired taskbar/pointer cleanup. No pins, registry writes or Explorer restart. See [taskbar fixtures](references/taskbar-fixtures.md). |
+| `scripts/pt-shortcut-guide-entrypoints.ps1` | Current-process startup readiness, uncloaked Quick Access observation, real Settings rail click and settled destination captures. Retries observation only, never the action. See [entry transitions](references/modules/shortcut-guide/entry-points.md). |
+| `scripts/pt-taskbar-fixture.ps1` | System Calculator fixture, exact window/content identity, first-slot reorder, guarded digit routing and paired taskbar/pointer cleanup. No dummy app, pin/unpin, registry writes or Explorer restart. See [taskbar fixtures](references/taskbar-fixtures.md). |
 | `scripts/pt-verification-report.ps1` | Thin case lifecycle, incremental `Get-PtVerificationReview`, concise observations with raw-detail attachments, shared source snapshots, compact report plus complete details. Full integrity checks remain in export/archive validation. Read [recording workflow](references/recording-workflow.md) before discovery. |
-| `scripts/pt-verification-operation.ps1` | Stable-key failure/recovery budgets across attempts and processes, explicit Drive/Observe/Record stages, original errors plus cleanup/recording errors. Optional case integration; never retries or assigns product verdicts. See [operation boundaries](references/operation-boundaries.md). |
+| `scripts/pt-verification-operation.ps1` | Keyless recorded Drive/Observe/Record calls, unique invocation IDs, original errors and cleanup attempts. No label locks, cumulative limits or automatic retries; uncertain invocation evidence remains visible without becoming execution permission. See [operation boundaries](references/operation-boundaries.md). |
 | `scripts/pt-verification-render.ps1` | Read-only compact report rendering; complete commands remain in `details.md`. |
 | `scripts/pt-cmdpal-recycle.ps1` | `Reset-CmdPalAppX`, `Reset-CmdPalToHome`, `Test-CmdPalDegraded`, `Invoke-CmdPalQuery` — CmdPal-specific lifecycle (handles TextChanged-broken state, BackButton navigation, AppX recycle). |
 | `scripts/pt-admin-probe.ps1` | `Test-PtAdmin`, `Test-ProcessElevated`, `Test-PtRunnerAdmin` — TokenElevation probes to verify your session and the PT runner have the right elevation for the test. |
@@ -295,9 +296,12 @@ For each item in module:
 
 Collect raw observations before committing judgments; review every 3-5 related items. Use one
 run and reopen only affected items for corrections, retaining history and valid product failures.
-Apply the shared [observation/rollback checks and obstacle budget](references/pre-flight.md#one-run-bounded-work-incremental-review);
-new scripts/contexts do not reset repeated failures. Do not turn a verification request into an
-unbounded harness-development session.
+Partial Normal attempts retain unrelated assertion results; reobserve and review only the
+affected assertions, with their original attempt/judgment provenance preserved.
+Apply the shared [observation and rollback checks](references/pre-flight.md#one-run-bounded-work-incremental-review).
+Operations have no label-based locks or cumulative failure-count/time circuit breaker. Preserve errors and
+continue independent eligible work after necessary cleanup and readiness checks; do not infer
+an unavailable product from a script error. Do not turn verification into unbounded harness development.
 
 When done, run state hygiene cleanup, write the report **including the §G retrospective**, archive the workspace (Step 7), and exit.
 

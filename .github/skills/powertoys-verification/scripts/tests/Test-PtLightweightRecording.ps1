@@ -24,7 +24,7 @@ $inputs=@(
 function NewRun([string]$Name){
     $items=@(foreach($id in 'L1','L2'){
         @{Id=$id;Description="Synthetic $id";Admin='NO';Clarity='CLEAR';UserVisible=$false
-            Assertions=@(@{Id='value';Description='Observe actual value';Required=$true})}
+            Assertions=@(@{Id='value';Description='Observe actual value'})}
     })
     New-PtVerificationRun -Workspace "$Workspace\$Name" -Module 'H09 acceptance' -Bits 'Offline synthetic only' `
         -Scenario InfrastructureAcceptance -Items $items -Inputs $inputs
@@ -267,22 +267,22 @@ Check 'Observation limits count UTF-8 bytes and detail JSON preserves complete o
     $text=[IO.File]::ReadAllText((Join-Path $run.Workspace $event.Data.Evidence[0].Path))
     Require ((ConvertFrom-PtReportJson $text).nodes[0].children[0].name -ceq 'child') 'Detail structure was truncated'
 }
-Check 'Case operations share budgets, always clean up and preserve original callback arguments' {
+Check 'Shared operation labels retain failures without stopping later cases or skipping cleanup' {
+    . "$PSScriptRoot\..\pt-verification-operation.ps1"
     $run=NewRun case-operation
     $counters=@{Driven=0;Cleaned=0}
     $driveFixtureAction={param($attempt,$counter) $counter.Driven++;throw 'case driver failure'}
     $fixtureCleanup={param($counter) $counter.Cleaned++}
     Reject {Invoke-PtVerificationCase -Run $run -ItemId L1 -Name first -Command first -OperationKey shared-host `
         -MaxFailures 1 -Action $driveFixtureAction -ArgumentList @($counters) -Cleanup $fixtureCleanup -CleanupArgumentList @($counters)} 'case driver failure'
-    $stopped=$false
-    try{
-        Invoke-PtVerificationCase -Run $run -ItemId L2 -Name 'Another item same obstacle' -Command second `
-            -OperationKey shared-host -Action $driveFixtureAction -ArgumentList @($counters) -Cleanup $fixtureCleanup -CleanupArgumentList @($counters)|Out-Null
-    }catch{
-        if($_.FullyQualifiedErrorId -notlike 'PtVerificationOperationBudgetExceeded*'){throw}
-        $stopped=$true
-    }
-    Require ($stopped -and $counters.Driven -eq 1 -and $counters.Cleaned -eq 2) 'Case budget rejection drove again or skipped cleanup'
+    Reject {Invoke-PtVerificationCase -Run $run -ItemId L2 -Name 'Another item same label' -Command second `
+        -OperationKey shared-host -Action $driveFixtureAction -ArgumentList @($counters) -Cleanup $fixtureCleanup -CleanupArgumentList @($counters)} 'case driver failure'
+    $result=Invoke-PtVerificationCase -Run $run -ItemId L2 -Name 'Later case after driver repair' -Command third `
+        -OperationKey shared-host -Action {param($attempt,$counter) $counter.Driven++;'observed'} `
+        -ArgumentList @($counters) -Cleanup $fixtureCleanup -CleanupArgumentList @($counters)
+    Require ($result.Output[0] -ceq 'observed' -and $counters.Driven -eq 3 -and $counters.Cleaned -eq 3) 'Failure counts stopped a later case or skipped cleanup'
+    $status=Get-PtVerificationOperationStatus $run shared-host
+    Require (-not $status.Blocked -and -not $status.BudgetEnforced -and $status.FailureCount -eq 2) 'Shared label still enforces a cumulative limit or lost errors'
     $script=Join-Path $Workspace 'case-file.ps1'
     [IO.File]::WriteAllText($script,'param($attempt,$value) if(-not $attempt.Id){throw "Missing actual attempt"}; "file-$value"')
     $result=Invoke-PtVerificationCase -Run $run -ItemId L2 -Name 'Independent file case' -Command file `
@@ -291,9 +291,21 @@ Check 'Case operations share budgets, always clean up and preserve original call
     $state=Get-PtReportState $run
     Require (@($state.Items|Where-Object Verdict -eq FAIL).Count -eq 0) 'Driver failures became product FAIL'
     Require ($state.Operations.Count -eq 2) 'Operation status is absent from full export state'
-    $before=$run.Sequence
-    Reject {Invoke-PtVerificationCase -Run $run -ItemId L2 -Name invalid -Command none -Action {} -Cleanup {}} 'require a stable OperationKey'
-    Require ($run.Sequence -eq $before) 'Invalid operation configuration created an attempt'
+    $keyless=@{Calls=0;Cleanups=0}
+    $case=Invoke-PtVerificationCase -Run $run -ItemId L2 -Name 'Keyless cleanup' -Command 'Observe without a classification key' -Stage Observe `
+        -ArgumentList @($keyless) -Action {param($attempt,$counts) $counts.Calls++;'keyless-value'} `
+        -CleanupArgumentList @($keyless) -Cleanup {param($counts) $counts.Cleanups++}
+    Require ($case.Output[0] -ceq 'keyless-value' -and $keyless.Calls -eq 1 -and $keyless.Cleanups -eq 1) 'Keyless operation changed case output or cleanup'
+    $events=@(Read-PtReportEvents $run)
+    Require (@($events|Where-Object Type -eq OperationPolicyLocked).Count -eq 0) 'New operations still create key policies'
+    $history=Get-PtVerificationOperationStatus -Run $run
+    Require ($history.InformationOnly -and $history.InvocationCount -eq 5) 'Unfiltered history missed keyless invocations'
+    $state=Get-PtReportState $run
+    $unlabelled=@($state.Operations|Where-Object {$_.OperationKey -ceq ''})
+    Require ($unlabelled.Count -eq 1 -and $unlabelled[0].InvocationCount -eq 1) 'Report omitted the keyless operation'
+    $defaultStage=Invoke-PtVerificationCase -Run $run -ItemId L2 -Name 'Cleanup only option' -Command 'Default drive stage without key' `
+        -Action {'default-stage-output'} -Cleanup {param($counts) $counts.Cleanups++} -CleanupArgumentList @($keyless)
+    Require ($defaultStage.Output[0] -ceq 'default-stage-output' -and $keyless.Cleanups -eq 2) 'Cleanup still requires a key or explicit stage'
 }
 Check 'Interrupted operations withhold signoff without changing fully passing product assertions' {
     $run=NewRun pending-signoff
@@ -310,14 +322,14 @@ Check 'Interrupted operations withhold signoff without changing fully passing pr
     Stop-PtVerificationAttempt $cleanup -Reason 'Complete'
     $key='pending-operation'
     $operationId=[Guid]::NewGuid().ToString('N')
-    Add-PtReportEvent $run OperationPolicyLocked @{OperationKey=$key;MaxFailures=3;MaxRecoverySeconds=300}
+    Add-PtReportEvent $run OperationPolicyLocked @{OperationKey=$key;BudgetEnforced=$false;MaxFailures=$null;MaxRecoverySeconds=$null}
     Add-PtReportEvent $run OperationStarted @{OperationKey=$key;OperationId=$operationId;Stage='Observe';Command='Synthetic interruption'
         Start=[DateTimeOffset]::UtcNow.ToString('o');Recovery=$false;Execution='Action'} $case.Attempt
     $export=Complete-PtVerificationRun $run -NoFriction
     $state=Get-PtReportState $run
     Require (@($state.Items|Where-Object Verdict -ne PASS).Count -eq 0) 'Pending infrastructure operation changed product assertions'
-    Require ($state.Signoff -eq 'WITHHELD' -and ($state.SignoffReasons -join '|').Contains("Operation '$key' requires infrastructure recovery: Interrupted")) 'Interrupted operation was not an explicit signoff hold'
-    Require ((Get-Content $export.Details -Raw).Contains('## Operation boundaries')) 'Details omit operation budget/interruption history'
+    Require ($state.Signoff -eq 'WITHHELD' -and ($state.SignoffReasons -join '|').Contains("Operation invocation '$operationId' has incomplete execution evidence: Interrupted")) 'Interrupted invocation was not an explicit evidence gap'
+    Require ((Get-Content $export.Details -Raw).Contains('## Operation boundaries')) 'Details omit operation/interruption history'
     Require ((Get-Content $export.Report -Raw).Contains('details.md#operation-boundaries')) 'Compact report has no operation-details link'
     Require (Test-PtVerificationArchive $run.Workspace).Valid 'Operation-aware signoff did not validate after export'
 }

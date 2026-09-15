@@ -319,7 +319,7 @@ Check 'Restarts require Diagnostic context and cannot erase Normal failures' {
             @{Name='skill.txt';Role='Skill';Path=$proof},@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath},
             @{Name='lifecycle.ps1';Role='Helper';Path="$helpers\pt-module-lifecycle.ps1"}
         ) -Items @(@{Id='I1';Description='Normal failure is retained';Admin='NO';Clarity='CLEAR';UserVisible=$false
-            Assertions=@(@{Id='value';Description='Actual Normal behavior';Required=$true})})
+            Assertions=@(@{Id='value';Description='Actual Normal behavior'})})
     $normal=Start-PtVerificationAttempt $run -ItemId I1 -Kind Normal -Name normal -Activate
     Reject {Restart-PtModuleLifecycle -Snapshot @{} -Reason 'Wrong context'} 'active Diagnostic'
     Invoke-PtVerificationStep $normal -Name normal -Command 'Synthetic Normal failure evidence' -Action {'Observed mismatch'}|Out-Null

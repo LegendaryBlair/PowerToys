@@ -149,7 +149,7 @@ $recordedRun=New-PtVerificationRun -Workspace "$Workspace\recorded" -Module 'H05
     -Bits "Installed Settings $((Get-Process -Id $identity.processId).FileVersion), immutable; helper acceptance only, no module activation" `
     -Scenario InfrastructureAcceptance -Inputs $inputs -Items @(foreach($target in $targets){
         @{Id=$target.Name;Description="Common recorder assigns and restores the $($target.Name) shortcut";Admin='NO';Clarity='CLEAR';UserVisible=$true
-            Assertions=@(@{Id='roundtrip';Description='Captured UI, exact persisted fields and original restoration agree';Required=$true})}
+            Assertions=@(@{Id='roundtrip';Description='Captured UI, exact persisted fields and original restoration agree'})}
     })
 Invoke-PtVerificationCase -Run $recordedRun -Context Preflight -Name 'Owned scope and original snapshots' `
     -Command 'Inspect retained desktop/Settings baselines before positive recorded round trips' -ArgumentList @($SettingsHwnd) -Action {
@@ -225,7 +225,7 @@ try{
             $recordSnapshot=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($snapshot.ReceiptPath))
             $recordFacts=@{Evidence=[Collections.Generic.List[object]]::new()}
             $recordedCase=Invoke-PtVerificationCase -Run $recordedRun -ItemId $target.Name -Name 'Recorded generic Save and original restore' `
-                -OperationKey "shortcut-$($target.Name.ToLowerInvariant())" -Stage Drive -Command 'Set-PtShortcutBinding through the shared recorder; restore the captured original in cleanup' `
+                -Stage Drive -Command 'Set-PtShortcutBinding through the shared recorder; restore the captured original in cleanup' `
                 -ArgumentList @($recordSnapshot,(Chord $true $true $false $true 123),$recordFacts) -Action {
                     param($attempt,$capturedSnapshot,$wanted,$facts)
                     $assigned=Set-PtShortcutBinding $capturedSnapshot $wanted -ObserverArgumentList @($facts) -CapturedObserver {

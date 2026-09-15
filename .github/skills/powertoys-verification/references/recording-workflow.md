@@ -80,8 +80,8 @@ $run = New-PtVerificationRun -Workspace $workspace -Module $module -Bits $bits `
             Id = 'L1'; Description = $verbatimChecklistDescription
             Admin = 'NO'; Clarity = 'CLEAR'; UserVisible = $true
             Assertions = @(
-                @{ Id = 'opens'; Description = $verbatimOpeningAssertion; Required = $true }
-                @{ Id = 'content'; Description = $verbatimContentAssertion; Required = $true }
+                @{ Id = 'opens'; Description = $verbatimOpeningAssertion }
+                @{ Id = 'content'; Description = $verbatimContentAssertion }
             )
         }
     )
@@ -115,7 +115,7 @@ that return objects are noted below; mutation-only functions emit no success out
 | API | Contract |
 |---|---|
 | `New-PtVerificationRun -Workspace -Module -Bits -Scenario -Items -Inputs` | Creates immutable inventory/input snapshots and an append-only journal; returns a run handle. |
-| `Invoke-PtVerificationCase -Run -ItemId/-Context -Name -Command -Action/-ScriptFile [-ArgumentList] [-Kind] [-OperationKey]` | Thin lifecycle; callback gets the attempt first. Optional stable-key operation boundary adds Stage, Cleanup/CleanupArgumentList and explicit budget limits. Returns Attempt and Output, closes on errors and never infers verdicts. |
+| `Invoke-PtVerificationCase -Run -ItemId/-Context -Name -Command -Action/-ScriptFile [-ArgumentList] [-Kind] [-Stage] [-Cleanup/-CleanupArgumentList]` | Thin lifecycle; callback gets the attempt first. Stage/cleanup work without an operation key. Each invocation is recorded independently, with no key locks or cumulative limits. Returns Attempt and Output, closes on errors and never infers verdicts. |
 | `Open-PtVerificationRun -Workspace [-JournalName]` | Reloads a run after interruption or moving it. A nondefault journal is a read-only partial-export snapshot. It does not recreate or complete interrupted attempts. |
 | `Get-PtVerificationReview -Run [-ItemId] [-MaxTextCharacters]` | Cheap incremental item/child projection with bounded previews and pending review sequences; no artifact rehash or signoff. Uses the same verdict rules as full export. |
 | `Get-PtVerificationAttempt -Run -AttemptId` | Returns a recorded stopped attempt for later review; no new driving or resumption of interrupted steps. |
@@ -124,24 +124,40 @@ that return objects are noted below; mutation-only functions emit no success out
 | `Get-PtActiveVerificationAttempt` / `Set-PtActiveVerificationAttempt -Attempt` | Runspace-local ambient context across script boundaries. Use `-Activate`/the setter for top-level calls, or `$null` to clear. Each recorded step temporarily selects its explicit attempt and restores the caller context afterward. |
 | `Stop-PtVerificationAttempt -Attempt -Reason` | Records the end and clears this attempt if active. Does not assert product success. Cannot stop a running step. |
 | `Invoke-PtVerificationStep -Attempt -Name -Command -Action [-ArgumentList] [-Implementation]` | Writes exact command/action/arguments before execution, records raw streams and completion/error, returns original success-stream objects. Records failure and rethrows the original error. |
-| `Invoke-PtVerificationStep -Attempt -Name -Command -ScriptFile [-ArgumentList]` | Executes the **snapshot**, not the mutable original. Identical script/implementation bytes share a hash-addressed source; revisions get distinct snapshots. |
+| `Invoke-PtVerificationStep -Attempt -Name -Command -ScriptFile [-ArgumentList]` | Snapshots the source, then executes the original path with a read lease and a matching SHA256. Preserves original script scope and relative dependencies; revisions get distinct snapshots. |
 | `New-PtVerificationArtifactPath -Attempt -Name` | Reserves a unique nonexistent absolute output path; returns it. Reusing a friendly name never reuses its path. |
 | `Add-PtVerificationArtifact -Attempt -Path -Kind -Description [-StepId] [-Synthetic] [-Name]` | Registers evidence or reuses an unchanged same-attempt reference. Cross-attempt files are linked as ReferenceOnly with original attempt/step provenance, never fresh PASS proof. |
 | `Add-PtVerificationObservation -Attempt -AssertionId -Actual [-Evidence] [-Detail]` | Records a concise observation without a verdict; `Detail` stores full text or JSON as immutable evidence rather than embedding it in the journal. Returns the observation sequence. |
-| `Add-PtVerificationAssertion -Attempt -AssertionId -Verdict -Category -Reason [-Evidence] [-ObservationSequence]` | Commits a reviewed judgment, including on a closed attempt. With ObservationSequence, defaults to that raw observation's evidence. Unreviewed latest-attempt observations withhold PASS. |
+| `Add-PtVerificationAssertion -Attempt -AssertionId -Verdict -Category -Reason [-Evidence] [-ObservationSequence]` | Commits a reviewed judgment, including on a closed attempt. With ObservationSequence, defaults to that raw observation's evidence. The latest Normal attempt addressing each assertion supplies its result; unrelated assertions retain theirs. |
 | `Complete-PtVerificationItem -Run -ItemId -Reason [-Caveats]` | Records reviewed item completion. Unfinished coverage still blocks. |
 | `Reopen-PtVerificationItem -Run -ItemId -Reason` | Reopens only one completed item in an unsealed run; does not erase observations or failures. |
 | `Invalidate-PtVerificationAssertion -Attempt -Sequence -Cause -Reason -Evidence` | Marks an earlier same-item judgment invalid with fresh Normal evidence; cause is InvalidObservation or IncorrectJudgment. Does not assign replacement PASS. |
-| `Add-PtVerificationRestoration -Attempt -Verdict -Reason [-Evidence]` | Only a Normal Cleanup context can record restoration. PASS requires registered `Restoration` evidence. |
+| `Add-PtVerificationRestoration -Attempt -Verdict -Reason [-Evidence]` | Only a Normal Cleanup context can record restoration. PASS requires fresh registered `Restoration` evidence. Final acceptance uses the latest complete cleanup scope; historical failures remain visible. |
 | `Export-PtVerificationReport -Run` | Writes uniquely named compact report/full details/results/manifest/journal snapshot without completing the run. Returns Report, Details, Results, Manifest and Signoff. |
 | `Complete-PtVerificationRun -Run -Retrospective` / `-NoFriction` | Validates evidence, explicitly ends the run, writes `report.md`, `details.md`, `results.json`, `artifact-manifest.json`; returns export paths and Signoff. May finalize a **WITHHELD** run. |
 | `Export-PtVerificationReport -Run -Final` | Final export only after recorded completion; refuses to overwrite any final file. Useful if completion was recorded but no final files were written. |
 | `Test-PtVerificationArchive -Workspace [-ManifestName]` | Replays the recorded journal and verifies required manifest coverage, relative paths, every file's size/SHA256 and input snapshots. Throws on invalidity; returns Valid, RunId, FileCount and Signoff. |
 
 `Admin` accepts `NO`, `COND`, `YES`; `Clarity` accepts `CLEAR`, `REWRITTEN`, `VAGUE-*`.
-Every child has an explicit boolean `Required`. Required children gate item PASS; even an
-optional NOT-OBSERVED child is visible and withholds overall signoff. No child disappears
-because another child failed.
+Every registered assertion requires an explicit outcome. New inventories need only
+the assertion's `Id` and `Description`; there is no optional-assertion choice.
+Old callers supplying `Required=$true` remain accepted, but `Required=$false` is rejected
+before creating the run. Do not use an optional flag to hide a prerequisite or missing work.
+
+| Situation | Assertion outcome |
+|---|---|
+| Executed and matches the expectation | `PASS`, supported by observed evidence. |
+| Executed and contradicts the expectation | `FAIL`, with the supported cause and evidence. |
+| A declared condition/prerequisite prevents execution or observation | `BLOCKED`, with the concrete condition and its evidence. |
+| No usable observation was collected or the work is unfinished | `NOT-OBSERVED` / explicit incomplete coverage; not a product failure. |
+
+All assertions remain visible when another assertion fails or a condition is unsatisfied.
+Record script/observer errors as execution errors, not invented product FAILs. Legacy
+`Required=false` metadata can still be read in historical records, but never excludes an
+assertion from the current item verdict, category or coverage calculation, including when
+continuing an older run. Existing archived reports and inventory bytes are not rewritten.
+Structured projections retain the historical field (defaulting to `true` when absent) for
+consumer compatibility only; new callers and human reports offer no optional/required choice.
 
 ## Automatically record every winapp call
 
@@ -172,14 +188,22 @@ once in the caller: the Named Event catalog no longer depends on caller `$script
 and each recorded step binds its attempt across nested script invocations. Re-loading
 helpers or manually setting the attempt inside every script is unnecessary. This is
 runspace-local state, not cross-process persistence; a new PowerShell process still needs
-normal initialization. The recorded script's relative-path dependencies must be passed
-explicitly because its `$PSScriptRoot` is the snapshot directory.
+normal initialization. File paths resolve against the caller's PowerShell location.
+`$PSScriptRoot`, `$PSCommandPath` and `$MyInvocation.MyCommand.Path` refer to the original
+script, so sibling scripts and fixture files resolve normally. The recorder does not change
+the caller's working directory.
 
 Script/implementation sources are stored under `sources\<SHA256>\executed.ps1` or
 `implementation.ps1` and referenced by every producing step. Reuse saves copies, not
 history: commands, arguments and output streams remain per-step. A shared source is
-checked before reuse/execution and again at final validation. Source reuse never
-converts another attempt's observation artifact into fresh evidence.
+checked before reuse and again at final validation. Immediately before file execution,
+the recorder opens the original source read-only, excludes writers/deletion for that call,
+and verifies that its bytes still match the snapshot. A mismatch stops before executing
+the script and records `ActionStarted=false`; the read lease is released in `finally`.
+The original absolute path is recorded as the step's `ScriptFile`. Dependencies are not
+automatically frozen: include the sibling scripts/helpers and fixtures actually used in
+the input snapshots. Source reuse never converts another attempt's observation artifact
+into fresh evidence.
 
 Run/attempt objects passed as callback arguments are recorded as explicit
 `VerificationRun`/`VerificationAttempt` identities, not recursive copies of their mutable
@@ -310,63 +334,78 @@ new run with new inputs; a faulty observer or mistaken judgment does not require
 unrelated items.
 
 For a demonstrated observation/judgment error, reopen only the affected completed item with
-`Reopen-PtVerificationItem`. Repeat its required coverage in a fresh Normal attempt, register
+`Reopen-PtVerificationItem`. Repeat the affected assertions in a fresh Normal attempt, register
 evidence explaining why the old observation was invalid, then use
 `Invalidate-PtVerificationAssertion -Sequence <old-judgment-sequence>` with an explicit cause
 and reason. All original data/judgments and the correction remain in the journal/details.
-Invalidation never grants PASS: the new Normal attempt must independently satisfy every
-required assertion and screenshot gate. Diagnostic evidence, another item's evidence and
+Invalidation never grants PASS or revives an older PASS for the corrected assertion:
+record its replacement Normal observation/judgment. Unrelated valid assertions keep their
+results; the item must still satisfy every assertion and its screenshot gate.
+Diagnostic evidence, another item's evidence and
 ReferenceOnly imports cannot justify invalidation. Do not misuse InvalidObservation to
 discard an inconvenient real failure; inspect the original observation against the correction
 evidence. Frozen archives remain immutable.
 
 Driver errors are different: stop the failed attempt with its reason, repair the driver,
-then start a new **Normal** attempt and repeat the item's complete required coverage.
-Only that latest Normal attempt supplies passing observations; assertions cannot be pieced
-together across stale attempts. Earlier closed driver failures and diagnostic probe errors
-remain in the report but do not permanently block a successful Normal rerun. Open attempts,
-interrupted steps and unresolved latest-Normal errors still withhold signoff.
+then start a new **Normal** attempt for the affected coverage. Results are selected per
+assertion, from the latest Normal attempt that observed or corrected that assertion.
+A partial attempt does not clear other assertions. A later BLOCKED/NOT-OBSERVED replaces
+that assertion's earlier PASS; a pending raw observation needs review and remains visible
+even after an unrelated continuation. Delayed review of an old attempt cannot replace
+newer evidence. Valid failures still remain until an evidence-backed correction.
 
-For operations sharing an obstacle across scripts/items, use the
+The result and incremental review retain each assertion's `AttemptId`, judgment `Sequence`
+and `ObservationSequence`; the human report links to that origin. Use distinct assertion
+IDs for distinct expected configurations, rather than mixing incompatible observations
+under one ID. Changed product bits or checklist expectations require new run inputs.
+Earlier closed driver failures and diagnostic probe errors remain in the report but do
+not permanently block a successful Normal rerun. Open attempts, interrupted steps and
+unresolved latest-Normal errors still withhold signoff.
+
+For operation/error history and paired cleanup across scripts/items, use the
 [operation boundary](operation-boundaries.md) rather than writing a retry/cleanup wrapper
-inside each run. A budget is not permission to invent another entry path or product verdict.
+inside each run. It neither retries nor invents another entry path or product verdict.
 
 ```powershell
 $case = Invoke-PtVerificationCase -Run $run -ItemId L1 -Name 'Observe the shared host' `
-    -OperationKey module-host-observation -Stage Observe -Command 'Run supplied observation helper' `
+    -Stage Observe -Command 'Run supplied observation helper' `
     -ArgumentList @($target) -Action {
         param($attempt,$trackedTarget)
         # Use the fixed driver and record concise facts/evidence here.
     } -CleanupArgumentList @($baseline) -Cleanup {
         param($capturedBaseline)
-        # Restore the specifically owned state even if driving was rejected.
+        # Restore the specifically owned state even if the action failed.
     }
 ```
 
-`OperationKey` identifies the shared obstacle, not a script filename or attempt UUID.
-The first invocation locks its policy; omitted limits inherit that policy and explicit
-changes are rejected. Defaults are three cumulative failed callbacks and 300 seconds
-of active failed/recovery work. Successful Normal work and time on unrelated keys do not
-consume recovery time; Diagnostic recovery does. Neither success nor reopening the run
-resets counters. Cleanup has separate arguments, runs on rejection/failure and does not
-consume the drive budget. An action returning successfully never proves restoration.
-Supplying stage/cleanup/limits without an operation key is rejected before a case starts.
+New callers omit `OperationKey`: each operation has its own invocation ID.
+The old key is accepted only as a historical label, never as an execution gate.
+The old `MaxFailures`/`MaxRecoverySeconds` parameters warn and are ignored, including
+when continuing an old unsealed run. Old policies/rejections remain visible without
+controlling new actions or rewriting archives. Cleanup has separate arguments and runs
+on action/recording failure; an action returning successfully never proves restoration.
 
 The fixed report includes an operation-status/event table in `details.md` and a short
-link in `report.md`. An interrupted operation or recorder failure with uncertain completion
-withholds signoff independently of product verdicts. A budget stop is an infrastructure
-fact; report the actual affected coverage rather than automatically marking every item.
+link in `report.md`. A pending or possibly executed invocation with missing completion
+evidence withholds signoff, but never locks other invocations by label. A known
+pre-execution error does not become an unknown action. A completed driver error does not
+prove other operations unavailable; record the actual affected coverage rather than
+automatically marking every item.
 
 ## Cleanup, failure handling and final export
 
 Record baseline/restoration comparisons from the paired-state helpers as artifacts in a
 Normal Cleanup context. A cleanup function returning successfully is not restoration
 evidence. The receipt must explicitly describe the mutations and matching restore results;
-for no mutations, attach a baseline comparison proving that claim. A failed receipt or
-missing receipt withholds signoff. The recorder does not restore state itself or infer
-which mutations an uninstrumented helper made.
-After a cleanup driver failure, a new Normal Cleanup attempt must supply its own successful
-restoration evidence. Earlier PASS receipts remain history, not proof of the retry's final state.
+for no mutations, attach a baseline comparison proving that claim. Every final Normal
+Cleanup attempt must cover the complete mutation scope, not only the last repaired
+resource. Missing receipts, any unsuccessful current receipt, an unfinished attempt or
+current cleanup errors still withhold signoff. The recorder does not restore state itself
+or infer which mutations an uninstrumented helper made.
+After a cleanup failure, a new Normal Cleanup attempt must supply its own fresh successful
+restoration evidence for that complete scope. Earlier PASS/FAIL/BLOCKED receipts remain
+history; they neither prove the final state nor permanently veto a verified recovery.
+Importing an earlier receipt as ReferenceOnly cannot establish a fresh restoration PASS.
 
 Preserve the root exception across cleanup **and recording** errors:
 
@@ -469,9 +508,10 @@ create-new only; a report without its valid manifest is **not** a completed deli
 Hashes detect accidental corruption, not malicious rewriting of both files and hashes;
 this is not a signed audit ledger. Do not concurrently write a workspace from multiple
 handles/processes, edit sealed evidence, resume a completed item, or use the ambient
-context across runspaces. `-ScriptFile` executes under the snapshot's `$PSScriptRoot`;
-pass dependency/fixture directories explicitly rather than relying on original relative
-paths. Unknown/unrecorded external commands cannot be recovered automatically.
+context across runspaces. `-ScriptFile` preserves the original script path and locks only
+that source file against changes during execution; it does not isolate dependency files
+or prevent the script itself from changing application state. Unknown/unrecorded external
+commands cannot be recovered automatically.
 The live single-writer handle caches already-parsed events and detects journal size/time
 changes. Export and archive validation always bypass that cache and replay every event/hash.
 
@@ -492,6 +532,6 @@ revisions, corrupt evidence/journals, Markdown/Unicode, input edits and moved ar
 Expected injected errors/warnings are recorded; the script fails immediately on an
 unexpected result and writes `acceptance-results.json`. It never runs historical scripts.
 The invocation-contract suite additionally exercises grouped formatting, the documented
-read-only preflight, inherited helpers in a copied script, a uniquely owned local kernel
+read-only preflight, inherited helpers in an original-path recorded script, a uniquely owned local kernel
 event, real CLI help with an empty argument, and module-style evidence names. It does not
 signal PowerToys events or drive product UI.

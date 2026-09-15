@@ -35,7 +35,7 @@ $run=New-PtVerificationRun -Workspace $Workspace -Module 'H06 installed lifecycl
     -Bits "Installed PowerToys $((Get-Process -Id $runner.processId).FileVersion); UI-only module transitions, no Runner restart or activation" `
     -Scenario InfrastructureAcceptance -Inputs $inputs -Items @(foreach($profile in $profiles){
         @{Id=$profile.Id;Description="Explicit native lifecycle for $($profile.ModuleKey)";Admin='NO';Clarity='CLEAR';UserVisible=$true
-            Assertions=@(@{Id='lifecycle';Description='UI/configuration, native readiness, exit and original enable state agree';Required=$true})}
+            Assertions=@(@{Id='lifecycle';Description='UI/configuration, native readiness, exit and original enable state agree'})}
     })
 $desktop|ConvertTo-Json -Depth 12|Set-Content "$Workspace\desktop-before.json"
 function Require([bool]$Value,[string]$Message){if(-not $Value){throw $Message}}
@@ -72,7 +72,7 @@ try{
         $snapshot=Get-PtModuleLifecycleSnapshot $profile $settings $Workspace
         $shared=@{Evidence=[Collections.Generic.List[object]]::new()}
         $normal=Invoke-PtVerificationCase -Run $run -ItemId $profile.Id -Name 'Normal explicit module enable cycle' `
-            -OperationKey "lifecycle-$($profile.Id)" -Stage Drive -Command 'Set-PtModuleEnabled false/true using the declared profile; restore original enable state in cleanup' `
+            -Stage Drive -Command 'Set-PtModuleEnabled false/true using the declared profile; restore original enable state in cleanup' `
             -ArgumentList @($snapshot,$shared) -Action {
                 param($attempt,$captured,$facts)
                 $initial=Get-PtModuleLifecycleState $captured.Profile
@@ -112,7 +112,7 @@ try{
             'Observed startup/exit according to the profile, refreshed runtime identities, and restored original enable state without Runner restart.' -Evidence $shared.Evidence.ToArray()
         Complete-PtVerificationItem $run $profile.Id -Reason 'Normal lifecycle contract observed independently of Diagnostic recovery'
         $diagnostic=Invoke-PtVerificationCase -Run $run -Context Diagnostic -Kind Diagnostic -Name "Explicit $($profile.Id) recovery" `
-            -OperationKey "diagnostic-lifecycle-$($profile.Id)" -Stage Drive -Command 'Restart-PtModuleLifecycle in an explicitly Diagnostic context; restore original state afterward' `
+            -Stage Drive -Command 'Restart-PtModuleLifecycle in an explicitly Diagnostic context; restore original state afterward' `
             -ArgumentList @($snapshot) -Action {
                 param($attempt,$captured)
                 if(-not (Get-PtModuleLifecycleState $captured.Profile).ConfiguredEnabled){Set-PtModuleEnabled $captured $true|Out-Null}

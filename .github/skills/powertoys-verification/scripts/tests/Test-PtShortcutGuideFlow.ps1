@@ -188,7 +188,7 @@ Check 'Recorded holds preserve nested callback handles without recursively embed
             @{Name='checklist.ps1';Role='Checklist';Path=$PSCommandPath}
             @{Name='flow.ps1';Role='Helper';Path="$PSScriptRoot\..\pt-shortcut-guide-flow.ps1"}
         ) -Items @(@{Id='Hold';Description='Bounded recorded holds';Admin='NO';Clarity='CLEAR';UserVisible=$false
-            Assertions=@(@{Id='output';Description='Actual callback output';Required=$true})})
+            Assertions=@(@{Id='output';Description='Actual callback output'})})
     $sizes=[Collections.Generic.List[long]]::new()
     for($iteration=0;$iteration -lt 8;$iteration++){
         $case=Invoke-PtVerificationCase -Run $recordedRun -ItemId Hold -Name "hold-$iteration" -Command 'Exercise recorded hold callback arguments' `

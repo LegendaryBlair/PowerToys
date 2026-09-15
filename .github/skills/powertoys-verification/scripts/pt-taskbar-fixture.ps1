@@ -1,9 +1,8 @@
 #requires -Version 7.2
-# Owned, unpinned taskbar apps. Importing this library never starts a fixture or sends input.
+# System Calculator taskbar fixture. Importing this library never launches apps or sends input.
 foreach ($dependency in 'pt-desktop','pt-state-snapshot','pt-foreground-guard','pt-sendinput-chord','pt-uia','pt-shortcut-guide') {
     . "$PSScriptRoot\$dependency.ps1"
 }
-$script:PtTaskbarFixtureHost = Join-Path $PSScriptRoot 'fixtures\Show-PtTaskbarFixture.ps1'
 
 function Initialize-PtTaskbarNative {
     if ('PtTaskbarNative' -as [type]) { return }
@@ -136,7 +135,7 @@ function Read-PtTaskbarFixture {
     if ($Fixture -and (ConvertTo-Json $Fixture -Depth 32 -Compress) -cne (ConvertTo-Json $stored -Depth 32 -Compress)) {
         throw 'Fixture receipt is stale or changed; reload the persisted receipt before acting.'
     }
-    if ($stored.Kind -cne 'Taskbar' -or $stored.Version -ne 1 -or $stored.Id -cnotmatch '^[a-f0-9]{32}$' -or
+    if ($stored.Kind -cne 'Taskbar' -or $stored.Version -notin 1,2 -or $stored.Id -cnotmatch '^[a-f0-9]{32}$' -or
         $stored.ReceiptPath -cne $ReceiptPath -or
         $ReceiptPath -cne (Join-Path $stored.Workspace "taskbar-$($stored.Id).json") -or
         $stored.MarkerPath -cne (Join-Path $stored.Workspace "taskbar-$($stored.Id).marker.json")) {
@@ -147,7 +146,7 @@ function Read-PtTaskbarFixture {
         throw 'Taskbar fixture marker hash mismatch.'
     }
     $marker = Get-Content -LiteralPath $stored.MarkerPath -Raw -ErrorAction Stop | ConvertFrom-Json
-    if ($marker.Id -cne $stored.Id -or $marker.Kind -cne 'Taskbar' -or $marker.Version -ne 1 -or
+    if ($marker.Id -cne $stored.Id -or $marker.Kind -cne 'Taskbar' -or $marker.Version -ne $stored.Version -or
         $marker.Workspace -cne $stored.Workspace -or $marker.ReceiptPath -cne $ReceiptPath -or
         $marker.Count -lt 1 -or $marker.Count -gt 9 -or @($stored.Apps).Count -ne $marker.Count -or
         $marker.Desktop.coordinateSpace -cne 'Physical' -or -not $marker.Taskbar.apps.Count -or
@@ -157,6 +156,26 @@ function Read-PtTaskbarFixture {
     }
     for ($i = 1; $i -le $marker.Count; $i++) {
         $app = $stored.Apps[$i - 1]
+        if ($stored.Version -eq 2) {
+            if ($marker.Count -ne 1 -or $app.AppIndex -ne 1 -or
+                $app.AppId -cne 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App' -or
+                $marker.Calculator.AppId -cne $app.AppId -or
+                $app.StartRequested -isnot [bool] -or $app.Closed -isnot [bool] -or
+                $app.CloseRequested -isnot [bool] -or $marker.OriginalSlot -lt 0 -or
+                ($app.StartRequested -and $app.LaunchAfterTicks -le 0)) {
+                throw 'Invalid Calculator ownership record.'
+            }
+            $baselineSlot = @($marker.Taskbar.apps | Where-Object automationId -CEQ "Appid: $($app.AppId)")
+            $expectedSlot = if ($baselineSlot.Count) {
+                [array]::IndexOf(@($marker.Taskbar.apps.automationId), "Appid: $($app.AppId)") + 1
+            } else { 0 }
+            if ($marker.OriginalSlot -ne $expectedSlot) { throw 'Calculator original slot differs from the immutable taskbar baseline.' }
+            if ($app.Identity -and (-not $app.StartRequested -or -not $app.ContentProcess -or $app.Identity.hwnd -le 0 -or
+                $app.ContentProcess.ProcessId -le 0 -or $app.ContentProcess.ProcessStartTicks -le 0 -or
+                $app.ContentProcess.Path -ine $marker.Calculator.ExecutablePath -or
+                $app.Identity.hwnd -in $marker.ExistingWindows)) { throw 'Invalid Calculator window identity.' }
+            continue
+        }
         if ($app.AppIndex -ne $i -or $app.AppId -cne "PowerToys.Verification.H11.$($stored.Id).$i" -or
             $app.StatePath -cne (Join-Path $stored.Workspace "taskbar-$($stored.Id).$i.state.json") -or
             $app.StartRequested -isnot [bool] -or $app.Closed -isnot [bool] -or
@@ -265,9 +284,14 @@ function Assert-PtTaskbarForeignOrder {
     }
     $owned = @($Fixture.Apps | ForEach-Object { "Appid: $($_.AppId)" })
     $foreign = @($Slots.Apps | Where-Object { $_.AutomationId -cnotin $owned } | ForEach-Object AutomationId)
-    $original = @($Marker.Taskbar.apps | ForEach-Object automationId)
+    $original = @($Marker.Taskbar.apps | Where-Object { $_.automationId -cnotin $owned } | ForEach-Object automationId)
     if ((ConvertTo-Json -InputObject $foreign -Compress) -cne (ConvertTo-Json -InputObject $original -Compress)) {
-        throw 'Foreign taskbar app order/set conflict; concurrent changes are preserved.'
+        $facts = [pscustomobject]@{ ExpectedOrder=$original; ActualOrder=$foreign; ObservedAtUtc=$Slots.ObservedAtUtc
+            Added=@($foreign | Where-Object { $_ -cnotin $original }); Removed=@($original | Where-Object { $_ -cnotin $foreign }) }
+        $error = [InvalidOperationException]::new('Foreign taskbar app order/set conflict; concurrent changes are preserved. ' +
+            "Expected=$($original -join ','); Actual=$($foreign -join ',').")
+        $error.Data['PtTaskbarForeignOrder'] = $facts
+        throw $error
     }
 }
 
@@ -317,6 +341,34 @@ function Get-PtTaskbarProcess {
 
 function Resolve-PtTaskbarOwnedWindow {
     param($Fixture,$App,[switch]$AllowAbsent)
+    if ($Fixture.Version -eq 2) {
+        if (-not $App.StartRequested) {
+            if ($AllowAbsent) { return }
+            throw 'Calculator was not launched.'
+        }
+        $marker = (Read-PtTaskbarFixture -ReceiptPath $Fixture.ReceiptPath).Marker
+        $candidates = @(Get-PtTaskbarCalculatorWindows -Calculator $marker.Calculator)
+        if (-not $candidates.Count -and $AllowAbsent) {
+            if (-not $App.Identity) { throw 'Calculator activation has no resolved window identity; preserve the receipt for cleanup after activation settles.' }
+            if (@(Get-PtNativeWindow | Where-Object Hwnd -eq $App.Identity.hwnd).Count) {
+                throw 'Calculator window still exists but its content identity is unavailable; preserving it.'
+            }
+            return
+        }
+        if ($candidates.Count -ne 1) { throw 'Expected exactly one Calculator window; no shared or ambiguous window is owned.' }
+        $candidate = $candidates[0]
+        if ($candidate.Identity.hwnd -in $marker.ExistingWindows -or
+            ($App.Identity -and (ConvertTo-Json $candidate.Identity -Compress) -cne (ConvertTo-Json $App.Identity -Compress)) -or
+            ($App.ContentProcess -and (ConvertTo-Json $candidate.ContentProcess -Compress) -cne (ConvertTo-Json $App.ContentProcess -Compress))) {
+            throw 'Calculator identity changed or belongs to a pre-existing window; refusing to close or route.'
+        }
+        if (-not $App.ContentProcess) {
+            $App.ContentProcess = [pscustomobject]@{ ProcessId=$candidate.ContentProcess.ProcessId
+                ProcessStartTicks=$candidate.ContentProcess.ProcessStartTicks; Path=$candidate.ContentProcess.Path }
+        }
+        Assert-PtWindowIdentity $candidate.Identity
+        return $candidate.Identity
+    }
     if (-not $App.Launcher) {
         if ($App.StartRequested) { throw 'Launch intent has no persisted process identity; ownership is unresolved.' }
         if ($AllowAbsent) { return }
@@ -527,24 +579,49 @@ function Invoke-PtTaskbarNativeDrag {
     }
 }
 
-function Start-PtTaskbarChild {
-    param($Fixture,$App)
-    $record = Read-PtTaskbarFixture -Fixture $Fixture
-    if ((Get-FileHash -LiteralPath $script:PtTaskbarFixtureHost -ErrorAction Stop).Hash -cne $record.Marker.HostSha256) {
-        throw 'Fixture host source changed after baseline capture.'
+function Get-PtTaskbarCalculator {
+    $packages = @(Get-AppxPackage -Name Microsoft.WindowsCalculator -ErrorAction Stop)
+    if ($packages.Count -ne 1) { throw 'Exactly one registered system Calculator package is required; no dummy app will be substituted.' }
+    $package = $packages[0]
+    $manifest = Get-AppxPackageManifest -Package $package.PackageFullName -ErrorAction Stop
+    $apps = @($manifest.Package.Applications.Application | Where-Object Id -eq 'App')
+    if ($package.PackageFamilyName -cne 'Microsoft.WindowsCalculator_8wekyb3d8bbwe' -or $apps.Count -ne 1 -or -not $apps[0].Executable) {
+        throw 'Unexpected Calculator package identity or executable.'
     }
-    $info = [Diagnostics.ProcessStartInfo]::new((Join-Path $PSHOME 'pwsh.exe'))
-    $info.UseShellExecute = $false
-    $info.CreateNoWindow = $true
-    foreach ($argument in @('-NoProfile','-STA','-File',$script:PtTaskbarFixtureHost,
-        '-StatePath',$App.StatePath,'-AppId',$App.AppId,'-Title',"H11 fixture $($App.AppIndex)",
-        '-Offset',"$($App.AppIndex * 35)",'-ReceiptPath',$Fixture.ReceiptPath,'-FixtureId',$Fixture.Id)) {
-        $info.ArgumentList.Add($argument)
+    $path = Join-Path $package.InstallLocation $apps[0].Executable
+    if (-not [IO.File]::Exists($path)) { throw "Calculator executable is missing: $path" }
+    [pscustomobject]@{ AppId="$($package.PackageFamilyName)!App"; ExecutablePath=$path; PackageFullName=$package.PackageFullName }
+}
+
+function Get-PtTaskbarCalculatorWindows {
+    param([Parameter(Mandatory)]$Calculator)
+    Initialize-PtUiAutomation
+    $processErrors = @()
+    $processes = @(Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($Calculator.ExecutablePath)) -ErrorAction SilentlyContinue -ErrorVariable processErrors)
+    foreach ($errorRecord in $processErrors) {
+        if ($errorRecord.FullyQualifiedErrorId -notlike 'NoProcessFoundForGivenName*') { throw $errorRecord }
     }
-    $process = [Diagnostics.Process]::Start($info)
-    try {
-        [pscustomobject]@{ ProcessId = $process.Id; ProcessStartTicks = $process.StartTime.ToUniversalTime().Ticks }
-    } finally { $process.Dispose() }
+    foreach ($process in $processes) {
+        try {
+            if ($process.Path -ine $Calculator.ExecutablePath) { throw 'Calculator process path differs from the registered package.' }
+            $content = [pscustomobject]@{ ProcessId=$process.Id; ProcessStartTicks=$process.StartTime.ToUniversalTime().Ticks; Path=$process.Path }
+            $windows = @(Get-PtNativeWindow -ProcessId $process.Id -Visible)
+            # Older Calculator versions put their content inside a shared ApplicationFrameHost window.
+            foreach ($frame in @(Get-PtNativeWindow -ClassName ApplicationFrameWindow -Visible)) {
+                $element = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$frame.Hwnd)
+                $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+                if ($element.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)) { $windows += $frame }
+            }
+            foreach ($window in @($windows | Sort-Object Hwnd -Unique)) {
+                [pscustomobject]@{ Identity=(Get-PtWindowIdentity $window.Hwnd); ContentProcess=$content }
+            }
+        } finally { $process.Dispose() }
+    }
+}
+
+function Start-PtTaskbarCalculator {
+    param([Parameter(Mandatory)]$Calculator)
+    Start-Process -FilePath "shell:AppsFolder\$($Calculator.AppId)" -ErrorAction Stop
 }
 
 function Get-PtTaskbarPointWindow {
@@ -559,7 +636,9 @@ function Restore-PtTaskbarDragPointer {
         Read-PtTaskbarFixture -Fixture $Fixture | Out-Null
         if ($Fixture.Pending.Method -ceq 'Native') {
             $pointer = $Fixture.Pending.Pointer
-            if ($Fixture.Phase -cne 'Ready' -or $Fixture.Pending.Kind -cne 'Drag' -or
+            $restoringCalculator = $Fixture.Version -eq 2 -and $Fixture.Phase -ceq 'Cleaning' -and
+                $Fixture.Pending.Slot -eq $Marker.OriginalSlot -and $Fixture.Pending.AppId -ceq $Marker.Calculator.AppId
+            if (($Fixture.Phase -cne 'Ready' -and -not $restoringCalculator) -or $Fixture.Pending.Kind -cne 'Drag' -or
                 $Fixture.Pending.PointerCleanup.Accepted -or $pointer.CoordinateSpace -cne 'Physical' -or
                 -not $pointer.Completed -or -not $pointer.Settled -or $pointer.Step -ne 60 -or
                 -not $pointer.LeftDownAccepted -or -not $pointer.LeftUpAccepted -or
@@ -635,57 +714,69 @@ function Restore-PtTaskbarDragPointer {
 
 function New-PtTaskbarFixture {
     <# .SYNOPSIS
-    Persist baselines, then launch distinct unpinned owned WinForms apps (three by default).
+    Launch one system Calculator with a prelaunch ownership baseline; never create a dummy app.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Workspace,[ValidateRange(1,9)][int]$Count = 3)
+    param([Parameter(Mandatory)][string]$Workspace,[ValidateRange(1,1)][int]$Count = 1)
     $directory = (Get-Item -LiteralPath $Workspace -ErrorAction Stop).FullName
     Assert-PtTaskbarLocalPath $directory
     if (-not [IO.Directory]::Exists($directory)) { throw 'Use an existing local workspace directory.' }
+    $calculator = Get-PtTaskbarCalculator
+    if (@(Get-PtTaskbarCalculatorWindows -Calculator $calculator).Count) {
+        throw 'Calculator is already open; preserve the user window and use this fixture only after it is no longer in use.'
+    }
     Assert-PtTaskbarInputIdle
     $desktop = Get-PtDesktopSnapshot
     $foregroundWindow = Get-PtWindowSnapshot -Hwnd $desktop.foreground.hwnd
     $baseline = Get-PtShortcutGuideTaskbarSnapshot
     $initialSlots = Get-PtTaskbarSlots
     $id = [Guid]::NewGuid().ToString('N')
-    $fixture = [pscustomobject]@{ Kind = 'Taskbar'; Version = 1; Id = $id; Workspace = $directory
+    $original = @($initialSlots.Apps | Where-Object AppId -CEQ $calculator.AppId)
+    $fixture = [pscustomobject]@{ Kind = 'Taskbar'; Version = 2; Id = $id; Workspace = $directory
         ReceiptPath = (Join-Path $directory "taskbar-$id.json"); MarkerPath = (Join-Path $directory "taskbar-$id.marker.json")
         MarkerHash = ''; Phase = 'Creating'; Pending = $null; LastOperation = $null; LastDesktop = $desktop
         DesktopRestored = $false; CleanupErrors = @()
-        Apps = @(for ($i = 1; $i -le $Count; $i++) {
-            [pscustomobject]@{ AppIndex = $i; AppId = "PowerToys.Verification.H11.$id.$i"
-                StatePath = (Join-Path $directory "taskbar-$id.$i.state.json")
-                StartRequested = $false; Launcher = $null; Identity = $null; CloseRequested = $false; Closed = $false }
-        }) }
-    $marker = [pscustomobject]@{ Kind = 'Taskbar'; Version = 1; Id = $id; Count = $Count; Workspace = $directory
+        Apps = @([pscustomobject]@{ AppIndex=1; AppId=$calculator.AppId; StartRequested=$false
+            LaunchAfterTicks=0L; ContentProcess=$null; Identity=$null; CloseRequested=$false; Closed=$false }) }
+    $marker = [pscustomobject]@{ Kind = 'Taskbar'; Version = 2; Id = $id; Count = 1; Workspace = $directory
         ReceiptPath = $fixture.ReceiptPath; Desktop = $desktop; ForegroundWindow = $foregroundWindow; Taskbar = $baseline
-        HostSha256 = (Get-FileHash -LiteralPath $script:PtTaskbarFixtureHost -ErrorAction Stop).Hash }
+        Calculator=$calculator; OriginalSlot=$(if ($original.Count) { $original[0].Slot } else { 0 })
+        ExistingWindows=@(Get-PtNativeWindow | ForEach-Object Hwnd) }
     Assert-PtTaskbarForeignOrder $fixture $marker $initialSlots
     Write-PtTaskbarJson -Path $fixture.MarkerPath -Value $marker -Create
     $fixture.MarkerHash = (Get-FileHash -LiteralPath $fixture.MarkerPath).Hash
     Save-PtTaskbarFixture $fixture -Create
     try {
-        foreach ($app in $fixture.Apps) {
-            Read-PtTaskbarFixture -Fixture $fixture | Out-Null
-            Assert-PtTaskbarInputIdle
-            Get-PtTaskbarGuardedDesktop $fixture $marker | Out-Null
-            Assert-PtTaskbarForeignOrder $fixture $marker (Get-PtTaskbarSlots)
-            $app.StartRequested = $true
-            Save-PtTaskbarFixture $fixture
-            $app.Launcher = Start-PtTaskbarChild $fixture $app
-            Save-PtTaskbarFixture $fixture
-            Wait-PtCondition -Description "fixture state $($app.AppId)" -TimeoutSeconds 15 -Probe {
-                Test-Path -LiteralPath $app.StatePath
-            } | Out-Null
-            $app.Identity = Resolve-PtTaskbarOwnedWindow $fixture $app
-            $fixture.LastDesktop = Get-PtTaskbarGuardedDesktop $fixture $marker
-            Save-PtTaskbarFixture $fixture
+        if (@(Get-PtTaskbarCalculatorWindows -Calculator $calculator).Count) {
+            throw 'Calculator appeared before fixture activation; preserving the concurrent window.'
         }
-        $slots = Wait-PtCondition -Description 'distinct owned taskbar app buttons' -TimeoutSeconds 9 -Probe {
+        $app = $fixture.Apps[0]
+        $app.StartRequested = $true
+        $app.LaunchAfterTicks = [DateTime]::UtcNow.Ticks
+        Save-PtTaskbarFixture $fixture
+        Start-PtTaskbarCalculator -Calculator $calculator
+        Wait-PtCondition -Description 'new Calculator window' -TimeoutSeconds 15 -Probe {
+            @(Get-PtTaskbarCalculatorWindows -Calculator $calculator).Count -gt 0
+        } | Out-Null
+        $app.Identity = Resolve-PtTaskbarOwnedWindow $fixture $app
+        Save-PtTaskbarFixture $fixture
+        $fixture.LastDesktop = Get-PtTaskbarGuardedDesktop $fixture $marker
+        Save-PtTaskbarFixture $fixture
+        $admission = @{ Stable=0 }
+        $slots = Wait-PtCondition -Description 'Calculator taskbar button and stable foreign order' -TimeoutSeconds 9 -Probe {
             $current = Get-PtTaskbarSlots
-            Assert-PtTaskbarForeignOrder $fixture $marker $current
-            $present = @($current.Apps | Where-Object AppId -CIn @($fixture.Apps.AppId))
-            if ($present.Count -eq $Count) { $current }
+            try { Assert-PtTaskbarForeignOrder $fixture $marker $current }
+            catch {
+                if (-not $_.Exception.Data.Contains('PtTaskbarForeignOrder')) { throw }
+                $fixture | Add-Member -Force NoteProperty AdmissionConflict $_.Exception.Data['PtTaskbarForeignOrder']
+                Save-PtTaskbarFixture $fixture
+                $admission.Stable = 0
+                return
+            }
+            if (@($current.Apps | Where-Object AppId -CEQ $app.AppId).Count -eq 1) {
+                $admission.Stable++
+                if ($admission.Stable -ge 2) { $current }
+            } else { $admission.Stable = 0 }
         }
         Assert-PtTaskbarTargets $fixture $slots
         $fixture.Phase = 'Ready'
@@ -707,9 +798,13 @@ function Move-PtTaskbarFixtureToSlot {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Fixture,[ValidateRange(1,9)][int]$AppIndex = 1,
-        [ValidateRange(1,9)][int]$Slot = 1,[ValidateSet('WinApp','Native')][string]$DragMethod = 'Native')
+        [ValidateRange(1,2147483647)][int]$Slot = 1,[ValidateSet('WinApp','Native')][string]$DragMethod = 'Native',
+        [switch]$RestoreOriginalSlot)
     $record = Read-PtTaskbarFixture -Fixture $Fixture
-    if ($Fixture.Phase -cne 'Ready' -or $Fixture.Pending) { throw 'Fixture is not ready; cleanup is required.' }
+    if ($RestoreOriginalSlot) {
+        if ($Fixture.Version -ne 2 -or $Fixture.Phase -cne 'Cleaning' -or $AppIndex -ne 1 -or
+            $Slot -ne $record.Marker.OriginalSlot) { throw 'Cleanup may only restore Calculator to its recorded original slot.' }
+    } elseif ($Fixture.Phase -cne 'Ready' -or $Fixture.Pending) { throw 'Fixture is not ready; cleanup is required.' }
     $apps = @($Fixture.Apps | Where-Object AppIndex -eq $AppIndex)
     if ($apps.Count -ne 1) { throw 'Requested owned app index is absent.' }
     Assert-PtTaskbarInputIdle
@@ -924,8 +1019,27 @@ function Remove-PtTaskbarFixture {
     if ($Fixture.Phase -ne 'Closed') {
         $Fixture.Phase = 'Cleaning'
         Save-PtTaskbarFixture $Fixture
+        $restoreOrderFailed = $false
+        if ($Fixture.Version -eq 2 -and $marker.OriginalSlot -gt 0 -and -not $Fixture.Apps[0].Closed) {
+            try {
+                if (-not $desktopSafe) { throw 'Cannot safely restore the pinned Calculator slot after a desktop conflict.' }
+                $identity = Resolve-PtTaskbarOwnedWindow $Fixture $Fixture.Apps[0] -AllowAbsent
+                if ($identity) {
+                    Move-PtTaskbarFixtureToSlot $Fixture -Slot $marker.OriginalSlot -RestoreOriginalSlot | Out-Null
+                } else {
+                    $current = Get-PtTaskbarSlots
+                    if (@($current.Apps | Where-Object { $_.AppId -ceq $Fixture.Apps[0].AppId -and $_.Slot -eq $marker.OriginalSlot }).Count -ne 1) {
+                        throw 'Calculator closed before its original pinned slot was restored.'
+                    }
+                }
+            } catch {
+                $restoreOrderFailed = $true
+                $errors.Add("Calculator order restoration: $($_.Exception.Message)")
+            }
+        }
         foreach ($app in $Fixture.Apps) {
             try {
+                if ($restoreOrderFailed) { throw 'Calculator is retained so its original pinned slot can be restored safely.' }
                 # Re-resolve even a previously closed entry; never credit a reused PID or forged Closed flag.
                 $identity = Resolve-PtTaskbarOwnedWindow $Fixture $app -AllowAbsent
                 if ($identity) {
@@ -935,7 +1049,7 @@ function Remove-PtTaskbarFixture {
                     Save-PtTaskbarFixture $Fixture
                     Close-PtTrackedWindow $identity
                 }
-                if ($app.Launcher) {
+                if ($Fixture.Version -eq 1 -and $app.Launcher) {
                     Wait-PtCondition -Description "owned fixture PID $($app.Launcher.ProcessId) exit" -TimeoutSeconds 5 -Probe {
                         $process = Get-PtTaskbarProcess $app.Launcher.ProcessId
                         if ($process -and $process.ProcessStartTicks -ne $app.Launcher.ProcessStartTicks) {
@@ -965,7 +1079,8 @@ function Remove-PtTaskbarFixture {
     try {
         $slots = Get-PtTaskbarSlots
         Assert-PtTaskbarForeignOrder $Fixture $marker $slots
-        if (-not @($Fixture.Apps | Where-Object { -not $_.Closed }).Count -and
+        if (($Fixture.Version -eq 1 -or $marker.OriginalSlot -eq 0) -and
+            -not @($Fixture.Apps | Where-Object { -not $_.Closed }).Count -and
             @($slots.Apps | Where-Object AppId -CIn @($Fixture.Apps.AppId)).Count) {
             Wait-PtCondition -Description 'closed fixture taskbar buttons to disappear' -TimeoutSeconds 3 -Probe {
                 $current = Get-PtTaskbarSlots

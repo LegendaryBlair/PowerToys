@@ -31,24 +31,37 @@ if ($Mode -ne 'Suite') {
     $before = Get-PtVerificationOperationStatus -Run $run -OperationKey $key
     $a = Attempt $run
     if ($Mode -eq 'FreshProcess') {
-        Require ($before.FailureCount -eq 2 -and $before.MaxFailures -eq 3) 'Fresh process lost failures/policy'
+        Require ($before.FailureCount -eq 2 -and -not $before.BudgetEnforced) 'Fresh process lost diagnostic history or enabled a limit'
         Capture { Invoke-PtVerificationOperation $a $key Drive 'third script' { throw 'third obstacle error' } } 'third obstacle error' | Out-Null
     } else {
-        Require ($before.Blocked -and $before.PendingOperations.Count -eq 1) 'Reopen lost pending operation'
+        Require (-not $before.Blocked -and $before.PendingOperations.Count -eq 1) 'Reopen lost pending history or recreated a label lock'
     }
-    $counter = @{ Drives=0; Cleanups=0 }
-    $errorRecord = Capture {
-        Invoke-PtVerificationOperation $a $key Drive 'must not execute' `
+    $counter = @{ Drives=0; Cleanups=0; ResourceReady=$false }
+    $errorRecord = $null
+    if ($Mode -eq 'FreshProcess') {
+        Invoke-PtVerificationOperation $a $key Drive 'later operation still executes' `
             -Action { param($c) $c.Drives++ } -ArgumentList @($counter) `
-            -Cleanup { param($c) $c.Cleanups++ } -CleanupArgumentList @($counter)
-    } 'BLK-INFRASTRUCTURE'
-    Require ($counter.Drives -eq 0 -and $counter.Cleanups -eq 1) 'Reopened rejection skipped cleanup or drove'
+            -Cleanup { param($c) $c.Cleanups++ } -CleanupArgumentList @($counter) | Out-Null
+        Require ($counter.Drives -eq 1 -and $counter.Cleanups -eq 1) 'Completed failures still stopped a later operation'
+    } else {
+        $errorRecord = Capture {
+            Invoke-PtVerificationOperation $a $key Drive 'check actual resource readiness' `
+                -Action { param($c) if(-not $c.ResourceReady){throw 'Owned resource is not restored'};$c.Drives++ } -ArgumentList @($counter) `
+                -Cleanup { param($c) $c.Cleanups++;$c.ResourceReady=$true } -CleanupArgumentList @($counter)
+        } 'Owned resource is not restored'
+        Require ($counter.Drives -eq 0 -and $counter.Cleanups -eq 1) 'Resource guard or cleanup was bypassed'
+        Invoke-PtVerificationOperation $a $key Drive 'new operation after actual resource restoration' `
+            -Action {param($c) if(-not $c.ResourceReady){throw 'Owned resource is not restored'};$c.Drives++} -ArgumentList @($counter) `
+            -Cleanup {param($c) $c.Cleanups++} -CleanupArgumentList @($counter)|Out-Null
+        Require ($counter.Drives -eq 1 -and $counter.Cleanups -eq 2) 'Pending history permanently prevented a new safe operation'
+    }
     $independent = Invoke-PtVerificationOperation $a 'independent-host' Observe 'independent probe' { 'independent-output' }
     Require ($independent -ceq 'independent-output') 'Independent key was stopped'
     Stop-PtVerificationAttempt $a -Reason 'Offline reopened process finished'
     [pscustomobject]@{
         Before=$before; After=(Get-PtVerificationOperationStatus $run $key)
-        ErrorId=$errorRecord.FullyQualifiedErrorId; Cleanups=$counter.Cleanups; Independent=$independent
+        ErrorId=$(if($errorRecord){$errorRecord.FullyQualifiedErrorId}else{$null})
+        Drives=$counter.Drives; Cleanups=$counter.Cleanups; Independent=$independent
     } | ConvertTo-Json -Depth 12 -Compress
     return
 }
@@ -70,7 +83,7 @@ $sourceHashes | Select-Object Path,Hash | ConvertTo-Json | Set-Content "$Workspa
 function NewRun([string]$Name) {
     $items = @(foreach ($id in 'L1','L2') {
         @{ Id=$id; Description="Synthetic $id"; Admin='NO'; Clarity='CLEAR'; UserVisible=$false
-            Assertions=@(@{ Id='value'; Description='Explicit observation required'; Required=$true }) }
+            Assertions=@(@{ Id='value'; Description='Explicit observation required' }) }
     })
     New-PtVerificationRun -Workspace "$Workspace\$Name" -Module 'H10 offline acceptance' `
         -Bits 'Synthetic only; no PowerToys signoff' -Scenario InfrastructureAcceptance -Items $items -Inputs $inputs
@@ -120,9 +133,10 @@ Check 'Original objects, arguments, exact command and callback sources are recor
     Require (@($state.Events | Where-Object Type -in 'AssertionObserved','RestorationObserved').Count -eq 0) 'Exit zero invented a judgment'
     Require ($state.Items[0].Verdict -eq 'BLOCKED' -and $state.Signoff -eq 'WITHHELD') 'Exit zero became a product PASS'
     $status = Get-PtVerificationOperationStatus $run host
-    Require ($status.MaxFailures -eq 3 -and $status.MaxRecoverySeconds -eq 300 -and $status.ActiveRecoveryTicks -eq 0) 'Default policy or successful Normal time changed'
+    Require (-not $status.BudgetEnforced -and $null -eq $status.MaxFailures -and $null -eq $status.MaxRecoverySeconds -and
+        $status.ActiveRecoveryTicks -eq 0) 'New operations still configure cumulative stops or charge successful Normal time'
 }
-Check 'ScriptFile passes case-style arguments through immutable snapshot execution and uses recorded active time' {
+Check 'ScriptFile preserves original path and arguments while recording immutable source and active time' {
     $run = NewRun script-file
     $file = Join-Path $Workspace 'case-fixture.ps1'
     [IO.File]::WriteAllText($file, 'param($attempt,$value) [pscustomobject]@{RunId=$attempt.Run.Id;Value=$value;Source=$PSCommandPath}')
@@ -131,9 +145,11 @@ Check 'ScriptFile passes case-style arguments through immutable snapshot executi
         $actual = Invoke-PtVerificationOperation -Attempt $a -OperationKey file-host -Stage Observe `
             -Command "case-fixture --value 42 ($kind)" -ScriptFile $file -ArgumentList @($a,42)
         Require ($actual.RunId -ceq $run.Id -and $actual.Value -eq 42 -and
-            $actual.Source.StartsWith((Join-Path $run.Workspace 'sources\'))) 'Script did not execute recorder snapshot with original attempt/arguments'
-        Require ((Get-FileHash $actual.Source).Hash -ceq (Get-FileHash $file).Hash) 'Executed script bytes were rewritten'
+            $actual.Source -ceq $file) 'Script lost its original path or attempt/arguments'
         $events = @(Read-PtReportEvents $run)
+        $fileStep=@($events|Where-Object Type -eq StepStarted)[-1]
+        $source=@($fileStep.Data.Sources|Where-Object {$_.Path.EndsWith('\executed.ps1')})[0]
+        Require ((Get-FileHash $actual.Source).Hash -ceq $source.Sha256) 'Executed script bytes differ from their snapshot'
         $start = @($events | Where-Object Type -eq OperationStarted)[-1].Data
         $end = @($events | Where-Object Type -eq OperationEnded)[-1].Data
         $step = @($events | Where-Object { $_.Type -eq 'StepEnded' -and $_.StepId -ceq $end.StepId })[0].Data
@@ -141,7 +157,7 @@ Check 'ScriptFile passes case-style arguments through immutable snapshot executi
         Require ($end.ActionDurationTicks -eq [long][Math]::Round($step.ActionDurationMs * [TimeSpan]::TicksPerMillisecond)) 'File execution interval differs from recorder timing'
         if ($kind -eq 'Diagnostic') {
             Require ($end.RecoveryTicks -gt 0 -and $end.RecoveryTicks -eq $end.ActionDurationTicks) 'Diagnostic file recovery time was omitted'
-        } else { Require ($end.RecoveryTicks -eq 0) 'Normal file success consumed recovery budget' }
+        } else { Require ($end.RecoveryTicks -eq 0) 'Normal file success was counted as failed/diagnostic time' }
         Stop-PtVerificationAttempt $a -Reason 'Recorded script fixture'
     }
 }
@@ -175,10 +191,14 @@ throw $holder.Error
     $end = @(Read-PtReportEvents $run | Where-Object Type -eq OperationEnded)[-1].Data
     $status = Get-PtVerificationOperationStatus $run missing-file
     Require ($end.ActionStarted -eq $false -and $end.ActionDurationTicks -eq 0 -and $status.FailureCount -eq 0 -and
-        $status.ActiveRecoveryTicks -eq 0 -and $status.BlockReason -eq 'RecordingError' -and $counter.Count -eq 2) 'Missing file drove, charged driver budget or skipped cleanup'
+        $status.ActiveRecoveryTicks -eq 0 -and -not $status.Blocked -and $status.UncertainOperations.Count -eq 0 -and
+        $status.RecordingFailures.Count -eq 1 -and $counter.Count -eq 2) 'Known non-execution was lost, locked the label or skipped cleanup'
     Require ($e.Exception.Data['PtVerificationOperation'].FailureStage -ceq 'Record') 'Pre-execution recording stage lost'
+    $fixed=Invoke-PtVerificationOperation -Attempt $a -OperationKey missing-file -Stage Record -Command corrected `
+        -Action {'corrected-output'} -Cleanup {param($c) $c.Count++} -CleanupArgumentList @($counter)
+    Require ($fixed -ceq 'corrected-output' -and $counter.Count -eq 3) 'Corrected callback remained locked after a pre-execution error'
 }
-Check 'ScriptFile missing completion retains unknown timing and blocks rather than guessing execution success' {
+Check 'ScriptFile missing completion retains per-invocation uncertainty without locking a label' {
     $run = NewRun script-recording-error
     $file = Join-Path $Workspace 'completed-fixture.ps1'
     [IO.File]::WriteAllText($file, 'param($counter) $counter.Drives++; "file output"')
@@ -201,9 +221,10 @@ Check 'ScriptFile missing completion retains unknown timing and blocks rather th
     $end = @(Read-PtReportEvents $run | Where-Object Type -eq OperationEnded)[-1].Data
     $status = Get-PtVerificationOperationStatus $run file-journal
     Require ($counter.Drives -eq 1 -and $counter.Cleanups -eq 1 -and $null -eq $end.ActionStarted -and
-        $null -eq $end.ActionDurationTicks -and $end.RecoveryTicks -eq 0 -and $status.BlockReason -ceq 'RecordingError') 'Unrecorded file completion guessed timing/result or skipped cleanup'
+        $null -eq $end.ActionDurationTicks -and $end.RecoveryTicks -eq 0 -and -not $status.Blocked -and
+        $status.UncertainOperations.Count -eq 1 -and $status.UncertainOperations[0].OperationId -eq $end.OperationId) 'Unrecorded file completion guessed timing/result, locked a label or skipped cleanup'
 }
-Check 'Cross-attempt, Diagnostic and fresh-process failures share a stable budget; unrelated keys continue' {
+Check 'Cross-attempt and fresh-process failure history never locks a new operation label' {
     $run = NewRun persistence
     foreach ($kind in 'Normal','Diagnostic') {
         $a = Attempt $run $kind
@@ -211,49 +232,73 @@ Check 'Cross-attempt, Diagnostic and fresh-process failures share a stable budge
         Stop-PtVerificationAttempt $a -Reason 'Retain failed attempt'
     }
     $fresh = FreshProcess $run FreshProcess
-    Require ($fresh.After.FailureCount -eq 3 -and $fresh.After.BlockReason -eq 'MaxFailures') 'New process reset budget'
-    Require ($fresh.ErrorId -like 'PtVerificationOperationBudgetExceeded*' -and $fresh.Cleanups -eq 1) 'Fresh-process stop lost metadata/cleanup'
+    Require ($fresh.After.FailureCount -eq 3 -and -not $fresh.After.Blocked -and -not $fresh.After.BudgetEnforced) 'History was reset or a failure limit was enforced'
+    Require ($null -eq $fresh.ErrorId -and $fresh.Drives -eq 1 -and $fresh.Cleanups -eq 1) 'Later operation did not execute and clean up exactly once'
     $reopened = Open-PtVerificationRun $run.Workspace
     $ends = @(Read-PtReportEvents $reopened | Where-Object Type -eq OperationEnded | Where-Object { $_.Data.OperationKey -eq 'shared-host' })
-    Require ($ends.Count -eq 3 -and @($ends | Where-Object { $_.Data.RecoveryTicks -le 0 -or $_.Data.RecoveryTicks -ne $_.Data.ActionDurationTicks }).Count -eq 0) 'Failed callback active time was not measured'
+    $failedEnds=@($ends|Where-Object {$_.Data.Failed})
+    Require ($ends.Count -eq 4 -and $failedEnds.Count -eq 3 -and @($failedEnds | Where-Object { $_.Data.RecoveryTicks -le 0 -or $_.Data.RecoveryTicks -ne $_.Data.ActionDurationTicks }).Count -eq 0) 'Failed callback history was not retained'
 }
-Check 'Locked limits are inherited; explicit count/time changes reject without consuming budget' {
+Check 'Deprecated limit arguments warn but cannot impose or change cumulative stops' {
     $run = NewRun policy
     $a = Attempt $run
-    Capture { Invoke-PtVerificationOperation $a fixed-host Record first { throw 'first error' } -MaxFailures 2 -MaxRecoverySeconds 9 } 'first error' | Out-Null
+    $warnings=@()
+    Invoke-PtVerificationOperation $a fixed-host Record initialize { 'initialize trace' } -MaxFailures 1 -MaxRecoverySeconds 1 `
+        -WarningVariable warnings -WarningAction SilentlyContinue | Out-Null
+    Require (($warnings -join '|').Contains('Cumulative operation limits are retired')) 'Ignored compatibility limits were not surfaced'
+    Capture { Invoke-PtVerificationOperation $a fixed-host Record first { throw 'first error' } } 'first error' | Out-Null
     $before = Get-PtVerificationOperationStatus $run fixed-host
     Invoke-PtVerificationOperation $a fixed-host Observe inherited { 'ok' } | Out-Null
     $counter = @{ Count=0 }
     foreach ($limits in @(@{ MaxFailures=3 }, @{ MaxRecoverySeconds=300 })) {
         $e = Capture {
-            Invoke-PtVerificationOperation $a fixed-host Drive changed { throw 'must not execute' } @limits `
+            Invoke-PtVerificationOperation $a fixed-host Drive changed { throw 'another driver error' } @limits `
                 -Cleanup { param($c) $c.Count++ } -CleanupArgumentList @($counter)
-        } 'PolicyChanged'
-        Require ($e.FullyQualifiedErrorId -like 'PtVerificationOperationPolicyChanged*') 'Wrong policy ErrorId'
+        } 'another driver error'
+        Require ($e.Exception.Data['PtVerificationOperation'].FailureKind -eq 'Action') 'A compatibility parameter was treated as policy rejection'
     }
     $after = Get-PtVerificationOperationStatus $run fixed-host
-    Require ($after.MaxFailures -eq 2 -and $after.MaxRecoverySeconds -eq 9 -and $after.FailureCount -eq 1 -and
-        $after.ActiveRecoveryTicks -eq $before.ActiveRecoveryTicks -and $counter.Count -eq 2) 'Policy rejection changed limits/budget or skipped cleanup'
-    Require (@(Read-PtReportEvents $run | Where-Object Type -eq OperationPolicyLocked).Count -eq 1) 'Policy was rewritten'
+    Require ($null -eq $after.MaxFailures -and $null -eq $after.MaxRecoverySeconds -and $after.FailureCount -eq 3 -and
+        $after.ActiveRecoveryTicks -ge $before.ActiveRecoveryTicks -and $counter.Count -eq 2 -and -not $after.Blocked) 'Compatibility arguments enabled a limit, lost errors or skipped cleanup'
+    Require (@(Read-PtReportEvents $run | Where-Object Type -eq OperationPolicyLocked).Count -eq 0) 'New operations still create policies'
 }
-Check 'Active-time threshold is exact to one tick, independent of decades of wall time and Normal success' {
+Check 'Failed/diagnostic elapsed time remains exact but crossing 300 seconds does not stop execution' {
     $run = NewRun active-time
     $a = Attempt $run
-    Invoke-PtVerificationOperation $a slow-host Observe init { 'initialize policy' } -MaxFailures 9 | Out-Null
+    Invoke-PtVerificationOperation $a slow-host Observe init { 'initialize trace' } | Out-Null
     SyntheticEnd $run $a slow-host 2999999999
     $before = Get-PtVerificationOperationStatus $run slow-host
     Require ($before.ActiveRecoverySeconds -eq [decimal]'299.9999999' -and -not $before.Blocked) 'Active interval was rounded or wall time was charged'
     Invoke-PtVerificationOperation $a slow-host Record 'Normal success is not resolution' { 'ok' } | Out-Null
     SyntheticEnd $run $a slow-host 1
-    $counter = @{ Count=0 }
-    $e = Capture {
-        Invoke-PtVerificationOperation $a slow-host Drive 'must not execute' { throw 'wrong action' } `
-            -Cleanup { param($c) $c.Count++ } -CleanupArgumentList @($counter)
-    } 'MaxRecoverySeconds'
+    $counter = @{ Count=0; Drives=0 }
+    Invoke-PtVerificationOperation $a slow-host Drive 'elapsed time is not a stop condition' `
+        -Action { param($c) $c.Drives++ } -ArgumentList @($counter) `
+        -Cleanup { param($c) $c.Count++ } -CleanupArgumentList @($counter) | Out-Null
     $after = Get-PtVerificationOperationStatus $run slow-host
     Require ($after.ActiveRecoveryTicks -eq 3000000000 -and $after.ActiveRecoverySeconds -eq 300 -and $after.FailureCount -eq 2) 'Threshold/reset arithmetic changed'
-    Require ($counter.Count -eq 1 -and $e.CategoryInfo.Category -eq 'LimitsExceeded' -and
-        $e.Exception.Data['PtVerificationOperation'].OperationKey -ceq 'slow-host') 'Time stop skipped cleanup or key/category'
+    Require ($counter.Count -eq 1 -and $counter.Drives -eq 1 -and -not $after.Blocked) 'Elapsed time stopped a callback or skipped cleanup'
+}
+Check 'Legacy limits and rejections remain history and never control continued execution' {
+    $run=NewRun legacy-policy
+    $a=Attempt $run
+    Add-PtReportEvent $run OperationPolicyLocked @{OperationKey='legacy-count';MaxFailures=1;MaxRecoverySeconds=300} $a
+    SyntheticEnd $run $a legacy-count 1
+    $status=Get-PtVerificationOperationStatus $run legacy-count
+    Require (-not $status.BudgetEnforced -and -not $status.Blocked -and $status.RecordedPolicies[0].MaxFailures -eq 1) 'Legacy policy was lost or still controls execution'
+    Add-PtReportEvent $run OperationRejected @{OperationKey='legacy-count';OperationId='old-rejection';Reason='MaxFailures';Stage='Drive'} $a
+    Add-PtReportEvent $run OperationPolicyLocked @{OperationKey='legacy-time';MaxFailures=3;MaxRecoverySeconds=300} $a
+    SyntheticEnd $run $a legacy-time 3000000000
+    $status=Get-PtVerificationOperationStatus $run legacy-time
+    Require (-not $status.BudgetEnforced -and -not $status.Blocked -and $status.RecordedPolicies[0].MaxRecoverySeconds -eq 300) 'Legacy time policy was lost or still controls execution'
+    $reopened=Open-PtVerificationRun $run.Workspace
+    $next=Attempt $reopened
+    foreach($key in 'legacy-count','legacy-time'){
+        $result=Invoke-PtVerificationOperation $next $key Drive 'continue old run without old limits' {'continued'} -MaxFailures 0 -MaxRecoverySeconds 0
+        Require ($result -ceq 'continued') 'An old policy still blocked a new invocation'
+    }
+    $status=Get-PtVerificationOperationStatus $reopened legacy-count
+    Require ($status.RecordedRejections.Count -eq 1 -and $status.RecordedRejections[0].Reason -eq 'MaxFailures' -and -not $status.Blocked) 'Historical rejection was erased or used as a new lock'
 }
 Check 'Successful Diagnostic recovery charges callback time, not cleanup, and never resets failures' {
     $run = NewRun recovery
@@ -296,7 +341,8 @@ Check 'Original ErrorRecord survives simultaneous action, cleanup and recorder f
     Require ($data['PtVerificationRecordingErrors'].Count -ge 2 -and
         $data['PtVerificationRecordingErrors'][0] -is [Management.Automation.ErrorRecord]) 'Full surfaced recorder errors lost'
     Require ($data.Contains('PtVerificationRecordingFailure')) 'Existing recorder secondary metadata was erased'
-    Require ((Get-PtVerificationOperationStatus $run triple-host).BlockReason -eq 'Interrupted') 'Unwritten completion permitted further driving'
+    $history=Get-PtVerificationOperationStatus $run triple-host
+    Require ($history.PendingOperations.Count -eq 1 -and -not $history.Blocked) 'Unwritten completion history was lost or became a label lock'
 }
 Check 'Completely unavailable recorder still runs cleanup once, never drives, and throws its original error' {
     $run = NewRun unavailable-recorder
@@ -315,7 +361,7 @@ Check 'Completely unavailable recorder still runs cleanup once, never drives, an
     Require ($e.Exception.Data['PtVerificationUnrecordedCleanupOutput'][0] -ceq 'fallback-cleanup-output') 'Fallback output lost'
     Require ($e.Exception.Data['PtVerificationRecordingErrors'].Count -ge 2) 'Cleanup recording failures lost'
 }
-Check 'Recorder failure after a successful callback blocks the key without charging a driver failure' {
+Check 'Recorder failure after a callback remains uncertain evidence, not a permanent key lock' {
     $run = NewRun recording-end
     $a = Attempt $run
     $counter = @{ Count=0 }
@@ -333,10 +379,13 @@ Check 'Recorder failure after a successful callback blocks the key without charg
         } 'injected end recording failure' | Out-Null
     } finally { Set-Item Function:\Add-PtReportEvent $savedAppend }
     $status = Get-PtVerificationOperationStatus $run recording-host
-    Require ($counter.Count -eq 1 -and $status.BlockReason -eq 'RecordingError' -and $status.FailureCount -eq 0 -and
-        $status.ActiveRecoveryTicks -eq 0 -and $status.PendingOperations.Count -eq 0) 'Recorder failure changed driver budget or allowed continuation'
+    Require ($counter.Count -eq 1 -and -not $status.Blocked -and $status.UncertainOperations.Count -eq 1 -and $status.FailureCount -eq 0 -and
+        $status.ActiveRecoveryTicks -eq 0 -and $status.PendingOperations.Count -eq 0) 'Recorder failure lost its invocation identity or became a label lock'
+    $result=Invoke-PtVerificationOperation $a recording-host Observe 'fresh observation, not replay of uncertain action' {'fresh-output'}
+    Require ($result -ceq 'fresh-output' -and (Get-PtVerificationOperationStatus $run recording-host).UncertainOperations.Count -eq 1) 'Fresh invocation was blocked or uncertain history was erased'
+    Require ((Get-PtReportState $run).Signoff -eq 'WITHHELD') 'Unknown prior execution was silently approved'
 }
-Check 'Cleanup-only failure never charges driver budget, retries cleanup, or invents restoration judgments' {
+Check 'Cleanup-only failure never becomes a driver failure, retries cleanup, or invents restoration judgments' {
     $run = NewRun cleanup-error
     $a = Attempt $run
     $counter = @{ Count=0 }
@@ -350,27 +399,30 @@ Check 'Cleanup-only failure never charges driver budget, retries cleanup, or inv
     $state = Get-PtReportState $run
     Require ($state.Items[0].Category -ceq 'BLK-INFRASTRUCTURE' -and $state.Restoration.Count -eq 0) 'Cleanup became product/restoration judgment'
 }
-Check 'Pending same-key state survives fresh-process reopen and rejects before more driving' {
+Check 'Pending history survives process reload; actual resource guards control new invocations' {
     $run = NewRun pending
     $a = Attempt $run
-    Add-PtReportEvent $run OperationPolicyLocked @{ OperationKey='pending-host'; MaxFailures=3; MaxRecoverySeconds=300 } $a
+    Add-PtReportEvent $run OperationPolicyLocked @{ OperationKey='pending-host'; BudgetEnforced=$false; MaxFailures=$null; MaxRecoverySeconds=$null } $a
     Add-PtReportEvent $run OperationStarted @{
         OperationKey='pending-host'; OperationId='synthetic-interrupted'; Stage='Drive'; Command='Synthetic process interruption'
         Start='2001-01-01T00:00:00Z'; Recovery=$false
     } $a
     $fresh = FreshProcess $run PendingProcess
-    Require ($fresh.After.BlockReason -eq 'Interrupted' -and $fresh.After.ActiveRecoveryTicks -eq 0 -and $fresh.After.FailureCount -eq 0) 'Reopen guessed interrupted time/failure'
-    Require ($fresh.ErrorId -like 'PtVerificationOperationRecoveryRequired*' -and
-        $fresh.After.PendingOperations[0].OperationId -ceq 'synthetic-interrupted') 'Pending identity or stop ErrorId lost'
+    Require (-not $fresh.After.Blocked -and $fresh.Drives -eq 1 -and $fresh.Cleanups -eq 2) 'Pending history locked a new operation or bypassed real resource checks'
+    Require ($fresh.ErrorId -like '*Owned resource is not restored*' -and
+        $fresh.After.PendingOperations[0].OperationId -ceq 'synthetic-interrupted') 'Pending identity or actual guard error was lost'
 }
 Check 'Final fixed export retains operation events, historical product FAIL and infrastructure classification' {
     $run = NewRun final-export
     $a = Attempt $run
-    Capture { Invoke-PtVerificationOperation $a host Drive fail { throw 'driver infrastructure' } -MaxFailures 1 } 'driver infrastructure' | Out-Null
+    Capture { Invoke-PtVerificationOperation $a host Drive fail { throw 'driver infrastructure' } } 'driver infrastructure' | Out-Null
     Stop-PtVerificationAttempt $a -Reason 'Preserve driver error'
     $a = Attempt $run
-    Capture { Invoke-PtVerificationOperation $a host Drive reject { throw 'must not run' } -Cleanup { 'cleanup exit zero' } } 'MaxFailures' | Out-Null
-    Stop-PtVerificationAttempt $a -Reason 'Budget rejected new attempt'
+    Invoke-PtVerificationOperation $a host Drive repaired { 'current observation after driver repair' } -Cleanup { 'cleanup exit zero' } | Out-Null
+    $evidence=Add-PtVerificationArtifact $a $proof Evidence 'Actual synthetic fixture observed after repair'
+    Add-PtVerificationAssertion $a value PASS 'Synthetic fixture comparison' 'Explicit current observation; no counter-based stop.' -Evidence @($evidence)
+    Stop-PtVerificationAttempt $a -Reason 'Later same-label observation completed'
+    Complete-PtVerificationItem $run L1 -Reason 'Observed after driver repair'
     $b = Attempt $run Normal L2
     Add-PtVerificationAssertion $b value FAIL product 'Synthetic historical product failure; do not erase'
     Invoke-PtVerificationOperation $b independent-host Observe observation { 'successful callback cannot clear a product FAIL' } | Out-Null
@@ -380,7 +432,7 @@ Check 'Final fixed export retains operation events, historical product FAIL and 
         -Command 'export-script fixture' -ScriptFile $exportScript | Out-Null
     Stop-PtVerificationAttempt $b -Reason 'Preserve historical judgment'
     $state = Get-PtReportState $run
-    Require ($state.Items[0].Category -eq 'BLK-INFRASTRUCTURE' -and $state.Items[0].Verdict -eq 'BLOCKED') 'Rejection was not an infrastructure error'
+    Require ($state.Items[0].Verdict -eq 'PASS' -and -not $state.Operations[0].BudgetEnforced) 'Historical driver failure blocked an explicitly observed current result'
     Require ($state.Items[1].Category -eq 'product' -and $state.Items[1].Verdict -eq 'FAIL') 'Operation changed historical product FAIL'
     $export = Complete-PtVerificationRun $run -Retrospective @(@{
         Source='HELPER-FLAW'; Severity='LOW'; Friction='Synthetic H10 error fixtures'
@@ -389,6 +441,8 @@ Check 'Final fixed export retains operation events, historical product FAIL and 
     $archive = Test-PtVerificationArchive -Workspace $run.Workspace
     Require ($archive.Valid -and $export.Signoff -eq 'WITHHELD') 'Final synthetic export failed integrity or falsely signed off'
     $saved = ConvertFrom-PtReportJson ([IO.File]::ReadAllText($export.Results))
+    Require (-not $saved.Operations[0].Blocked -and $saved.Operations[0].InformationOnly -and
+        ([IO.File]::ReadAllText($export.Details)).Contains('No label-based execution locks')) 'Export suggests labels still control execution'
     $operations = @($state.Events | Where-Object Type -like 'Operation*')
     $savedOperations = @($saved.Events | Where-Object Type -like 'Operation*')
     Require ($savedOperations.Count -eq $operations.Count -and

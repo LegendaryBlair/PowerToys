@@ -298,7 +298,10 @@ function Save-PtPassiveScreenshot {
         $sidecar.Write($bytes, 0, $bytes.Length)
     } finally { $sidecar.Dispose() }
     if (($before | ConvertTo-Json -Depth 15 -Compress) -cne ($after | ConvertTo-Json -Depth 15 -Compress)) {
-        throw "Observation changed during capture; evidence is invalid, retained at $Path (see state sidecar)."
+        $error=[InvalidOperationException]::new("Observation changed during capture; evidence is invalid, retained at $Path (see state sidecar).")
+        $error.Data['PtCaptureStatus']='ObservationChanged'
+        $error.Data['PtCapturePath']=[IO.Path]::GetFullPath($Path)
+        throw $error
     }
     [pscustomobject]$state
 }

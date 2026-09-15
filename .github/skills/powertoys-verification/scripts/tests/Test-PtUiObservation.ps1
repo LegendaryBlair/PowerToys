@@ -151,7 +151,7 @@ try{
                 @{Name='observation.ps1';Role='Helper';Path="$helpers\pt-ui-observation.ps1"},
                 @{Name='recorder.ps1';Role='Helper';Path="$helpers\pt-verification-report.ps1"}
             ) -Items @(@{Id='I1';Description='Typed read-only observations';Admin='NO';Clarity='CLEAR';UserVisible=$false
-                Assertions=@(@{Id='text';Description='Actual empty string';Required=$true})})
+                Assertions=@(@{Id='text';Description='Actual empty string'})})
         $attempt=Start-PtVerificationAttempt $run -ItemId I1 -Kind Normal -Name observation -Activate
         Get-PtUiObservation -Target $identity -AutomationId FixtureInput -ControlType Edit -Property Text|Out-Null
         Reject {Get-PtUiObservation -Target $identity -AutomationId FixtureInput -ControlType Edit -Property IsSelected} Unsupported

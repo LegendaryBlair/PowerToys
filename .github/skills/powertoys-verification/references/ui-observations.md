@@ -113,7 +113,7 @@ automatically sufficient for counting every shortcut row.
 ## Recording and acceptance
 
 Live property reads automatically become recorded steps in an active attempt. Use
-`Invoke-PtVerificationCase -OperationKey ... -Stage Observe` for shared observer failures.
+`Invoke-PtVerificationCase -Stage Observe` to retain each observation's execution and errors.
 Store concise facts in `Actual` and the result/tree in `-Detail` or a registered file.
 Do not serialize a tree into every observation or treat a supported LiveSetting property
 as evidence that Narrator actually spoke.

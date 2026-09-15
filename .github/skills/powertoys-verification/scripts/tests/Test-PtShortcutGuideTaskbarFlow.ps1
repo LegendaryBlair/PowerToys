@@ -7,13 +7,12 @@ $helpers=Split-Path $PSScriptRoot -Parent
 $inputs=@(
     @{Name='SKILL.md';Role='Skill';Path="$helpers\..\SKILL.md"}
     @{Name='acceptance.ps1';Role='Checklist';Path=$PSCommandPath}
-    @{Name='fixture-window.ps1';Role='Helper';Path="$helpers\fixtures\Show-PtTaskbarFixture.ps1"}
     foreach($name in 'pt-shortcut-guide-flow','pt-taskbar-fixture','pt-shortcut-guide','pt-module-lifecycle','pt-shortcut-recorder','pt-sendinput-chord','pt-foreground-guard','pt-desktop','pt-state-snapshot','pt-uia','pt-ui-observation','pt-verification-report','pt-verification-operation','pt-verification-render'){
         @{Name="$name.ps1";Role='Helper';Path="$helpers\$name.ps1"}
     }
 )
 $items=@(
-    @{Id='Slots';Description='Three owned non-pinned apps occupy known first slots'}
+    @{Id='Slots';Description='System Calculator occupies the first slot among at least three observed app slots'}
     @{Id='NamedEvent';Description='Repeated named-event open, passive observation and UI close'}
     @{Id='Chord';Description='Repeated exact configured chord open and Escape close'}
     @{Id='Win1';Description='Owned slot-one routing while SG indicators and Windows remain held'}
@@ -21,10 +20,10 @@ $items=@(
 if($RoutingOnly){$items=@($items|Where-Object {$_.Id -in 'Slots','Win1'})}
 foreach($item in $items){
     $item.Admin='NO';$item.Clarity='CLEAR';$item.UserVisible=$true
-    $item.Assertions=@(@{Id='contract';Description=$item.Description;Required=$true})
+    $item.Assertions=@(@{Id='contract';Description=$item.Description})
 }
 $run=New-PtVerificationRun -Workspace $Workspace -Module 'H08-H11 composed SG/taskbar acceptance' `
-    -Bits "Installed PowerToys $((Get-Process PowerToys).FileVersion); synthetic foreground/taskbar fixtures, no pin or registry writes" `
+    -Bits "Installed PowerToys $((Get-Process PowerToys).FileVersion); system Calculator fixture, no pin or registry writes" `
     -Scenario InfrastructureAcceptance -Inputs $inputs -Items $items
 $fixture=$null;$failures=[Collections.Generic.List[string]]::new();$rootFailure=$null
 function Require([bool]$Value,[string]$Message){if(-not $Value){throw $Message}}
@@ -35,7 +34,7 @@ function CaptureProof($Attempt,[string]$Name,$Data,[string]$Description){
 }
 function CheckCase([string]$Id,[scriptblock]$Action,[object[]]$Arguments){
     try{
-        $case=Invoke-PtVerificationCase -Run $run -ItemId $Id -Name $Id -OperationKey "h08-h11-$($Id.ToLowerInvariant())" `
+        $case=Invoke-PtVerificationCase -Run $run -ItemId $Id -Name $Id `
             -Stage Drive -Command "Execute the supplied $Id contract with owned fixtures and explicit observations" -Action $Action -ArgumentList $Arguments
         if($Id -eq 'Win1'){
             @{ItemId=$Id;AttemptId=$case.Attempt.Id;Evidence=@($case.Output);Reason='Native routing/key checks completed; review held screenshots because UIA may lose indicator content after foreground changes.'}|
@@ -55,20 +54,20 @@ function CheckCase([string]$Id,[scriptblock]$Action,[object[]]$Arguments){
 }
 try{
     $preflight=Invoke-PtVerificationCase -Run $run -Context Preflight -Name 'Create explicitly owned fixtures' `
-        -Command 'Capture baseline and create three uniquely identified, non-pinned taskbar windows' -ArgumentList @($Workspace) -Action {
+        -Command 'Capture baseline and open one system Calculator window' -ArgumentList @($Workspace) -Action {
             param($attempt,$work)
-            New-PtTaskbarFixture -Workspace $work -Count 3
+            New-PtTaskbarFixture -Workspace $work
         }
     $fixture=$preflight.Output[0]
     CheckCase Slots {
         param($attempt,$owned)
-        $moves=@(foreach($index in 3,2,1){Move-PtTaskbarFixtureToSlot -Fixture $owned -AppIndex $index -Slot 1 -DragMethod Native})
+        $moves=@(Move-PtTaskbarFixtureToSlot -Fixture $owned -Slot 1 -DragMethod Native)
         $slots=Get-PtTaskbarSlots
-        for($index=0;$index -lt 3;$index++){Require ($slots.Apps[$index].AppId -ceq $owned.Apps[$index].AppId) 'Owned first-slot ordering differs from actual taskbar'}
+        Require ($slots.Apps.Count -ge 3 -and $slots.Apps[0].AppId -ceq $owned.Apps[0].AppId) 'Calculator must be first among at least three identified app slots'
         $proof=CaptureProof $attempt slots @{Moves=$moves;Slots=$slots} 'Fresh observed slot/AppID mapping; foreign relative order retained'
         $image=New-PtVerificationArtifactPath $attempt taskbar-slots.png
         Save-PtPassiveScreenshot -Path $image|Out-Null
-        $photo=Add-PtVerificationArtifact $attempt $image Screenshot 'Three disposable first-slot taskbar windows'
+        $photo=Add-PtVerificationArtifact $attempt $image Screenshot 'System Calculator first-slot taskbar window'
         @($proof,$photo)
     } @($fixture)
     foreach($entry in $(if(-not $RoutingOnly){@('NamedEvent','Chord')})){
@@ -77,7 +76,8 @@ try{
             $proofs=[Collections.Generic.List[object]]::new()
             for($cycle=1;$cycle -le 3;$cycle++){
                 $close=if($entryPath -eq 'Chord'){'Escape'}else{'CloseButton'}
-                $result=Invoke-PtShortcutGuideCycle -ForegroundTarget $owned.Apps[1].Identity -Workspace $work -Entry $entryPath -CloseRoute $close `
+                $foreground=(Read-PtTaskbarFixture $owned).Marker.Desktop.foreground
+                $result=Invoke-PtShortcutGuideCycle -ForegroundTarget $foreground -Workspace $work -Entry $entryPath -CloseRoute $close `
                     -ArgumentList @($proofs,$cycle) -Action {
                         param($session,$evidence,$number)
                         $active=Get-PtActiveVerificationAttempt
@@ -95,7 +95,8 @@ try{
         param($attempt,$owned,$work)
         $proofs=[Collections.Generic.List[object]]::new()
         foreach($key in 91,92,91){
-            $held=Invoke-PtShortcutGuideHold -ForegroundTarget $owned.Apps[1].Identity -Workspace $work -Mode Indicators -WindowsKey $key `
+            $foreground=(Read-PtTaskbarFixture $owned).Marker.Desktop.foreground
+            $held=Invoke-PtShortcutGuideHold -ForegroundTarget $foreground -Workspace $work -Mode Indicators -WindowsKey $key `
                 -ArgumentList @($owned,$key,$proofs) -Action {
                     param($session,$taskbar,$virtualKey,$evidence)
                     $before=Get-PtShortcutGuidePresentation $session.GuideTarget

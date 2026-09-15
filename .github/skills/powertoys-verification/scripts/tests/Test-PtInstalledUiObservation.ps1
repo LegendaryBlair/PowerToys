@@ -30,11 +30,11 @@ $run=New-PtVerificationRun -Workspace $Workspace -Module 'H07 installed observat
     -Bits "Installed PowerToys $((Get-Process PowerToys).FileVersion), immutable; property/snapshot helper acceptance only" `
     -Scenario InfrastructureAcceptance -Inputs $inputs -Items @(
         @{Id='Settings';Description='Empty text, accessible name and numeric Off state are distinct observations';Admin='NO';Clarity='CLEAR';UserVisible=$false
-            Assertions=@(@{Id='properties';Description='Exact text source, empty string and native LiveSetting=0';Required=$true})}
+            Assertions=@(@{Id='properties';Description='Exact text source, empty string and native LiveSetting=0'})}
         @{Id='Search';Description='SG search observations remain accurate before, during and after a no-match query';Admin='NO';Clarity='CLEAR';UserVisible=$true
-            Assertions=@(@{Id='properties';Description='Actual query/name, selected state, focus and native LiveSetting=1';Required=$true})}
+            Assertions=@(@{Id='properties';Description='Actual query/name, selected state, focus and native LiveSetting=1'})}
         @{Id='Structure';Description='Snapshot contract checks structure, not expected business rows';Admin='NO';Clarity='CLEAR';UserVisible=$false
-            Assertions=@(@{Id='structure';Description='Normal and no-result trees usable for search/navigation; host-only tree rejected';Required=$true})}
+            Assertions=@(@{Id='structure';Description='Normal and no-result trees usable for search/navigation; host-only tree rejected'})}
     )
 $desktop|ConvertTo-Json -Depth 12|Set-Content "$Workspace\desktop-before.json"
 $originalError=$null
@@ -56,7 +56,7 @@ try{
             Get-PtNativeWindow -Hwnd $guide.hwnd
         }|Out-Null
     $settingsCase=Invoke-PtVerificationCase -Run $run -ItemId Settings -Name 'Installed Settings property channels' `
-        -OperationKey h07-settings-read -Stage Observe -Command 'Read actual textbox text, explicit accessible name and native LiveSetting' `
+        -Stage Observe -Command 'Read actual textbox text, explicit accessible name and native LiveSetting' `
         -ArgumentList @($settingsTarget) -Action {
             param($attempt,$target)
             $text=Get-PtUiObservation -Target $target -Name 'Example: outlook.exe' -ControlType Edit -WithinAutomationId ShortcutGuideDisabledApps -Property Text
@@ -89,7 +89,7 @@ try{
     $openRaw|Set-Content "$Workspace\open-tree.json"
     $facts=@{Query='h07-no-result-bb7c26f1';Evidence=[Collections.Generic.List[object]]::new()}
     $searchCase=Invoke-PtVerificationCase -Run $run -ItemId Search -Name 'SG actual observation channels' `
-        -OperationKey h07-sg-read -Stage Observe -Command 'Set a disposable query through UIA, read actual text/live/selection/focus properties, then restore the original query' `
+        -Stage Observe -Command 'Set a disposable query through UIA, read actual text/live/selection/focus properties, then restore the original query' `
         -ArgumentList @($sgTarget,$facts) -Action {
             param($attempt,$target,$sharedFacts)
             $empty=Get-PtUiObservation -Target $target -AutomationId TextBox -ControlType Edit -WithinAutomationId ShortcutGuide_SearchBox -Property Text

@@ -17,10 +17,13 @@ registered attachments, not `Actual`/`Reason` fields; new observation and assert
 has a 4096-byte UTF-8 limit. Export continues to include every registered child and all
 evidence links, with unchanged verdict/signoff rules. Identical execution source bytes
 may share a hash-addressed path while each step retains its exact command and arguments.
-Runs using operation boundaries also include shared-key budget/interruption status and
+Runs using operation boundaries also include per-invocation execution history and
 operation error history in `details.md`, linked from the compact summary. Pending or
 recording-failed operations add an explicit infrastructure signoff hold; they do not
 assign or rewrite product assertions.
+Operations have no label-based locks or cumulative limits. Pending/uncertain invocation
+evidence can withhold signoff without prohibiting later actions by label. Old limit
+policies and stops remain historical evidence, never active execution rules.
 
 ## Compact review and exhaustive details
 
@@ -28,10 +31,13 @@ The exporter writes both views from the same recorded state:
 
 - **`report.md`**: BITS, scenario, supplied signoff and reasons, counts covering every item,
   blockers, all item descriptions, and every registered child's expected description, actual
-  reason, verdict and required flag. Keep **NOT-OBSERVED** visible even under a **FAIL** item.
+  reason and verdict. Every newly registered assertion needs an outcome; there is no
+  optional/required choice. Keep **NOT-OBSERVED** visible even under a **FAIL** item.
   Show at most two decisive evidence links per child, preferring a screenshot then other
   evidence, with short labels rather than repeated GUID-heavy directory names. Link each
   item to its full trace for exact commands, all evidence and historical observations.
+  Link current assertion results to their Normal judgment/observation sequence; partial
+  attempts can contribute different assertions without hiding their origins.
 - **`details.md`**: the exact per-item step/artifact template in §A, §C and §F, full Normal
   and Diagnostic attempts, raw observations, corrected/invalidated judgments, pre-flight,
   cleanup and retrospective. Do not abbreviate this view to meet compact-report size limits.
@@ -159,8 +165,12 @@ The compact view follows the contract above and links to these sections.
 - Retain **Normal and Diagnostic attempts separately**. A restart-recovered diagnostic
   PASS does not prove normal reopen. Normal product/checklist failures remain failures
   in that run; command completion/exit zero never assigns a product verdict.
+- Select results per assertion, not per whole scenario. Only an attempt addressing that
+  assertion can replace its result; a partial continuation leaves unrelated coverage intact.
+  Delayed review is not a new execution. Keep source attempt/judgment IDs in structured
+  results and details, and preserve pending review rather than reusing an older PASS.
 - Show every registered child as **PASS / FAIL / BLOCKED / NOT-OBSERVED**, with its reason
-  and evidence, even under a failing parent. Missing required observations cannot produce
+  and evidence, even under a failing parent. Missing observations cannot produce
   item PASS. Unfinished items remain **BLOCKED / BLK-INCOMPLETE**; command/capture errors
   are **BLK-INFRASTRUCTURE**, not inferred product defects. These two recording categories
   supplement, rather than replace, the existing environment/hardware BLOCKED reasons.
@@ -170,9 +180,18 @@ The compact view follows the contract above and links to these sections.
   do not relabel a wrong selector, return-property misuse or recursive serialization as
   merely unclear documentation. Unexplained errors remain untriaged until evidence
   separates test defects from unavailable external conditions.
+- An unmet condition is a stated execution/observation limitation, not an "optional"
+  assertion. Unfinished work is not a product FAIL. Do not omit either from the inventory.
+  New reports need no Required column; historical `Required=false` values, if present,
+  are labeled as legacy metadata rather than offered as a current configuration. Current
+  calculations include every declared assertion, even when reading an older inventory.
+  Never rewrite an existing archived report to apply these rules retrospectively.
 - Include **BITS**, explicit cleanup/restoration receipts and **Signoff: APPROVED or
   WITHHELD** in the summary. Withhold signoff for failed, blocked, unobserved or incomplete
   coverage, execution/cleanup errors, missing evidence or unrecorded restoration.
+- Use the latest complete Normal Cleanup scope to judge restoration. Historical failures
+  remain in the trace but do not veto a later verified full recovery. One current PASS
+  cannot hide another current FAIL/BLOCKED, and old receipt imports are not fresh evidence.
 - Never overwrite a screenshot or script revision. Associate screenshots with their
   producing step and Normal-path assertion. Synthetic fixtures are labeled and cannot
   substantiate a product signoff.

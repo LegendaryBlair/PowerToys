@@ -23,7 +23,7 @@ function Reject([scriptblock]$Action,[string]$Pattern) {
 function NewRun([string]$Name) {
     $items = @(foreach ($id in 'L1','L2') {
         @{Id=$id;Description="Synthetic item $id";Admin='NO';Clarity='CLEAR';UserVisible=$false
-          Assertions=@(@{Id='value';Description='Observe actual value';Required=$true})}
+          Assertions=@(@{Id='value';Description='Observe actual value'})}
     })
     New-PtVerificationRun -Workspace "$Workspace\$Name" -Module 'Local review acceptance' -Bits 'Synthetic fixture only' `
         -Scenario InfrastructureAcceptance -Items $items -Inputs $inputs
@@ -152,7 +152,7 @@ Check 'Thin run template executes review then cleanup; a root failure still prod
     $skill = [IO.Path]::GetFullPath("$PSScriptRoot\..\..")
     $template = "$skill\templates\verification-run.ps1"
     $items = @(@{Id='T1';Description='Template fixture';Admin='NO';Clarity='CLEAR';UserVisible=$false
-        Assertions=@(@{Id='value';Description='Read synthetic value';Required=$true})})
+        Assertions=@(@{Id='value';Description='Read synthetic value'})})
     $preflight = { param($attempt) 'Synthetic preflight only' }
     $cases = {
         param($run)

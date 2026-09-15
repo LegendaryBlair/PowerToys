@@ -21,7 +21,7 @@ $run = New-PtVerificationRun -Workspace $Workspace -Module 'Recorder integration
     ) -Items @(
         @{ Id = 'I1'; Description = 'Native wrapper records every invocation without changing its stdout contract'
            Admin = 'NO'; Clarity = 'CLEAR'; UserVisible = $false
-           Assertions = @(@{ Id = 'commands'; Description = 'Outer helper and nested native call both retained'; Required = $true }) }
+           Assertions = @(@{ Id = 'commands'; Description = 'Outer helper and nested native call both retained' }) }
     )
 $preflight = Start-PtVerificationAttempt -Run $run -Context Preflight -Kind Normal -Name 'Offline CLI availability' -Activate
 $helpOutput = Invoke-PtWinApp -Arguments @('--help')

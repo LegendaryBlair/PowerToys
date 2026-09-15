@@ -225,8 +225,11 @@ pwsh -NoProfile -File "$skill\scripts\tests\Test-PtInvocationContracts.ps1"
 # H09 incremental review, source reuse, bounded observations and optional archive parity.
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtLightweightRecording.ps1" -Workspace <new-folder>
 
-# H10 cross-process budgets, errors, cleanup and interrupted-operation contracts.
+# H10 cross-process error history, cleanup and interrupted-operation contracts.
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtVerificationOperation.ps1" -Workspace <new-folder>
+
+# Partial assertions, verified cleanup recovery and original script context; offline only.
+pwsh -NoProfile -File "$skill\scripts\tests\Test-PtVerificationContinuations.ps1" -Workspace <new-folder>
 
 # H05 schema/receipt contracts; add -Interactive -SettingsHwnd for two-module UI acceptance.
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtShortcutRecorder.ps1" -Workspace <new-folder>
@@ -237,6 +240,9 @@ pwsh -NoProfile -File "$skill\scripts\tests\Test-PtModuleLifecycle.ps1" -Workspa
 # H08/H11 offline ownership, flow, drag-delivery and cleanup contracts.
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtShortcutGuideFlow.ps1" -Workspace <new-folder>
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtTaskbarFixture.ps1" -Workspace <new-folder>
+
+# SG entry readiness, physical Settings action and rejected-capture retention; offline.
+pwsh -NoProfile -File "$skill\scripts\tests\Test-PtShortcutGuideEntryContracts.ps1" -Workspace <new-folder>
 ```
 
 Each acceptance uses a new workspace and retains its results and restoration evidence.
