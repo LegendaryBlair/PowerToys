@@ -23,6 +23,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 
 | Module | Profile | Status |
 |---|---|---|
+| Color Picker | `color-picker.md` | WPF 0.101.2362.0 exercised 2026-09-18; see checklist/report for conditional coverage and the CmdPal integration failure |
 | Peek | `peek.md` | ✅ written 2026-06-08 |
 | File Locksmith | `file-locksmith.md` | ✅ written 2026-06-08 |
 | Image Resizer | `image-resizer.md` | ✅ written 2026-06-09 |
