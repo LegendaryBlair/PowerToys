@@ -7,7 +7,7 @@ One file per module; a verification run loads only its module's file.
 | Module | Items | File |
 |---|---:|---|
 | Advanced Paste | 41 | `advanced-paste.md` |
-| Color Picker | 25 | `color-picker.md` (0.96 baseline + changes through stable 0.101) |
+| Color Picker | 17 scenarios / 25 assertions | `color-picker.md` (0.96 baseline + changes through stable 0.101) |
 | Environment Variables | 20 | `environment-variables.md` |
 | File Locksmith | 10 | `file-locksmith.md` |
 | Image Resizer | 18 | `image-resizer.md` |
