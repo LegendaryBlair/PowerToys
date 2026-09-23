@@ -45,6 +45,9 @@ specific checklist.
 
 | File | Purpose |
 |---|---|
+| `scripts/pt-verification-state.ps1` | Guarded existing-file/clipboard restoration and original-enabled-state cleanup. PowerShell 7.4+; clipboard requires STA. See [small verification harness](references/verification-harness.md). |
+| `scripts/pt-verification-ui.ps1` | Exact HWND/process identity, row-scoped unique control resolution, idempotent toggles and passive live-bounds capture. No automatic foreground steal or retry. |
+| `scripts/pt-verification-run.ps1` | Optional single-writer command/argument/error records, independent assertions and cleanup evidence, integrity-checked archives. Does not replace the required per-item report/retrospective. |
 | `scripts/pt-shared-events.ps1` | `Invoke-PtSharedEvent`, `Test-PtSharedEvent`, `Get-PtSharedEventCatalog` — 56-entry friendly-name map for PT Named Events (CmdPal.Show, AOT.Pin, PowerLauncher.Invoke, LightSwitch.Toggle, ZoomIt.Draw, ...). The deterministic, foreground-free, UIPI-immune way to trigger a module. |
 | `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Wait-PtHotkeyAccepted` — last-resort SendInput hotkey injection with the cb=40 fix. Use only when the module has no Named Event and the hotkey itself is the test subject. |
 | `scripts/pt-foreground-guard.ps1` | `Test-PtForeground`, `Force-PtForeground`, `Assert-PtForegroundOrAbort` — guard helpers to ensure target window IS foreground before SendInput, so keys don't leak to caller's terminal. |
@@ -64,6 +67,11 @@ Get-ChildItem "$skill\scripts" -Filter '*.ps1' | ForEach-Object { . $_.FullName 
 ```
 
 ## Step 1 — Bootstrap
+
+For guarded multi-assertion iterations, use the [small verification harness](references/verification-harness.md)
+instead of writing new run-local recording/restoration functions. Its `New-PtRecordedRun` needs a **new,
+nonexistent** workspace; do not pre-create it with the legacy bootstrap below. Use PowerShell 7.4+ when loading
+the new helpers and STA for clipboard guards. They do not import the separate WIP harness.
 
 ```powershell
 $module = 'AdvancedPaste'  # or 'CmdPal', 'FZ', 'Peek', ...
