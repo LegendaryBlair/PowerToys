@@ -964,6 +964,57 @@ Check 'Already-open Calculator is never adopted, relaunched or closed' {
     Reject {New-PtTaskbarFixture -Workspace $Workspace} 'already open'|Out-Null
     Require ($state.LaunchCount -eq 1 -and $state.CloseCount -eq 0 -and $state.Windows.Count -eq 1) 'Existing Calculator was mutated'
 }
+Check 'Transient UWP CoreWindow is not admitted before the stable application frame appears' {
+    Reset-Fake
+    $readCalculator=${function:Get-PtTaskbarCalculatorWindows}
+    $reads=@{Count=0}
+    function Get-PtTaskbarCalculatorWindows {
+        param($Calculator)
+        $windows=@(& $readCalculator $Calculator)
+        if($windows.Count){
+            $reads.Count++
+            if($reads.Count -le 2){
+                $transient=Copy-Value $windows[0]
+                $transient.Identity.className='Windows.UI.Core.CoreWindow'
+                $transient.Identity.hwnd=2002L
+                return $transient
+            }
+        }
+        $windows
+    }
+    try{
+        $f=New-PtTaskbarFixture -Workspace $Workspace
+        Require ($reads.Count -ge 4 -and $f.Apps[0].Identity.className -ceq 'ApplicationFrameWindow' -and $state.LaunchCount -eq 1) 'Transient core window was adopted or activation repeated'
+        Remove-PtTaskbarFixture $f|Out-Null
+    }finally{Set-Item Function:\Get-PtTaskbarCalculatorWindows $readCalculator}
+}
+Check 'Interrupted creation recovers only the same Calculator content after CoreWindow reparenting' {
+    Reset-Fake
+    $f=New-PtTaskbarFixture -Workspace $Workspace
+    $frame=Copy-Value $f.Apps[0].Identity
+    $f.Apps[0].Identity=[pscustomobject]@{hwnd=2002L;processId=$f.Apps[0].ContentProcess.ProcessId
+        processStartTicks=$f.Apps[0].ContentProcess.ProcessStartTicks;className='Windows.UI.Core.CoreWindow'}
+    $f.Phase='Cleaning'
+    Save-PtTaskbarFixture $f
+    $result=Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath
+    $saved=(Read-PtTaskbarFixture -ReceiptPath $f.ReceiptPath).Fixture
+    Require ($result.Closed -and $result.DesktopRestored -and $state.CloseCount -eq 1 -and
+        $saved.StartupReparent.From.hwnd -eq 2002 -and $saved.StartupReparent.To.hwnd -eq $frame.hwnd) 'Same-content startup recovery lost provenance or failed to restore'
+}
+Check 'Startup reparent recovery cannot replace a ready, previously used or different-content target' {
+    foreach($mode in 'Ready','Used','OtherContent'){
+        Reset-Fake
+        $f=New-PtTaskbarFixture -Workspace $Workspace
+        $f.Apps[0].Identity=[pscustomobject]@{hwnd=2002L;processId=$f.Apps[0].ContentProcess.ProcessId
+            processStartTicks=$f.Apps[0].ContentProcess.ProcessStartTicks;className='Windows.UI.Core.CoreWindow'}
+        if($mode -ne 'Ready'){$f.Phase='Cleaning'}
+        if($mode -eq 'Used'){$f.LastOperation=@{Kind='Route'}}
+        if($mode -eq 'OtherContent'){$f.Apps[0].ContentProcess.ProcessStartTicks--}
+        Save-PtTaskbarFixture $f
+        Reject {Resolve-PtTaskbarOwnedWindow $f $f.Apps[0]} 'Calculator identity changed'|Out-Null
+        Require ($state.CloseCount -eq 0 -and $state.MoveCount -eq 0) 'Unrelated window was mutated during resolution'
+    }
+}
 Check 'Pinned Calculator returns to its original slot and retains the pin after normal close' {
     Reset-Fake
     $state.PinnedCalculator=$true
@@ -977,6 +1028,13 @@ Check 'Pinned Calculator returns to its original slot and retains the pin after 
 }
 Check 'Calculator creation waits through a transient foreign-order observation and retains its exact diff' {
     Reset-Fake
+    $readSlots=${function:Get-PtTaskbarSlots}
+    $timestamp='2026-09-23T09:13:46.1200000Z'
+    function Get-PtTaskbarSlots {
+        $slots=& $readSlots
+        $slots.ObservedAtUtc=$timestamp
+        $slots
+    }
     $state.ReadHook={
         $state=$script:TaskbarFakeState
         if($state.LaunchCount -eq 1){
@@ -986,11 +1044,22 @@ Check 'Calculator creation waits through a transient foreign-order observation a
             if($state.AdmissionReads -eq 2){[void]$state.Order.Remove('Appid: transient')}
         }
     }
-    $f=New-PtTaskbarFixture -Workspace $Workspace
-    Require ($f.Phase -eq 'Ready' -and $f.AdmissionConflict.Added -contains 'Appid: transient' -and $state.LaunchCount -eq 1) 'Transient mapping was either lost or triggered another launch'
-    $state.ReadHook=$null
-    Remove-PtTaskbarFixture $f|Out-Null
-    $state.Remove('AdmissionReads')
+    try{
+        $f=New-PtTaskbarFixture -Workspace $Workspace
+        Require ($f.Phase -eq 'Ready' -and $f.AdmissionConflict.Added -contains 'Appid: transient' -and $state.LaunchCount -eq 1) 'Transient mapping was either lost or triggered another launch'
+        $stored=(Read-PtTaskbarFixture -Fixture $f).Fixture
+        $expected=[DateTime]::Parse($timestamp,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind)
+        Require ($stored.AdmissionConflict.ObservedAtUtc.ToUniversalTime().Ticks -eq $expected.Ticks) 'Observation timestamp changed during receipt round-trip'
+        $altered=Copy-Value $stored
+        $altered.AdmissionConflict.Added=@('Appid: unrelated')
+        Reject {Read-PtTaskbarFixture -Fixture $altered} 'stale or changed'|Out-Null
+        $state.ReadHook=$null
+        Remove-PtTaskbarFixture $f|Out-Null
+    }finally{
+        Set-Item Function:\Get-PtTaskbarSlots $readSlots
+        $state.ReadHook=$null
+        $state.Remove('AdmissionReads')
+    }
 }
 Check 'Persistent foreign-order conflict never permits movement and remains actionable in the receipt' {
     Reset-Fake
@@ -1049,8 +1118,59 @@ Check 'Failed original pinned-slot restoration preserves Calculator and permits 
     $cleanup=Remove-PtTaskbarFixture -ReceiptPath $f.ReceiptPath
     Require ($cleanup.Closed -and $state.Order[2] -match 'WindowsCalculator' -and $state.CloseCount -eq 1) 'Pinned-slot retry failed to restore and close'
 }
+Check 'Composed driver distinguishes evidenced product retention failure from an infrastructure error' {
+    $path=Join-Path $PSScriptRoot 'Test-PtShortcutGuideTaskbarFlow.ps1'
+    $tokens=$null;$parseErrors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$parseErrors)
+    Require ($parseErrors.Count -eq 0) 'Composed driver has syntax errors'
+    $caseFunction=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'CheckCase'},$true)
+    $body=$caseFunction.Body.GetScriptBlock()
+    foreach($product in @($true,$false)){
+        $run='synthetic-run';$failures=[Collections.Generic.List[string]]::new();$observed=@{}
+        $injectedFailure=[InvalidOperationException]::new('Synthetic observed failure')
+        $proof=@{Path='synthetic-proof.json';Kind='Evidence'}
+        if($product){$injectedFailure.Data['PtSgIndicatorRetentionEvidence']=$proof}
+        function Invoke-PtVerificationCase {throw $injectedFailure}
+        function Get-PtVerificationReview {@{Items=@(@{LatestNormalAttemptId='synthetic-attempt'})}}
+        function Get-PtVerificationAttempt {@{Id='synthetic-attempt'}}
+        function Add-PtVerificationAssertion {
+            param($Attempt,$AssertionId,$Verdict,$Category,$Reason,$Evidence)
+            $observed.Verdict=$Verdict;$observed.Category=$Category;$observed.Evidence=@($Evidence)
+        }
+        function Complete-PtVerificationItem {}
+        & $body -Id Win1 -Action {} -Arguments @()
+        $expected=if($product){'FAIL'}else{'BLOCKED'}
+        Require ($observed.Verdict -eq $expected -and $failures.Count -eq 1) 'Product and driver outcomes were conflated'
+        if($product){Require ($observed.Category -eq 'product' -and $observed.Evidence.Count -eq 1) 'Product evidence was lost'}
+    }
+}
+Check 'Failed slot setup records missing routing coverage without issuing a Windows hold' {
+    $path=Join-Path $PSScriptRoot 'Test-PtShortcutGuideTaskbarFlow.ps1'
+    $tokens=$null;$parseErrors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$parseErrors)
+    $guard=$ast.Find({param($node) $node -is [Management.Automation.Language.IfStatementAst] -and
+        $node.Extent.Text.StartsWith('if($fixture.Phase -ne ''Ready'')')},$true)
+    Require ($null -ne $guard) 'Routing readiness guard is missing'
+    $body=[scriptblock]::Create($guard.Extent.Text)
+    $fixture=@{Phase='Faulted';LastOperation=@{Outcome='Error'}}
+    $run='synthetic-run';$failures=[Collections.Generic.List[string]]::new();$observed=@{Holds=0}
+    function Invoke-PtVerificationCase {
+        param($Run,$ItemId,$Name,$Command,$ArgumentList,$Action)
+        & $Action @{Id='synthetic-attempt'} @ArgumentList
+    }
+    function CaptureProof {@{Path='setup-error.json';Kind='Evidence'}}
+    function Add-PtVerificationAssertion {
+        param($Attempt,$AssertionId,$Verdict,$Category,$Reason,$Evidence)
+        $observed.Verdict=$Verdict;$observed.Category=$Category
+    }
+    function Complete-PtVerificationItem {}
+    function Invoke-PtShortcutGuideHold {$observed.Holds++}
+    & $body
+    Require ($observed.Holds -eq 0 -and $observed.Verdict -eq 'BLOCKED' -and
+        $observed.Category -eq 'BLK-INCOMPLETE' -and $failures.Count -eq 1) 'Failed setup caused routing input or fabricated a product result'
+}
 ConvertTo-Json -InputObject @(
-    Get-FileHash -LiteralPath "$PSScriptRoot\..\pt-taskbar-fixture.ps1",$PSCommandPath
+    Get-FileHash -LiteralPath "$PSScriptRoot\..\pt-taskbar-fixture.ps1",$PSCommandPath,"$PSScriptRoot\Test-PtShortcutGuideTaskbarFlow.ps1"
     Get-FileHash -LiteralPath "$PSScriptRoot\..\..\references\taskbar-fixtures.md"
 ) -Depth 4 | Set-Content -LiteralPath "$Workspace\source-hashes.json"
 "PASS: $($results.Count) offline H11 contract groups. Results: $Workspace\results.json"

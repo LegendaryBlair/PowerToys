@@ -47,8 +47,13 @@ function CheckCase([string]$Id,[scriptblock]$Action,[object[]]$Arguments){
         $failure=$_
         $review=Get-PtVerificationReview $run -ItemId $Id
         $attempt=Get-PtVerificationAttempt $run -AttemptId $review.Items[0].LatestNormalAttemptId
-        Add-PtVerificationAssertion $attempt contract BLOCKED BLK-INFRASTRUCTURE $failure.Exception.Message
-        Complete-PtVerificationItem $run $Id -Reason 'Concrete driver/observation failure retained; independent cases continue'
+        $productEvidence=$failure.Exception.Data['PtSgIndicatorRetentionEvidence']
+        if($productEvidence){
+            Add-PtVerificationAssertion $attempt contract FAIL product $failure.Exception.Message -Evidence @($productEvidence)
+        }else{
+            Add-PtVerificationAssertion $attempt contract BLOCKED BLK-INFRASTRUCTURE $failure.Exception.Message
+        }
+        Complete-PtVerificationItem $run $Id -Reason 'Original execution and observed outcome retained; independent cases continue'
         $failures.Add("$Id`: $($failure.Exception.Message)")
     }
 }
@@ -91,6 +96,17 @@ try{
             $proofs.ToArray()
         } @($fixture,$entry,$Workspace)
     }
+    if($fixture.Phase -ne 'Ready'){
+        Invoke-PtVerificationCase -Run $run -ItemId Win1 -Name 'Routing prerequisite not established' `
+            -Command 'Record the failed slot setup without pressing Windows or a taskbar digit' -ArgumentList @($fixture.Phase,$fixture.LastOperation) -Action {
+                param($attempt,$phase,$operation)
+                $proof=CaptureProof $attempt setup-incomplete @{Phase=$phase;Operation=$operation} 'Original slot-setup failure'
+                Add-PtVerificationAssertion $attempt contract BLOCKED BLK-INCOMPLETE `
+                    'Slot setup did not complete safely; held routing was not attempted.' -Evidence @($proof)
+            }|Out-Null
+        Complete-PtVerificationItem $run Win1 -Reason 'Held routing requires a ready fixture with verified slot mapping'
+        $failures.Add('Win1: slot setup incomplete; no held routing attempted')
+    }else{
     CheckCase Win1 {
         param($attempt,$owned,$work)
         $proofs=[Collections.Generic.List[object]]::new()
@@ -105,10 +121,19 @@ try{
                         -AllowedForegroundTarget $session.GuideTarget
                     $after=Get-PtShortcutGuidePresentation $session.GuideTarget
                     $active=Get-PtActiveVerificationAttempt
-                    $evidence.Add((CaptureProof $active "routing-state-$($evidence.Count)" @{
+                    $routingState=@{
                         Before=$before;Routing=$routed;After=$after
                         WinDown=(([PtChord]::GetAsyncKeyState($virtualKey) -band 0x8000) -ne 0)
-                    } 'Immediate post-routing observation retained before judging indicator lifetime'))
+                    }
+                    $nativeRouteProof=CaptureProof $active "routing-state-$($evidence.Count)" $routingState `
+                        'Immediate post-routing observation retained before judging indicator lifetime'
+                    $evidence.Add($nativeRouteProof)
+                    if(-not $after.Visible -and $routingState.WinDown -and $routed.WindowsHeldAfter -and
+                        $after.ForegroundHwnd -eq $routed.Target.hwnd){
+                        $failure=[InvalidOperationException]::new('Calculator routing succeeded with Windows still held, but SG indicators became hidden before Windows release.')
+                        $failure.Data['PtSgIndicatorRetentionEvidence']=$nativeRouteProof
+                        throw $failure
+                    }
                     Require $after.Visible 'SG host became hidden before Windows release'
                     Require ([PtDesktop]::GetForegroundWindow().ToInt64() -eq $taskbar.Apps[0].Identity.hwnd) 'Win+1 did not route to the exact owned first window'
                     Require (([PtChord]::GetAsyncKeyState($virtualKey) -band 0x8000) -ne 0) 'The outer Windows hold was released by routing'
@@ -125,6 +150,7 @@ try{
         }
         $proofs.ToArray()
     } @($fixture,$Workspace)
+    }
 }catch{$rootFailure=$_;throw}
 finally{
     if($fixture){

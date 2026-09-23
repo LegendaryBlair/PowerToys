@@ -286,7 +286,10 @@ function Assert-PtTaskbarForeignOrder {
     $foreign = @($Slots.Apps | Where-Object { $_.AutomationId -cnotin $owned } | ForEach-Object AutomationId)
     $original = @($Marker.Taskbar.apps | Where-Object { $_.automationId -cnotin $owned } | ForEach-Object automationId)
     if ((ConvertTo-Json -InputObject $foreign -Compress) -cne (ConvertTo-Json -InputObject $original -Compress)) {
-        $facts = [pscustomobject]@{ ExpectedOrder=$original; ActualOrder=$foreign; ObservedAtUtc=$Slots.ObservedAtUtc
+        # Match JSON's DateTime round-trip so unchanged receipts remain comparable.
+        $observedAtUtc = [DateTime]::Parse($Slots.ObservedAtUtc,
+            [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+        $facts = [pscustomobject]@{ ExpectedOrder=$original; ActualOrder=$foreign; ObservedAtUtc=$observedAtUtc
             Added=@($foreign | Where-Object { $_ -cnotin $original }); Removed=@($original | Where-Object { $_ -cnotin $foreign }) }
         $error = [InvalidOperationException]::new('Foreign taskbar app order/set conflict; concurrent changes are preserved. ' +
             "Expected=$($original -join ','); Actual=$($foreign -join ',').")
@@ -347,7 +350,8 @@ function Resolve-PtTaskbarOwnedWindow {
             throw 'Calculator was not launched.'
         }
         $marker = (Read-PtTaskbarFixture -ReceiptPath $Fixture.ReceiptPath).Marker
-        $candidates = @(Get-PtTaskbarCalculatorWindows -Calculator $marker.Calculator)
+        $candidates = @(Get-PtTaskbarCalculatorWindows -Calculator $marker.Calculator |
+            Where-Object { $_.Identity.className -cne 'Windows.UI.Core.CoreWindow' })
         if (-not $candidates.Count -and $AllowAbsent) {
             if (-not $App.Identity) { throw 'Calculator activation has no resolved window identity; preserve the receipt for cleanup after activation settles.' }
             if (@(Get-PtNativeWindow | Where-Object Hwnd -eq $App.Identity.hwnd).Count) {
@@ -357,10 +361,20 @@ function Resolve-PtTaskbarOwnedWindow {
         }
         if ($candidates.Count -ne 1) { throw 'Expected exactly one Calculator window; no shared or ambiguous window is owned.' }
         $candidate = $candidates[0]
+        $sameContent = $App.ContentProcess -and
+            (ConvertTo-Json $candidate.ContentProcess -Compress) -ceq (ConvertTo-Json $App.ContentProcess -Compress)
+        $startupReparent = $sameContent -and $App.Identity.className -ceq 'Windows.UI.Core.CoreWindow' -and
+            $candidate.Identity.className -ceq 'ApplicationFrameWindow' -and
+            $Fixture.Phase -in 'Creating','Cleaning' -and -not $Fixture.Pending -and -not $Fixture.LastOperation
         if ($candidate.Identity.hwnd -in $marker.ExistingWindows -or
-            ($App.Identity -and (ConvertTo-Json $candidate.Identity -Compress) -cne (ConvertTo-Json $App.Identity -Compress)) -or
-            ($App.ContentProcess -and (ConvertTo-Json $candidate.ContentProcess -Compress) -cne (ConvertTo-Json $App.ContentProcess -Compress))) {
+            ($App.Identity -and -not $startupReparent -and (ConvertTo-Json $candidate.Identity -Compress) -cne (ConvertTo-Json $App.Identity -Compress)) -or
+            ($App.ContentProcess -and -not $sameContent)) {
             throw 'Calculator identity changed or belongs to a pre-existing window; refusing to close or route.'
+        }
+        if ($startupReparent) {
+            $Fixture | Add-Member -Force NoteProperty StartupReparent ([pscustomobject]@{
+                From=$App.Identity; To=$candidate.Identity; ContentProcess=$candidate.ContentProcess
+            })
         }
         if (-not $App.ContentProcess) {
             $App.ContentProcess = [pscustomobject]@{ ProcessId=$candidate.ContentProcess.ProcessId
@@ -755,8 +769,17 @@ function New-PtTaskbarFixture {
         $app.LaunchAfterTicks = [DateTime]::UtcNow.Ticks
         Save-PtTaskbarFixture $fixture
         Start-PtTaskbarCalculator -Calculator $calculator
-        Wait-PtCondition -Description 'new Calculator window' -TimeoutSeconds 15 -Probe {
-            @(Get-PtTaskbarCalculatorWindows -Calculator $calculator).Count -gt 0
+        $windowReady = @{ Signature=''; Count=0 }
+        Wait-PtCondition -Description 'settled Calculator top-level frame' -TimeoutSeconds 15 -Probe {
+            $candidates = @(Get-PtTaskbarCalculatorWindows -Calculator $calculator |
+                Where-Object { $_.Identity.className -cne 'Windows.UI.Core.CoreWindow' })
+            if ($candidates.Count -gt 1) { throw 'More than one Calculator top-level frame appeared; ownership is ambiguous.' }
+            if ($candidates.Count -eq 1) {
+                $signature = ConvertTo-Json $candidates[0] -Depth 6 -Compress
+                $windowReady.Count = if ($signature -ceq $windowReady.Signature) { $windowReady.Count + 1 } else { 1 }
+                $windowReady.Signature = $signature
+                if ($windowReady.Count -ge 2) { $true }
+            } else { $windowReady.Count=0; $windowReady.Signature='' }
         } | Out-Null
         $app.Identity = Resolve-PtTaskbarOwnedWindow $fixture $app
         Save-PtTaskbarFixture $fixture
@@ -1010,6 +1033,14 @@ function Remove-PtTaskbarFixture {
     $marker = $record.Marker
     $errors = [Collections.Generic.List[string]]::new()
     $desktopSafe = $false
+    if ($Fixture.Version -eq 2 -and $Fixture.Apps[0].Identity.className -ceq 'Windows.UI.Core.CoreWindow' -and
+        $Fixture.Phase -in 'Creating','Cleaning' -and -not $Fixture.Pending -and -not $Fixture.LastOperation) {
+        $identity = Resolve-PtTaskbarOwnedWindow $Fixture $Fixture.Apps[0] -AllowAbsent
+        if ($identity) {
+            $Fixture.Apps[0].Identity = $identity
+            Save-PtTaskbarFixture $Fixture
+        }
+    }
     try {
         Assert-PtTaskbarInputIdle
         Assert-PtWindowIdentity $marker.Taskbar.taskbar

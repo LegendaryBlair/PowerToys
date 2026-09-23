@@ -73,6 +73,13 @@ each launch/drag/route/close intent before mutation. Calculator is activated by 
 application identity; a launcher PID is never mistaken for the content or shared host PID.
 Only one newly observed Calculator HWND outside the prelaunch window set can be owned.
 Both its top-level and content-process identities are retained and checked on later calls.
+UWP Calculator can briefly expose its content `CoreWindow` before reparenting it into an
+`ApplicationFrameWindow`. Creation waits for two matching non-CoreWindow frame observations;
+it does not persist that transient content HWND as the routing/cleanup target.
+For an interrupted creation receipt that already captured a CoreWindow, cleanup may recover
+its new frame only for the exact same content PID/start/path, a new frame outside the baseline,
+and no prior drag/route. `StartupReparent` retains both identities. Ready or previously used
+targets never receive this exception.
 
 New receipts use version 2. Version 1 receipts remain readable for recovery of earlier runs;
 their old launcher is no longer shipped. The offline suite retains synthetic version 1 data
