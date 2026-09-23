@@ -1,12 +1,17 @@
 # Per-module verification profiles (`references/modules/`)
 
-This folder holds **one short profile per PowerToys module**. Each profile is self-contained guidance specific to that module — paths, entry-paths, capability/control recipes, common BLOCKED traps, fixture lists, source citations.
+This folder holds **one focused profile per PowerToys module**: bootstrap facts, entry paths, state/control maps, troubleshooting, ownership/restoration and source/visual references.
 
 ## When to read
 
-When this skill runs for a specific module, check whether `references/modules/<module>.md` exists here. If yes: **read it BEFORE walking the SKILL.md drive-stack** — it tells you which entry-paths actually work for this module's quirks and which BLOCKED traps to avoid.
+When this skill runs for a specific module, check whether `references/modules/<module>.md` exists here. If yes: **read it BEFORE walking the SKILL.md drive-stack** — it supplies the module-specific routes, operations and diagnostic boundaries.
 
 If no profile exists, fall back to SKILL.md + the helper scripts.
+
+For the complete checklist -> fresh-session execution -> profile/local-commit -> improvement/confirmation
+workflow, use [powertoys-profile-authoring](../../../powertoys-profile-authoring/SKILL.md).
+In that workflow the Runner returns observations and gaps without editing the tested materials; the Author
+owns profile/helper changes. A standalone verification request retains the normal maintenance guidance below.
 
 ## Shared cross-module flows
 
@@ -45,55 +50,36 @@ If you're writing a profile for a module that registers an entry in Explorer's W
 
 The shared helper is `scripts/pt-explorer-contextmenu.ps1` (`Test-PtDesktopInteractive`, `Open-PtExplorerContextMenu`, `Invoke-PtContextMenuItem`, `Get-PtContextMenuItems`).
 
-Your module profile then only documents the **module-specific** quirks: settings.json schema keys, expected verb caption regex, capability/control recipes, source citations, ceiling.
+Your module profile then documents only the **module-specific** controls, settings read-outs, entry conditions, troubleshooting and source references.
 
-`power-rename.md` is the model — ~9 KB despite covering 18 items because the generic mechanics live in the canonical flow doc.
+Existing profiles such as `power-rename.md` can provide allowed behavioral examples, but legacy headings or
+tables in them are not the output schema. Keep generic mechanics in the shared flow documentation.
 
 ## Profile template
 
-A profile holds **only module-specific logic** an agent can't infer from the SKILL engine. It has **4 required sections + 2 optional**. Do NOT pad it with sections that have no content — omit them. No Ceiling/Don'ts sections: a PASS-rate number drifts every release, and "don'ts" are just traps phrased negatively (put them in BLOCKED traps).
+The [module profile format contract](../../../powertoys-profile-authoring/references/module-profile-format.md)
+is the single normative schema for new/refined profiles. Read its exact table headers, section boundaries,
+conditional-presence rules and review gate; do not reconstruct a schema from an older profile or this catalog.
 
-**Required (always):** ① metadata header · ② Entry-paths · ③ Recipes · ④ BLOCKED traps.
-**Optional (include only if non-empty):** Fixtures · Source citations.
+Required core sections are **Module facts**, **Entry paths**, **Control locator and interaction index** and
+**Troubleshooting**. Add **UI state-transition map**, **Fixtures and restoration** and a final reference
+container whenever their contract conditions apply. Entry paths is always second; state maps precede the
+interaction index, troubleshooting follows it, and restoration/reference sections come afterward.
 
-```markdown
-# <Module> — module verification profile
+The contract supplies the state (four-column), interaction (four-column), troubleshooting (three-column)
+and resource-inventory (five-column) schemas. Bootstrap facts and final reference containers retain only
+the presentation variants explicitly allowed there.
 
-# ① metadata header (REQUIRED) — bootstrap facts. Drop any line that doesn't apply.
-**PT module**: `<ModuleKey>` (one-line description)
-**Source**: `src\modules\<dir>\`
-**Settings file**: `%LOCALAPPDATA%\Microsoft\PowerToys\<dir>\settings.json`
-**Exe**: `<full path>`
-**Default hotkey**: `<keys>` (+ settings ActivationShortcut path)
-**Named Event**: `Local\<name>` (friendly name in pt-shared-events.ps1 catalog)
-**DSC resource**: `Microsoft.PowerToys/<Name>Settings`
-**Last verified**: `<build>` · `<date>` (bump whenever you re-drive the module)
-
-## Entry-paths (try in order)        # ② REQUIRED — how to launch & reach the UI, fastest first
-### 1. <fastest path>  <code + when to use + source citation>
-### 2. <alternate path>
-### 3. <last-resort path>
-
-## Recipes — control/observation map, NOT an answer key   # ③ REQUIRED
-| # | Capability | Drive (control / settings key) | Observe (where result shows) |
-|---|---|---|---|
-| 1 | <module capability> | <AutomationId / control / settings key> | <preview / settings.json / disk / log / menu> |
-
-> Mapping: read item → find capability row → drive the control, design your OWN inputs+assertions. No canned inputs/expected values (they go stale + invite copying). New capability ⇒ add a row.
-
-## BLOCKED traps                      # ④ REQUIRED — false-block + gotcha prevention (absorbs old "Don'ts"/"gotchas")
-- <mistake prior agents made → the fix>; <module quirk that misleads driving>
-
-## Fixtures                           # OPTIONAL — only if the module needs canned files (else omit)
-## Source citations                   # OPTIONAL — PT-repo file:line for surprising behavior (else inline in traps)
-```
+Use the [Author review gate](../../../powertoys-profile-authoring/references/module-profile-format.md#9-author-review-gate)
+before calling an authored/refined candidate conforming. This does not add a profile requirement to the
+initial profile-absent discovery run or turn format checks into proof of runtime behavior.
 
 ## Hygiene
 
-- **4 required + 2 optional sections only** (header · entry-paths · recipes · BLOCKED traps; fixtures + source citations if non-empty). No Ceiling, no Don'ts — fold negative guidance into BLOCKED traps. Omit empty sections rather than writing "None".
-- **Keep each profile under ~10 KB.** If it grows beyond that, the module has too many quirks — escalate to maintainer review of the upstream checklist.
-- **The recipe table is a capability → control MAP, not a mini-checklist.** Two attributes only: *Capability → Control (how to drive it)*. It must **not** carry inputs, expected outputs, or an `Observe` column — those overlap the checklist, which owns the inputs *and* the expected result. Put *where/how to read* an outcome in a short **Read-out notes** block under the table (a readout location/technique, never an expected value).
-- **Tables are capability-keyed, NOT line-keyed.** Upstream checklist line numbers (`L<n>`) **must not appear** — they drift between releases. PT-source-code citations should prefer **file + symbol** (a line number is fine only as an *as-of-build* hint).
+- **Follow the format contract, not legacy aliases.** Omit only genuinely inapplicable conditional sections; do not insert empty `None` sections or invent rows to fill a table. Record unresolved discovery work separately.
+- **Keep the profile focused.** Link shared mechanics, detailed helper recipes and visual indexes instead of copying them. Do not remove ownership, diagnostic boundaries or scoped operations merely to meet an arbitrary byte target.
+- **Keep claims separate from operating knowledge.** The checklist owns test inputs and expected outcomes. Put UI locators/actions in the interaction index, data/read-out mappings below it, and baseline-relative cleanup checks in restoration.
+- **Use interaction/state/resource keys, not checklist line numbers.** Upstream `L<n>` references drift; source citations should prefer file plus symbol. Runtime identities must be rediscovered.
 - **Cite source by file + symbol** (e.g. `Settings.cpp CSettings::Load`) where module behavior surprises (CLI guards, debounce timings, fallback chains) so reviewers can verify — symbols survive refactors, bare line numbers rot.
 - **Update the profile after every verification round**; promote any new technique into the right helper script if it generalizes beyond this module.
 
@@ -103,12 +89,12 @@ Profiles are written by an agent and may sit unreviewed, so a hallucination can 
 
 **1. State a fact, or give the discovery instruction — never hedge.** If a value is confirmed, state it plainly. If it's a guess or *volatile* (changes per launch/build — e.g. PowerRename's per-launch `txt-textbox-XXXX` IDs), **don't write the guessed value at all** — write the runtime-discovery instruction instead ("discover the AutomationId at runtime by name/role"). **Do NOT** add `[UNVERIFIED] — confirm yourself` tags, "review notes", or any commentary about the doc's own reliability: it doesn't help the consuming agent (which re-checks at runtime anyway) and makes it distrust otherwise-good content. If something's wrong, fix it; if it's uncertain, turn it into a discovery instruction.
 
-**2. Fill from evidence, not speculation.** Don't AI-generate a whole profile up front (that's what produced the HKCR hallucination). **Seed** a thin one (metadata + a source scan for durable facts), then let **each run add** the controls/keys it actually confirmed, correct anything that failed, and append BLOCKED traps from that run's §G retrospective. The profile grows *out of* runs.
+**2. Fill from evidence, not speculation.** Don't AI-generate a whole profile up front (that's what produced the HKCR hallucination). **Seed** a thin one (metadata + a source scan for durable facts), then let **each run add** the controls/keys it actually confirmed, correct anything that failed, and promote durable troubleshooting guidance from that run's retrospective. The profile grows *out of* runs.
 
 **3. Durable vs volatile.** Durable facts (settings-file path, "modern-menu-only on Win11", the two-settings-files gotcha) belong here as plain statements. Volatile facts (per-launch/per-build IDs, layout) are **discovered at runtime**, never pinned.
 
-**4. State each fact once.** Duplication is the #1 staleness amplifier: when a fact lives in the recipe table, an entry-path, and three BLOCKED traps, one edit leaves the others stale → contradiction. Shared mechanics go in the cross-flow doc; module facts once; everything else cross-references.
+**4. State each fact once.** Duplication is the #1 staleness amplifier: when a fact lives in the interaction table, an entry path and several troubleshooting rows, one edit leaves the others stale. Shared mechanics belong in the shared flow doc; everything else cross-references its owning section.
 
 **5. Prefer symbol over line for source citations.** `Settings.cpp CSettings::Load` survives a refactor; `Settings.cpp:307` rots on the next edit. A line number is fine only as an *as-of-build* hint.
 
-**6. Freshness.** The only provenance marker a profile carries is a compact `**Last verified**: <build> (<date>)` line in the header — no per-fact date tags in the body. Treat a profile as stale after ~2 releases or on a detected UI redesign; it should get **one human review** before it's trusted (necessary, not sufficient — the same discipline the skill applies to checklists). An optional run-start lint (do the named control IDs resolve? do the settings keys exist?) can flag drift.
+**6. Content validity.** Maintain instructions against current controls, settings, helpers and relevant UI-stack differences. A date or release count alone proves neither validity nor staleness. Keep actual tested artifact identities and run history in the archive/Author record; never advance a live-verification stamp after only a source or formatting review, or copy another run's stamp into a new profile. Runtime discovery can flag content that needs review.
