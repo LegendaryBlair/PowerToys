@@ -1,8 +1,9 @@
 # Shortcut Guide - Calculator first-slot fixture
 
 Use the installed Windows Calculator as the routing fixture, not a custom dummy app.
-Read the shared [Calculator taskbar helper](../../taskbar-fixtures.md) and the module's
-[observation and restoration rules](../shortcut-guide.md#observation-and-restoration-rules).
+Read the shared [Calculator taskbar helper](../../taskbar-fixtures.md), the module's
+[observation rules](../shortcut-guide.md#observation-rules), and its
+[fixtures and restoration contract](../shortcut-guide.md#fixtures-and-restoration).
 
 ## Setup and slot mapping
 
@@ -41,6 +42,8 @@ separate no-digit hold/release checks; Win+1 itself suppresses Start.
 Input acceptance is not delivery completion. Use the observed slot/foreground and passive
 captures, not CLI success or a visible but unclassified SG host. Keep the pointer off the
 taskbar so thumbnail hover does not interfere with indicator observations.
+If exact Calculator routing succeeds and Windows is still held but the native SG host is
+already hidden, retain that state as a product retention failure, not a fixture/setup blocker.
 
 ## Restore
 
