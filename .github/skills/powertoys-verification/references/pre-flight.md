@@ -115,6 +115,15 @@ Stop-PtVerificationAttempt $preflight -Reason 'Prerequisites recorded'
 
 ## State hygiene (CRITICAL — always restore)
 
+For the aligned CP/WS/SG profiles, use the [shared session contract](session-safety.md):
+capture borrowed Settings state before navigation, register actual owned creations,
+declare cleanup dependencies and verify restoration against this run's original snapshots. The thin template
+enables this layer; direct drivers must open it explicitly. Never close a pre-existing
+Editor/Settings/Welcome window merely to obtain a cleaner fixture. Unsupported IME,
+draft or unexposed UI state remains an explicit preservation limitation.
+On cleanup failure, name the unresolved resources and preserve their original baselines.
+Resolve them before subsequent dependent work; the next module runs its own preflight.
+
 Wrap any settings/registry mutation in try/finally:
 
 Prefer the [paired snapshot helpers](helper-workflow.md#pair-snapshots-with-restoration-before-changing-state).
@@ -124,14 +133,20 @@ mutation contract still applies; do not overwrite unrelated state.
 
 ```powershell
 $bk = Get-PtFileSnapshot -Path $explicitOwnedSettingsPath
+$expected = $bk
 # Persist the snapshot before the authorized mutation.
 try {
     # Drive the documented user flow and collect observations.
+    # Update $expected only after attributing the known test-written state.
 } finally {
-    Restore-PtFileSnapshot $bk
+    Restore-PtFileSnapshot -Snapshot $bk -ExpectedState $expected
     # Register the comparison as Restoration evidence; do not infer it from exit code.
 }
 ```
+
+The guarded single-file example requires an existing file. Use explicit-owned directory
+rollback for an originally absent file; do not pre-create it to satisfy an existing-file API.
+Never infer a known post-state from a fresh snapshot of unexplained concurrent changes.
 
 Close only tracked test-owned windows/tabs, not shared host processes. Restore only the specific
 files/registry values the case owned; never remove whole policy trees as a cleanup shortcut.

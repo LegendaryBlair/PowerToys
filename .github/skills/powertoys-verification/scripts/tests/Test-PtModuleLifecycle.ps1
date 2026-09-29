@@ -227,6 +227,29 @@ Check 'Explicit transitions and cleanup recover partial enablement without autom
     Reject {Set-PtModuleEnabled $visibleSnapshot $false} 'visible UI'
     Require ($fixture.Toggles -eq 4) 'Visible user UI was closed'
 }
+Check 'Clipboard dependency prevents module disable and restart before Toggle' {
+    $fixture=@{Enabled=$true;Runtime=$true;Toggles=0}
+    function Get-PtModuleLifecycleState {param($Profile) State $fixture.Enabled $fixture.Runtime}
+    function Get-PtLifecycleToggle {
+        param($Snapshot)
+        $pattern=[pscustomobject]@{Fixture=$fixture}
+        $pattern|Add-Member ScriptMethod Toggle {$this.Fixture.Toggles++;$this.Fixture.Enabled=$false;$this.Fixture.Runtime=$false}
+        [pscustomobject]@{Enabled=$fixture.Enabled;Pattern=$pattern}
+    }
+    $settings=[pscustomobject]@{hwnd=2;processId=3;processStartTicks=4;className='SyntheticSettings'}
+    $snapshot=Get-PtModuleLifecycleSnapshot $profile $settings $Workspace
+    $called=[Collections.Generic.List[int]]::new()
+    function Assert-PtProcessRelease {param([int[]]$ProcessId) foreach($value in $ProcessId){$called.Add($value)};throw 'Synthetic unresolved clipboard obligation'}
+    Reject {Set-PtModuleEnabled $snapshot $false} 'clipboard obligation'
+    Require ($fixture.Toggles -eq 0 -and $called.Contains(11)) 'Disable toggled before checking the writer'
+    function Get-PtActiveVerificationAttempt {[pscustomobject]@{Kind='Diagnostic'}}
+    function Invoke-PtVerificationStep {
+        param($Attempt,$Name,$Command,$Implementation,$Action,$ArgumentList)
+        & $Action @ArgumentList
+    }
+    Reject {Restart-PtModuleLifecycle $snapshot -Reason 'Synthetic gate test'} 'clipboard obligation'
+    Require ($fixture.Toggles -eq 0) 'Restart bypassed the disable dependency'
+}
 Check 'Limited-rights native identity survives denied HasExited and MainModule; required denial is never exit' {
     Add-Type -TypeDefinition @'
 using System;

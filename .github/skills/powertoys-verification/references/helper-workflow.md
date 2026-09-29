@@ -1,5 +1,38 @@
 # Reliable driving and paired restoration
 
+## Canonical capability inventory
+
+Color Picker, Workspaces and Shortcut Guide use this same engine baseline. A profile move
+does not align product versions or fixtures: still record the installed bits and run inputs.
+Do not load helpers from another worktree to fill an unresolved dependency.
+
+| Capability | Canonical WIP surface | Consolidation decision / boundary |
+|---|---|---|
+| Run, step and assertion records | `pt-verification-report.ps1`, operation/render helpers | Keep one recorder and explicit subassertion inventory; do not import CP `New-PtRecordedRun` or its second archive model. |
+| Window identity and physical geometry | `pt-desktop.ps1`, `pt-state-snapshot.ps1` | Keep lowercase `hwnd/processId/processStartTicks/className`; a native window record has no `ProcessName` field. Identity is not ownership. |
+| Controls, values and shortcut recording | `pt-uia.ps1`, `pt-ui-observation.ps1`, `pt-shortcut-recorder.ps1` | Keep typed scoped resolution and the existing recorder; no CP `Resolve-PtUiControl` / `Set-PtScopedToggle` wrapper. |
+| Input and module lifecycle | existing chord/held-key/foreground/lifecycle helpers | Explicit operations, no automatic Runner restart; active-session clipboard dependencies gate disable/restart. |
+| Live settings reads | `pt-file-io.ps1` | Shared read/write/delete handles prevent readers blocking normal writers; not a guarantee of an atomic, fully settled JSON document. |
+| File and directory restoration | `pt-state-snapshot.ps1`, `pt-directory-snapshot.ps1` | Reuse snapshot shape. Explicit `-ExpectedState` adds guarded existing-file rollback; directory rollback handles owned existence changes. Legacy unguarded calls are not concurrency-safe. |
+| Clipboard preservation | `pt-clipboard-guard.ps1`/`.cs`, `pt-clipboard-session.ps1` | Native preservation, sealed pending writes and a separate STA keeper across ordinary controller exit; no private payload on disk. Formats-only inspection is not backup. |
+| Scoped passive capture | `Save-PtPassiveScreenshot -WindowIdentity` | Reuse capture API with an optional physical union for owner/popup identities; no separate CP capture wrapper. |
+| Owned application/taskbar fixtures | existing owned-fixture and taskbar helpers | Keep module-specific adapters. Never adopt a user window because its PID/HWND can be observed. |
+| Ownership, Settings and cleanup | `pt-session-safety.ps1`, `pt-settings-session.ps1`, `pt-cleanup-plan.ps1` | Persist borrowed/created resources, supported original Settings UI state and explicit cleanup dependencies; use the [session safety contract](session-safety.md). |
+| Stable assertions | `pt-assertion-inventory.ps1` | [Reviewed source-bound inventories](assertion-inventories/README.md), not run-local child generation. |
+
+`pt-state.ps1` remains a legacy convenience surface. New workflows use the strict lifecycle
+reader for enablement, not `Test-PtModuleEnabled`'s missing-value fallback, and do not call
+`Restart-PtRunner` or force-copy `Restore-PtModuleSettings` as generic recovery. Retaining
+old callers is compatibility, not an endorsement of their weaker ownership/restore behavior.
+
+The thin template enables resource protection before Preflight. Supply Settings HWNDs
+**before navigation**, explicit cleanup dependencies and comparisons against this run's
+original snapshots. Outside the template, open the resource session explicitly. IME, unsaved drafts,
+unexposed controls and arbitrary direct native calls remain outside its guarantees.
+Report unresolved cleanup resources explicitly and resolve them before subsequent dependent
+work. Each module performs its own preflight and verified cleanup; there is no cross-run
+state protocol. These are scoped common capabilities, not a second orchestration framework.
+
 Use PowerShell 7 on Windows. These are small reusable operations, not a scheduler or a
 replacement for a module's checklist. Keep UI driving serial on one desktop.
 Read the [recording workflow](recording-workflow.md) before discovery; wrap every native
@@ -18,6 +51,20 @@ foreach ($name in 'Wait-PtCondition','Invoke-PtWinApp','Save-PtPassiveScreenshot
     Get-Command $name -ErrorAction Stop | Out-Null
 }
 ```
+
+Initialize helpers in the actual driver script/runspace; another process does not inherit
+imports. If a separately invoked phase needs named events, dot-source `pt-shared-events.ps1`
+there and inspect `Get-PtSharedEventCatalog` before signaling. A script-scope catalog failure
+is a driver initialization error, not a missing module.
+
+Use `Get-PtVerificationInputs -Skill $skill -Inputs $explicitInputs` when creating the
+run. It includes the real `SKILL.md`, every top-level `.ps1`/`.cs` helper source and
+the keeper's `scripts\hosts\clipboard-keeper.ps1` entry point
+loaded by this bootstrap; native companion files must not be omitted. Supply the checklist,
+profile, driver and actually used reference/asset files in `$explicitInputs`. The thin
+run template calls this helper automatically. Keep inputs immutable during the run.
+Use `ConvertFrom-PtReportJson` for identity/receipt JSON so timestamps and Int64 fields
+retain the engine's agreed representation.
 
 Run `pt-session-diagnose.ps1` as a recorded preflight step. Probe the actual module's
 entry path and one normal open/close flow before a batch. Do not use a failed precondition
@@ -141,11 +188,18 @@ visibility and key state. Foreground is always checked. A mismatch retains the P
 Use unique paths from the recorder; existing images/sidecars are never overwritten.
 Native visibility alone does not prove rendered content or absence of first-frame flash.
 
+For an owner plus popup, pass `-WindowIdentity @($ownerIdentity,$popupIdentity)` to the
+same capture helper. It resolves their current physical bounding union and checks the
+identities/bounds again afterward. Explicit empty scope, minimized/hidden targets or changed
+scope fail rather than falling back to a full-desktop capture. The rectangular union may
+still include intervening/overlaid user content: use owned clean surfaces and review privacy.
+Unscoped legacy calls continue to capture the virtual desktop.
+
 ## Pair snapshots with restoration before changing state
 
 | Capture / restore | Scope and limits |
 |---|---|
-| `Get-PtFileSnapshot -Path` / `Restore-PtFileSnapshot -Snapshot` | Exact bytes and absence for one explicit file. JSON-round-trippable; restore is repeatable and retains the snapshot. Does not manage directories, metadata/ACLs, live writers or app caches. |
+| `Get-PtFileSnapshot -Path` / `Restore-PtFileSnapshot -Snapshot [-ExpectedState]` | Shared-read bytes/existence. Supplying an existing-file expected snapshot holds an exclusive handle for compare/write/readback and rejects unknown changes. The legacy no-ExpectedState path is unguarded; use directory rollback for owned absence changes. |
 | `Get-PtDirectorySnapshot -Path` / `Restore-PtDirectorySnapshot -Snapshot -ExpectedState -OwnedRelativePaths` | Exact bytes, file set and empty directories; explicit file/directory/root ownership and conflict-aware rollback. See [directory snapshots](directory-snapshots.md) for bounds and partial receipts. |
 | `Get-PtRegistrySnapshot -SubKey -ValueNames` / `Restore-PtRegistrySnapshot` | Selected HKCU values with kinds and unexpanded raw values. No provider-object serialization. Other values/subkeys are untouched; conflicts preventing original key absence are surfaced. |
 | `Get-PtWindowIdentity -Hwnd` / `Assert-PtWindowIdentity` | HWND, owner PID, process start ticks and native class. Reject recycled identities, including shared app hosts. |
@@ -153,9 +207,15 @@ Native visibility alone does not prove rendered content or absence of first-fram
 | `Get-PtDesktopSnapshot -WindowHwnd` / `Restore-PtDesktopSnapshot` | Explicitly affected windows plus original foreground identity and pointer. Attempts all restoration actions, then surfaces aggregated failures. |
 | `Close-PtTrackedWindow -Identity` | Normal WM_CLOSE for an explicitly owned fixture, after identity checks. Does not terminate shared processes or discard unsaved documents. |
 
-Persist snapshots before mutation. These helpers do not grant permission to modify
+Persist snapshots before mutation; keep private payloads out of observation output.
+`Get-PtFileSnapshot` does not make concurrent writes atomic; establish a stable baseline
+and a known test-written expected state, not a fresh snapshot of unexplained changes.
+Guarded file rollback requires original/expected files to exist and rejects reparse paths.
+Unknown content or a sharing violation throws without deliberately replacing a writer's data.
+These helpers do not grant permission to modify
 product files: the scenario's UI-only mutation rules still apply. Use file restoration
-only for authorized rollback, and follow module-specific cache refresh rules afterward.
+only for authorized rollback. Any necessary startup/cache refresh belongs inside the
+restoration plan before final verification, never after declaring cleanup complete.
 Stop live writers through normal documented UI when required. Never use Taskband registry
 writes to restore taskbar pins/order.
 Matching file/registry/window snapshots are not rewritten, avoiding unnecessary watcher
@@ -164,11 +224,13 @@ notifications or placement/DPI transitions on an untouched minimized window.
 ```powershell
 $desktop = Get-PtDesktopSnapshot -WindowHwnd @($window.Hwnd)
 $file = Get-PtFileSnapshot -Path $settingsPath
+$expected = $file
 # Persist both objects as baseline evidence before the first mutation.
 try {
     # Drive the documented user flow and record its original outcome.
+    # Update $expected only from the known owned post-state, before dependent work.
 } finally {
-    try { Restore-PtFileSnapshot $file | Out-Null }
+    try { Restore-PtFileSnapshot -Snapshot $file -ExpectedState $expected | Out-Null }
     finally { Restore-PtDesktopSnapshot $desktop | Out-Null }
 }
 ```
@@ -185,12 +247,19 @@ inside each run.
 For taskbar slot routing use the [non-pinned taskbar fixtures](taskbar-fixtures.md).
 For SG use its [composed flows](modules/shortcut-guide/composed-flows.md), keeping
 the chosen entry/close route and input ownership explicit.
+For copy/paste/sampling use the [clipboard guard](clipboard-guard.md). Restore and check
+`Assert-PtClipboardRestored` before **every** writer/guard-owner shutdown. This is an explicit
+caller gate, not an automatic feature of module lifecycle; retain the provider after a
+failed clipboard restore rather than hiding the failure with a process restart.
 
 ## Targeted helper acceptance
 
 The tests use the installed PowerShell runtime, without extra test packages:
 
 ```powershell
+# Shared reads, guarded rollback, capture scope, input inventory and clipboard gate; no desktop mutation.
+pwsh -NoProfile -File "$skill\scripts\tests\Test-PtSharedContracts.ps1"
+
 # File/registry/condition acceptance; no interactive desktop needed.
 pwsh -NoProfile -File "$skill\scripts\tests\Test-PtDesktopHelpers.ps1"
 

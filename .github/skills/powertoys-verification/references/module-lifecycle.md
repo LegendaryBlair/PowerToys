@@ -29,6 +29,9 @@ $profile = @{
 Optional `WithinAutomationId` scopes duplicate toggle identifiers. Optional
 `SettingsPath` selects another absolute general-settings file for an isolated fixture;
 normal verification uses `%LOCALAPPDATA%\Microsoft\PowerToys\settings.json`.
+Live settings reads use `Read-PtSharedFileText`, permitting product read/write/delete handles.
+Sharing does not make the document atomic: parse/schema/read failures remain explicit, never
+false disabled/ready state. Receipt-file reads retain their existing immutable-input contract.
 Event rules require explicit `Present`, `Absent` or `Ignore` for both configured states.
 An unknown/missing setting is an error, not `false`.
 
@@ -100,10 +103,14 @@ existing two-observation stability check even when the PID is reused.
 
 ## Paired use and error boundaries
 
-Navigate/make Settings visible first. The helper refuses a wrong page, minimized window,
+Capture the [Settings UI baseline](session-safety.md#borrow-settings-before-navigation)
+before navigating or making a borrowed Settings window visible. Then navigate/make Settings
+visible for the lifecycle operation. The helper refuses a wrong page, minimized window,
 disabled/policy-controlled toggle, UI/config mismatch or ambiguous native ownership.
 Before a transition it also refuses visible UI owned by the module; the case must first
 close only a surface it explicitly owns.
+Under an active resource session, it also checks clipboard owner/writer release obligations
+before Toggle. Runner-hosted modules check the Runner PID; restart uses the same disable gate.
 
 ```powershell
 $snapshot = Get-PtModuleLifecycleSnapshot -Profile $profile `

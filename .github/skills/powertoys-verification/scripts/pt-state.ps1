@@ -1,6 +1,8 @@
 # scripts/pt-state.ps1
 # Common state-verification helpers: settings.json diff, runner log grep, GPO log check,
 # process spawn detection, AppX probe.
+. "$PSScriptRoot\pt-file-io.ps1"
+. "$PSScriptRoot\pt-verification-report.ps1"
 
 function Get-PtSettings {
     <#
@@ -9,7 +11,7 @@ function Get-PtSettings {
     #>
     $f = "$env:LOCALAPPDATA\Microsoft\PowerToys\settings.json"
     if (-not (Test-Path $f)) { return $null }
-    Get-Content $f -Raw | ConvertFrom-Json
+    ConvertFrom-PtReportJson (Read-PtSharedFileText -Path $f)
 }
 
 function Get-PtModuleSettings {
@@ -21,7 +23,7 @@ function Get-PtModuleSettings {
     param([Parameter(Mandatory)][string]$ModuleDir)
     $f = "$env:LOCALAPPDATA\Microsoft\PowerToys\$ModuleDir\settings.json"
     if (-not (Test-Path $f)) { return $null }
-    Get-Content $f -Raw | ConvertFrom-Json
+    ConvertFrom-PtReportJson (Read-PtSharedFileText -Path $f)
 }
 
 function Get-CmdPalSettings {
@@ -32,7 +34,7 @@ function Get-CmdPalSettings {
     #>
     $f = "$env:LOCALAPPDATA\Packages\Microsoft.CommandPalette_8wekyb3d8bbwe\LocalState\settings.json"
     if (-not (Test-Path $f)) { return $null }
-    Get-Content $f -Raw | ConvertFrom-Json
+    ConvertFrom-PtReportJson (Read-PtSharedFileText -Path $f)
 }
 
 function Get-PtRunnerLogTail {

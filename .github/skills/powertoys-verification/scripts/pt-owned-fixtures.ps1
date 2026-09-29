@@ -104,6 +104,10 @@ function New-PtNotepadFixture {
             $found.Tab.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
         }
         Save-PtOwnedFixture $fixture
+        if(Get-PtActiveResourceSession){
+            if($fixture.OwnsWindow){Register-PtFixtureWindowOwnership -Identity $fixture.Identity -ReceiptPath $fixture.ReceiptPath}
+            else{Register-PtBorrowedWindow $fixture.Identity|Out-Null}
+        }
         $fixture
     } catch {
         $original = $_
@@ -140,6 +144,7 @@ function Remove-PtNotepadFixture {
     try {
     $h = [long]$Fixture.Identity.hwnd
     if (-not $Fixture.ContentClosed) { Assert-PtWindowIdentity $Fixture.Identity }
+    if(-not $Fixture.ContentClosed){Assert-PtProcessRelease -ProcessId $Fixture.Identity.processId}
     $tabs = if (-not $Fixture.ContentClosed) { @(Get-PtNotepadTabs $h) } else { @() }
     if (-not $Fixture.ContentClosed -and -not $Fixture.CloseRequested -and $Fixture.TabRuntimeId.Count) {
         $owned = @($tabs | Where-Object { (@($_.GetRuntimeId()) -join ',') -ceq ($Fixture.TabRuntimeId -join ',') })
@@ -163,6 +168,7 @@ function Remove-PtNotepadFixture {
         $Fixture.CloseRequested=$true
         Save-PtOwnedFixture $Fixture
     } elseif (-not $Fixture.ContentClosed -and -not $Fixture.CloseRequested -and $Fixture.OwnsWindow) {
+        Register-PtFixtureWindowOwnership -Identity $Fixture.Identity -ReceiptPath $Fixture.ReceiptPath
         Close-PtTrackedWindow $Fixture.Identity
     } elseif (-not $Fixture.ContentClosed -and -not $Fixture.CloseRequested) { throw 'No owned tab and no owned window; cleanup refused.' }
     if (-not $Fixture.ContentClosed -and $Fixture.TabRuntimeId.Count) {
@@ -252,6 +258,7 @@ function New-PtExplorerFixture {
         }
         $fixture.Identity = Get-PtWindowIdentity ([long]$window.HWND)
         Save-PtOwnedFixture $fixture
+        Register-PtFixtureWindowOwnership -Identity $fixture.Identity -ReceiptPath $fixture.ReceiptPath
         $fixture
     } catch {
         $original=$_
@@ -279,6 +286,7 @@ function Remove-PtExplorerFixture {
         if ($matches.Count -ne 1 -or $matches[0].Document.Folder.Self.Path -ine $Fixture.Path) {
             throw 'Explorer fixture navigated or changed identity; refusing to close unrelated state.'
         }
+        Assert-PtProcessRelease -ProcessId $Fixture.Identity.processId
         $matches[0].Quit()
         Wait-PtCondition -Description 'owned Explorer window exit' -TimeoutSeconds 5 -Probe {
             -not [PtDesktop]::IsWindow([IntPtr][long]$Fixture.Identity.hwnd)

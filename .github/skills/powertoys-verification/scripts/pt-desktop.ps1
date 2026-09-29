@@ -28,6 +28,13 @@ public static class PtDesktop {
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, uint attribute, out int value, int size);
+    public static bool IsCloaked(IntPtr h) {
+        int value;
+        int result=DwmGetWindowAttribute(h,14,out value,4);
+        if(result!=0) Marshal.ThrowExceptionForHR(result);
+        return value!=0;
+    }
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll", SetLastError=true)] static extern bool GetWindowRect(IntPtr h, out RECT rect);
@@ -264,6 +271,33 @@ function Get-PtUiElements {
     }
 }
 
+function Get-PtCaptureWindowBounds {
+    <#.SYNOPSIS
+    Resolve the physical union of explicitly supplied current identities, including owned popups.
+    #>
+    param([Parameter(Mandatory)][ValidateNotNullOrEmpty()][object[]]$WindowIdentity)
+    $windows = @(foreach ($identity in $WindowIdentity) {
+        Assert-PtWindowIdentity -Identity $identity
+        $window = Get-PtNativeWindow -Hwnd $identity.hwnd
+        if (-not $window.Visible -or $window.Minimized -or (Test-PtWindowCloaked -Hwnd $identity.hwnd) -or
+            $window.Rect.Right -le $window.Rect.Left -or $window.Rect.Bottom -le $window.Rect.Top) {
+            throw "Capture target is hidden, minimized, cloaked or has invalid bounds: $($identity.hwnd)"
+        }
+        [pscustomobject]@{ identity = $identity; rect = $window.Rect }
+    })
+    $left = ($windows.rect.Left | Measure-Object -Minimum).Minimum
+    $top = ($windows.rect.Top | Measure-Object -Minimum).Minimum
+    $right = ($windows.rect.Right | Measure-Object -Maximum).Maximum
+    $bottom = ($windows.rect.Bottom | Measure-Object -Maximum).Maximum
+    [pscustomobject]@{ Left = [int]$left; Top = [int]$top; Width = [int]($right - $left)
+        Height = [int]($bottom - $top); Windows = $windows }
+}
+
+function Test-PtWindowCloaked {
+    param([Parameter(Mandatory)][long]$Hwnd)
+    [PtDesktop]::IsCloaked([IntPtr]$Hwnd)
+}
+
 function Save-PtPassiveScreenshot {
     <#
     .SYNOPSIS
@@ -271,15 +305,23 @@ function Save-PtPassiveScreenshot {
     .PARAMETER Observe
     Optional read-only probe returning stable invariants (visibility, menu presence, held keys).
     Do not include timestamps or other intentionally changing values.
+    .PARAMETER WindowIdentity
+    Optional explicit owner/popup identities. Capture their physical bounding union and recheck it
+    afterward. Empty/invalid scope fails; omitted scope retains virtual-desktop capture.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Path, [scriptblock]$Observe)
+    param([Parameter(Mandatory)][string]$Path, [scriptblock]$Observe, [object[]]$WindowIdentity)
+    $scoped = $PSBoundParameters.ContainsKey('WindowIdentity')
+    if ($scoped -and -not $WindowIdentity.Count) { throw 'An explicit capture scope cannot be empty.' }
     Add-Type -AssemblyName System.Drawing, System.Windows.Forms
     $before = [ordered]@{ foreground = [PtDesktop]::GetForegroundWindow().ToInt64(); observation = $(if ($Observe) { & $Observe }) }
+    if ($scoped) { $before.scope = Get-PtCaptureWindowBounds -WindowIdentity $WindowIdentity }
     if (-not $before.foreground) { throw 'No interactive foreground desktop; capture aborted.' }
     $dpi = [PtDesktop]::SetThreadDpiAwarenessContext([IntPtr](-4))
     try {
-        $bounds = [Windows.Forms.SystemInformation]::VirtualScreen
+        $bounds = if ($scoped) {
+            [Drawing.Rectangle]::new($before.scope.Left, $before.scope.Top, $before.scope.Width, $before.scope.Height)
+        } else { [Windows.Forms.SystemInformation]::VirtualScreen }
         $bitmap = [Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
         try {
             $graphics = [Drawing.Graphics]::FromImage($bitmap)
@@ -291,14 +333,20 @@ function Save-PtPassiveScreenshot {
         } finally { $bitmap.Dispose() }
     } finally { if ($dpi -ne [IntPtr]::Zero) { [void][PtDesktop]::SetThreadDpiAwarenessContext($dpi) } }
     $after = [ordered]@{ foreground = [PtDesktop]::GetForegroundWindow().ToInt64(); observation = $(if ($Observe) { & $Observe }) }
+    $scopeError = $null
+    if ($scoped) {
+        try { $after.scope = Get-PtCaptureWindowBounds -WindowIdentity $WindowIdentity }
+        catch { $scopeError = $_; $after.scopeError = $_.Exception.Message }
+    }
     $state = [ordered]@{ before = $before; after = $after; path = [IO.Path]::GetFullPath($Path) }
     $sidecar = [IO.File]::Open("$Path.state.json", [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
     try {
         $bytes = [Text.Encoding]::UTF8.GetBytes(($state | ConvertTo-Json -Depth 20))
         $sidecar.Write($bytes, 0, $bytes.Length)
     } finally { $sidecar.Dispose() }
-    if (($before | ConvertTo-Json -Depth 15 -Compress) -cne ($after | ConvertTo-Json -Depth 15 -Compress)) {
+    if ($scopeError -or ($before | ConvertTo-Json -Depth 15 -Compress) -cne ($after | ConvertTo-Json -Depth 15 -Compress)) {
         $error=[InvalidOperationException]::new("Observation changed during capture; evidence is invalid, retained at $Path (see state sidecar).")
+        if ($scopeError) { $error.Data['PtCaptureScopeFailure'] = $scopeError.Exception }
         $error.Data['PtCaptureStatus']='ObservationChanged'
         $error.Data['PtCapturePath']=[IO.Path]::GetFullPath($Path)
         throw $error

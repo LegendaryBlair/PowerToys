@@ -1,0 +1,69 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "54C06BBA300F1B4AFDE5AF41DF70630792BEFD78A8D2FBCA98FAD05A9CE9D1E1",
+  "Items": [
+    {"Id":"L46","Assertions":[
+      {"Id":"L46.naming","Description":"Clean-profile Settings/OOBE calls the module Shortcut Guide and describes the app-aware overlay, not V2."},
+      {"Id":"L46.disabled","Description":"Disabled from first render, with no transient Shortcut Guide process/event activation."},
+      {"Id":"L46.persistence","Description":"Enabling persists across a PowerToys restart."}
+    ]},
+    {"Id":"SG-QUICK-ACCESS","Assertions":["L47.quick-access","L47.disabled-quick","L47.reenable-quick"]},
+    {"Id":"SG-COMMAND-PALETTE","Assertions":["L47.command-palette","L47.disabled-palette","L47.reenable-palette"]},
+    {"Id":"SG-BASIC","Assertions":["L48.binding","L48.activation","L48.key-names","L68.initial-page","L68.navigation","L68.indicators","L68.stability","L71.duplicates","L71.headings","L71.peek","L71.click-to-do"]},
+    {"Id":"SG-BINDINGS","Assertions":["L49.settings-reopen","L49.activation","L49.restart","L49.generated-row","L69.custom-row","L69.reset-row","L49.restore"]},
+    {"Id":"SG-HOLD-MODES","Assertions":["L53.setting","L53.surfaces","L53.start","L53.chord","L55.settings","L55.open","L55.release","L56.settings","L56.retained","L56.escape","L56.chord"]},
+    {"Id":"SG-INDICATORS","Assertions":["L54.settings","L54.threshold","L54.plain-release","L54.limits","L89.slots","L89.layout","L89.routing","L89.retention","L89.release"]},
+    {"Id":"L60","Assertions":[
+      {"Id":"L60.escape","Description":"A fresh guide closes once with Escape, leaves no orphan overlay and supports the next invocation."},
+      {"Id":"L60.chord","Description":"A fresh guide closes once with the configured chord, leaves no orphan overlay and supports the next invocation."},
+      {"Id":"L60.close-button","Description":"A fresh guide closes once with its title-bar Close button, leaves no orphan overlay and supports the next invocation."},
+      {"Id":"L60.outside","Description":"A fresh guide closes once when clicking the transparent area outside the pane, leaves no orphan overlay and supports the next invocation."},
+      {"Id":"L60.foreground","Description":"A fresh guide closes once when another tracked app becomes foreground, leaves no orphan overlay and supports the next invocation."}
+    ]},
+    {"Id":"L61","Assertions":[
+      {"Id":"L61.elevated-foreground","Description":"The configured physical chord opens the non-elevated guide above an elevated Notepad fixture."},
+      {"Id":"L61.passthrough","Description":"A safe displayed Windows shortcut such as Win+E opens the expected Explorer fixture and closes the guide; close only that Explorer fixture."}
+    ]},
+    {"Id":"L62","Assertions":[
+      {"Id":"L62.excluded-chord","Description":"With notepad.exe excluded and the fixture foreground, the configured chord opens no guide surface."},
+      {"Id":"L62.excluded-hold","Description":"With notepad.exe excluded and the fixture foreground, the configured Windows-key action opens no guide surface."},
+      {"Id":"L62.other-app","Description":"With the exclusion still present, foreground Explorer and confirm the guide opens."},
+      {"Id":"L62.removal","Description":"Remove the exclusion and confirm Notepad activation works without restarting Windows."}
+    ]},
+    {"Id":"L63","Assertions":[
+      {"Id":"L63.cycles","Description":"After warm-up, ten open/navigate/close cycles reuse the same PID with functional navigation/content and at most one visible overlay in each cycle."},
+      {"Id":"L63.memory","Description":"Private working set after the ten cycles and two-second idle increases by no more than 32 MiB from the warm baseline."}
+    ]},
+    {"Id":"L67","Assertions":[
+      {"Id":"L67.desktop","Description":"Desktop activation succeeds without a blank-title fault."},
+      {"Id":"L67.rail","Description":"Windows and PowerToys vector rail entries are readable and one is selected."},
+      {"Id":"L67.content","Description":"Selected page has Pinned, Recommended where applicable, normal headings and shortcut key caps."},
+      {"Id":"L67.settings","Description":"The rail Settings icon is fully visible; invoking it opens the existing Settings window directly to Shortcut Guide."}
+    ]},
+    {"Id":"L70","Assertions":[
+      {"Id":"L70.pin","Description":"Pin from a row context menu creates one Pinned row and records it for the correct application in Pinned.json."},
+      {"Id":"L70.reopen","Description":"The row remains pinned after dismissing and reopening the guide."},
+      {"Id":"L70.unpin","Description":"Unpin removes the row immediately and restores localized empty-state text; restore the original Pinned.json."}
+    ]},
+    {"Id":"L72","Assertions":[
+      {"Id":"L72.recreate","Description":"After backing up and removing the per-user shortcuts directory, guide invocation recreates the directory and index."},
+      {"Id":"L72.bundled","Description":"Every bundled manifest in the tested build is copied and referenced exactly once; every copied YAML parses."},
+      {"Id":"L72.pages","Description":"Windows, PowerToys, Explorer and Notepad pages remain available without a launch crash; restore the original directory."}
+    ]},
+    {"Id":"L73","Assertions":[
+      {"Id":"L73.valid-keys","Description":"A disposable Notepad-filtered manifest renders virtual-key 65, <1>, <LessThan>, <GreaterThan> and an arrow as A, 1, <, > and the expected arrow glyph/name, not raw numbers/tokens."},
+      {"Id":"L73.invalid-keys","Description":"Empty and unknown keys in that manifest neither crash the guide nor suppress valid sibling shortcuts."}
+    ]},
+    {"Id":"SG-SEARCH","Assertions":["L77.name","L77.description","L77.modifier","L77.key-label","L77.sections","L77.page-scope","L78.focus","L78.no-match","L78.clear","L78.close","L78.reopen","L85.selection"]},
+    {"Id":"SG-APPEARANCE","Assertions":["L82.themes","L82.system-follow","L83.persistence","L83.position","L83.surface","L83.host","L83.taskbar","L83.alt-tab"]},
+    {"Id":"L84","Assertions":[
+      {"Id":"L84.settings","Description":"After changing to a supported non-English PowerToys language and restarting, Shortcut Guide Settings labels are localized without resource keys or unintended English fallback."},
+      {"Id":"L84.chrome","Description":"Title, search, Close, Settings, Pinned, Recommended, Taskbar, Pin/Unpin and no-results text are localized; application-manifest names/descriptions may remain English. Restore the original language."}
+    ]},
+    {"Id":"L90","Assertions":[
+      {"Id":"L90.full-guide","Description":"With different DPI scales on two monitors, foreground Notepad on each in turn: full guide appears on that foreground monitor, stays within its work area and has no double scaling, gap, spill or cross-monitor offset."},
+      {"Id":"L90.indicators","Description":"On each differently scaled monitor in turn, taskbar-indicator mode appears on the foreground monitor within its work area and aligns to its taskbar without double scaling, gap, spill or offset."}
+    ]}
+  ]
+}

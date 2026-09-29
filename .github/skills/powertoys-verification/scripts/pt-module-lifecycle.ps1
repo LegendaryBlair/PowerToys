@@ -6,7 +6,7 @@ Profile-driven native module lifecycle and explicit UI enable/disable/restart.
 No process killing, Runner restart, module activation, JSON settings writes or automatic recovery.
 Ready means the declared native lifecycle contract, not rendered content or functional health.
 #>
-foreach($dependency in 'pt-ui-observation','pt-shared-events'){. "$PSScriptRoot\$dependency.ps1"}
+foreach($dependency in 'pt-file-io','pt-ui-observation','pt-shared-events'){. "$PSScriptRoot\$dependency.ps1"}
 
 if(-not ('PtLifecycleProcess' -as [type])){
     Add-Type -TypeDefinition @'
@@ -200,7 +200,7 @@ function Get-PtLifecycleProcesses {
 function Get-PtLifecycleConfiguredEnabled {
     param($Profile)
     $path=if($Profile.SettingsPath){$Profile.SettingsPath}else{Join-Path $env:LOCALAPPDATA 'Microsoft\PowerToys\settings.json'}
-    $settings=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
+    $settings=ConvertFrom-PtReportJson (Read-PtSharedFileText -Path $path)
     if($Profile.ModuleKey -cnotin @($settings.enabled.PSObject.Properties.Name) -or $settings.enabled.($Profile.ModuleKey) -isnot [bool]){
         throw "Missing/non-Boolean enabled.$($Profile.ModuleKey); absence is not disabled."
     }
@@ -386,6 +386,11 @@ function Set-PtModuleEnabled {
         if($toggle.Enabled -ne $before.ConfiguredEnabled){throw 'UI/configuration mismatch before module transition.'}
         $changed=$toggle.Enabled -ne $requested
         if($changed){
+            if(-not $requested){
+                $affected=@($before.Processes|ForEach-Object processId)
+                if($snapshot.Profile.Model -eq 'RunnerHosted'){$affected+=@($before.Runner.processId)}
+                Assert-PtProcessRelease -ProcessId $affected
+            }
             if(@($before.VisibleWindows).Count){throw 'Module has visible UI; close an explicitly owned surface before changing its lifecycle.'}
             $snapshot.PendingEnabled=$requested
             Save-PtLifecycleSnapshot $snapshot

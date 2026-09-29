@@ -45,6 +45,9 @@ specific checklist.
 
 | File | Purpose |
 |---|---|
+| `scripts/pt-file-io.ps1` | Shared live-file reads that permit product read/write/delete; no automatic retries or default JSON. |
+| `scripts/pt-clipboard-guard.ps1` + `.cs` | Shared in-memory clipboard preservation and explicit restore-before-shutdown gate; STA required. See [clipboard guard](references/clipboard-guard.md). |
+| `scripts/pt-clipboard-session.ps1` | Separate STA keeper and metadata-only reconnect receipt; retains the original across ordinary controller exit, not keeper termination. Composed writes seal their sequence before confirmation. |
 | `scripts/pt-shared-events.ps1` | `Invoke-PtSharedEvent`, `Test-PtSharedEvent`, `Get-PtSharedEventCatalog` — 56-entry friendly-name map for PT Named Events (CmdPal.Show, AOT.Pin, PowerLauncher.Invoke, LightSwitch.Toggle, ZoomIt.Draw, ...). The deterministic, foreground-free, UIPI-immune way to trigger a module. |
 | `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Invoke-PtHeldKeys`, `Wait-PtHotkeyAccepted` — no-delay activation by default, optional recorder pacing, left/right extended keys, and release in `finally`. Prefer Named Events unless the binding/input itself is under test. |
 | `scripts/pt-foreground-guard.ps1` | Exact-HWND guards plus explicit `Restore-PtForegroundAfterShell` for a test-opened Start/Search transition. Ordinary guards never dismiss UI automatically. |
@@ -54,7 +57,9 @@ specific checklist.
 | `scripts/pt-ui-snapshot.ps1` | Offline `Test-PtUiSnapshot`: determine whether a captured tree satisfies explicit structural landmarks, without treating absent virtualized/business rows as zero or requiring expected results as readiness. |
 | `scripts/pt-shortcut-recorder.ps1` | Common WinUI shortcut snapshot, safe readiness handshake, Save/Cancel and original-value restoration. Caller supplies the page/control/settings path; no module activation, Reset shortcut or JSON bypass. See [shortcut recorder](references/shortcut-recorder.md). |
 | `scripts/pt-owned-fixtures.ps1` | `New/Remove-PtNotepadFixture` and `New/Remove-PtExplorerFixture`: persisted ownership receipts, shared Notepad tab cleanup, isolated Explorer windows, explicit unsaved-edit consent and partial-cleanup retry. See [owned fixtures](references/owned-fixtures.md). |
-| `scripts/pt-state-snapshot.ps1` | Paired file/selected-HKCU-value/window/desktop snapshots and restoration; exact process identity and tracked-window close. Does not infer ownership or restart apps. |
+| `scripts/pt-state-snapshot.ps1` | Paired file/selected-HKCU-value/window/desktop snapshots; optional expected-state guarded existing-file rollback. Does not infer ownership or restart apps. |
+| `scripts/pt-session-safety.ps1`, `pt-settings-session.ps1`, `pt-cleanup-plan.ps1` | Borrowed/owned resources, pre-navigation Settings snapshots, release dependencies and verified cleanup stages. Enabled by the thin template; see [session safety](references/session-safety.md). |
+| `scripts/pt-assertion-inventory.ps1` | Source-bound, versioned CP/WS/SG assertion IDs; use the [frozen inventories](references/assertion-inventories/README.md), not new child groupings per run. |
 | `scripts/pt-module-lifecycle.ps1` | Profile-driven Resident/RunnerHosted/OnDemand state, explicit UI enable/disable, Diagnostic-only module restart and original-enabled restoration. No implicit Runner restart or process kill. See [module lifecycle](references/module-lifecycle.md). |
 | `scripts/pt-directory-snapshot.ps1` | Bounded byte/file-set/empty-directory snapshots and explicit-owned three-way rollback. Conflicts stop before writes; unrelated changes survive with a partial receipt. See [directory snapshots](references/directory-snapshots.md). |
 | `scripts/pt-shortcut-guide.ps1` | SG host/content readiness and read-only taskbar baselines/restoration comparisons. Module semantics stay in its profile/checklist. |
@@ -82,7 +87,18 @@ Get-ChildItem "$skill\scripts" -Filter '*.ps1' |
     Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
 ```
 
+Color Picker, Workspaces and Shortcut Guide use the [canonical WIP capability inventory](references/helper-workflow.md#canonical-capability-inventory).
+Do not mix the former Color Picker recorder/identity/lifecycle wrappers with these APIs.
+Capture Settings navigation/placement and establish window ownership before changing them;
+no native snapshot certifies page/IME state or another run's unresolved cleanup.
+
 ## Step 1 — Bootstrap
+
+For Color Picker, Workspaces and Shortcut Guide Scenario A runs, use
+`templates\verification-run.ps1` with the [required resource plan](references/session-safety.md#mandatory-wiring-for-aligned-module-runs),
+`CleanupPlan` and frozen inventory. Do not reuse an old run-local bootstrap that bypasses
+the template's ownership, Settings-baseline and cleanup checks. The generic manual bootstrap
+below remains for other modules and explicitly scoped recorder work.
 
 ```powershell
 $module = 'AdvancedPaste'  # or 'CmdPal', 'FZ', 'Peek', ...
@@ -97,8 +113,9 @@ Get-ChildItem "$skill\scripts" -Filter '*.ps1' |
     Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
 
 # Build the explicit item/subassertion inventory and input list per recording-workflow.md.
+$recordedInputs = @(Get-PtVerificationInputs -Skill $skill -Inputs $inputs)
 $run = New-PtVerificationRun -Workspace $workspace -Module $module -Bits $bits `
-    -Scenario $scenario -Items $items -Inputs $inputs
+    -Scenario $scenario -Items $items -Inputs $recordedInputs
 $preflight = Start-PtVerificationAttempt -Run $run -Context Preflight `
     -Kind Normal -Name 'Environment probes' -Activate
 Invoke-PtVerificationStep -Attempt $preflight -Name 'Session and elevation' `

@@ -21,7 +21,7 @@ function Get-PtSgLifecycleProfile {
 
 function Get-PtSgFlowConfiguration {
     $path=Join-Path $env:LOCALAPPDATA 'Microsoft\PowerToys\Shortcut Guide\settings.json'
-    $document=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
+    $document=ConvertFrom-PtReportJson (Read-PtSharedFileText -Path $path)
     $properties=$document.properties
     Assert-PtShortcutBinding $properties.open_shortcutguide
     if(($properties.win_key_action.value -isnot [int] -and $properties.win_key_action.value -isnot [long]) -or

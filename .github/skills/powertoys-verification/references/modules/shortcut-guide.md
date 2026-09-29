@@ -21,6 +21,11 @@
 `WhenEnabled=Present` and `WhenDisabled=Ignore`: Runner's DLL owns the event, so it
 can survive disable. Process/host exit, not event absence, establishes the stop condition.
 
+**Assertion inventory**: [frozen SG scenario/child mapping](../assertion-inventories/shortcut-guide.json);
+load it with the [shared inventory contract](../assertion-inventories/README.md), not run-local regrouping.
+Run through the common template with the [mandatory resource wiring](../session-safety.md#mandatory-wiring-for-aligned-module-runs);
+old report-local bootstraps are not the current run entry.
+
 ## Entry paths
 
 Choose the route that exercises the requested behavior, not a fixed fallback order.
@@ -247,6 +252,11 @@ Module-specific conditions for interpreting command availability and initial-pag
 
 ## Fixtures and restoration
 
+Use the [shared session contract](../session-safety.md) before mutation: borrow Settings,
+record owned foreground fixtures and declare cleanup dependencies. Settings close/reopen
+requires an owned launch; the UI adapter preserves supported original state without replacing
+a borrowed process. Report unresolved cleanup resources and retain this run's original baseline.
+
 Prepare only resources required by the selected assertions. Before mutation, capture original
 existence/values and declare ownership and **case-owned** or shared **run-owned** lifetime.
 Keep the original run baseline across retries. Declare semantic or byte-exact file restoration
@@ -267,9 +277,10 @@ up front, including whether runtime cached content is part of the required basel
 
 Use [paired snapshots](../helper-workflow.md#pair-snapshots-with-restoration-before-changing-state)
 for the supported file/registry/native-window facts, and explicit UI operations for the rest.
-`Restore-PtFileSnapshot` restores bytes/existence but has no expected-post-state conflict
-guard. The caller must exclude concurrent writers and establish known owned changes before
-using it; otherwise refuse the overwrite rather than treating the backup as authority.
+`Restore-PtFileSnapshot` without `-ExpectedState` is the legacy unguarded byte/existence restore.
+Use its guarded expected-state path for existing files after quiescing writers; use directory
+rollback for owned absence changes. Refuse unknown content rather than treating the backup
+or a fresh snapshot of unexplained changes as authority.
 
 Directory rollback requires quiescent writers, explicit owned paths and an expected
 post-mutation snapshot. A hash list is not a backup; a captured directory is not wholly owned.

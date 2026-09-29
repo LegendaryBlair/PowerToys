@@ -13,6 +13,37 @@ function Get-PtReportHash {
     try { [BitConverter]::ToString($algorithm.ComputeHash($Bytes)).Replace('-', '') } finally { $algorithm.Dispose() }
 }
 
+function Get-PtVerificationInputs {
+    <#.SYNOPSIS
+    Add the actual skill and all top-level loaded PowerShell/native helper sources to explicit run inputs.
+    .NOTES
+    Does not read product state or infer which checklist/references the caller will use.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Skill, [object[]]$Inputs = @())
+    $ErrorActionPreference = 'Stop'
+    $root = (Get-Item -LiteralPath $Skill -ErrorAction Stop).FullName
+    $paths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($inputFile in $Inputs) {
+        if (-not $inputFile.Name -or -not $inputFile.Path) { throw 'Each input needs an explicit Name and Path.' }
+        if (-not $names.Add($inputFile.Name)) { throw "Duplicate input name: $($inputFile.Name)" }
+        $full = (Get-Item -LiteralPath $inputFile.Path -ErrorAction Stop).FullName
+        if (-not $paths.Add($full)) { throw "Duplicate input source: $full" }
+        $inputFile
+    }
+    $sources = @((Get-Item -LiteralPath (Join-Path $root 'SKILL.md') -ErrorAction Stop)) +
+        @(Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -File |
+            Where-Object Extension -In '.ps1','.cs' | Sort-Object Name) +
+        @(Get-Item -LiteralPath (Join-Path $root 'scripts\hosts\clipboard-keeper.ps1') -ErrorAction Stop)
+    foreach ($file in $sources) {
+        if (-not $paths.Add($file.FullName)) { continue }
+        $name = "engine-$($file.Name)"
+        if (-not $names.Add($name)) { throw "Generated input name conflicts with caller input: $name" }
+        @{ Name = $name; Role = $(if ($file.Name -eq 'SKILL.md') { 'Skill' } else { 'Helper' }); Path = $file.FullName }
+    }
+}
+
 function ConvertFrom-PtReportJson {
     param([string]$Json)
     if ($PSVersionTable.PSVersion -ge [version]'7.5') {

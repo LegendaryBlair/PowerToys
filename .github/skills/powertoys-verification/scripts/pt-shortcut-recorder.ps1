@@ -47,7 +47,7 @@ function ConvertTo-PtShortcutKey {
 function Get-PtShortcutBinding {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$SettingsPath,[Parameter(Mandatory)][ValidateNotNullOrEmpty()][string[]]$PropertyPath)
-    $value=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($SettingsPath))
+    $value=ConvertFrom-PtReportJson (Read-PtSharedFileText -Path $SettingsPath)
     foreach($part in $PropertyPath){
         if([string]::IsNullOrEmpty($part) -or $part -cnotin @($value.PSObject.Properties.Name)){throw "Missing shortcut property segment: $part"}
         $value=$value.$part

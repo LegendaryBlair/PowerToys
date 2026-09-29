@@ -1,0 +1,159 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "49AAACD30784CDF2620B497F29D677A2A699DA73179B526948542B78B17F2D7C",
+  "Items": [
+    {"Id":"WS01","Assertions":[
+      {"Id":"WS01.settings-entry","Description":"Enable Workspaces and use Settings Launch editor: exactly one Workspaces Editor opens with the workspace list."}
+    ]},
+    {"Id":"WS02","Assertions":[
+      {"Id":"WS02.quick-access","Description":"The real Quick Access Workspaces entry opens the same Workspaces Editor window."}
+    ]},
+    {"Id":"WS03","Assertions":[
+      {"Id":"WS03.default-binding","Description":"With the editor closed, the exact default chord displayed in Settings opens Workspaces Editor."}
+    ]},
+    {"Id":"WS04","Assertions":[
+      {"Id":"WS04.new-binding","Description":"Save an unused activation chord and confirm the new physical chord opens the editor."},
+      {"Id":"WS04.old-binding","Description":"The previous physical chord no longer opens the editor; restore the original afterward."}
+    ]},
+    {"Id":"WS05","Assertions":[
+      {"Id":"WS05.disabled-settings","Description":"Disable Workspaces and confirm Settings Launch editor is disabled."},
+      {"Id":"WS05.disabled-chord","Description":"The activation chord does not open the disabled editor."},
+      {"Id":"WS05.disabled-quick-access","Description":"Quick Access has no usable disabled-module launch action."},
+      {"Id":"WS05.disabled-palette","Description":"Command Palette retains Workspaces settings but not Open Workspaces editor or per-workspace results."},
+      {"Id":"WS05.reenabled","Description":"Re-enable and verify Settings, Quick Access, configured chord and Command Palette results work without restarting Windows."}
+    ]},
+    {"Id":"WS06","Assertions":[
+      {"Id":"WS06.first-render","Description":"Clean install/profile without settings.json: Workspaces is disabled from first render and never starts/enables transiently before defaults persist."}
+    ]},
+    {"Id":"WS07","Assertions":[
+      {"Id":"WS07.capture-time","Description":"Capture includes every prepared app once, including the restored fixture opened after Snapshot Creator started waiting."},
+      {"Id":"WS07.geometry","Description":"Both restored apps expose matching recorded non-zero Left, Top, Width and Height."},
+      {"Id":"WS07.states","Description":"The packaged maximized app, minimized app and preview reflect their captured states."},
+      {"Id":"WS07.saved-card","Description":"Save a unique name: exactly one matching card appears with the correct app count and all icons/previews."}
+    ]},
+    {"Id":"WS08","Assertions":[
+      {"Id":"WS08.nonelevated-capture","Description":"Non-elevated PowerToys capture omits the elevated fixture."},
+      {"Id":"WS08.elevated-capture","Description":"Elevated PowerToys capture includes that fixture with Launch as administrator checked."}
+    ]},
+    {"Id":"WS09","Assertions":[
+      {"Id":"WS09.cancel-capture","Description":"Cancel Snapshot Creator returns to the list without changing the recorded workspace count or persisted data."}
+    ]},
+    {"Id":"WS10","Assertions":[
+      {"Id":"WS10.mixed-dpi-overlays","Description":"On two differently scaled monitors, each capture overlay exactly covers its monitor without offset, gap, overlap or spill."}
+    ]},
+    {"Id":"WS11","Assertions":[
+      {"Id":"WS11.name-search","Description":"A unique workspace-name substring leaves only the matching card."},
+      {"Id":"WS11.app-search","Description":"An application name present in only one of two distinct workspaces leaves only that card."},
+      {"Id":"WS11.clear-search","Description":"Clearing Search restores the full list."}
+    ]},
+    {"Id":"WS12","Assertions":[
+      {"Id":"WS12.sort-launch","Description":"Known launch history sorts Last launched newest-first."},
+      {"Id":"WS12.sort-created","Description":"Known creation order sorts Created newest-first."},
+      {"Id":"WS12.sort-name","Description":"Known names sort Name alphabetically ascending."},
+      {"Id":"WS12.sort-reopen","Description":"After closing every owned editor and reopening, non-default selection and card order persist."}
+    ]},
+    {"Id":"WS13","Assertions":[
+      {"Id":"WS13.remove-ui","Description":"More > Remove immediately removes the selected card without confirmation."},
+      {"Id":"WS13.remove-data","Description":"Only that record is removed from Workspaces data; other workspaces remain."}
+    ]},
+    {"Id":"WS14","Assertions":[
+      {"Id":"WS14.menu-edit","Description":"More > Edit opens the selected workspace with its correct name and applications."}
+    ]},
+    {"Id":"WS15","Assertions":[
+      {"Id":"WS15.card-edit","Description":"Clicking another card body, not Launch or More, edits that card's workspace."}
+    ]},
+    {"Id":"WS16","Assertions":[
+      {"Id":"WS16.resizing","Description":"At wide and narrow editor sizes, cards stretch and Launch/More remain reachable."},
+      {"Id":"WS16.scrolling","Description":"With enough workspaces to scroll, vertical scrolling neither clips content nor creates an unusable nested horizontal scroll area."}
+    ]},
+    {"Id":"WS17","Assertions":[
+      {"Id":"WS17.remove-app","Description":"Removing one of at least two apps moves it to removed state and removes its preview while the other remains unchanged."}
+    ]},
+    {"Id":"WS18","Assertions":[
+      {"Id":"WS18.add-back","Description":"Add back restores the removed app's original monitor group, preview position and saved launch properties."}
+    ]},
+    {"Id":"WS19","Assertions":[
+      {"Id":"WS19.minimized","Description":"Set a restored app to Minimized: position fields and preview update appropriately."},
+      {"Id":"WS19.maximized","Description":"Set another restored app to Maximized: position fields and preview update appropriately."},
+      {"Id":"WS19.reopen","Description":"Save and reopen: both states persist."}
+    ]},
+    {"Id":"WS20","Assertions":[
+      {"Id":"WS20.admin-on","Description":"For an admin-capable Win32 fixture, save Launch as administrator on, launch and approve UAC: process is elevated and arranged."},
+      {"Id":"WS20.admin-off","Description":"Turn it off, save and relaunch: process is non-elevated and arranged."}
+    ]},
+    {"Id":"WS21","Assertions":[
+      {"Id":"WS21.arguments-saved","Description":"Win32 command-line arguments targeting a unique file/folder persist after saving and reopening."},
+      {"Id":"WS21.arguments-applied","Description":"Workspace launch passes those arguments to the correct process and opens that target."}
+    ]},
+    {"Id":"WS22","Assertions":[
+      {"Id":"WS22.preview","Description":"Known non-zero Custom Left, Top, Width and Height update the preview immediately."},
+      {"Id":"WS22.reopen","Description":"Save, close and reopen: the custom values persist, not 0,0."},
+      {"Id":"WS22.launch-rectangle","Description":"The launched real window matches the saved rectangle within recorded normal frame tolerance."}
+    ]},
+    {"Id":"WS23","Assertions":[
+      {"Id":"WS23.save","Description":"Save a unique rename and app-property change: return to the list, then reopen and verify both values."},
+      {"Id":"WS23.rename-shortcut","Description":"The card and existing desktop shortcut use the new name; the obsolete shortcut name is removed."}
+    ]},
+    {"Id":"WS24","Assertions":[
+      {"Id":"WS24.cancel-edit","Description":"Change a name/app property and Cancel: return to the list and reopen with the original value."}
+    ]},
+    {"Id":"WS25","Assertions":[
+      {"Id":"WS25.breadcrumb","Description":"After an unsaved change, Workspaces breadcrumb returns to the list without persisting it."}
+    ]},
+    {"Id":"WS26","Assertions":[
+      {"Id":"WS26.create-shortcut","Description":"Check Create desktop shortcut and save: the named .lnk appears and the reopened checkbox is checked."},
+      {"Id":"WS26.invoke-shortcut","Description":"With fixture apps closed, invoking .lnk launches the same app set and placement as editor Launch."},
+      {"Id":"WS26.delete-shortcut","Description":"Delete the test shortcut and reopen: the checkbox is unchecked."}
+    ]},
+    {"Id":"WS27","Assertions":[
+      {"Id":"WS27.recapture","Description":"Launch and edit a scrollable workspace, wait for its apps, open an additional fixture and Capture: additional app included and existing apps represented once each."},
+      {"Id":"WS27.edit-layout","Description":"Wide/narrow editing views keep Save, Cancel, preview, project properties and expanded app controls reachable without horizontal clipping."}
+    ]},
+    {"Id":"WS28","Assertions":[
+      {"Id":"WS28.reuse-on","Description":"Save Move existing windows enabled, leave a matching app at wrong coordinates, launch: that exact window moves to the saved rectangle."},
+      {"Id":"WS28.reuse-off","Description":"Save Move existing windows disabled, leave a matching app at wrong coordinates, launch: that exact window remains in place."}
+    ]},
+    {"Id":"WS29","Assertions":[
+      {"Id":"WS29.unpacked","Description":"Close the isolated Win32 app then Launch: correct executable starts exactly once and moves to its saved state/monitor."},
+      {"Id":"WS29.packaged","Description":"Close the packaged app then Launch: correct package starts exactly once and moves to its saved state/monitor."}
+    ]},
+    {"Id":"WS30","Assertions":[
+      {"Id":"WS30.launcher-rows","Description":"Launcher lists every configured valid and intentionally invalid app."},
+      {"Id":"WS30.launcher-states","Description":"Each row transitions through the appropriate launching, launched or failed/not-launched state."}
+    ]},
+    {"Id":"WS31","Assertions":[
+      {"Id":"WS31.cancel-launch","Description":"Cancel launch before multi-app completion closes the launcher, prevents further starts and preserves already-opened apps."}
+    ]},
+    {"Id":"WS32","Assertions":[
+      {"Id":"WS32.dismiss-launch","Description":"Dismiss before multi-app completion closes the launcher while remaining apps continue launching to completion."}
+    ]},
+    {"Id":"WS33","Assertions":[
+      {"Id":"WS33.pwa-profile","Description":"Capture, close and relaunch an Edge/Chrome PWA installed in a non-default profile: same PWA/profile, not a generic browser or another profile."}
+    ]},
+    {"Id":"WS34","Assertions":[
+      {"Id":"WS34.packaged-admin","Description":"For an elevation-capable packaged app, enable Launch as administrator, launch and approve UAC: elevated process/window is associated with the correct workspace entry."}
+    ]},
+    {"Id":"WS35","Assertions":[
+      {"Id":"WS35.packaged-arguments","Description":"A packaged app supporting command-line arguments applies the configured observable argument on launch."}
+    ]},
+    {"Id":"WS36","Assertions":[
+      {"Id":"WS36.monitor-added","Description":"Capture on monitor 1 only, connect monitor 2 and launch: every app remains on monitor 1 at the captured relative position."}
+    ]},
+    {"Id":"WS37","Assertions":[
+      {"Id":"WS37.monitor-removed","Description":"Capture across two monitors, disconnect one and launch: every app recovers onto the remaining monitor; none remains off-screen."}
+    ]},
+    {"Id":"WS38","Assertions":[
+      {"Id":"WS38.palette-editor","Description":"Enabled Command Palette PowerToys extension Open Workspaces editor opens exactly one Workspaces Editor."}
+    ]},
+    {"Id":"WS39","Assertions":[
+      {"Id":"WS39.palette-result","Description":"After creating a uniquely named workspace with two positioned apps and reopening Command Palette, the named result has correct app count/last-launched state and details list both apps."},
+      {"Id":"WS39.palette-launch","Description":"Invoking that result launches the saved workspace with its persisted positions."}
+    ]},
+    {"Id":"WS40","Assertions":[
+      {"Id":"WS40.light","Description":"Under Windows Light, reopen Editor and Launcher: both follow the theme with readable Fluent controls, supported Mica/system backdrop and no legacy islands/unreadable text."},
+      {"Id":"WS40.dark","Description":"Under Windows Dark, reopen Editor and Launcher: both follow the theme with readable Fluent controls, supported Mica/system backdrop and no legacy islands/unreadable text."},
+      {"Id":"WS40.high-contrast","Description":"Under Windows High Contrast, reopen Editor and Launcher: both follow the theme with readable Fluent controls, supported backdrop and no legacy islands/unreadable text."}
+    ]}
+  ]
+}

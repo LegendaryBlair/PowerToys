@@ -14,6 +14,11 @@
 | Named Events | `Workspaces.LaunchEditor` · `Workspaces.Hotkey` |
 | Last verified | `0.101.2222.0` · 2026-08-12 |
 
+**Assertion inventory**: [frozen Workspaces scenario/child mapping](../assertion-inventories/workspaces.json);
+load it with the [shared inventory contract](../assertion-inventories/README.md), not run-local regrouping.
+Run through the common template with the [mandatory resource wiring](../session-safety.md#mandatory-wiring-for-aligned-module-runs);
+old report-local bootstraps are not the current run entry.
+
 ## Entry paths
 
 Choose the entry path that exercises the requested behavior. These are alternatives,
@@ -31,6 +36,9 @@ SendInput when the shortcut binding itself is under test.
 
 Open Settings → Workspaces and invoke `WorkspacesLaunchEditorButtonControl`. The shipped
 button label is **Open editor**. The enable switch is a `ToggleSwitch` named `Workspaces`.
+If the SettingsCard rejects InvokePattern, first make the whole card visible, then use
+an exact-HWND guarded `winapp ui click` on that selector. A partially clipped card can
+report nonzero bounds without exposing a usable action pattern.
 
 ### 3. Quick Access
 
@@ -119,6 +127,10 @@ come from the checklist.
 - Reading a changed input confirms the current draft, not persistence or launch behavior.
   Use Save and reopen for persistence checks; launch and observe the application when the
   checklist requires a startup effect.
+- Wait for Save to return to the workspace list before closing the editor. Before a
+  close-then-hotkey check, also wait for the old editor process to exit. UIA Invoke returning
+  is not completion of the queued action; an immediate close can cancel Save, and an
+  immediate reopen can race the single-instance check.
 - Search matches workspace names or contained application names. Sorting is saved separately
   in Workspaces settings; restore the original sort choice as well as edited workspace data.
 - Persisted values are read from `workspaces.json`; always restore the original file or delete
@@ -140,6 +152,7 @@ observation or behavior failure, and continue independent eligible checks.
 | Symptom / condition | Diagnose / recover | Interpretation boundary |
 |---|---|---|
 | Visible application row or card action is missing from UIA search | Confirm the page/HWND, realize the target row by scrolling/expanding, then inspect again using the [interaction index](#control-locator-and-interaction-index). Identify the actual expander/card; do not blindly invoke a generic `DataItem`. | Missing UIA exposure is not an absent application. Require a usable observation before judging its presence/count. |
+| A visible WPF row still has no children after scoped inspect and native UIA enumeration | Preserve both observations. For an owned workspace only, a physical fallback may use freshly observed row bounds and a matching visible control as calibration. Bound the point to the actual window viewport, guard foreground and verify the root HWND at the point; list content bounds can extend below the window. Re-read the saved app set before any launch. | Do not infer child controls from a model-type DataItem name, toggle a row twice on retry, or launch a captured workspace containing unowned applications. |
 | ComboBox or card More action is not found in the editor HWND | Discover the owned popup and its current controls. Use the documented popup selection/click or focused-keyboard route, checking the supported pattern rather than assuming Invoke selects an item. | A separate popup HWND or unsupported pattern is a locator/driver issue, not evidence that the product action failed. |
 | Coordinate fallback clicks at the wrong location | Record current bounds/DPI and the input API's coordinate space. Prefer scoped UIA/selector operations or the [physical-coordinate helpers](../helper-workflow.md#discover-wait-and-invalidate); do not rescale their already-physical coordinates. | DIP sizing and screen-coordinate conversion are different operations. A DPI-unaware fallback needs its own verified conversion; blanket division by the window scale can misroute input. |
 | An elevated fixture window is missing from capture | Compare the actual snapshot process and target integrity, window eligibility and snapshot logs. Use elevated capture only for an authorized inclusion variant, then restore original runner integrity. | `SnapshotUtils.GetApps` skips unreadable process paths and warns for an elevated target from a non-elevated snapshotter. Missing rows can have other filter causes; do not elevate to change the context of a non-elevated visibility assertion. |
@@ -159,6 +172,11 @@ disablement solely from a missing/unreadable settings file; the provider's polic
 resolution and the observed command inventory must be considered.
 
 ## Fixtures and restoration
+
+Use the [shared session contract](../session-safety.md) before mutation: borrow existing
+Editor/Settings windows, record owned creations and declare cleanup dependencies. A close/reopen
+assertion requires a genuinely owned launch, not replacement of the user's Editor. Preserve
+unsupported UI state and unresolved cleanup resources explicitly in this run's report.
 
 Prepare only resources required by the selected assertions. Before mutation, record ownership,
 original existence/values and lifetime: **case-owned** or explicitly shared **run-owned**.
@@ -193,9 +211,10 @@ Use a fresh tracker for each declared fixture lifetime.
 
 The [paired snapshot helpers](../helper-workflow.md#pair-snapshots-with-restoration-before-changing-state)
 capture files/existence and selected desktop state. `Restore-PtFileSnapshot` itself has no
-expected-post-state conflict guard: the caller must establish quiescence and known owned
-changes before using it. If another writer cannot be excluded, do not use it to overwrite a
-shared file. The [directory helper](../directory-snapshots.md) supports conflict-checked
+expected-post-state conflict guard when called without `-ExpectedState`. For existing files,
+use the guarded `Restore-PtFileSnapshot -Snapshot $before -ExpectedState $knownPostState`
+path after quiescing writers; do not accept an unexplained latest state as owned.
+The [directory helper](../directory-snapshots.md) supports conflict-checked
 rollback for suitable bounded local roots with explicit owned paths; a snapshot never grants
 ownership of the entire Desktop or module directory.
 
@@ -233,6 +252,12 @@ ownership of the entire Desktop or module directory.
 
 Use the window mix required by the case: unpackaged/packaged apps at distinct rectangles,
 minimized/maximized windows, or an elevated Win32 fixture only for eligible integrity checks.
+Choose resizable Win32 fixtures: `SnapshotUtils.GetApps` excludes non-Steam windows without
+a thick frame, so fixed-size dialogs such as Character Map are unsuitable capture fixtures.
+For classic console fixtures, resolve the client process's actual `ConsoleWindowClass` HWND
+rather than assuming the `conhost.exe` launcher owns it. A later workspace launch can delegate
+that client to Windows Terminal; inspect the real visible host and saved window state, not a
+zero-sized `PseudoConsoleWindow`.
 Use unique CLI file paths and enough owned cards/rows for scrolling checks. Do not use the
 user's VS Code/browser profile, ODBC dialogs or Control Panel as general fixtures; process
 reuse and detached windows make ownership ambiguous. Shared setup is allowed only with an

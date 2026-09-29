@@ -1,0 +1,10 @@
+{
+  "Schema": "PtCielabFixture.v1",
+  "AssertionId": "CP16",
+  "ColorSpace": "8-bit sRGB, D65 reference white",
+  "Rgb": [128, 128, 127],
+  "ExpectedARange": [-0.21, -0.18],
+  "ExpectedIntegerA": "0",
+  "RejectedIntegerA": "-0",
+  "Requirement": "The independently computed a component must be negative and strictly greater than -0.5. Compare actual default two-decimal output and integer output for this same sampled color. Red/white alone cannot exercise negative zero."
+}

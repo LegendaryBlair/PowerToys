@@ -1,4 +1,6 @@
 # Paired snapshots. These functions never restart apps or infer which resources a case owns.
+. "$PSScriptRoot\pt-file-io.ps1"
+. "$PSScriptRoot\pt-session-safety.ps1"
 
 function Get-PtFileSnapshot {
     <# .SYNOPSIS
@@ -8,18 +10,72 @@ function Get-PtFileSnapshot {
     $fullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
     if (Test-Path -LiteralPath $fullPath -PathType Container) { throw "Expected a file, not a directory: $fullPath" }
     $exists = Test-Path -LiteralPath $fullPath -PathType Leaf
+    $content = $null
+    if ($exists) {
+        $content = [Convert]::ToBase64String((Read-PtSharedFileBytes -Path $fullPath))
+        $confirmation = [Convert]::ToBase64String((Read-PtSharedFileBytes -Path $fullPath))
+        if ($content -cne $confirmation) { throw "File changed during baseline capture: $fullPath" }
+    }
     [pscustomobject]@{
         path = $fullPath
         exists = $exists
-        base64 = $(if ($exists) { [Convert]::ToBase64String([IO.File]::ReadAllBytes($fullPath)) } else { $null })
+        base64 = $content
     }
 }
 
 function Restore-PtFileSnapshot {
     <# .SYNOPSIS
     Restore bytes/existence without consuming the backup; safe to repeat after partial failure.
+    .PARAMETER ExpectedState
+    Optional known owned post-state. Requires existing regular files and guards compare/write/readback
+    under one exclusive handle. Without it, legacy byte/existence rollback remains unguarded.
     #>
-    param([Parameter(Mandatory)]$Snapshot)
+    param([Parameter(Mandatory)]$Snapshot, $ExpectedState)
+    if ($PSBoundParameters.ContainsKey('ExpectedState')) {
+        # Keep legacy callers compatible; new shared-state callers opt into guarded rollback.
+        foreach ($value in @($Snapshot, $ExpectedState)) {
+            if ($null -eq $value -or $value.exists -isnot [bool] -or -not $value.exists -or
+                $value.path -isnot [string] -or [string]::IsNullOrWhiteSpace($value.path) -or
+                $value.base64 -isnot [string]) {
+                throw 'Guarded file restore requires existing-file baseline and expected snapshots; use the directory helper for absence.'
+            }
+            $decoded = [Convert]::FromBase64String($value.base64)
+            if ([Convert]::ToBase64String($decoded) -cne $value.base64) { throw 'Invalid snapshot Base64.' }
+        }
+        $path = [IO.Path]::GetFullPath($Snapshot.path)
+        if ($path -cne $Snapshot.path -or $path -ine [IO.Path]::GetFullPath($ExpectedState.path)) {
+            throw 'Guarded file restore requires snapshots of the same canonical path.'
+        }
+        for ($part = $path; $part; $part = [IO.Path]::GetDirectoryName($part)) {
+            if ([IO.File]::Exists($part) -or [IO.Directory]::Exists($part)) {
+                if ([IO.File]::GetAttributes($part) -band [IO.FileAttributes]::ReparsePoint) {
+                    throw "Guarded file restore does not follow reparse points: $part"
+                }
+            }
+        }
+        $stream = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+        try {
+            $buffer = [IO.MemoryStream]::new()
+            try { $stream.CopyTo($buffer); $currentBase64 = [Convert]::ToBase64String($buffer.ToArray()) }
+            finally { $buffer.Dispose() }
+            if ($currentBase64 -cne $Snapshot.base64 -and $currentBase64 -cne $ExpectedState.base64) {
+                throw "File restore conflict: $path changed outside the declared operation."
+            }
+            if ($currentBase64 -cne $Snapshot.base64) {
+                $bytes = [Convert]::FromBase64String($Snapshot.base64)
+                $stream.Position = 0
+                $stream.Write($bytes, 0, $bytes.Length)
+                $stream.SetLength($bytes.Length)
+                $stream.Flush($true)
+            }
+            $stream.Position = 0
+            $buffer = [IO.MemoryStream]::new()
+            try { $stream.CopyTo($buffer); $actual = [Convert]::ToBase64String($buffer.ToArray()) }
+            finally { $buffer.Dispose() }
+            if ($actual -cne $Snapshot.base64) { throw "Guarded file restore did not match: $path" }
+            return [pscustomobject]@{ path = $path; exists = $true; base64 = $actual }
+        } finally { $stream.Dispose() }
+    }
     $current = Get-PtFileSnapshot -Path $Snapshot.path
     if ($current.exists -eq $Snapshot.exists -and $current.base64 -ceq $Snapshot.base64) { return $current }
     if (Test-Path -LiteralPath $Snapshot.path -PathType Container) { throw "Restore conflict: a directory occupies $($Snapshot.path)." }
@@ -222,6 +278,7 @@ function Close-PtTrackedWindow {
     Request normal close for an owned fixture after checking identity; never kill its shared host.
     #>
     param([Parameter(Mandatory)]$Identity)
+    Assert-PtWindowRelease -Identity $Identity
     Assert-PtWindowIdentity -Identity $Identity
     if (-not [PtDesktop]::PostMessage([IntPtr][long]$Identity.hwnd, 0x10, [IntPtr]::Zero, [IntPtr]::Zero)) {
         throw "WM_CLOSE failed for HWND $($Identity.hwnd)."

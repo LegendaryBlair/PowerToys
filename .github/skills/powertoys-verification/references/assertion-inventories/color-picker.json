@@ -1,0 +1,24 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "75852F37D459749672940F60B9F2DCCE42704D85ED7D8D4E735339BA15FD5448",
+  "Items": [
+    {"Id":"CP-BINDINGS","Assertions":["CP01","CP04","CP23"]},
+    {"Id":"CP-ELEVATED-START","Assertions":["CP02"]},
+    {"Id":"CP-ELEVATION-RESTART","Assertions":["CP03"]},
+    {"Id":"CP-ACTIVATION-FLOWS","Assertions":["CP05","CP12"]},
+    {"Id":"CP-COPY-FORMATS","Assertions":["CP06","CP07"]},
+    {"Id":"CP-PICKER-VISUALS","Assertions":["CP08","CP18"]},
+    {"Id":"CP-FORMAT-LIST","Assertions":["CP09","CP17"]},
+    {"Id":"CP-HISTORY","Assertions":["CP10","CP11"]},
+    {"Id":"CP-ADJUST","Assertions":["CP13"]},
+    {"Id":"CP-LOGS","Assertions":["CP14"]},
+    {"Id":"CP-LOCALIZATION","Assertions":["CP15"]},
+    {"Id":"CP-CIELAB","Assertions":["CP16"]},
+    {"Id":"CP-REFRESH-RATE","Assertions":["CP19"]},
+    {"Id":"CP-CMDPAL","Assertions":["CP20","CP21"]},
+    {"Id":"CP-WELCOME","Assertions":["CP22"]},
+    {"Id":"CP-ATTRIBUTION","Assertions":["CP24"]},
+    {"Id":"CP-SETTINGS-LINK","Assertions":["CP25"]}
+  ]
+}

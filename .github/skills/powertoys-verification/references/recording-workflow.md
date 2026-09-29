@@ -18,6 +18,22 @@ initialize/preflight/cases/finally-cleanup/export lifecycle. Supply actual callb
 include the template, caller script and every loaded helper in the input snapshots.
 The template does not invent case steps or restoration claims.
 
+For Color Picker, Workspaces and Shortcut Guide Scenario A runs, load the
+[frozen assertion inventory](assertion-inventories/README.md); the template rejects
+run-local regrouping. It also enables the [resource-session contract](session-safety.md).
+Declare Settings targets before navigation, explicit `-CleanupPlan` dependencies,
+and the original snapshots/comparisons for all resources this run touches.
+These augment the existing recorder; they do not replace its provenance or verdict gates.
+
+The aligned three-module Scenario A entry now requires an explicit `ResourcePlan` and
+`CleanupPlan`; Settings HWNDs are derived from the declared resources, and other resources
+map to explicit cleanup Action/Verify steps. See the
+[mandatory wiring schema](session-safety.md#mandatory-wiring-for-aligned-module-runs).
+Do not invoke the old free-form cleanup entry to bypass these checks. Restore and verify this
+run's own baseline; the next module uses its own preflight, not another report's state.
+For a normal pause between case groups, keep the run active and use incremental review
+rather than throwing to force full cleanup/export.
+
 `Invoke-PtVerificationCase` handles attempt creation, nested command recording and closure.
 Its callback receives the attempt first. Review in groups of 3-5 cases; a successful callback
 only means data was collected. The returned handle supports review after the attempt closes:
@@ -68,14 +84,13 @@ Git HEAD: the files actually supplied may contain uncommitted changes.
 
 ```powershell
 . "$skill\scripts\pt-verification-report.ps1"
+$inputs = @(Get-PtVerificationInputs -Skill $skill -Inputs @(
+    @{ Name = 'profile.md'; Role = 'Profile'; Path = $profilePath }
+    @{ Name = 'checklist.md'; Role = 'Checklist'; Path = $checklistPath }
+    @{ Name = 'driver.ps1'; Role = 'Other'; Path = $driverPath }
+))
 $run = New-PtVerificationRun -Workspace $workspace -Module $module -Bits $bits `
-    -Scenario A -Inputs @(
-        @{ Name = 'SKILL.md'; Role = 'Skill'; Path = "$skill\SKILL.md" }
-        @{ Name = 'profile.md'; Role = 'Profile'; Path = $profilePath }
-        @{ Name = 'checklist.md'; Role = 'Checklist'; Path = $checklistPath }
-        @{ Name = 'pt-desktop.ps1'; Role = 'Helper'; Path = "$skill\scripts\pt-desktop.ps1" }
-        @{ Name = 'recorder.ps1'; Role = 'Helper'; Path = "$skill\scripts\pt-verification-report.ps1" }
-    ) -Items @(
+    -Scenario A -Inputs $inputs -Items @(
         @{
             Id = 'L1'; Description = $verbatimChecklistDescription
             Admin = 'NO'; Clarity = 'CLEAR'; UserVisible = $true
@@ -86,6 +101,11 @@ $run = New-PtVerificationRun -Workspace $workspace -Module $module -Bits $bits `
         }
     )
 ```
+
+`Get-PtVerificationInputs` includes the actual `SKILL.md` and top-level `.ps1`/`.cs` helper
+sources, deduplicating already supplied paths and rejecting conflicting names/sources.
+It does not discover which additional references/assets or driver scripts the run will use;
+include those explicitly. The thin template applies the same helper automatically.
 
 `Scenario` is `A`, `B`, or `InfrastructureAcceptance`. Supply the complete BITS contract
 as text, not merely a checkout revision. The last scenario is **verification-infrastructure

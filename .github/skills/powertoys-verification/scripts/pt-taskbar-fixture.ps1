@@ -805,6 +805,7 @@ function New-PtTaskbarFixture {
         $fixture.Phase = 'Ready'
         $fixture.LastDesktop = Get-PtTaskbarGuardedDesktop $fixture $marker
         Save-PtTaskbarFixture $fixture
+        Register-PtFixtureWindowOwnership -Identity $app.Identity -ReceiptPath $fixture.ReceiptPath
         $fixture
     } catch {
         $original = $_
@@ -1078,6 +1079,8 @@ function Remove-PtTaskbarFixture {
                     $app.Identity = $identity
                     $app.CloseRequested = $true
                     Save-PtTaskbarFixture $Fixture
+                    Register-PtFixtureWindowOwnership -Identity $identity -ReceiptPath $Fixture.ReceiptPath
+                    Assert-PtProcessRelease -ProcessId $app.ContentProcess.ProcessId
                     Close-PtTrackedWindow $identity
                 }
                 if ($Fixture.Version -eq 1 -and $app.Launcher) {
