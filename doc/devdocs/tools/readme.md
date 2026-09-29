@@ -14,3 +14,9 @@ Following tools are currently available:
 * [project template](/tools/project_template/README.md) - A Visual Studio project template for a new PowerToys project.
 * [StylesReportTool](styles-report-tool.md) - A tool to collect information about an open window.
 * [Verification scripts](verification-scripts.md) - A set of scripts that help verifying the PowerToys installation.
+
+## Verification infrastructure design discussions
+
+* [Multi-agent PowerToys verification brainstorm](multi-agent-verification.md) - Historical discussion material, not an approved architecture.
+* [Phase-one verification design draft](multi-agent-verification-design.md) - Color Picker checklist/profile refinement, agent contracts, CLI orchestration, and human review boundaries.
+* [Phase-one execution plan](multi-agent-verification-execution-plan.md) - Milestones, acceptance evidence, and a clean-main baseline strategy that reuses the current verification improvements.
