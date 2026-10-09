@@ -33,7 +33,7 @@ function Import-PtAssertionInventory {
         $assertions=@(foreach($entry in $item.Assertions){
             if($entry -is [string]){
                 $id=$entry
-                $pattern='(?ms)^  - \*\*'+[regex]::Escape($id)+'(?::|\s+\[).*?(?=^  - \*\*|\n\s*\n|\z)'
+                $pattern='(?ms)^  - \*\*'+[regex]::Escape($id)+'(?:(?:\*\*)?:|\s+\[).*?(?=^  - \*\*|\n\s*\n|\z)'
                 $matches=[regex]::Matches($block,$pattern)
                 if($matches.Count -ne 1){throw "Named assertion missing/ambiguous: $id"}
                 $description=$matches[0].Value.Trim()
@@ -43,7 +43,7 @@ function Import-PtAssertionInventory {
             }
             [pscustomobject]@{Id=$id;Description=$description}
         })
-        $named=@([regex]::Matches($block,'(?m)^  - \*\*((?:L\d+\.[a-z-]+)|(?:CP\d{2}))(?::|\s+\[)')|ForEach-Object {$_.Groups[1].Value})
+        $named=@([regex]::Matches($block,'(?m)^  - \*\*((?:L\d+\.[a-z-]+)|(?:CP\d{2})|(?:EV-(?:B\d{2}(?:-S)?|L01|T01|P\d{2})\.[a-z0-9.-]+))(?:(?:\*\*)?:|\s+\[)')|ForEach-Object {$_.Groups[1].Value})
         foreach($required in $named){if($required -cnotin $assertions.Id){throw "Inventory omitted named assertion: $required"}}
         $admin=[regex]::Match($block,'\[ADMIN: (NO|YES|COND)\]').Groups[1].Value
         if(-not $admin){throw "Missing admin metadata for $($item.Id)"}

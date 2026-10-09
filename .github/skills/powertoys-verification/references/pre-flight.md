@@ -2,6 +2,16 @@
 
 This doc covers the **agent-runtime** environment probing and lifecycle hooks. Read alongside `SKILL.md` (the playbook) and `references/environment-setup.md` (one-time user env prep).
 
+## Tool preparation before the run
+
+Follow [winapp toolchain policy](winapp-toolchain.md): use the latest official stable CLI
+by default, honor an explicit version pin, preserve the actual installation channel, and
+verify the selected executable from a fresh shell after an update. Read release-tag-matched
+upstream docs and the current command help/schema before deciding a capability is missing.
+Retain the release, executable/package identity and documentation snapshots as inputs.
+Do not update during execution/resume, silently bypass setup failures, or change PowerToys
+bits as part of updating this automation dependency.
+
 ## Pre-flight checks (do these first)
 
 1. **Admin check — skip admin-required coverage by default when not elevated.** Run `Test-PtAdmin` and record the result. If it returns `False`, skip `[ADMIN: YES]` items and continue all `[ADMIN: NO]` items. For `[ADMIN: COND]`, run the non-admin portions and skip only the variants that require elevation. Do not abort the module, request additional authorization to skip, or attempt elevation just to run those checks.
@@ -75,11 +85,6 @@ This doc covers the **agent-runtime** environment probing and lifecycle hooks. R
 - If a shared host disappears, stop dependent driving. Diagnose the originating transition once;
   recover explicitly as Diagnostic. Start later independent Normal cases only after
   readiness is demonstrated. If recovery fails, reference the same obstacle instead of repeated waits.
-- Aim for approximately 30 minutes of eligible driving on a prepared module. At that point report
-  achieved coverage, recurring obstacles and remaining work; stop infrastructure debugging rather than
-  silently extending it for hours. This is not permission to omit inventory, change criteria or abandon
-  restoration, nor a hard stop for independent eligible cases. Account separately for driving,
-  review, cleanup and archive time, and report their total.
 
 ## Bootstrap (paste at start of your verification script)
 
@@ -115,7 +120,7 @@ Stop-PtVerificationAttempt $preflight -Reason 'Prerequisites recorded'
 
 ## State hygiene (CRITICAL — always restore)
 
-For the aligned CP/WS/SG profiles, use the [shared session contract](session-safety.md):
+For Color Picker, Workspaces, Shortcut Guide and Environment Variables, use the [shared session contract](session-safety.md):
 capture borrowed Settings state before navigation, register actual owned creations,
 declare cleanup dependencies and verify restoration against this run's original snapshots. The thin template
 enables this layer; direct drivers must open it explicitly. Never close a pre-existing
@@ -157,7 +162,18 @@ files/registry values the case owned; never remove whole policy trees as a clean
    per-item. Register the baseline comparisons as Restoration evidence; a successful command is
    not proof of restored state. Record every required subassertion, including NOT-OBSERVED parts
    of failed items, and complete the inventory without promoting diagnostic recovery to PASS.
-2. **Finalize using the fixed exporter**, with the actual §G retrospective:
+2. **Extract execution statistics before final sealing.** After execution and cleanup
+   operations settle, pin the Task 1 session-log cutoff. The same agent reads that bounded
+   history to produce `statistics.json`: group direct agent requests by tool type, and use
+   outer case steps for attempts, driver duration, span and errors. Do not count nested
+   helper calls or loop iterations. The fixed exporter displays these tables in `report.md`.
+   Exclude Task 2
+   statistics/report work, retain case attribution gaps, and never invent missing counts.
+   Register the JSON through the reporting-only Diagnostic step or the template's
+   `-Report` callback. See [statistics rules](reporting-format.md#agent-origin-execution-statistics).
+   Use the documented timezone-preserving parser and sanity checks; an empty parsed result is not
+   evidence that no agent requests occurred.
+3. **Finalize using the fixed exporter**, with the statistics-informed §G retrospective:
    ```powershell
    $export = Complete-PtVerificationRun -Run $run -Retrospective $frictionRows
    # Use -NoFriction instead only when explicitly justified.
@@ -167,7 +183,7 @@ files/registry values the case owned; never remove whole policy trees as a clean
    and rejects missing/changed evidence. Historical cleanup failures and the latest restoration
    receipts are shown separately; the overall signoff gate remains conservative.
    Use `Export-PtVerificationReport` for an interrupted/partial run; do not erase its failed steps.
-3. **Move the workspace to the sign-off archive**, only after validation succeeds:
+4. **Move the workspace to the sign-off archive**, only after validation succeeds:
    ```powershell
    $signoff = "$env:OneDrive\PowerToys\Module-Signoff"
    New-Item -ItemType Directory -Path $signoff -Force | Out-Null
@@ -178,7 +194,7 @@ files/registry values the case owned; never remove whole policy trees as a clean
    $report = Join-Path $final (Split-Path $export.Report -Leaf)
    ```
    Relative evidence paths remain valid after the move.
-4. **Print the FINAL report path** under `Module-Signoff`, not the temporary path.
+5. **Print the FINAL report path** under `Module-Signoff`, not the temporary path.
 
 ## Hard rules
 

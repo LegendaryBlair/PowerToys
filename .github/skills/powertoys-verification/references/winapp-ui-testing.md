@@ -4,6 +4,14 @@
 
 Automated UI testing for WinUI 3 apps — generate a batch test script, run all tests in one pass, read results. Covers element assertions, interactions, value checking (TextBox, ComboBox, ToggleSwitch), file pickers, flyouts, dialogs, persistence, and accessibility audits.
 
+### Documentation freshness
+
+Use [the toolchain policy](winapp-toolchain.md) before a new run: resolve the latest official
+stable tool unless explicitly pinned, then read the matching release-tag UI documentation
+and installed command help/schema. This local reference retains PT-specific safety and
+integration guidance; it is not an automatically updated upstream manual. Do not assume
+that examples from upstream `main` work with an older installed executable.
+
 ### Approach
 
 The goal of this skill is to validate UI and app functionality automatically, without manual interaction, by exercising the app's UI elements, verifying their state, and asserting that the app behaves as expected under test conditions.
@@ -17,6 +25,55 @@ Unless the user asked for interactive exploration, or you are unfamiliar with th
 ### `winapp ui` Verbs
 
 `status`, `inspect`, `search`, `get-property`, `get-value`, `screenshot`, `invoke`, `click`, `set-value`, `focus`, `scroll`, `scroll-into-view`, `wait-for`, `list-windows`, `get-focused`. Run `winapp ui --cli-schema` for the complete command structure as JSON, or `winapp ui <verb> --help` for any single verb.
+
+### Scoped and typed queries
+
+Official [v0.7.1 query documentation](https://github.com/microsoft/winappCli/blob/v0.7.1/docs/ui-automation.md#scoped-and-typed-queries)
+introduces `--root`, `--type` and `--class-name` for `search`, `get-property`, `get-value`
+and `wait-for`. Treat this as the example's capability floor, not a hardcoded latest version;
+check the selected executable's help and matching docs.
+
+Keep module-specific query text, parent scope, type and class in the profile's interaction
+table. The generic response handling belongs here, not in a separate driver section for
+each card. For a row declaring all these filters, use the table's values in a recorded step:
+
+```powershell
+$arguments = @('search',$queryText,'-w',"$hwnd",'--root',$rootSelector,
+    '--type',$controlType,'--class-name',$className,'--json')
+$result = ConvertFrom-PtReportJson (Invoke-PtWinApp -Arguments $arguments -SkipRecording)
+if ($result.matchCount -ne 1 -or @($result.matches).Count -ne 1 -or $result.hasMore -ne $false) {
+    throw 'Expected one current scoped control; no action issued.'
+}
+$selector = $result.matches[0].selector
+```
+
+Include only the filters declared by the locator; not every control requires a root or class.
+Keep sensitive query results private and output only approved metadata to the outer recorder.
+
+All supplied filters apply to the same element. `--root` searches descendants of one unique
+root, excluding the root itself; `--type` is the UIA control type, and `--class-name` is a
+literal complete provider ClassName, not a CSS class or regex. Filtered queries use Control
+View. Do not mix a result with a separate managed/raw-view tree and assume identical nodes.
+Name-based query text follows the actual UI language; prefer stable AutomationIds when available.
+
+Require exactly one returned match and `hasMore=false` before a single-target action.
+Use its newly returned selector; do not freeze a runtime slug or HWND in the profile.
+In v0.7.1 these query options do **not** attach directly to `invoke`: query first, then pass
+the resolved selector. That version supports `invoke --action expand` (and other explicit
+actions), without automatic pattern/ancestor fallback. This is an action contract, not proof
+that every provider supports the requested pattern. Re-observe the actual result.
+
+Increasing `inspect --depth` does not expand an app's card. Conversely, reading the state
+of a visible header button does not require opening its card. For example:
+
+```powershell
+Invoke-PtWinApp -Arguments @('get-property',$buttonAutomationId,
+    '-w',"$hwnd",'--property','IsEnabled','--json')
+```
+
+Record independent header-button properties before any row-expansion work. A failed expansion
+cannot erase an already observed button state. Sensitive module reads still require
+their documented private outer-recorded-step boundary; do not publish a full environment tree.
 
 ### Step 1: Use the Running App
 
@@ -312,6 +369,15 @@ winapp ui wait-for "Primary" -a $AppPid --gone -t 3000
 - **Use `--value` without `-p`** — it auto-detects the right UIA pattern (TextPattern → ValuePattern → TogglePattern → SelectionPattern → Name). Only use `-p PropertyName --value` when you need a specific property like `IsEnabled`
 - **File pickers need `-w <HWND>`** — they run in a separate PickerHost process, so `-a PID` won't find them. Use `list-windows` to discover the picker HWND first
 - **Flyouts need a short `Start-Sleep`** after triggering — the menu items appear in the tree asynchronously
+
+### Large text fixtures and the Windows command-line limit
+
+A near-32767-character test value plus the executable path and CLI arguments can exceed
+Windows' process command-line limit before `winapp` starts. This is a driver limitation,
+not application validation. For an explicitly owned synthetic draft, use a scoped
+in-process UIA `ValuePattern.SetValue` call inside the recorded step, then independently
+read the actual field value and enabled state. Preserve the requested boundary rather
+than reducing the test value. Keep private values out of recorded arguments and output.
 
 ### Restart actions can invalidate their own UIA target
 

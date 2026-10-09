@@ -33,6 +33,11 @@ Do not invoke the old free-form cleanup entry to bypass these checks. Restore an
 run's own baseline; the next module uses its own preflight, not another report's state.
 For a normal pause between case groups, keep the run active and use incremental review
 rather than throwing to force full cleanup/export.
+Before final sealing, collect the required
+[agent-origin statistics](reporting-format.md#agent-origin-execution-statistics).
+They count requests directly submitted by the executing agent, not nested calls recorded
+inside a script. The run template's `-Report` callback is the reporting-only slot after
+cleanup and before export; it receives a Diagnostic attempt and cannot stand in for cleanup.
 
 `Invoke-PtVerificationCase` handles attempt creation, nested command recording and closure.
 Its callback receives the attempt first. Review in groups of 3-5 cases; a successful callback
@@ -81,6 +86,10 @@ gesture. Supply only the intended remaining/local cases; it is not a checkpoint 
 
 Pass a **nonexistent** workspace. Do not pre-create it, reuse an old archive or rely on
 Git HEAD: the files actually supplied may contain uncommitted changes.
+Finish [tool preparation](winapp-toolchain.md) first. Add version-matched downloaded
+upstream docs and used help/schema snapshots as explicit `Other` inputs; retain the tool's
+actual executable/package identity, version and binary hash in preflight evidence. The
+source helper below does not discover or download those external tool inputs automatically.
 
 ```powershell
 . "$skill\scripts\pt-verification-report.ps1"
@@ -413,6 +422,53 @@ prove other operations unavailable; record the actual affected coverage rather t
 automatically marking every item.
 
 ## Cleanup, failure handling and final export
+
+### Statistics before final sealing
+
+The executing agent performs Task 1 (verification and cleanup), then Task 2 (statistics,
+report and retrospective) in the same session. Fix the Task 1 session-log event/time cutoff
+before extracting statistics; the ongoing session does not need to end. Follow the
+[counting, attribution and duration rules](reporting-format.md#agent-origin-execution-statistics).
+Use the [actual log schemas and timezone-safe parsing examples](reporting-format.md#log-schemas-and-timezone-safe-parsing),
+then check known tool-call IDs and reconcile the per-case/non-case counts before publishing.
+The complete verification journal still records internal operations for behavioral evidence.
+Group agent requests by actual tool type; use outer case steps for driver durations/errors,
+without adding nested calls or loops to either workload counts or duration sums.
+
+For the common template, supply `-Report` with the statistics extraction/registration action.
+This callback runs after the cleanup attempt, including on a failed run, and before final
+sealing. It receives a reporting-only Diagnostic attempt. Explicitly report partial data
+if execution was interrupted. Do not drive the product or repeat cleanup inside it.
+For a manual recorder lifecycle, create the equivalent Diagnostic attempt only after
+actual cleanup. Never attach statistics by creating another Cleanup context.
+
+After extraction, register the **sanitized** JSON within that reporting attempt:
+
+```powershell
+# Inside the Report callback, whose first argument is $attempt:
+Add-PtVerificationArtifact -Attempt $attempt -Path $statisticsJsonPath `
+    -Name statistics.json -Kind Evidence -Description 'Agent tool distribution, case execution metrics, source ranges and limitations'
+```
+
+The caller's extraction action creates this file from its accessible logs. There is no
+automatic session-log collector hidden in the template or renderer. When logs or attribution
+are unavailable, still supply a statistics artifact with null values and concrete limitations,
+not invented zeros. Avoid storing raw prompts, command arguments, environment values or
+session-log payloads in the report. Record the extraction code as ordinary execution source.
+Execute an external extractor with `Invoke-PtVerificationStep -ScriptFile`, or register its
+exact source as evidence; a recorded wrapper alone does not freeze the called script.
+`Get-PtReportState` loads the latest registered statistics JSON with hash/run-ID validation;
+exported `results.json` includes that data as `ExecutionStatistics`. The pure compact renderer
+uses it to put module totals, tool distribution and case tables **inside `report.md`**.
+A separate `statistics.md` is unnecessary. Normal archive validation covers both the JSON
+artifact and report bytes; earlier sealed reports are not retroactively edited.
+
+Use the measured data to prepare the retrospective, then call the existing final exporter.
+Missing statistics are a reporting limitation, not a new product assertion.
+Artifact/link validation proves packaging, not that the counts are correct. A zero total
+contradicting a known controller launch must be diagnosed or marked unavailable.
+
+### Actual restoration and export
 
 Record baseline/restoration comparisons from the paired-state helpers as artifacts in a
 Normal Cleanup context. A cleanup function returning successfully is not restoration

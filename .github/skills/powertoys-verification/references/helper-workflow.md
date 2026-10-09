@@ -2,7 +2,7 @@
 
 ## Canonical capability inventory
 
-Color Picker, Workspaces and Shortcut Guide use this same engine baseline. A profile move
+Color Picker, Workspaces, Shortcut Guide and Environment Variables use this same engine baseline. A profile move
 does not align product versions or fixtures: still record the installed bits and run inputs.
 Do not load helpers from another worktree to fill an unresolved dependency.
 
@@ -14,6 +14,8 @@ Do not load helpers from another worktree to fill an unresolved dependency.
 | Input and module lifecycle | existing chord/held-key/foreground/lifecycle helpers | Explicit operations, no automatic Runner restart; active-session clipboard dependencies gate disable/restart. |
 | Live settings reads | `pt-file-io.ps1` | Shared read/write/delete handles prevent readers blocking normal writers; not a guarantee of an atomic, fully settled JSON document. |
 | File and directory restoration | `pt-state-snapshot.ps1`, `pt-directory-snapshot.ps1` | Reuse snapshot shape. Explicit `-ExpectedState` adds guarded existing-file rollback; directory rollback handles owned existence changes. Legacy unguarded calls are not concurrency-safe. |
+| Private environment preservation | `pt-environment-variables-state.ps1` | Module-specific encrypted raw-value/type and file baselines; use the common recorder/cleanup with [privacy-safe integration](environment-variables-fixtures.md#wip-run-integration), not a separate report system. |
+| Environment Variables UI adapters | `pt-environment-variables-ui.ps1` | Module-scoped rows, guarded modal operations and private complete-value observations; [API and privacy boundary](environment-variables-fixtures.md#reusable-ui-adapters). Reuses common UIA/identity/ownership, never assigns product verdicts. |
 | Clipboard preservation | `pt-clipboard-guard.ps1`/`.cs`, `pt-clipboard-session.ps1` | Native preservation, sealed pending writes and a separate STA keeper across ordinary controller exit; no private payload on disk. Formats-only inspection is not backup. |
 | Scoped passive capture | `Save-PtPassiveScreenshot -WindowIdentity` | Reuse capture API with an optional physical union for owner/popup identities; no separate CP capture wrapper. |
 | Owned application/taskbar fixtures | existing owned-fixture and taskbar helpers | Keep module-specific adapters. Never adopt a user window because its PID/HWND can be observed. |
@@ -37,6 +39,8 @@ Use PowerShell 7 on Windows. These are small reusable operations, not a schedule
 replacement for a module's checklist. Keep UI driving serial on one desktop.
 Read the [recording workflow](recording-workflow.md) before discovery; wrap every native
 winapp call with `Invoke-PtWinApp` and activate a recording attempt.
+Sensitive Environment Variables reads use the documented outer recorded step and private
+output projection; never let the generic recorder archive a full environment tree or raw values.
 Use `Get-PtVerificationReview` between groups of observations, not the full export/state
 validator. Keep `Actual`/assertion `Reason` concise and attach large raw output with
 `Add-PtVerificationObservation -Detail`; never serialize a whole UIA tree into report prose.

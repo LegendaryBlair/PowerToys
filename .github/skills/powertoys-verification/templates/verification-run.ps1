@@ -5,6 +5,8 @@ Thin one-run lifecycle. Supply module observations/review and explicit restorati
 .NOTES
 Callbacks receive the run (Cases) or active attempt (Preflight/Cleanup). This is not a scheduler.
 No UI, retries, restarts, fixtures or verdicts are invented by this template.
+Report receives a reporting-only Diagnostic attempt after cleanup and before sealing.
+Its optionality preserves legacy callers; new skill-guided runs supply the required statistics.
 #>
 param(
     [Parameter(Mandatory)][string]$Skill,
@@ -16,6 +18,7 @@ param(
     [Parameter(Mandatory)][object[]]$Inputs,
     [Parameter(Mandatory)][scriptblock]$Preflight,
     [Parameter(Mandatory)][scriptblock]$Cases,
+    [scriptblock]$Report,
     [scriptblock]$Cleanup,
     [object[]]$CleanupPlan,
     $ResourcePlan,
@@ -33,6 +36,7 @@ Get-ChildItem "$Skill\scripts" -Filter '*.ps1' |
     Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
 $profileKey=switch($Module.Replace(' ','').ToLowerInvariant()){
     'colorpicker'{'color-picker'} 'workspaces'{'workspaces'} 'shortcutguide'{'shortcut-guide'}
+    'environmentvariables'{'environment-variables'}
 }
 if($Scenario -eq 'A' -and $profileKey -and (-not $ResourcePlan -or $Cleanup)){
     throw 'Aligned module runs require ResourcePlan and CleanupPlan; legacy Cleanup cannot substitute for resource wiring.'
@@ -159,6 +163,17 @@ finally {
             $global:PtActiveResourceSession=$null
             $global:PtLiveResourceGuards=@{}
         }
+    }
+}
+if($Report){
+    try{
+        Invoke-PtVerificationCase -Run $run -Context Diagnostic -Kind Diagnostic -Name 'Report preparation' `
+            -Command 'Extract bounded agent-origin execution statistics; no product actions or cleanup' -Action $Report|Out-Null
+    }catch{
+        if($rootError){
+            $rootError.Exception.Data['ReportPreparationFailure']=$_.Exception.Message
+            [Console]::Error.WriteLine("Report preparation failed: $($_.Exception.Message)")
+        }else{$rootError=$_}
     }
 }
 try {

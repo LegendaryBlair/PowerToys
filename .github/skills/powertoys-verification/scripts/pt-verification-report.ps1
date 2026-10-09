@@ -1209,7 +1209,29 @@ function Get-PtReportState {
             $state.SignoffReasons=@($state.SignoffReasons)+@("Operation invocation '$($issue.OperationId)' has incomplete execution evidence: $($issue.Reason).")
         }
     }
+    $state|Add-Member NoteProperty ExecutionStatistics (Get-PtReportStatistics -Run $Run -Events $state.Events)
     $state
+}
+
+function Get-PtReportStatistics {
+    <#.SYNOPSIS
+    Read the latest registered statistics JSON after validating its recorded identity.
+    #>
+    param([Parameter(Mandatory)]$Run,[Parameter(Mandatory)][object[]]$Events)
+    $entry=@($Events|Where-Object {
+        $_.Type -eq 'ArtifactAdded' -and $_.Data.File.Kind -eq 'Evidence' -and
+        -not $_.Data.File.ReferenceOnly -and
+        $_.Data.File.Path -match '(^|[\\/])(?:[a-f0-9]{32}-)?statistics\.json$'
+    }|Select-Object -Last 1)
+    if(-not $entry.Count){return $null}
+    $reference=$entry[0].Data.File
+    Assert-PtReportReference $Run $reference
+    $data=ConvertFrom-PtReportJson ([IO.File]::ReadAllText((Resolve-PtReportPath $Run $reference.Path)))
+    if($data -isnot [pscustomobject] -or $data.RunId -cne $Run.Id -or
+        $data.CountingMode -cne 'agent-origin-requests'){
+        throw 'Statistics must be an agent-origin-requests object belonging to this run.'
+    }
+    [pscustomobject]@{Artifact=$reference;Data=$data}
 }
 
 function Get-PtVerificationReview {
@@ -1534,7 +1556,14 @@ function Complete-PtVerificationRun {
                 [string]::IsNullOrWhiteSpace($row.Cost) -or [string]::IsNullOrWhiteSpace($row.SuggestedFix)) { throw 'Invalid retrospective row.' }
         }
     }
-    try { Get-PtReportState $Run | Out-Null }
+    try {
+        $state=Get-PtReportState $Run
+        if($state.ExecutionStatistics){
+            if(-not (Get-Command ConvertTo-PtVerificationSummary -ErrorAction Ignore)){. "$PSScriptRoot\pt-verification-render.ps1"}
+            ConvertTo-PtVerificationSummary -State $state -DetailsName details.md -ResultsName results.json `
+                -ManifestName artifact-manifest.json|Out-Null
+        }
+    }
     catch {
         $original = $_
         try {

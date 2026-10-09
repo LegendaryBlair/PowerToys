@@ -72,6 +72,47 @@ function ConvertTo-PtVerificationSummary {
         )
         "**Total**: $($rowsArray.Count); " + ($parts -join '; ')
     }
+    function Format-Statistic($Value, [switch]$Count) {
+        if ($null -eq $Value) { return 'unavailable' }
+        $numeric = [Type]::GetTypeCode($Value.GetType()).ToString() -in
+            'Byte','SByte','Int16','UInt16','Int32','UInt32','Int64','UInt64','Single','Double','Decimal'
+        if (-not $numeric -or [double]::IsNaN([double]$Value) -or [double]::IsInfinity([double]$Value) -or
+            $Value -lt 0 -or ($Count -and [Math]::Truncate([double]$Value) -ne [double]$Value)) {
+            throw 'Statistics values must be finite nonnegative numbers; counts must be integers.'
+        }
+        $Value.ToString($(if ($Count) { '0' } else { '0.###' }), [Globalization.CultureInfo]::InvariantCulture)
+    }
+    function Get-ChecklistPresentation($Item) {
+        $source = [string]$Item.Description
+        $header = [regex]::Match($source, '\A- \[ \] \*\*(?<title>[^\r\n]+?)\*\* \[ID: ' +
+            [regex]::Escape([string]$Item.Id) + '\] \[ADMIN: ' + [regex]::Escape([string]$Item.Admin) +
+            '\]' + $(if ($Item.Clarity -ceq 'CLEAR') { '(?: \[CLARITY: CLEAR\])?' }
+                else { ' \[CLARITY: ' + [regex]::Escape([string]$Item.Clarity) + '\]' }) + '(?:\r?\n|\z)')
+        if (-not $header.Success) { return $null }
+        $blocks = [regex]::Matches($source, '(?ms)^  - \*\*(?<id>[^*\r\n]+)\*\*: (?<body>.*?)(?=^  - \*\*|\n\s*\n|\z)')
+        if (-not $blocks.Count) {
+            $descriptions = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+            foreach ($child in $Item.Assertions) { $descriptions.Add($child.Id,[string]$child.Description) }
+            return [pscustomobject]@{Title=$header.Groups['title'].Value
+                Context=$source.Substring($header.Length).Trim();Assertions=$descriptions}
+        }
+        if ($blocks.Count -ne @($Item.Assertions).Count) { return $null }
+        $descriptions = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+        foreach ($block in $blocks) {
+            $id = $block.Groups['id'].Value
+            $children = @($Item.Assertions | Where-Object Id -CEQ $id)
+            # Remove only exact duplicates of the independently rendered child descriptions.
+            if ($children.Count -ne 1 -or $block.Value.Trim() -cne ([string]$children[0].Description).Trim() -or
+                $descriptions.ContainsKey($id) -or [string]::IsNullOrWhiteSpace($block.Groups['body'].Value)) { return $null }
+            $descriptions.Add($id, $block.Groups['body'].Value.TrimEnd())
+        }
+        $context = $source
+        for ($index = $blocks.Count - 1; $index -ge 0; $index--) {
+            $context = $context.Remove($blocks[$index].Index, $blocks[$index].Length)
+        }
+        $context = $context.Substring($header.Length).Trim()
+        [pscustomobject]@{ Title = $header.Groups['title'].Value; Context = $context; Assertions = $descriptions }
+    }
 
     foreach ($name in $DetailsName, $ResultsName, $ManifestName) {
         if ([string]::IsNullOrWhiteSpace($name) -or $name -in '.', '..' -or $name -match '[\\/:*?"<>|\x00-\x1f]') {
@@ -171,12 +212,128 @@ function ConvertTo-PtVerificationSummary {
     $lines.Add('')
     $lines.Add("Review the $(Link 'pre-flight trace' $DetailsName 'pre-flight'), $(Link 'structured results' $ResultsName) and $(Link 'integrity manifest' $ManifestName). Exact commands, raw observations and remaining artifacts are in the full traces, not repeated here.")
     $lines.Add('')
+    $loadedStatistics = Get-Field $State 'ExecutionStatistics'
+    $statistics = Get-Field $loadedStatistics 'Data'
+    $statisticsReference = Get-Field $loadedStatistics 'Artifact'
+    $legacyStatistics = @(Get-Field $State 'References' | Where-Object {
+        (Get-Field $_ 'Kind') -eq 'Evidence' -and -not (Get-Field $_ 'ReferenceOnly') -and
+        (Get-Field $_ 'Path') -match '(^|[\\/])(?:[a-f0-9]{32}-)?statistics\.(md|json)$'
+    })
+    if ($null -ne $statistics -or $legacyStatistics.Count) {
+        $lines.Add('## Execution statistics')
+        $lines.Add('')
+        if ($null -eq $statistics) {
+            $lines.Add('**Unavailable:** the supplied state contains statistics references but no loaded statistics data. Reload the run with the current recorder; this renderer does not read artifacts or infer missing counts.')
+        } else {
+            $coverage = Get-Field $statistics 'Coverage'
+            $lines.Add("**Statistics coverage**: $(if ($coverage) { Escape-Text $coverage } else { 'unavailable' }). Agent workload counts tool requests; case metrics describe recorded execution, not script-internal function calls.")
+            $lines.Add('')
+            foreach ($segment in @(Get-Field $statistics 'ExecutionSegments' | Where-Object { $null -ne $_ })) {
+                $lines.Add("- **Execution window**: $(Escape-Text (Get-Field $segment 'StartUtc')) to $(Escape-Text (Get-Field $segment 'EndUtc')) (end exclusive).")
+            }
+            $totals = Get-Field $statistics 'ModuleTotals'
+            if ($null -eq $totals) { $totals = Get-Field $statistics 'Module' }
+            $wall = Get-Field $totals 'ExecutionLifecycleWallSeconds'
+            if ($null -eq $wall) { $wall = Get-Field $totals 'WallSeconds' }
+            $lines.Add('')
+            $lines.Add('| Module metric | Value |')
+            $lines.Add('|---|---:|')
+            $lines.Add("| Execution wall time (s) | $(Format-Statistic $wall) |")
+            $lines.Add("| Agent tool requests | $(Format-Statistic (Get-Field $totals 'AgentToolRequests') -Count) |")
+            $lines.Add("| Tool-response wait union (s) | $(Format-Statistic (Get-Field $totals 'ToolResponseWaitUnionSeconds')) |")
+            if ($null -ne (Get-Field $totals 'ReportingSeconds')) {
+                $lines.Add("| Reporting time (s; excluded from execution) | $(Format-Statistic (Get-Field $totals 'ReportingSeconds')) |")
+            }
+
+            $toolCalls = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+            foreach ($record in @(Get-Field $statistics 'AttributionRecords' | Where-Object { $null -ne $_ })) {
+                $sessionId = Get-Field $record 'SessionId'
+                $callId = Get-Field $record 'ToolCallId'
+                $toolName = Get-Field $record 'ToolName'
+                if ([string]::IsNullOrWhiteSpace($sessionId) -or [string]::IsNullOrWhiteSpace($callId) -or
+                    [string]::IsNullOrWhiteSpace($toolName)) { throw 'Statistics attribution requires session ID, tool-call ID and tool name.' }
+                $key = "$sessionId`0$callId"
+                if ($toolCalls.ContainsKey($key) -and $toolCalls[$key] -cne $toolName) {
+                    throw 'Statistics contains conflicting tool names for one request.'
+                }
+                $toolCalls[$key] = $toolName
+            }
+            $totalRequests = Get-Field $totals 'AgentToolRequests'
+            if ($toolCalls.Count -and $null -ne $totalRequests -and $toolCalls.Count -ne $totalRequests) {
+                throw 'Statistics tool attribution does not reconcile with the supplied request total.'
+            }
+            $lines.Add('')
+            $lines.Add('**Agent workload**')
+            $lines.Add('')
+            $lines.Add('| Agent tool | Requests |')
+            $lines.Add('|---|---:|')
+            if ($toolCalls.Count) {
+                foreach ($group in @($toolCalls.Values | Group-Object -CaseSensitive | Sort-Object @{Expression='Count';Descending=$true},Name)) {
+                    $lines.Add("| $(Escape-Text $group.Name) | $(Format-Statistic $group.Count -Count) |")
+                }
+                $lines.Add("| **Total** | **$(Format-Statistic $toolCalls.Count -Count)** |")
+            } else {
+                $lines.Add('| Per-tool distribution unavailable | unavailable |')
+            }
+            $lines.Add('')
+            $lines.Add('PowerShell requests are not a count of .ps1 launches. File/image reads, edits, searches and polling remain separate tool types; nested winapp/helper calls and loops are not counted.')
+
+            $caseRows = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+            foreach ($row in @(Get-Field $statistics 'Cases' | Where-Object { $null -ne $_ })) {
+                $id = Get-Field $row 'CaseId'
+                if (-not $id) { $id = Get-Field $row 'Id' }
+                if (-not $id -or $caseRows.ContainsKey($id) -or $id -cnotin $items.Id) {
+                    throw 'Statistics case rows require unique IDs from the run inventory.'
+                }
+                $caseRows.Add($id,$row)
+            }
+            $lines.Add('')
+            $lines.Add('**Case execution**')
+            $lines.Add('')
+            $lines.Add('| Case | Verdict | Normal / Diagnostic attempts | Driver time (s) | Span (s) | Driver errors |')
+            $lines.Add('|---|---|---:|---:|---:|---:|')
+            foreach ($item in $items) {
+                $row = if ($caseRows.ContainsKey($item.Id)) { $caseRows[$item.Id] } else { $null }
+                $span = Get-Field $row 'CaseSpanSeconds'
+                if ($null -eq $span) { $span = Get-Field $row 'SpanSeconds' }
+                $lines.Add("| $(Escape-Text $item.Id) | $(Escape-Text $item.Verdict) | $(Format-Statistic (Get-Field $row 'NormalAttempts') -Count) / $(Format-Statistic (Get-Field $row 'DiagnosticAttempts') -Count) | $(Format-Statistic (Get-Field $row 'RecordedDriverSeconds')) | $(Format-Statistic $span) | $(Format-Statistic (Get-Field $row 'FailedDriverSteps') -Count) |")
+            }
+            $lines.Add('')
+            $lines.Add('Driver time covers outer recorded case steps, including waits; it is not CPU time. Spans include gaps, can overlap and must not be summed. Driver errors are execution history, not additional product failures. Missing or unexecuted metrics remain unavailable, not zero.')
+            $nonCaseRows = @(Get-Field $statistics 'NonCaseRows' | Where-Object { $null -ne $_ })
+            if ($nonCaseRows.Count) {
+                $lines.Add('')
+                $lines.Add('| Non-case attribution | Agent requests |')
+                $lines.Add('|---|---:|')
+                foreach ($row in $nonCaseRows) {
+                    $lines.Add("| $(Escape-Text (Get-Field $row 'Phase')) | $(Format-Statistic (Get-Field $row 'AgentToolRequests') -Count) |")
+                }
+            }
+            foreach ($limitation in @(Get-Field $statistics 'Limitations')) {
+                if ($limitation) { $lines.Add("- **Limitation**: $(Escape-Text $limitation)") }
+            }
+            if ($statisticsReference) {
+                $lines.Add('')
+                $lines.Add((Link 'Machine-readable statistics and source attribution' $statisticsReference.Path))
+            }
+        }
+        $lines.Add('')
+    }
     $lines.Add('## Items')
     foreach ($item in $items) {
         $lines.Add('')
         $lines.Add("### $(Escape-Text $item.Id) - **$(Escape-Text $item.Verdict)**")
         $lines.Add('')
-        $lines.Add((Escape-Text $item.Description))
+        $presentation = Get-ChecklistPresentation $item
+        if ($null -ne $presentation) {
+            $lines.Add("**$(Escape-Text $presentation.Title)**")
+            if ($presentation.Context) {
+                $lines.Add('')
+                $lines.Add((Escape-Text $presentation.Context))
+            }
+        } else {
+            $lines.Add((Escape-Text $item.Description))
+        }
         $lines.Add('')
         $lines.Add("**Category**: $(Escape-Text $item.Category); **Admin**: $(Escape-Text $item.Admin); **Clarity**: $(Escape-Text $item.Clarity).")
         if (Get-Field $item 'Reason') { $lines.Add("**Reason**: $(Escape-Text $item.Reason)") }
@@ -196,7 +353,8 @@ function ConvertTo-PtVerificationSummary {
             $origin = if ($sequence) { '<br>**Origin**: ' + (Link "Normal judgment $sequence" $DetailsName "item-$($item.Id)") }
                 elseif ($observationSequence) { '<br>**Origin**: ' + (Link "Normal observation $observationSequence (awaiting review)" $DetailsName "item-$($item.Id)") }
                 else { '' }
-            $lines.Add("- **$(Escape-Text "$($item.Id)/$($child.Id)") - $(Escape-Text $child.Verdict)**. $legacy**Expected**: $(Escape-Text $child.Description)<br>**Actual / reason**: $(Escape-Text $child.Reason)<br>**Category**: $(Escape-Text $child.Category). $(Evidence-Links (Get-Field $child 'Evidence'))$origin")
+            $expected = if ($null -ne $presentation) { $presentation.Assertions[$child.Id] } else { $child.Description }
+            $lines.Add("- **$(Escape-Text "$($item.Id)/$($child.Id)") - $(Escape-Text $child.Verdict)**. $legacy**Expected**: $(Escape-Text $expected)<br>**Actual / reason**: $(Escape-Text $child.Reason)<br>**Category**: $(Escape-Text $child.Category). $(Evidence-Links (Get-Field $child 'Evidence'))$origin")
         }
         if (Get-Field $item 'Caveats') {
             $lines.Add('')

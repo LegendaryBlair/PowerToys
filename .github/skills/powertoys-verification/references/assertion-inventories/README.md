@@ -1,12 +1,13 @@
 # Frozen module assertion inventories
 
-New Scenario A runs for the three aligned profiles use these reviewed, versioned files:
+New Scenario A runs for the four aligned profiles use these reviewed, versioned files:
 
 | Module | Revision | Scenarios | Required children |
 |---|---|---|---|
 | Color Picker | 1 | 17 | 25 |
 | Workspaces | 1 | 40 | 72 |
 | Shortcut Guide | 1 | 19 | 96 |
+| Environment Variables | 3 | 29 | 135 |
 
 `Import-PtAssertionInventory` validates schema, revision, source SHA256, scenario coverage,
 IDs, nonempty descriptions and retention of named source assertions. The hash is over
@@ -19,6 +20,14 @@ legacy prose. A child covering several required inputs passes only after **all**
 are observed. Keep individual parameter observations even when they share one source child.
 Color Picker CP01-CP25 and the existing named SG assertions retain their source IDs.
 Workspaces and SG prose children now have explicit descriptive IDs.
+
+Environment Variables follows the Workspaces layout: functional prose cases in Markdown,
+explicit child IDs/descriptions here. Revision 3 changes presentation and order only:
+all 29 scenario IDs, 135 child IDs and their expectations are retained from revision 2,
+without Markdown label wrappers in child descriptions. The shared input table in the
+checklist defines P01/P02/P04 matrix rows; each surface/input still needs an observation.
+Non-admin/System input scopes and originally-absent/existing-value applied edits remain
+separate. Historical reports are not relabeled or rescored.
 
 The 72/96 counts are the first **checked-in mapping revision**, not inferred loss/improvement
 relative to the old run-local 120/103/115 child groupings. Historical archives remain unchanged.
@@ -33,7 +42,7 @@ $items = $inventory.Items
 # Pass Items to the existing run/template; record both input files.
 ```
 
-The thin template rejects different run-local Items for these three Scenario A modules
+The thin template rejects different run-local Items for these four Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Change the mapping only through review: increment `Revision`, retain stable IDs where
 meaning is unchanged, document semantic splits/merges, and update the source hash when

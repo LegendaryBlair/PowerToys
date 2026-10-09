@@ -32,7 +32,7 @@ specific checklist.
    **"bits under test" contract** (installed-and-immutable, vs build-and-sideload for a PR whose code
    isn't in the build under test), and the verdict-vocabulary mapping. Then read the **one** matching
    scenario doc: `references/scenarios/module-checklist.md` (A) · `pr-validation.md` (B).
-2. **`references/winapp-ui-testing.md`** — the **prerequisite** UIA mechanics doc (winapp ui verbs, scripted batch testing, file pickers, accessibility audits, screenshots, click-vs-invoke, PostMessage, SendInput cb=40, stunted-UIA recovery, settings-mutation safety contract). **Read this first** — this skill assumes you know its content and only adds PT-specific extensions.
+2. **`references/winapp-toolchain.md`**, then **`references/winapp-ui-testing.md`** — resolve the latest official stable CLI before a new run unless an explicit version is pinned; read matching release-tag documentation and actual command help/schema. Keep that tool identity fixed during execution. The bundled UI mechanics doc supplies PT integration, not a permanently current copy of upstream CLI syntax.
 3. **This `SKILL.md`** — the shared engine: the 3-bucket drive-technique selector (Step 2), classification taxonomy, critical pitfalls, helper-script catalog.
 4. **`references/modules/<module>.md` IF IT EXISTS** — per-module entry-paths, item-by-item recipes, common BLOCKED traps, fixture lists, source citations. **Always check `references/modules/` first.** If no profile exists, fall back to this SKILL.md and create one after you finish (template in `references/modules/README.md`).
 5. **`references/explorer-context-menu-flow.md` IF your module registers an Explorer right-click entry** (PowerRename, File Locksmith, Image Resizer, New+, Preview Pane, RegistryPreview) — shared synthetic-right-click + UIA-invoke + multi-file-selection flow + module-caption table. Helper: `scripts/pt-explorer-contextmenu.ps1`.
@@ -46,6 +46,8 @@ specific checklist.
 | File | Purpose |
 |---|---|
 | `scripts/pt-file-io.ps1` | Shared live-file reads that permit product read/write/delete; no automatic retries or default JSON. |
+| `scripts/pt-environment-variables-state.ps1` | Module-specific private DPAPI journal, exact file/HKCU raw-kind restoration and owned-variable UI guards. Use the WIP recorder/ownership adapters with the [private fixture integration](references/environment-variables-fixtures.md#wip-run-integration). |
+| `scripts/pt-environment-variables-ui.ps1` | Scoped owned rows/menus, target-checked draft input/commit/cancel and private Applied/native full-value reads. Reuse these [UI adapters](references/environment-variables-fixtures.md#reusable-ui-adapters) instead of generating a new locator/reader per case; observations are not product verdicts. |
 | `scripts/pt-clipboard-guard.ps1` + `.cs` | Shared in-memory clipboard preservation and explicit restore-before-shutdown gate; STA required. See [clipboard guard](references/clipboard-guard.md). |
 | `scripts/pt-clipboard-session.ps1` | Separate STA keeper and metadata-only reconnect receipt; retains the original across ordinary controller exit, not keeper termination. Composed writes seal their sequence before confirmation. |
 | `scripts/pt-shared-events.ps1` | `Invoke-PtSharedEvent`, `Test-PtSharedEvent`, `Get-PtSharedEventCatalog` — 56-entry friendly-name map for PT Named Events (CmdPal.Show, AOT.Pin, PowerLauncher.Invoke, LightSwitch.Toggle, ZoomIt.Draw, ...). The deterministic, foreground-free, UIPI-immune way to trigger a module. |
@@ -59,7 +61,7 @@ specific checklist.
 | `scripts/pt-owned-fixtures.ps1` | `New/Remove-PtNotepadFixture` and `New/Remove-PtExplorerFixture`: persisted ownership receipts, shared Notepad tab cleanup, isolated Explorer windows, explicit unsaved-edit consent and partial-cleanup retry. See [owned fixtures](references/owned-fixtures.md). |
 | `scripts/pt-state-snapshot.ps1` | Paired file/selected-HKCU-value/window/desktop snapshots; optional expected-state guarded existing-file rollback. Does not infer ownership or restart apps. |
 | `scripts/pt-session-safety.ps1`, `pt-settings-session.ps1`, `pt-cleanup-plan.ps1` | Borrowed/owned resources, pre-navigation Settings snapshots, release dependencies and verified cleanup stages. Enabled by the thin template; see [session safety](references/session-safety.md). |
-| `scripts/pt-assertion-inventory.ps1` | Source-bound, versioned CP/WS/SG assertion IDs; use the [frozen inventories](references/assertion-inventories/README.md), not new child groupings per run. |
+| `scripts/pt-assertion-inventory.ps1` | Source-bound, versioned CP/WS/SG/Environment Variables assertion IDs; use the [frozen inventories](references/assertion-inventories/README.md), not new child groupings per run. |
 | `scripts/pt-module-lifecycle.ps1` | Profile-driven Resident/RunnerHosted/OnDemand state, explicit UI enable/disable, Diagnostic-only module restart and original-enabled restoration. No implicit Runner restart or process kill. See [module lifecycle](references/module-lifecycle.md). |
 | `scripts/pt-directory-snapshot.ps1` | Bounded byte/file-set/empty-directory snapshots and explicit-owned three-way rollback. Conflicts stop before writes; unrelated changes survive with a partial receipt. See [directory snapshots](references/directory-snapshots.md). |
 | `scripts/pt-shortcut-guide.ps1` | SG host/content readiness and read-only taskbar baselines/restoration comparisons. Module semantics stay in its profile/checklist. |
@@ -88,17 +90,30 @@ Get-ChildItem "$skill\scripts" -Filter '*.ps1' |
 ```
 
 Color Picker, Workspaces and Shortcut Guide use the [canonical WIP capability inventory](references/helper-workflow.md#canonical-capability-inventory).
+Environment Variables uses the same recorder and run-local cleanup with its
+[module-specific private preservation boundary](references/environment-variables-fixtures.md#wip-run-integration).
 Do not mix the former Color Picker recorder/identity/lifecycle wrappers with these APIs.
 Capture Settings navigation/placement and establish window ownership before changing them;
 no native snapshot certifies page/IME state or another run's unresolved cleanup.
 
 ## Step 1 — Bootstrap
 
-For Color Picker, Workspaces and Shortcut Guide Scenario A runs, use
+Prepare winapp using the [toolchain policy](references/winapp-toolchain.md) before freezing
+the execution inputs. Record actual executable/package identity, version/hash, official
+release selection and matching documentation/help snapshots. Do not upgrade mid-run or
+treat an unavailable update check as confirmation that an old tool is current.
+
+For Color Picker, Workspaces, Shortcut Guide and Environment Variables Scenario A runs, use
 `templates\verification-run.ps1` with the [required resource plan](references/session-safety.md#mandatory-wiring-for-aligned-module-runs),
 `CleanupPlan` and frozen inventory. Do not reuse an old run-local bootstrap that bypasses
 the template's ownership, Settings-baseline and cleanup checks. The generic manual bootstrap
 below remains for other modules and explicitly scoped recorder work.
+
+For Environment Variables, load `references\assertion-inventories\environment-variables.json`
+with `Import-PtAssertionInventory` and pass its 29-scenario `Items` unchanged to the template.
+Use the private fixture integration for preservation; do not copy an older run's assertion
+grouping or report generator. Shared observations have one owner; both applied-edit baseline
+variants and every specified validation-matrix row remain required.
 
 ```powershell
 $module = 'AdvancedPaste'  # or 'CmdPal', 'FZ', 'Peek', ...
@@ -176,6 +191,11 @@ try {
 ### §2.B — Interact with a UI element (2 techniques, most-reliable first)
 
 #### B1. UIA invoke / set-value — **always try first**
+Prefer stable AutomationIds and the installed CLI's supported
+[scoped/typed queries](references/winapp-ui-testing.md#scoped-and-typed-queries) over new
+run-local tree filters. Querying a control is not expanding it; state-changing actions
+remain explicit and require their own observation.
+
 ```powershell
 Invoke-PtWinApp -Arguments @('invoke','SubmitButton','-a','PowerToys.Settings')
 Invoke-PtWinApp -Arguments @('set-value','QueryTextBox','=2+3*4','-a','PowerToys.PowerLauncher')
@@ -262,6 +282,21 @@ Different failure reasons stay distinct because each drives a different remediat
 in [recording-workflow.md](references/recording-workflow.md), rather than writing a new generator
 per run. This includes mandatory **§G Retrospective**, with source, severity, cost and a concrete
 fix for every friction, or an explicit `Everything was smooth — no friction encountered.`
+
+Every executing agent must also produce the
+[agent-origin execution statistics](references/reporting-format.md#agent-origin-execution-statistics):
+after Task 1 (verification plus cleanup), extract a fixed event/time range from its own
+session log and correlate explicit case IDs with the verification journal. Produce
+`statistics.json` with **agent tool-type counts** and per-case attempts, outer driver time,
+span and driver errors. The fixed exporter renders these tables **inline in `report.md`**;
+do not replace them with a separate Markdown link or all-zero winapp/helper columns.
+**Do not count script-internal calls or expand loops.** Task 2's extraction/report work is
+excluded even though the same session is still running. State unavailable/unassigned data,
+register sanitized statistics before sealing (template `-Report` callback), then base the
+retrospective on those measurements. No extra agent or coordinator is required.
+Use the [timezone-safe parsing examples](references/reporting-format.md#log-schemas-and-timezone-safe-parsing)
+and validate the result against known agent request IDs. Do not publish zero counts after
+a parse/filter failure or include verdict-assignment/reporting time as case execution.
 
 ## Step 5 — State hygiene (CRITICAL)
 
