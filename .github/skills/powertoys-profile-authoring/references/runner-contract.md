@@ -49,7 +49,7 @@ Record:
 For the small verification skill, snapshot/hash its complete tree to avoid missing indirect references.
 If another skill/tool supplies an input, add that dependency rather than silently mixing versions.
 Hash changes require a new candidate or an explicit invalidated run, not an amended handshake after testing.
-The profile-format contract is an Author input. If the Runner also reads that contract (including through a
+The checklist/profile format contracts are Author inputs. If the Runner also reads either contract (including through a
 README link), include the exact file/hash as an input dependency; do not supply the Author's private review
 notes or assume the verification-skill tree contains a sibling skill's reference file.
 

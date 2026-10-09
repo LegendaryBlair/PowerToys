@@ -1,6 +1,6 @@
 ---
 name: powertoys-profile-authoring
-description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a new module profile, bootstrap coverage, or iterate from test results. Enforces the aligned module-profile section and table contracts. Starts a branch/worktree from upstream main; normalizes baseline and merged-PR claims; prepares safe fixtures and restoration helpers; fixes shared execution blockers; tests committed candidates in fresh Runner sessions without Author context; makes scoped local commits. Supports evidence-based verdicts and uncontaminated regeneration comparisons. Uses powertoys-verification, not a new multi-agent framework."
+description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a new module profile, bootstrap coverage, or iterate from test results. Enforces Workspaces-style functional checklists and aligned module-profile section/table contracts. Starts a branch/worktree from upstream main; normalizes baseline and merged-PR claims; prepares safe fixtures and restoration helpers; fixes shared execution blockers; tests committed candidates in fresh Runner sessions without Author context; makes scoped local commits. Supports evidence-based verdicts and uncontaminated regeneration comparisons. Uses powertoys-verification, not a new multi-agent framework."
 license: Complete terms in LICENSE.txt
 ---
 
@@ -48,14 +48,16 @@ explicit user ceilings; do not invent a new budget questionnaire or an unlimited
 
 1. Repository `AGENTS.md` and applicable instructions in the chosen worktree.
 2. [Runner session contract](references/runner-contract.md): context isolation, exact skill selection and handoff.
-3. [Module profile format](references/module-profile-format.md): the normative section order, exact table
+3. [Checklist format](references/checklist-format.md): Workspaces-style functional cases, concise fixture
+   conventions and separate detailed assertion definitions. Read before checklist generation and each revision.
+4. [Module profile format](references/module-profile-format.md): the normative section order, exact table
    schemas, content boundaries and Author review gate. Read before profile generation and each revision.
-4. The chosen revision's verification [router](../powertoys-verification/references/scenarios/index.md),
+5. The chosen revision's verification [router](../powertoys-verification/references/scenarios/index.md),
    matching scenario and [module catalog/guidance](../powertoys-verification/references/modules/README.md).
-5. [Visual references](references/visual-references.md) before recording or promoting screenshots.
-6. [Stopping-policy brainstorm](references/stopping-policy.md) before authorizing repeated iterations.
-7. [Claims and verdicts](references/claims-and-verdicts.md) before finalizing the checklist or reviewing results.
-8. [Execution readiness](references/execution-readiness.md) before dispatch and when repairing a run's blockers.
+6. [Visual references](references/visual-references.md) before recording or promoting screenshots.
+7. [Stopping-policy brainstorm](references/stopping-policy.md) before authorizing repeated iterations.
+8. [Claims and verdicts](references/claims-and-verdicts.md) before finalizing the checklist or reviewing results.
+9. [Execution readiness](references/execution-readiness.md) before dispatch and when repairing a run's blockers.
 
 The verification skill loaded from the current chat is **not evidence** that a later Runner loads the same
 version. Read and attest the actual Runner worktree files.
@@ -73,6 +75,7 @@ candidate execution engine's verdict vocabulary.
 | PR range | Explicit start/end tags or commits; merged PR claims, not unbounded history |
 | Product target | Installed artifact or authorized build/sideload; actual version/path/hash and inclusion proof |
 | Development base | Upstream remote's refreshed main SHA, author branch/worktree |
+| Checklist format | Loaded checklist-format contract path/hash; functional prose and matching assertion inventory |
 | Profile format | Loaded format-contract path/hash and applicability of its conditional sections |
 | Runner scope | Assertion IDs, environment, task-authorized fixture/state changes and artifact location |
 | Visual scope | Core states and scoped capture plan; reference-promotion approval is separate from R0 execution |
@@ -137,12 +140,14 @@ declared baseline version, SHA256 and original line references in the run inputs
 **Extract the requested module's checklist from that file before adding PR coverage:**
 
 1. Locate the module heading and take its complete section, ending at the next heading of the same or higher
-   level. Preserve all checkboxes, nested variants, setup text and expected outcomes within that section.
+   level. Retain the original extract in the Author input records; preserve the requirements in every checkbox,
+   nested variant, setup condition and expected outcome.
 2. Inspect cross-cutting sections for entries explicitly naming the module, such as its localization checkbox.
    Include those entries and applicable shared prerequisites with their source references; do not copy other
    modules' tests or the entire release checklist into the module inventory.
-3. Write the extracted entries into the module checklist location below, preserving source identity and intent.
-   Then supplement them with the relevant PR-derived assertions.
+3. Normalize the extracted requirements and relevant PR-derived assertions into functional cases using
+   [the checklist format](references/checklist-format.md). Do not paste a second, verbatim baseline checklist
+   into the generated document; source identity and the original wording stay in the input records.
 
 Inventory relevant PRs through the explicit cutoff using descriptions **and diffs**: include direct module
 changes and applicable Settings, shared-code and entry-point changes. Separate user-facing claims from
@@ -150,14 +155,17 @@ test/build-only changes.
 
 - Check release inclusion, including cherry-picks, superseded/reverted changes and preview tags.
   A milestone, merge date or common major/minor version is not proof that installed bits contain a change.
-- Give assertions stable IDs, explicit expectations, prerequisites, source links and observation requirements.
+- Give assertions stable IDs, explicit expectations, prerequisites and observation requirements; retain
+  source links in the Author/input mapping, with short per-case references only when useful.
   Mark unresolved expectations for human review rather than deriving truth from the current output.
 - Merge obvious shared setup/actions if useful, retaining **every assertion and distinct condition**. Execution
   experience can justify further grouping later. Fewer scenario rows is not reduced coverage or higher quality.
-- State product/version/UI-stack applicability and fixture/restoration requirements.
-- Keep a PR disposition map: included claim, covered by baseline, infrastructure-only, out of range or deferred.
+- State actual product/version prerequisites beside the affected cases. Summarize critical fixture/restoration
+  requirements in the checklist and link the profile/fixture guide for implementation detail.
+- Keep PR dispositions (included, baseline-covered, infrastructure-only, out of range or deferred) in the
+  existing Author analysis records, not in the checklist or a newly created source appendix.
 
-Apply [claim normalization](references/claims-and-verdicts.md): preserve original wording/provenance while
+Apply [claim normalization](references/claims-and-verdicts.md): preserve original wording/provenance in input records while
 mapping clearly equivalent behavior to the target's current controls. Do not leave a caption-only change
 permanently ambiguous or duplicate the old requirement and its current equivalent.
 Separate core eligible checks from additional conditional matrices without dropping either. Do not turn every
@@ -166,6 +174,12 @@ Report subconditions independently so a missing specialist fixture does not obsc
 
 Use the engine's checklist location, normally
 `.github\skills\powertoys-verification\references\release-checklist\<module>.md`.
+The generated document has **Legend -> brief Fixtures & conventions -> functionally grouped cases**,
+with concise action/expectation paragraphs and detailed stable children in the supported assertion inventory.
+Do not include provenance/applicability essays, a verbatim original baseline, PR disposition or coverage-history
+sections. Do not organize it under `Canonical execution inventory`, `Draft validation matrices` or
+`Entry points and conditional coverage`; use actual functional categories instead.
+Complete the [checklist review gate](references/checklist-format.md#5-author-review-gate) before checkpointing.
 Review the initial scope/ambiguous expectations with the user as needed.
 
 Create a **local input checkpoint commit** for the checklist and any approved supporting changes. This extra
@@ -173,7 +187,8 @@ checkpoint makes the first no-profile run reproducible; it is not a claim that a
 If commits are prohibited, pause to agree an explicit hashed-snapshot alternative to the commit-based Runner
 contract; do not label dirty material with its base commit and pretend it is the tested revision.
 
-**Output:** stable assertion inventory, source/PR mapping and testable input revision.
+**Output:** functional checklist, matching stable assertion inventory and testable input revision;
+source/PR mapping retained in the Author/input records.
 
 ### 1a. Prepare executable foundations
 
@@ -287,7 +302,8 @@ warnings or stricter evidence gates alone is not completion of this improvement 
 
 For every change retain: original problem/evidence, chosen layer, diff, affected assertion IDs, confirmation plan
 and completed helper checks. A static selector replacement or renamed failure category alone is not proof of improvement.
-Reapply the profile format review gate to each revised profile and update its candidate/contract hashes.
+Reapply the checklist/profile format review gates to the corresponding revised materials and update
+candidate/contract hashes. Checklist reformatting must preserve assertion semantics and distinct conditions.
 Formatting changes alone do not resolve missing execution or restoration capability.
 If results worsen, compare actual evidence: the old run may have been falsely passing. Escalate unresolved
 contradictions instead of automatically reverting expectations or expanding permissions.
@@ -337,7 +353,7 @@ Deliver:
 
 - Base/branch and checkpoint commits; actual Runner session IDs and material/build identities.
 - Checklist/profile/helper paths and what the latest fresh run actually supports.
-- Format-contract identity and candidate format-review receipt, separate from execution readiness.
+- Checklist/profile format-contract identities and review receipts, separate from execution readiness.
 - Immutable report locations, per-assertion gaps and separate product findings.
 - Visual candidates/accepted references with provenance and approval state.
 - Current workflow status and the selected stopping rule, or the unresolved decision.

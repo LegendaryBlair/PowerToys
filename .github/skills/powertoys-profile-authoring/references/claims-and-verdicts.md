@@ -2,6 +2,9 @@
 
 Preserving every source requirement does not mean preserving stale wording as an unresolved test forever.
 Build an executable interpretation without losing the original intent or provenance.
+Use the [checklist format contract](checklist-format.md) for presentation. Keep original
+wording, source/PR mappings and dispositions in existing Author/input records; the generated
+checklist contains functional action/expectation cases, not a duplicate baseline or audit appendix.
 
 ## 1. Normalize baseline wording against the target
 
@@ -39,8 +42,10 @@ end-user acceptance criterion.
 - Avoid multiplying the same behavior into baseline, migration and shared-refactor rows with no distinct
   observation. Use source aliases or distinct subconditions instead.
 
-Keep a **core eligible** selection and an **additional conditional** matrix in the inventory. This is an
-execution grouping, not scope deletion: preserve all original IDs/conditions and their reasons for deferral.
+Keep a **core eligible** selection and an **additional conditional** matrix in the inventory/round scope.
+These are execution selections, not mandatory checklist section titles or scope deletion: organize the
+human checklist by function and state prerequisites beside each case. Preserve all original IDs/conditions
+and their reasons for deferral.
 Readiness status belongs to the round's capability map; do not bake today's missing environment into the
 permanent product expectation.
 
