@@ -165,6 +165,162 @@ Check 'Unicode, HTML, Markdown and link destinations are safely escaped' {
     Require ($named.Contains('(review%20%281%29.md#item-L1)')) 'Details basename encoding failed.'
     Require ($named.Contains('(results%20%231.json)')) 'Results basename encoding failed.'
 }
+function Checklist-State {
+    $state = Copy-State $fixture
+    $item = $state.Items[0]
+    $item.Assertions[0].Description = "- **fail**: Preserve the original value.`n    Empty is distinct from absent."
+    $item.Assertions[1].Description = "- **unseen**: Observe both surfaces $unicode <tag> [link](url) ``literal``."
+    $item.Assertions[2].Description = '- **optional**: Keep the unavailable prerequisite visible.'
+    $source = @(
+        '- [ ] **Owned variable flow** [ID: L1] [ADMIN: NO] [CLARITY: CLEAR]'
+        '  Sources: EV-B03, EV-B04.'
+        '  Arrange a private original baseline.'
+        '  Never infer removal from a toggle.'
+    ) + @($item.Assertions | ForEach-Object { '  ' + $_.Description }) + @(
+        ''
+        '  Independent setup limitation after the children.'
+    )
+    $item.Description = $source -join "`n"
+    $state
+}
+Check 'Frozen source layout shows every expectation once while retaining all setup notes' {
+    $state = Checklist-State
+    $report = Render $state
+    $decoded = [Net.WebUtility]::HtmlDecode($report)
+    Require ($report.Contains('**Owned variable flow**')) 'Scenario title lost'
+    foreach ($note in 'Sources: EV-B03, EV-B04.', 'Arrange a private original baseline.',
+        'Never infer removal from a toggle.', 'Independent setup limitation after the children.') {
+        Require ($decoded.Contains($note)) "Setup/source text omitted: $note"
+    }
+    Require (-not $decoded.Contains('- [ ] **Owned variable flow**')) 'Raw checkbox header leaked'
+    foreach ($child in $state.Items[0].Assertions) {
+        $body = $child.Description.Substring(("- **$($child.Id)**: ").Length)
+        Require ([regex]::Matches($decoded, [regex]::Escape((Visible $body))).Count -eq 1) "Expected condition repeated or lost: $($child.Id)"
+        Require ($decoded.Contains("**L1/$($child.Id) - $($child.Verdict)**.")) 'Child identity/verdict changed'
+        Require (-not $decoded.Contains("**Expected**: - **$($child.Id)**:")) 'Bold-ID wrapper repeated in Expected'
+        Require ($decoded.Contains("**Actual / reason**: $(Visible $child.Reason)<br>")) 'Actual reason changed'
+    }
+    Require ($report.Contains('**Legacy metadata: Required=false.**')) 'Legacy prerequisite metadata lost'
+    Require ([regex]::Matches($report, '(?m)^- \*\*.* - (?:PASS|FAIL|BLOCKED|NOT-OBSERVED)\*\*\.').Count -eq 4) 'Rendered child count changed'
+    Require (-not $report.Contains('<tag>') -and -not $report.Contains('[link](url)')) 'Source layout enabled active HTML/Markdown'
+    Require ($report.Contains('(details.md#item-L1)') -and $report.Contains('**Current restoration**: **PASS**')) 'Trace/cleanup display changed'
+    [IO.File]::WriteAllText((Join-Path $Workspace 'frozen-checklist-report.md'), $report)
+}
+Check 'Source mismatches preserve complete text instead of dropping unrecognized requirements' {
+    foreach ($problem in 'different-child', 'extra-source-child', 'duplicate-source-child', 'different-metadata') {
+        $state = Checklist-State
+        switch ($problem) {
+            'different-child' { $state.Items[0].Assertions[0].Description = 'Changed expectation absent from source block.' }
+            'extra-source-child' { $state.Items[0].Description += "`n  - **extra**: An additional source requirement." }
+            'duplicate-source-child' { $state.Items[0].Description += "`n  " + $state.Items[0].Assertions[0].Description }
+            'different-metadata' { $state.Items[0].Admin = 'YES' }
+        }
+        Assert-Coverage $state (Render $state)
+    }
+}
+Check 'Frozen source presentation supports CRLF and dictionaries without changing state' {
+    $state = Checklist-State
+    $lf = Render $state
+    $state.Items[0].Description = $state.Items[0].Description.Replace("`n", "`r`n")
+    foreach ($child in $state.Items[0].Assertions) { $child.Description = $child.Description.Replace("`n", "`r`n") }
+    Require ((Render $state) -ceq $lf) 'Frozen layout depends on line endings'
+    $dictionary = ConvertTo-Json -InputObject $state -Depth 60 | ConvertFrom-Json -AsHashtable
+    Require ((Render $dictionary) -ceq $lf) 'Frozen layout depends on object representation'
+}
+Check 'Functional prose with explicit inventory children keeps conditions without raw checklist labels' {
+    $state=Copy-State $fixture
+    $paragraph="Use an owned fixture; compare both surfaces before cleanup. Conditional input: $unicode <tag> [link](url)."
+    $state.Items[0].Description="- [ ] **Owned variable flow** [ID: L1] [ADMIN: NO]`n  $paragraph"
+    $report=Render $state
+    $decoded=[Net.WebUtility]::HtmlDecode($report)
+    Require ($report.Contains('**Owned variable flow**') -and $decoded.Contains($paragraph)) 'Functional prose conditions lost'
+    Require (-not $decoded.Contains('- [ ] **Owned variable flow**')) 'Functional prose exposed raw checkbox header'
+    foreach($child in $state.Items[0].Assertions){
+        Require ($decoded.Contains("**L1/$($child.Id) - $($child.Verdict)**.")) 'Explicit child verdict or identity lost'
+        Require ($decoded.Contains("**Expected**: $(Visible $child.Description)<br>")) 'Explicit child expectation changed'
+    }
+    Require (-not $report.Contains('<tag>') -and -not $report.Contains('[link](url)')) 'Functional prose enabled untrusted markup'
+    $state.Items[0].Clarity='REWRITTEN'
+    Assert-Coverage $state (Render $state)
+}
+function Statistics-State {
+    $state = Copy-State $fixture
+    $state | Add-Member NoteProperty ExecutionStatistics @{
+        Artifact=@{Path='attempts\stats\33333333333333333333333333333333-statistics.json';Kind='Evidence'}
+        Data=@{
+            Coverage='partial'
+            ExecutionSegments=@(@{StartUtc='2026-10-01T17:00:00Z';EndUtc='2026-10-01T17:01:00Z'})
+            ModuleTotals=@{AgentToolRequests=4;ExecutionLifecycleWallSeconds=60;ToolResponseWaitUnionSeconds=5.25;ReportingSeconds=3}
+            AttributionRecords=@(
+                @{SessionId='s';ToolCallId='one';ToolName='powershell';DirectActionIndex=0},
+                @{SessionId='s';ToolCallId='one';ToolName='powershell';DirectActionIndex=1},
+                @{SessionId='s';ToolCallId='two';ToolName='powershell'},
+                @{SessionId='s';ToolCallId='three';ToolName='view'},
+                @{SessionId='s';ToolCallId='four';ToolName='apply_patch'})
+            Cases=@(
+                @{CaseId='L1';NormalAttempts=2;DiagnosticAttempts=1;RecordedDriverSeconds=12.75;CaseSpanSeconds=60;FailedDriverSteps=1},
+                @{CaseId='L2';Verdict='FAIL';NormalAttempts=0;DiagnosticAttempts=0;RecordedDriverSeconds=$null;CaseSpanSeconds=$null;FailedDriverSteps=$null})
+            NonCaseRows=@(@{Phase='MULTI-CASE';AgentToolRequests=2})
+            Limitations=@('Per-case agent request attribution is unavailable.')
+        }
+    }
+    Copy-State $state
+}
+Check 'Inline statistics show useful tool and case tables without zero winapp/helper columns' {
+    $state=Statistics-State
+    $report=Render $state
+    Assert-Coverage $state $report
+    Require ($report.Contains('| Execution wall time (s) | 60 |')) 'Module execution time is not inline'
+    Require ($report.Contains('| powershell | 2 |') -and $report.Contains('| view | 1 |') -and
+        $report.Contains('| apply&#95;patch | 1 |') -and $report.Contains('| **Total** | **4** |')) 'Tool distribution lost or double-counted direct actions'
+    Require ($report.Contains('| L1 | FAIL | 2 / 1 | 12.75 | 60 | 1 |')) 'Case metrics are not inline'
+    Require ($report.Contains('| L2 | PASS | 0 / 0 | unavailable | unavailable | unavailable |')) 'Missing duration became zero or statistics changed product verdict'
+    Require ($report.Contains('| MULTI-CASE | 2 |')) 'Non-case attribution missing'
+    Require (-not $report.Contains('| Winapp |') -and -not $report.Contains('| Helpers |') -and
+        -not $report.Contains('statistics.md)')) 'Empty direct-action columns or separate Markdown summary remain'
+    Require ($report.Contains('(attempts/stats/33333333333333333333333333333333-statistics.json)')) 'Raw-data provenance link missing'
+    [IO.File]::WriteAllText((Join-Path $Workspace 'inline-statistics.md'),$report)
+}
+Check 'Statistics text is escaped and numeric formatting is culture-independent' {
+    $state=Statistics-State
+    $state.ExecutionStatistics.Data.AttributionRecords[2].ToolName=$text
+    $state.ExecutionStatistics.Data.Limitations=@($text)
+    $culture=[Threading.Thread]::CurrentThread.CurrentCulture
+    try{
+        [Threading.Thread]::CurrentThread.CurrentCulture=[Globalization.CultureInfo]::GetCultureInfo('fr-FR')
+        $report=Render $state
+        Require ($report.Contains('12.75') -and -not $report.Contains('12,75')) 'Numeric cells follow machine culture'
+        Require (-not $report.Contains('<tag>') -and -not $report.Contains('[link](url)')) 'Statistics text rendered as active markup'
+        Require ([Net.WebUtility]::HtmlDecode($report).Contains((Visible $text))) 'Escaping lost statistics text'
+    }finally{[Threading.Thread]::CurrentThread.CurrentCulture=$culture}
+}
+Check 'Statistics inconsistencies and invalid numeric values are rejected rather than guessed' {
+    foreach($problem in 'total','negative','string','duplicate-case','duplicate-tool'){
+        $state=Statistics-State
+        switch($problem){
+            total {$state.ExecutionStatistics.Data.ModuleTotals.AgentToolRequests=9}
+            negative {$state.ExecutionStatistics.Data.Cases[0].RecordedDriverSeconds=-1}
+            string {$state.ExecutionStatistics.Data.Cases[0].NormalAttempts='two'}
+            duplicate-case {$state.ExecutionStatistics.Data.Cases[1].CaseId='L1'}
+            duplicate-tool {$state.ExecutionStatistics.Data.AttributionRecords[1].ToolName='different'}
+        }
+        $rejected=$false
+        try{Render $state|Out-Null}catch{$rejected=$_.Exception.Message -match 'Statistics'}
+        Require $rejected "Invalid statistics were rendered: $problem"
+    }
+}
+Check 'Legacy and missing statistics remain explicitly unavailable without artifact reads' {
+    Require (-not (Render $fixture).Contains('## Execution statistics')) 'Renderer invented statistics for a legacy state'
+    $legacy=Copy-State $fixture
+    $legacy|Add-Member References @(@{Path='attempts\old\statistics.md';Kind='Evidence'})
+    Require ((Render $legacy).Contains('no loaded statistics data')) 'Legacy artifact-only state did not identify unavailable data'
+    $state=Statistics-State
+    $state.ExecutionStatistics.Data=[pscustomobject]@{Coverage='unavailable';Limitations=@('Session log absent.')}
+    $report=Render $state
+    Require ($report.Contains('| Agent tool requests | unavailable |') -and
+        $report.Contains('| Per-tool distribution unavailable | unavailable |')) 'Missing tool data became zero'
+    Require ($report.Contains('| L1 | FAIL | unavailable / unavailable | unavailable | unavailable | unavailable |')) 'Missing case data was inferred'
+}
 Check 'Historical failure then current PASS preserves signoff, scoped claims and history' {
     $report = Render $fixture
     Require ($report.Contains('**Current restoration**: **PASS**; historical unsuccessful receipts: 1.')) 'Old failure incorrectly made current restoration fail.'

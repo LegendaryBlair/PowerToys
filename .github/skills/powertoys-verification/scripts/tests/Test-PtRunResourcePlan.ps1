@@ -45,8 +45,8 @@ Check 'Borrowed windows cannot omit ownership and duplicate resources remain inv
     $copy.Resources[2].Id=$copy.Resources[1].Id
     Reject {Assert-PtRunResourcePlan $copy $steps} 'unique IDs'
 }
-Check 'All three actual module entry paths reject absent wiring before creating a run' {
-    foreach($module in 'Color Picker','Workspaces','Shortcut Guide'){
+Check 'All four actual module entry paths reject absent wiring before creating a run' {
+    foreach($module in 'Color Picker','Workspaces','Shortcut Guide','Environment Variables'){
         $target=Join-Path $Workspace $module.Replace(' ','')
         Reject {& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $target -Module $module `
             -Bits 'Synthetic wiring rejection; no product execution' -Items @(@{Id='unused'}) `

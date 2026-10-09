@@ -10,13 +10,13 @@ function Reject([scriptblock]$Body,[string]$Pattern){
     try{& $Body|Out-Null}catch{if($_.Exception.Message -notmatch $Pattern){throw};return}
     throw "Expected rejection: $Pattern"
 }
-foreach($name in 'color-picker','workspaces','shortcut-guide'){
+foreach($name in 'color-picker','workspaces','shortcut-guide','environment-variables'){
     $source="$skill\references\release-checklist\$name.md"
     $path="$skill\references\assertion-inventories\$name.json"
     $inventory=Import-PtAssertionInventory $path $source
     $again=Import-PtAssertionInventory $path $source
     Require ((ConvertTo-Json $inventory -Depth 20 -Compress) -ceq (ConvertTo-Json $again -Depth 20 -Compress)) 'Inventory is nondeterministic'
-    $expected=switch($name){'color-picker'{@(17,25)} 'workspaces'{@(40,72)} default{@(19,96)}}
+    $expected=switch($name){'color-picker'{@(17,25)} 'workspaces'{@(40,72)} 'shortcut-guide'{@(19,96)} 'environment-variables'{@(29,135)}}
     Require ($inventory.Items.Count -eq $expected[0] -and @($inventory.Items.Assertions).Count -eq $expected[1]) 'Inventory count changed without reviewed test update'
     $edited=Join-Path $Workspace "$name.md"
     [IO.File]::WriteAllText($edited,[IO.File]::ReadAllText($source)+' changed')
@@ -35,6 +35,33 @@ foreach($name in 'color-picker','workspaces','shortcut-guide'){
     Reject {Import-PtAssertionInventory $bad $source} 'unique IDs'
     $results+=@(@{Module=$name;Scenarios=$expected[0];Assertions=$expected[1];Status='PASS'})
 }
+$source="$skill\references\release-checklist\color-picker.md"
+$path="$skill\references\assertion-inventories\color-picker.json"
+$manifest=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
+$manifest.Items[0].Assertions=@($manifest.Items[0].Assertions|Where-Object {$_ -ne 'CP01'})
+$bad=Join-Path $Workspace 'omitted-named-source.json'
+Write-PtReportText $bad (ConvertTo-Json $manifest -Depth 20)
+Reject {Import-PtAssertionInventory $bad $source} 'omitted named assertion: CP01'
+$source="$skill\references\release-checklist\environment-variables.md"
+$path="$skill\references\assertion-inventories\environment-variables.json"
+$manifest=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
+$applied=@($manifest.Items|Where-Object Id -EQ 'EV-APPLIED-EDIT')[0]
+$child=@($applied.Assertions|Where-Object Id -EQ 'EV-P07.absent-edit')[0]
+$applied.Assertions+=@($child)
+$bad=Join-Path $Workspace 'env-duplicate-child.json'
+Write-PtReportText $bad (ConvertTo-Json $manifest -Depth 20)
+Reject {Import-PtAssertionInventory $bad $source} 'globally unique'
+$manifest=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
+$manifest.Items[0].Assertions[0].Description=''
+$bad=Join-Path $Workspace 'env-empty-description.json'
+Write-PtReportText $bad (ConvertTo-Json $manifest -Depth 20)
+Reject {Import-PtAssertionInventory $bad $source} 'retained descriptions'
+$manifest=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
+$swap=$manifest.Items[0];$manifest.Items[0]=$manifest.Items[1];$manifest.Items[1]=$swap
+$bad=Join-Path $Workspace 'env-reordered-scenario.json'
+Write-PtReportText $bad (ConvertTo-Json $manifest -Depth 20)
+Reject {Import-PtAssertionInventory $bad $source} 'ID/order'
+$results+=@(@{Name='Named-source retention and explicit child description/uniqueness/order contracts';Status='PASS'})
 $fixture=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$skill\references\assertion-inventories\color-picker-cielab-fixture.json"))
 $linear=@(foreach($component in $fixture.Rgb){
     $v=$component/255.0

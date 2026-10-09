@@ -1,0 +1,692 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 3,
+  "SourceSha256": "8C55434E068A1CB5B730EAB4D763E758FBD77C1BFDEB2E5BBA46F203FE563A91",
+  "Items": [
+    {
+      "Id": "EV-SETTINGS-LAUNCH",
+      "Assertions": [
+        {
+          "Id": "EV-B02.launch",
+          "Description": "The actual Settings launch control opens a titled editor; record new process/window identity."
+        },
+        {
+          "Id": "EV-B02.token",
+          "Description": "The resulting editor is not elevated."
+        },
+        {
+          "Id": "EV-B02.system-edit",
+          "Description": "System-variable editing controls are disabled."
+        },
+        {
+          "Id": "EV-B02.system-add",
+          "Description": "System Add is disabled."
+        },
+        {
+          "Id": "EV-B02.user-add",
+          "Description": "User Add is available."
+        }
+      ]
+    },
+    {
+      "Id": "EV-ELEVATED-LAUNCH",
+      "Assertions": [
+        {
+          "Id": "EV-B01.launch",
+          "Description": "Administrator launch on opens the editor through Settings."
+        },
+        {
+          "Id": "EV-B01.token",
+          "Description": "The actual editor token is elevated."
+        },
+        {
+          "Id": "EV-B01.system-edit",
+          "Description": "System-variable editing is enabled."
+        },
+        {
+          "Id": "EV-B01.system-add",
+          "Description": "System Add is enabled; no arbitrary machine writes are needed."
+        }
+      ]
+    },
+    {
+      "Id": "EV-MODULE-LIFECYCLE",
+      "Assertions": [
+        {
+          "Id": "EV-P13.persistence",
+          "Description": "Both disabled and enabled choices persist in the stored module flag and match the Settings toggle after save; no Settings close/reopen is required."
+        },
+        {
+          "Id": "EV-P13.isolation",
+          "Description": "Unrelated module flags remain unchanged at both transitions."
+        },
+        {
+          "Id": "EV-P13.oobe-disabled",
+          "Description": "Reopened OOBE Launch is disabled when this module is disabled."
+        },
+        {
+          "Id": "EV-P13.oobe-enabled",
+          "Description": "Reopened OOBE Launch is enabled when this module is enabled."
+        },
+        {
+          "Id": "EV-P13.oobe-launch",
+          "Description": "Invoking the OOBE control actually opens the editor."
+        }
+      ]
+    },
+    {
+      "Id": "EV-QUICK-ACCESS",
+      "Assertions": [
+        {
+          "Id": "EV-P14.quick-access",
+          "Description": "Enabled Environment Variables tile opens the editor; signaling the module directly is not entry evidence."
+        }
+      ]
+    },
+    {
+      "Id": "EV-USER-CRUD",
+      "Assertions": [
+        {
+          "Id": "EV-B03.os",
+          "Description": "Native Environment Variables dialog contains the exact added name/value."
+        },
+        {
+          "Id": "EV-B03.applied",
+          "Description": "Applied variables contains the exact added name/value."
+        },
+        {
+          "Id": "EV-B03.storage",
+          "Description": "HKCU contains the expected value; record its raw kind."
+        },
+        {
+          "Id": "EV-B04.os",
+          "Description": "Native dialog shows `two` in exactly one matching row."
+        },
+        {
+          "Id": "EV-B04.applied",
+          "Description": "Applied variables shows `two` without a duplicate."
+        },
+        {
+          "Id": "EV-B04.storage",
+          "Description": "HKCU contains `two` under the same name."
+        },
+        {
+          "Id": "EV-B05.os",
+          "Description": "Native dialog no longer contains the owned variable."
+        },
+        {
+          "Id": "EV-B05.applied",
+          "Description": "Applied variables no longer contains the owned variable."
+        },
+        {
+          "Id": "EV-B05.storage",
+          "Description": "The owned HKCU value is absent, not an empty string."
+        }
+      ]
+    },
+    {
+      "Id": "EV-SYSTEM-CRUD",
+      "Assertions": [
+        {
+          "Id": "EV-B03-S.os",
+          "Description": "Native System scope shows the added exact name/value."
+        },
+        {
+          "Id": "EV-B03-S.applied",
+          "Description": "Applied variables shows the added System variable."
+        },
+        {
+          "Id": "EV-B03-S.storage",
+          "Description": "HKLM holds the expected added value/kind; no User-scope value was created."
+        },
+        {
+          "Id": "EV-B04-S.os",
+          "Description": "Native System scope shows the edited value without duplicates."
+        },
+        {
+          "Id": "EV-B04-S.applied",
+          "Description": "Applied variables shows the edited System value."
+        },
+        {
+          "Id": "EV-B04-S.storage",
+          "Description": "HKLM holds `two`; no User-scope write occurred."
+        },
+        {
+          "Id": "EV-B05-S.os",
+          "Description": "Native System scope no longer contains the owned name."
+        },
+        {
+          "Id": "EV-B05-S.applied",
+          "Description": "Applied variables no longer contains the owned name."
+        },
+        {
+          "Id": "EV-B05-S.storage",
+          "Description": "Owned HKLM value absent and User scope unchanged; restore original raw kinds."
+        }
+      ]
+    },
+    {
+      "Id": "EV-PROFILE-CREATE",
+      "Assertions": [
+        {
+          "Id": "EV-B06.empty",
+          "Description": "P1 appears disabled, has zero variables, and persists in profiles.json."
+        },
+        {
+          "Id": "EV-B07.variable",
+          "Description": "P1 contains exactly V1=`one` in its row and persisted data after outer Save."
+        },
+        {
+          "Id": "EV-B08.os",
+          "Description": "Both P2 variables appear with exact values in the native User dialog."
+        },
+        {
+          "Id": "EV-B08.applied",
+          "Description": "Both P2 variables appear in Applied variables."
+        },
+        {
+          "Id": "EV-B08.storage",
+          "Description": "P2 is stored enabled with both variables and their expected HKCU values."
+        }
+      ]
+    },
+    {
+      "Id": "EV-PROFILE-SWITCH",
+      "Assertions": [
+        {
+          "Id": "EV-B09.toggles",
+          "Description": "P1 becomes enabled and P2 becomes disabled."
+        },
+        {
+          "Id": "EV-B09.os",
+          "Description": "Native dialog removes V2/V3 and shows V1=`one`."
+        },
+        {
+          "Id": "EV-B09.applied",
+          "Description": "Applied variables removes V2/V3 and shows V1=`one`."
+        },
+        {
+          "Id": "EV-B09.storage",
+          "Description": "HKCU and saved enablement match the switch."
+        },
+        {
+          "Id": "EV-B10.os",
+          "Description": "Native dialog removes the originally absent P1 variables on unapply."
+        },
+        {
+          "Id": "EV-B10.applied",
+          "Description": "Applied variables removes those P1 variables."
+        },
+        {
+          "Id": "EV-B10.storage",
+          "Description": "HKCU has no residual P1 variable and saved P1 is disabled."
+        }
+      ]
+    },
+    {
+      "Id": "EV-OVERRIDE",
+      "Assertions": [
+        {
+          "Id": "EV-B11.draft",
+          "Description": "Existing-variable selection and outer Save store the changed profile value without changing live User state."
+        },
+        {
+          "Id": "EV-B12.os",
+          "Description": "Native dialog shows the override and exact named backup containing `original`."
+        },
+        {
+          "Id": "EV-B12.applied",
+          "Description": "Applied list shows the profile override and User backup."
+        },
+        {
+          "Id": "EV-B12.storage",
+          "Description": "HKCU override/backup values match; private HKLM comparison remains unchanged."
+        },
+        {
+          "Id": "EV-B13.os",
+          "Description": "Native dialog restores `original` and removes the generated backup on unapply."
+        },
+        {
+          "Id": "EV-B13.applied",
+          "Description": "Applied list restores the original User row and removes the backup."
+        },
+        {
+          "Id": "EV-B13.storage",
+          "Description": "Original raw text returns, backup absent, HKLM unchanged; exact-kind cleanup remains separate."
+        }
+      ]
+    },
+    {
+      "Id": "EV-APPLIED-EDIT",
+      "Assertions": [
+        {
+          "Id": "EV-P07.absent-apply",
+          "Description": "Originally absent source becomes `one`; no backup is created for a nonexistent original."
+        },
+        {
+          "Id": "EV-P07.absent-edit",
+          "Description": "Active edit yields `two` and does not create a spurious backup of the profile's own old value."
+        },
+        {
+          "Id": "EV-P07.absent-rename",
+          "Description": "Destination is `two`; old source and its backup are absent, not resurrected as `one`."
+        },
+        {
+          "Id": "EV-P07.absent-unapply",
+          "Description": "Source, renamed destination and both backup names are absent after product unapply."
+        },
+        {
+          "Id": "EV-P07.existing-apply",
+          "Description": "Source becomes `one` and its backup contains the pre-profile `original`."
+        },
+        {
+          "Id": "EV-P07.existing-edit",
+          "Description": "Source becomes `two`; backup still contains `original`, not `one`."
+        },
+        {
+          "Id": "EV-P07.existing-rename",
+          "Description": "Old source returns to `original`, destination is `two`, old backup disappears."
+        },
+        {
+          "Id": "EV-P07.existing-unapply",
+          "Description": "Old source remains `original`; absent-baseline destination and generated backups disappear."
+        },
+        {
+          "Id": "EV-P07.scope",
+          "Description": "At every stage in both variants, the full private HKLM and untracked HKCU maps remain unchanged."
+        }
+      ]
+    },
+    {
+      "Id": "EV-EXISTING-SELECTION",
+      "Assertions": [
+        {
+          "Id": "EV-P04.existing-selection",
+          "Description": "Record selection and Add availability, Save/reopen, and prove unchanged membership/count with no duplicate."
+        }
+      ]
+    },
+    {
+      "Id": "EV-PATH-EDIT",
+      "Assertions": [
+        {
+          "Id": "EV-B14.applied",
+          "Description": "Expanded SYSTEM Path precedes expanded USER Path, separated by semicolon; compare privately."
+        },
+        {
+          "Id": "EV-B15.list",
+          "Description": "Outer Save renders and stores three separate PATH entries, not one semicolon string row."
+        },
+        {
+          "Id": "EV-B16.delete",
+          "Description": "Delete removes only the selected PATH entry."
+        },
+        {
+          "Id": "EV-B16.move-up",
+          "Description": "Move up produces the independently expected order."
+        },
+        {
+          "Id": "EV-B16.move-down",
+          "Description": "Move down produces the independently expected order."
+        },
+        {
+          "Id": "EV-B16.insert-before",
+          "Description": "Insert before places the new entry before the selected entry."
+        },
+        {
+          "Id": "EV-B16.insert-after",
+          "Description": "Insert after places the new entry after the selected entry."
+        },
+        {
+          "Id": "EV-B16.persistence",
+          "Description": "Save/reopen preserves the final exact order in UI and profile data."
+        }
+      ]
+    },
+    {
+      "Id": "EV-PATH-LIFECYCLE",
+      "Assertions": [
+        {
+          "Id": "EV-B17.os",
+          "Description": "Native dialog shows exact profile User Path and complete original backup value."
+        },
+        {
+          "Id": "EV-B17.applied",
+          "Description": "Applied PATH is expanded SYSTEM Path plus profile PATH; backup User row is correct."
+        },
+        {
+          "Id": "EV-B17.storage",
+          "Description": "Raw HKCU Path/backup values match the planned transition; HKLM unchanged."
+        },
+        {
+          "Id": "EV-B18.process",
+          "Description": "Normal close/relaunch yields an actual new titled editor process without diagnostic recovery."
+        },
+        {
+          "Id": "EV-B18.profiles",
+          "Description": "Profile IDs/names/variables/enabled state persist in the new UI and file."
+        },
+        {
+          "Id": "EV-B18.environment",
+          "Description": "Native and Applied observations still match the active profile and backup."
+        },
+        {
+          "Id": "EV-B19.cancel",
+          "Description": "Cancel and dismiss leave the active profile and its environment unchanged."
+        },
+        {
+          "Id": "EV-B19.os",
+          "Description": "Confirmed deletion removes P1-owned values, restores originals and removes backups in the native dialog."
+        },
+        {
+          "Id": "EV-B19.applied",
+          "Description": "Applied list reflects the same deletion/unapply/restoration."
+        },
+        {
+          "Id": "EV-B19.storage",
+          "Description": "P1 is gone from saved profiles; its variables/backups have the expected baseline-relative state."
+        },
+        {
+          "Id": "EV-B20.storage",
+          "Description": "Delete P2 through UI; neither owned profile remains in UI/profiles.json, and unrelated profiles are unchanged."
+        }
+      ]
+    },
+    {
+      "Id": "EV-PATH-DEDUP",
+      "Assertions": [
+        {
+          "Id": "EV-P11.equivalence",
+          "Description": "Case, slash direction, trailing separator and expanded-reference input rows collapse equivalents while preserving first spelling/order."
+        },
+        {
+          "Id": "EV-P11.persistence",
+          "Description": "Save/reopen preserves the independently expected deduplicated sequence."
+        },
+        {
+          "Id": "EV-P11.cancel",
+          "Description": "Cancel leaves previous data unchanged."
+        },
+        {
+          "Id": "EV-P11.non-path",
+          "Description": "Non-PATH variable editing exposes no Remove duplicates action."
+        }
+      ]
+    },
+    {
+      "Id": "EV-VALIDATION",
+      "Assertions": [
+        {
+          "Id": "EV-P01.add-user",
+          "Description": "All P01 rows behave correctly in Add User variable."
+        },
+        {
+          "Id": "EV-P01.edit-user",
+          "Description": "All P01 rows behave correctly in Edit User variable."
+        },
+        {
+          "Id": "EV-P01.profile-new",
+          "Description": "All P01 rows behave correctly in profile New variable."
+        },
+        {
+          "Id": "EV-P01.profile-edit",
+          "Description": "All P01 rows behave correctly in profile Edit variable."
+        },
+        {
+          "Id": "EV-P01.profile-name",
+          "Description": "All P01 name rows behave correctly in profile Add/Edit name fields; reopening Add starts disabled."
+        },
+        {
+          "Id": "EV-P02.add-user",
+          "Description": "Add User enforces both name and total-entry boundary pairs."
+        },
+        {
+          "Id": "EV-P02.edit-user",
+          "Description": "Edit User enforces both boundary pairs."
+        },
+        {
+          "Id": "EV-P02.profile-new",
+          "Description": "Profile New variable enforces both boundary pairs."
+        },
+        {
+          "Id": "EV-P02.profile-edit",
+          "Description": "Profile Edit variable enforces both boundary pairs."
+        },
+        {
+          "Id": "EV-P02.profile-name",
+          "Description": "Profile Add/Edit names enforce the 259/260 boundary without a variable-value constraint."
+        },
+        {
+          "Id": "EV-P04.add-user",
+          "Description": "Add User rejects a case-insensitive duplicate."
+        },
+        {
+          "Id": "EV-P04.edit-user",
+          "Description": "Edit User rejects another row's name but permits its unchanged self-name."
+        },
+        {
+          "Id": "EV-P04.profile-new",
+          "Description": "Profile New variable rejects a case-insensitive duplicate."
+        },
+        {
+          "Id": "EV-P04.profile-edit",
+          "Description": "Profile Edit variable rejects another member's name but permits its unchanged self-name."
+        }
+      ]
+    },
+    {
+      "Id": "EV-VALIDATION-SYSTEM",
+      "Assertions": [
+        {
+          "Id": "EV-P01.system-add",
+          "Description": "System Add enforces all P01 name/commit-state rows."
+        },
+        {
+          "Id": "EV-P01.system-edit",
+          "Description": "System Edit enforces all P01 name/commit-state rows."
+        },
+        {
+          "Id": "EV-P02.system-add",
+          "Description": "System Add enforces both name and total-entry boundary pairs."
+        },
+        {
+          "Id": "EV-P02.system-edit",
+          "Description": "System Edit enforces both boundary pairs."
+        },
+        {
+          "Id": "EV-P04.system-add",
+          "Description": "System Add rejects a case-insensitive duplicate."
+        },
+        {
+          "Id": "EV-P04.system-edit",
+          "Description": "System Edit rejects another row's name but permits its unchanged self-name."
+        }
+      ]
+    },
+    {
+      "Id": "EV-CONTROL-INPUT",
+      "Assertions": [
+        {
+          "Id": "EV-P03.user-names",
+          "Description": "On every non-admin name surface, control-character names cannot be committed as invalid saved names; distinguish rejection/truncation from model validation."
+        },
+        {
+          "Id": "EV-P03.user-values",
+          "Description": "On User Add/Edit and profile New/Edit variable surfaces, embedded NUL cannot produce an invalid saved value; a truncated valid value does not prove backend NUL rejection."
+        }
+      ]
+    },
+    {
+      "Id": "EV-CONTROL-INPUT-SYSTEM",
+      "Assertions": [
+        {
+          "Id": "EV-P03.system-names",
+          "Description": "System Add/Edit cannot commit control-character names as invalid saved names; distinguish provider rejection/truncation from model validation."
+        },
+        {
+          "Id": "EV-P03.system-values",
+          "Description": "System Add/Edit cannot save embedded NUL in a variable value; truncated input is not evidence of backend rejection."
+        }
+      ]
+    },
+    {
+      "Id": "EV-LONG-BACKUP",
+      "Assertions": [
+        {
+          "Id": "EV-P05.apply",
+          "Description": "Valid long backup is created with the exact original value and observed in native/Applied UI and HKCU."
+        },
+        {
+          "Id": "EV-P05.restore",
+          "Description": "Unapply restores the original and removes the long backup across both UI surfaces and storage."
+        },
+        {
+          "Id": "EV-P05.total-limit",
+          "Description": "A generated backup exceeding total-entry length 32766 is rejected without partial application or forced invalid registry writes."
+        }
+      ]
+    },
+    {
+      "Id": "EV-LEGACY-PROFILE",
+      "Assertions": [
+        {
+          "Id": "EV-P06.disabled",
+          "Description": "Loading the stored active profile with an invalid name disables it."
+        },
+        {
+          "Id": "EV-P06.warning",
+          "Description": "UI shows the specific invalid-name warning, not a generic applicability message."
+        }
+      ]
+    },
+    {
+      "Id": "EV-CJK-STARTUP",
+      "Assertions": [
+        {
+          "Id": "EV-P09.cjk-normal",
+          "Description": "Normal launch in the affected language reaches a titled editor without the startup fault."
+        },
+        {
+          "Id": "EV-P09.cjk-admin",
+          "Description": "Authorized elevated launch in that language reaches a titled editor without the startup fault."
+        }
+      ]
+    },
+    {
+      "Id": "EV-UTF8-STARTUP",
+      "Assertions": [
+        {
+          "Id": "EV-P10.unicode-normal",
+          "Description": "Normal launch preserves the Unicode title and opens successfully."
+        },
+        {
+          "Id": "EV-P10.unicode-admin",
+          "Description": "Authorized elevated launch preserves the Unicode title and opens successfully."
+        }
+      ]
+    },
+    {
+      "Id": "EV-NOTIFICATIONS",
+      "Assertions": [
+        {
+          "Id": "EV-P10.external",
+          "Description": "An actual external environment-change notification produces the reload notice."
+        },
+        {
+          "Id": "EV-P10.self",
+          "Description": "Product self-originated notification does not produce that notice."
+        },
+        {
+          "Id": "EV-P10.unrelated",
+          "Description": "An unrelated settings notification does not produce that notice."
+        }
+      ]
+    },
+    {
+      "Id": "EV-CLEAN-INSTALL",
+      "Assertions": [
+        {
+          "Id": "EV-P12.runner",
+          "Description": "Module is initially disabled in Runner."
+        },
+        {
+          "Id": "EV-P12.settings",
+          "Description": "Module is initially disabled in Settings."
+        },
+        {
+          "Id": "EV-P12.first-save",
+          "Description": "First Save does not unexpectedly flip the initial disabled state."
+        }
+      ]
+    },
+    {
+      "Id": "EV-CMDPAL",
+      "Assertions": [
+        {
+          "Id": "EV-P14.cmdpal",
+          "Description": "Invoke the actual Environment Variables command and observe editor arrival."
+        },
+        {
+          "Id": "EV-P14.settings",
+          "Description": "Invoke its Settings command and observe navigation to this module."
+        },
+        {
+          "Id": "EV-P15.pin",
+          "Description": "Pin the module command through UI and observe its pinned identity."
+        },
+        {
+          "Id": "EV-P15.invoke-pinned",
+          "Description": "Invoking that pinned command opens the editor."
+        },
+        {
+          "Id": "EV-P15.fallback",
+          "Description": "Changing this command's fallback setting leaves another command's setting unchanged; restore both and original pins/order."
+        }
+      ]
+    },
+    {
+      "Id": "EV-CMDPAL-LOCALIZATION",
+      "Assertions": [
+        {
+          "Id": "EV-P16.labels",
+          "Description": "Environment Variables commands in the PowerToys extension use the selected localized labels."
+        }
+      ]
+    },
+    {
+      "Id": "EV-THEME",
+      "Assertions": [
+        {
+          "Id": "EV-P08.light",
+          "Description": "Caption-button glyphs remain visible with correct foreground in light theme."
+        },
+        {
+          "Id": "EV-P08.dark",
+          "Description": "Caption-button glyphs remain visible with correct foreground in dark theme."
+        }
+      ]
+    },
+    {
+      "Id": "EV-LOCALIZATION",
+      "Assertions": [
+        {
+          "Id": "EV-L01.labels",
+          "Description": "Module labels match the selected translations."
+        },
+        {
+          "Id": "EV-L01.dialogs",
+          "Description": "Dialog actions match the selected translations; restore original locale."
+        }
+      ]
+    },
+    {
+      "Id": "EV-TELEMETRY",
+      "Assertions": [
+        {
+          "Id": "EV-T01.events",
+          "Description": "Owned module actions produce corresponding utility events visible in the viewer; restore prior collection settings without disclosing unrelated event content."
+        }
+      ]
+    }
+  ]
+}

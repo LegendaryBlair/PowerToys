@@ -8,7 +8,7 @@ The thin run template opens this layer before Preflight and completes it during 
 
 ## Mandatory wiring for aligned module runs
 
-Color Picker, Workspaces and Shortcut Guide Scenario A entry now requires `-ResourcePlan`
+Color Picker, Workspaces, Shortcut Guide and Environment Variables Scenario A entry requires `-ResourcePlan`
 and `-CleanupPlan`; the legacy free-form `-Cleanup` callback is rejected for these runs.
 This validation happens **before run creation or driving**. Declare only resources actually
 used by the selected work; a non-clipboard scope does not need a clipboard fixture.
