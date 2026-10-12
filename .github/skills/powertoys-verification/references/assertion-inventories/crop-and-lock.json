@@ -1,0 +1,167 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "831A9FF95823CA611AD5F4CFE84DD79C652B566C4AB4D99C817BA9BEE2809400",
+  "Items": [
+    {
+      "Id": "CAL-CLEAN-DEFAULT",
+      "Assertions": [
+        {
+          "Id": "CAL-CLEAN-DEFAULT.behavior",
+          "Description": "On a clean installation or disposable user profile with no existing PowerToys `settings.json` and no Crop And Lock policy, start PowerToys and open Settings. Confirm Crop And Lock is **off from first render**, its process does not transiently start, and the Reparent, Thumbnail, and Screenshot shortcuts are inert until the module is enabled.",
+          "Sources": [
+            "#47027, #47144"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-SHORTCUTS",
+      "Assertions": [
+        {
+          "Id": "CAL-SHORTCUTS.behavior",
+          "Description": "Enable Crop And Lock and confirm Settings exposes three distinct shortcuts: **Reparent** (`Win+Ctrl+Shift+R` by default), **Thumbnail** (`Win+Ctrl+Shift+T`), and **Screenshot** (`Win+Ctrl+Shift+S`). Change each to a different unused chord, close and reopen Settings, and confirm only the saved chord starts its matching mode. Restore all original shortcut values afterward.",
+          "Sources": [
+            "#40720"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-CANCEL-DISABLE",
+      "Assertions": [
+        {
+          "Id": "CAL-CANCEL-DISABLE.behavior",
+          "Description": "With the module enabled, activate each mode and press Escape before completing a selection. Confirm the selection overlay closes, no cropped window is created, the source app remains unchanged, and the next activation works normally. Disable the module and confirm all three shortcuts stop opening the overlay; re-enable it and confirm they recover without restarting Windows."
+        }
+      ]
+    },
+    {
+      "Id": "CAL-THUMBNAIL-WIN32",
+      "Assertions": [
+        {
+          "Id": "CAL-THUMBNAIL-WIN32.behavior",
+          "Description": "Foreground the changing Win32 fixture, invoke Thumbnail mode, and select part of its live content. Confirm one topmost cropped window appears, updates as the source changes, preserves the selected aspect ratio when resized, does not forward interaction through the thumbnail, and can be closed without closing or modifying the source.",
+          "Sources": [
+            "L781, #40720"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-THUMBNAIL-PACKAGED",
+      "Assertions": [
+        {
+          "Id": "CAL-THUMBNAIL-PACKAGED.behavior",
+          "Description": "Repeat Thumbnail mode with the packaged fixture. Confirm the crop targets that exact app, remains live and topmost, preserves aspect ratio through wide and tall resizes, and leaves the packaged source usable after the cropped window closes.",
+          "Sources": [
+            "L782"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-REPARENT-WIN32",
+      "Assertions": [
+        {
+          "Id": "CAL-REPARENT-WIN32.behavior",
+          "Description": "Record the Win32 fixture's rectangle and window state, invoke Reparent mode, and select a region containing an interactive control. Confirm the cropped window replaces the visible original, exposes only the selected region, remains topmost, and sends interaction to the real app. Close the crop and confirm the original parent, styles, controls, rectangle, and interaction are restored.",
+          "Sources": [
+            "L785"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-REPARENT-PACKAGED",
+      "Assertions": [
+        {
+          "Id": "CAL-REPARENT-PACKAGED.behavior",
+          "Description": "Repeat Reparent mode with a known-compatible, non-maximized packaged fixture. Confirm the selected region remains interactive and closing the crop restores the source. Separately try Calculator if installed and confirm an incompatibility does not damage the app and Thumbnail mode still works as the documented fallback.",
+          "Sources": [
+            "L786"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-SCREENSHOT-WIN32",
+      "Assertions": [
+        {
+          "Id": "CAL-SCREENSHOT-WIN32.behavior",
+          "Description": "Display a changing value **A** in the Win32 fixture, invoke Screenshot mode, and select it. Let the source advance to **B** and confirm the cropped window remains frozen on **A**, stays topmost, and does not reparent, close, or otherwise modify the source.",
+          "Sources": [
+            "#40720"
+          ]
+        },
+        {
+          "Id": "CAL-SCREENSHOT-RESIZE.behavior",
+          "Description": "Resize the Win32 screenshot crop to wide and tall shapes. Confirm the captured bitmap remains correctly proportioned and centered, with unused space letterboxed rather than stretched, and closing it leaves the source app unchanged.",
+          "Sources": [
+            "#40720"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-SCREENSHOT-PACKAGED",
+      "Assertions": [
+        {
+          "Id": "CAL-SCREENSHOT-PACKAGED.behavior",
+          "Description": "Repeat Screenshot mode with the packaged fixture. Confirm it captures the intended app once, remains frozen when the packaged source changes, preserves aspect ratio while resizing, and closes independently of the source. Use ordinary app content rather than protected video or hardware-overlay surfaces.",
+          "Sources": [
+            "#40720"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-CMDPAL-STATE",
+      "Assertions": [
+        {
+          "Id": "CAL-CMDPAL-STATE.behavior",
+          "Description": "Disable Crop And Lock, open Command Palette, and search for the module. Confirm **Crop And Lock settings** remains available and opens the correct Settings page, while the Reparent, Thumbnail, and Screenshot actions are absent. Enable the module, reopen Command Palette, and confirm all three mode actions appear.",
+          "Sources": [
+            "#44006, #40720"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-CMDPAL-INVOKE",
+      "Assertions": [
+        {
+          "Id": "CAL-CMDPAL-INVOKE.behavior",
+          "Description": "With the controlled Win32 fixture foreground before opening Command Palette, invoke each Crop And Lock mode result in turn. Confirm Command Palette dismisses, the selector targets the original fixture rather than Command Palette, and the resulting crop has the corresponding Reparent, live Thumbnail, or frozen Screenshot behavior.",
+          "Sources": [
+            "#44006, #40720"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-CMDPAL-PINS",
+      "Assertions": [
+        {
+          "Id": "CAL-CMDPAL-PINS.behavior",
+          "Description": "Pin the Reparent, Thumbnail, Screenshot, and Settings results to Command Palette Home. Restart Command Palette or PowerToys and confirm all four entries remain pinned, retain distinct identities, and still invoke the correct mode or Settings page.",
+          "Sources": [
+            "#45840"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "CAL-UPGRADE",
+      "Assertions": [
+        {
+          "Id": "CAL-UPGRADE.behavior",
+          "Description": "Starting from a v0.96 installation where Crop And Lock was explicitly enabled, upgrade to v0.100 without deleting PowerToys settings. Confirm the module remains enabled and all configured shortcuts still work; the new clean-install default must not overwrite an explicit persisted state.",
+          "Sources": [
+            "#47027, #47144"
+          ]
+        }
+      ]
+    }
+  ]
+}

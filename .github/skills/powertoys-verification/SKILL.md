@@ -61,7 +61,7 @@ specific checklist.
 | `scripts/pt-owned-fixtures.ps1` | `New/Remove-PtNotepadFixture` and `New/Remove-PtExplorerFixture`: persisted ownership receipts, shared Notepad tab cleanup, isolated Explorer windows, explicit unsaved-edit consent and partial-cleanup retry. See [owned fixtures](references/owned-fixtures.md). |
 | `scripts/pt-state-snapshot.ps1` | Paired file/selected-HKCU-value/window/desktop snapshots; optional expected-state guarded existing-file rollback. Does not infer ownership or restart apps. |
 | `scripts/pt-session-safety.ps1`, `pt-settings-session.ps1`, `pt-cleanup-plan.ps1` | Borrowed/owned resources, pre-navigation Settings snapshots, release dependencies and verified cleanup stages. Enabled by the thin template; see [session safety](references/session-safety.md). |
-| `scripts/pt-assertion-inventory.ps1` | Source-bound, versioned CP/WS/SG/Environment Variables assertion IDs; use the [frozen inventories](references/assertion-inventories/README.md), not new child groupings per run. |
+| `scripts/pt-assertion-inventory.ps1` | Source-bound, versioned assertion IDs for all supplied module checklists; use the [frozen inventories](references/assertion-inventories/README.md), not new child groupings per run. |
 | `scripts/pt-module-lifecycle.ps1` | Profile-driven Resident/RunnerHosted/OnDemand state, explicit UI enable/disable, Diagnostic-only module restart and original-enabled restoration. No implicit Runner restart or process kill. See [module lifecycle](references/module-lifecycle.md). |
 | `scripts/pt-directory-snapshot.ps1` | Bounded byte/file-set/empty-directory snapshots and explicit-owned three-way rollback. Conflicts stop before writes; unrelated changes survive with a partial receipt. See [directory snapshots](references/directory-snapshots.md). |
 | `scripts/pt-shortcut-guide.ps1` | SG host/content readiness and read-only taskbar baselines/restoration comparisons. Module semantics stay in its profile/checklist. |
@@ -95,6 +95,10 @@ Environment Variables uses the same recorder and run-local cleanup with its
 Do not mix the former Color Picker recorder/identity/lifecycle wrappers with these APIs.
 Capture Settings navigation/placement and establish window ownership before changing them;
 no native snapshot certifies page/IME state or another run's unresolved cleanup.
+Declare and track headless helper/provider processes too: use `Start-PtOwnedProcess` for
+dedicated launches or `Invoke-PtOwnedProcessActivation` for a declared indirect activation,
+and verify their exit through `Stop-PtOwnedProcess` plus final resource completion.
+A file/window restoration PASS cannot omit a test-started companion provider.
 
 ## Step 1 — Bootstrap
 
@@ -114,6 +118,12 @@ with `Import-PtAssertionInventory` and pass its 29-scenario `Items` unchanged to
 Use the private fixture integration for preservation; do not copy an older run's assertion
 grouping or report generator. Shared observations have one owner; both applied-edit baseline
 variants and every specified validation-matrix row remain required.
+
+Every other supplied Scenario A checklist also has a matching frozen inventory. Load it
+with `Import-PtAssertionInventory`, retain its `Items` unchanged and record both inputs,
+including when using the generic manual bootstrap. The template enforces these definitions
+for all 13 modules; only the four aligned profiles above require its resource-plan adapter.
+An inventory is a coverage contract, not proof of complete execution/restoration support.
 
 ```powershell
 $module = 'AdvancedPaste'  # or 'CmdPal', 'FZ', 'Peek', ...
@@ -350,6 +360,10 @@ Collect raw observations before committing judgments; review every 3-5 related i
 run and reopen only affected items for corrections, retaining history and valid product failures.
 Partial Normal attempts retain unrelated assertion results; reobserve and review only the
 affected assertions, with their original attempt/judgment provenance preserved.
+Use `Add-PtVerificationDispositions` for explicit missing-coverage batches; never pass a
+flattened collection to a one-parameter callback and silently record only its first child.
+Use the template's recorded `-Report` callback for source/statistics preparation, not an
+empty artifact-only attempt. See [recording workflow](references/recording-workflow.md).
 Apply the shared [observation and rollback checks](references/pre-flight.md#one-run-bounded-work-incremental-review).
 Operations have no label-based locks or cumulative failure-count/time circuit breaker. Preserve errors and
 continue independent eligible work after necessary cleanup and readiness checks; do not infer

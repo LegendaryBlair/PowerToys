@@ -26,11 +26,14 @@ $resources = @{
 }
 ```
 
-Each resource has a unique `Id` and a `Kind` (`Settings`, `Window`, `File`, `Clipboard`, `Other`).
+Each resource has a unique `Id` and a `Kind` (`Settings`, `Window`, `Process`, `File`, `Clipboard`, `Other`).
 Every non-Settings resource maps `RestoreStep` to a real cleanup step with both `Action`
 and `Verify`; Clipboard requires phase `Clipboard`, and Window requires explicit
 `Ownership=Borrowed/Owned`. A Settings resource requires its known positive HWND and
 uses the template's built-in adapter, not a substitute cleanup callback.
+Headless/helper processes use `Kind='Process'`, `Ownership='Owned'`, an absolute `FilePath`,
+and a `Quiesce` cleanup step. Pass the plan to `New-PtResourceSession -ResourcePlan` when not
+using the template, so the original process identities are captured before activation.
 
 The template derives Settings targets from this plan. If `-SettingsHwnd` is also supplied,
 it must match exactly. Resume retains the same saved plan and original snapshots.
@@ -49,11 +52,31 @@ Settings HWND and run-local file/UI comparisons.
 |---|---|
 | `Register-PtBorrowedWindow -Identity` | Existing Settings/Editor/Welcome windows remain borrowed. Identity proves which object, not permission to close it. |
 | `Start-PtOwnedProcess -FilePath -ArgumentList [-Lifetime Case/Run]` | Persist launch intent before starting a dedicated fixture process. Require a new PID and its actual start time; shared-host or broker launches need a dedicated adapter. Arguments follow `Start-Process` quoting rules. |
+| `Invoke-PtOwnedProcessActivation -FilePath -Action [-ArgumentList]` | For a declared Process executable, run one explicit broker/COM activation and record the new exact identity. Refuse an existing singleton and ambiguous multiple processes. No activation retry or ownership by name alone. |
+| `Stop-PtOwnedProcess -Creation -RequestExit [-ArgumentList]` | Check recorded PID/start time/image path, clipboard dependencies and every native sibling before calling the supplied shutdown protocol once. Wait for actual exit; protocol errors or timeout remain failures. No automatic force-kill fallback. |
 | `Register-PtCreatedWindow -Identity -Creation` | Exact PID/start match to a recorded launch; baseline HWNDs cannot become owned. Register every owned native sibling that a process-wide close might affect, including hidden helper windows. |
 | `Close-PtTrackedWindow -Identity` | In an active resource session, require explicit ownership and satisfied clipboard dependencies before WM_CLOSE. Reject an unowned same-process sibling. |
 | `Invoke-PtOwnedWindowReopen -Identity -Creation -ResolveHwnd` | Close a launch-owned window, observe process exit, launch a new instance and resolve its new HWND. Does not close/recreate borrowed Settings or adopt a packaged shared host. |
 | `Assert-PtProcessRelease -ProcessId` | Refuse owner/writer release while a registered clipboard obligation is unresolved. The lifecycle helper checks before disable; restart passes through the same check. |
 | `Complete-PtResourceSession -Attempt` | Record actual owned-window/process absence, borrowed identity preservation, clipboard status and fresh Settings comparison in Normal Cleanup. No automatic close, kill or full-desktop success claim. |
+
+Declare the PowerToys extension executable before a Command Palette test that can activate it,
+not only the visible palette window. The final comparison also detects new surviving processes
+of that exact declared executable which lack a creation record. Such a gap blocks restoration;
+it does not authorize adopting or killing them. Existing singleton processes remain borrowed.
+Do not claim whole-run restoration from a subset of file/window receipts, or delete private
+recovery material while an owned helper still has an unresolved cleanup obligation.
+
+```powershell
+@{Id='companion-provider';Kind='Process';Ownership='Owned'
+  FilePath=$providerExecutable;RestoreStep='provider-exit'}
+# The Quiesce step uses the verified creation plus the provider's authorized shutdown protocol:
+Stop-PtOwnedProcess -Creation $providerCreation -RequestExit $requestProviderExit
+```
+
+Run `scripts\tests\Test-PtOwnedProcess.ps1` for actual no-window fixture launch/exit coverage
+without an interactive desktop. Synthetic contract tests also cover stale identities,
+clipboard/sibling guards, failed shutdown, indirect activation and unregistered survivors.
 
 Notepad, Explorer and Calculator retain their existing ownership validators. Their receipt
 bridge cannot adopt a pre-run HWND. Explorer/Calculator adapters authorize **window-only**

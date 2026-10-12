@@ -1,0 +1,127 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 2,
+  "SourceSha256": "E1ADFB5B84B8D60015D06EEA167906F0D3B8030559572D124A08B369C5B976B1",
+  "Items": [
+    {
+      "Id": "FL-FILE-ENTRY",
+      "Assertions": [
+        {
+          "Id": "FL-FILE-ENTRY.behavior",
+          "Description": "The actual installer-file context menu launches File Locksmith. Its rows exactly match independently established locking PIDs, with process names and End task buttons and no duplicates. A separate wixstdba.exe using another image does not imply a second locker of the selected installer file; do not use the UI result itself as the expected PID set.",
+          "Sources": [
+            "L641"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-DIRECTORY",
+      "Assertions": [
+        {
+          "Id": "FL-DIRECTORY.behavior",
+          "Description": "**Right-click the directory** containing the executable and select `Unlock with File Locksmith`. Confirm the entry appears and the UI lists the locking process(es) found **recursively** inside that directory tree.",
+          "Sources": [
+            "L646"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-DRIVE",
+      "Assertions": [
+        {
+          "Id": "FL-DRIVE.behavior",
+          "Description": "**Right-click the drive** where the executable is located and select `Unlock with File Locksmith`. Confirm the entry appears and the UI lists the locking process(es) on that volume. (You can close the PowerToys installer now.)",
+          "Sources": [
+            "L647"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-END-TASK",
+      "Assertions": [
+        {
+          "Id": "FL-END-TASK.behavior",
+          "Description": "Click **End task** on each listed installer process in the File Locksmith UI. Confirm each **End task** terminates that process (the installer window closes) and its **row is removed** from the list.",
+          "Sources": [
+            "L642"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-RELOAD",
+      "Assertions": [
+        {
+          "Id": "FL-RELOAD.behavior",
+          "Description": "**Start the installer executable again**, then click the **Reload** button (top-right refresh) in the File Locksmith UI. Confirm the newly-started process(es) using the file are **rediscovered and added** to the list.",
+          "Sources": [
+            "L643"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-AUTO-REMOVE",
+      "Assertions": [
+        {
+          "Id": "FL-AUTO-REMOVE.behavior",
+          "Description": "**Close the installer window** (let its process exit) **without** pressing Reload. Confirm File Locksmith **auto-delists** the exited process(es) within ~1–2 s (no manual refresh), and close the window.",
+          "Sources": [
+            "L644"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-MEDIUM-VISIBILITY",
+      "Assertions": [
+        {
+          "Id": "FL-MEDIUM-VISIBILITY.behavior",
+          "Description": "With File Locksmith launched **non-elevated**, **right-click \"Program Files\"** (the folder holding the elevated PowerToys runner) and select `Unlock with File Locksmith`. Confirm **`PowerToys.exe` does NOT appear** in the list — a non-elevated File Locksmith cannot read the higher-integrity (elevated) runner process.",
+          "Sources": [
+            "L649"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-RESTART-ADMIN",
+      "Assertions": [
+        {
+          "Id": "FL-RESTART-ADMIN.behavior",
+          "Description": "In that same non-elevated File Locksmith window, click **Restart as an administrator** (shield button, shown only when non-elevated) and approve the UAC prompt. Confirm that after relaunching **elevated** (title becomes **Administrator: File Locksmith**), **`PowerToys.exe` now appears** in the list — the elevated File Locksmith can see higher-integrity processes.",
+          "Sources": [
+            "L650"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-LARGE-LIST",
+      "Assertions": [
+        {
+          "Id": "FL-LARGE-LIST.behavior",
+          "Description": "**Right-click the drive where Windows is installed** and select `Unlock with File Locksmith`. With the (large) process list shown, **scroll all the way down and back up** and confirm File Locksmith **does not crash** while rendering all those entries. **Repeat** after clicking **Restart as an administrator**, and confirm no crash in the elevated view either.",
+          "Sources": [
+            "L651"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "FL-MENU-STATE",
+      "Assertions": [
+        {
+          "Id": "FL-MENU-STATE.behavior",
+          "Description": "**Disable** File Locksmith in PowerToys Settings. Right-click a file and confirm `Unlock with File Locksmith` is **absent** from **both** the Win11 tier-1 (modern) menu **and** the classic \"Show more options\" (`#32768`) menu, while sibling PowerToys entries (e.g. `Rename with PowerRename`) **remain present** — proving the menu still renders and only File Locksmith was gated out (not a render failure). **Re-enable** and confirm the entry **reappears** in both menus.",
+          "Sources": [
+            "L652"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -9,7 +9,7 @@ Call live functions inside an outer recorded step. Trees and text stay private; 
 Compare-PtEnvUiValue receipts. No product verdict, retry of a write, registry change or
 implicit product restart. Resolve targets afresh with the common window identity APIs.
 #>
-foreach ($dependency in 'pt-environment-variables-state','pt-ui-observation','pt-session-safety') {
+foreach ($dependency in 'pt-environment-variables-state','pt-ui-observation','pt-session-safety','pt-foreground-guard') {
     . "$PSScriptRoot\$dependency.ps1"
 }
 
@@ -384,11 +384,13 @@ function Resolve-PtEnvNativeList {
 
 function Read-PtEnvNativeRow {
     param($Target,$Creation,$Row,[string]$ListName,[bool]$ExactName)
-    $child = $null; $failure = $null; $stage = 'invoke-row'
+    $child = $null; $failure = $null; $stage = 'open-row'
     try {
         if (-not $Row.isEnabled) { Stop-PtEnvUiOperation Disabled 'Native variable cannot be opened' }
         $before = @(Get-PtNativeWindow -ProcessId $Target.processId -ClassName '#32770' | ForEach-Object Hwnd)
-        Invoke-PtEnvPrivateAction $Target invoke $Row.selector
+        # The native list's Invoke can select a row without opening its editor.
+        Assert-PtForegroundOrAbort -Hwnd $Target.hwnd
+        Invoke-PtWinApp -Arguments @('click',$Row.selector,'-w',"$($Target.hwnd)",'--double') -SkipRecording | Out-Null
         $stage = 'wait-child'
         $window = Wait-PtCondition -Description 'new owned native variable editor' -TimeoutSeconds 5 -Probe {
             $found = @(Get-PtNativeWindow -ProcessId $Target.processId -ClassName '#32770' -Visible | Where-Object Hwnd -NotIn $before)
@@ -463,6 +465,12 @@ function Read-PtEnvNativeVariable {
     $rows = @(Get-PtEnvUiDescendants $list|Where-Object type -CEQ ListItem)
     if (-not $rows.Count) { Stop-PtEnvUiOperation Incomplete 'Native row provider has no observed item peers' }
     $candidates = @(foreach($row in $rows){
+        if (-not [string]::IsNullOrEmpty($row.name)) {
+            $visiblePrefix = $row.name.TrimEnd([char]0x2026).TrimEnd('.')
+            if ($visiblePrefix.Length -gt 0 -and -not $Name.StartsWith($visiblePrefix,[StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+        }
         $listName=Read-PtEnvPrivateName $Target $row.selector
         if ([string]::IsNullOrEmpty($listName)) { Stop-PtEnvUiOperation Incomplete 'Native row name unavailable' }
         $prefix=$listName.TrimEnd([char]0x2026).TrimEnd('.')

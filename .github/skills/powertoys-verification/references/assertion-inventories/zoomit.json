@@ -1,0 +1,469 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "258FB9EC358E92240035FB0AB4C4FEA975E5AE740CDAD502F3E3FA3F15882407",
+  "Items": [
+    {
+      "Id": "ZI-TRAY-VISIBILITY",
+      "Assertions": [
+        {
+          "Id": "ZI-TRAY-VISIBILITY.behavior",
+          "Description": "Enable ZoomIt with **Show tray icon** on and confirm exactly one ZoomIt icon appears. Turn the setting off and confirm the icon disappears without stopping the module, then turn it on and confirm one icon returns without duplication.",
+          "Sources": [
+            "L984-L987"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-TRAY-ACTIONS",
+      "Assertions": [
+        {
+          "Id": "ZI-TRAY-ACTIONS.behavior",
+          "Description": "Left-click and right-click the tray icon and confirm each menu contains exactly **Break Timer**, **Draw**, **Zoom**, and **Record**. Invoke every entry and confirm it enters only the matching mode, can be dismissed or stopped normally, and leaves the tray menu and module responsive for the next action.",
+          "Sources": [
+            "L985, L1009-L1012"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-MODULE-STATE",
+      "Assertions": [
+        {
+          "Id": "ZI-MODULE-STATE.behavior",
+          "Description": "Disable ZoomIt and confirm the tray icon disappears, the configured Zoom, Draw, Break, Live Zoom, Record, Snip, OCR, Demo Type, and Panorama shortcuts do not start a mode, and no ZoomIt mode process remains active. Re-enable it and confirm the tray icon and shortcuts recover without restarting Windows."
+        }
+      ]
+    },
+    {
+      "Id": "ZI-DEFAULT-SHORTCUTS",
+      "Assertions": [
+        {
+          "Id": "ZI-DEFAULT-SHORTCUTS.behavior",
+          "Description": "With default settings, confirm Settings displays the complete shortcut family: `Ctrl+1` Zoom, `Ctrl+2` Draw, `Ctrl+3` Break, `Ctrl+4` Live Zoom, `Ctrl+5` Record, `Ctrl+6` Snip, `Ctrl+Alt+6` OCR, `Ctrl+7` Demo Type, `Ctrl+8` Panorama, plus derived Live Draw, region/window Record, save Snip, reset Demo Type, and save Panorama shortcuts.",
+          "Sources": [
+            "#43073"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-RECORD-MODIFIERS",
+      "Assertions": [
+        {
+          "Id": "ZI-RECORD-MODIFIERS.behavior",
+          "Description": "Set Record to `Alt+5` and confirm Settings shows full-screen `Alt+5`, region `Alt+Shift+5`, and no bare-`5` window shortcut; pressing `5` in Notepad must type normally. Set Record to `Shift+5` and confirm Settings shows full-screen `Shift+5`, window `Alt+Shift+5`, and no bare-`5` region shortcut. Exercise the displayed shortcuts, then restore the original Record shortcut.",
+          "Sources": [
+            "#43073, #47388"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-REBIND",
+      "Assertions": [
+        {
+          "Id": "ZI-REBIND.behavior",
+          "Description": "Change representative base shortcuts for Zoom, Live Zoom, Break, Snip, Demo Type, and Panorama to unused chords. Close and reopen Settings and restart ZoomIt; confirm each new chord persists, starts only its matching mode, the previous chord is inert, and every derived shortcut label updates consistently. Restore the original shortcut values afterward."
+        }
+      ]
+    },
+    {
+      "Id": "ZI-STANDALONE",
+      "Assertions": [
+        {
+          "Id": "ZI-STANDALONE.behavior",
+          "Description": "Disable the PowerToys-hosted ZoomIt module, launch the v0.100 ZoomIt executable in standalone mode, open its Options dialog, assign Record an unused shortcut, and save. Confirm the new shortcut works immediately, the old shortcut stops working, and the change persists after restarting standalone ZoomIt.",
+          "Sources": [
+            "#48401"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-SHORTCUT-CONFLICT",
+      "Assertions": [
+        {
+          "Id": "ZI-SHORTCUT-CONFLICT.behavior",
+          "Description": "Configure ZoomIt with an unusual unused shortcut, disable the module, reserve that shortcut in a controlled helper, and re-enable ZoomIt through PowerToys. Confirm hosted ZoomIt does not show a blocking native conflict MessageBox and instead directs the user to Settings or otherwise remains usable. Release the helper shortcut and restore ZoomIt settings.",
+          "Sources": [
+            "#47215"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-ZOOM",
+      "Assertions": [
+        {
+          "Id": "ZI-ZOOM.behavior",
+          "Description": "Foreground the visual fixture, press the Zoom shortcut, and confirm static magnification opens around the pointer at the configured level. Pan to another area, then exit once with Escape and once with the same shortcut; confirm the normal desktop returns without stale magnification or blocked input.",
+          "Sources": [
+            "L989"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-LIVE-ZOOM",
+      "Assertions": [
+        {
+          "Id": "ZI-LIVE-ZOOM.behavior",
+          "Description": "Press the Live Zoom shortcut and confirm the magnified desktop continues updating while the clock/counter and moving content change. Toggle it off with the same shortcut and confirm all desktop interaction and rendering return to normal.",
+          "Sources": [
+            "L990"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-DRAW",
+      "Assertions": [
+        {
+          "Id": "ZI-DRAW.behavior",
+          "Description": "Press Draw without first entering Zoom, draw multiple colors/shapes, and confirm annotation appears at 1x over the current desktop. Exit with Escape and confirm the marks disappear and input is restored.",
+          "Sources": [
+            "L991"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-LIVE-DRAW",
+      "Assertions": [
+        {
+          "Id": "ZI-LIVE-DRAW.behavior",
+          "Description": "Use the derived Live Draw shortcut shown in Settings and confirm it combines live magnification with drawing rather than starting static Zoom or plain Draw. Change the Live Zoom base shortcut to include Shift and confirm the derived Live Draw label removes Shift instead of duplicating it, then exercise the updated chord.",
+          "Sources": [
+            "#43073"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-TYPE",
+      "Assertions": [
+        {
+          "Id": "ZI-TYPE.behavior",
+          "Description": "Select a different Type font, enter Draw → Type, and type `A&B -_!?`. Confirm every character renders in the selected font with no assertion, crash, or missing ampersand. Enter static Zoom without Draw/Type, press `&`, and confirm it does not create an annotation. Exit and confirm ZoomIt remains reusable.",
+          "Sources": [
+            "L999, #43679"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-ZOOM-OPTIONS",
+      "Assertions": [
+        {
+          "Id": "ZI-ZOOM-OPTIONS.behavior",
+          "Description": "Toggle **Animate zoom in and zoom out** and test both transitions, then set two distinctive initial magnification levels and activate static Zoom after each change. Confirm animation and initial level follow the saved setting after closing/reopening Settings and restarting ZoomIt.",
+          "Sources": [
+            "L997-L998"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-DEMO-TYPE",
+      "Assertions": [
+        {
+          "Id": "ZI-DEMO-TYPE.behavior",
+          "Description": "Select a unique text file for Demo Type, focus Notepad, and invoke Demo Type. Confirm the file content is typed in order, Escape cancels before completion, and changing the typing-speed setting produces an observable speed difference. Invoke the displayed reset shortcut and confirm the next run restarts from the beginning.",
+          "Sources": [
+            "L992, L1000, #43073"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-BREAK-DURATION",
+      "Assertions": [
+        {
+          "Id": "ZI-BREAK-DURATION.behavior",
+          "Description": "Set a one-minute Break duration, invoke Break with its shortcut, and confirm the countdown appears with the correct starting value, decreases once per second, and exits cleanly with Escape without leaving input blocked.",
+          "Sources": [
+            "L993"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-BREAK-POSITION",
+      "Assertions": [
+        {
+          "Id": "ZI-BREAK-POSITION.behavior",
+          "Description": "Set two clearly different timer opacities and representative corner/center positions. Invoke Break after each change and confirm the timer uses the selected opacity and location and remains fully visible inside the active monitor.",
+          "Sources": [
+            "L1001-L1002"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-BREAK-BACKGROUND",
+      "Assertions": [
+        {
+          "Id": "ZI-BREAK-BACKGROUND.behavior",
+          "Description": "Test Break with no background, faded desktop, and a custom image. Toggle image stretching and confirm each mode applies the selected background and the stretch setting changes image fitting without distorting the timer text.",
+          "Sources": [
+            "L1003"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-BREAK-SOUND",
+      "Assertions": [
+        {
+          "Id": "ZI-BREAK-SOUND.behavior",
+          "Description": "Enable **Play sound on expiration**, select a known WAV file, run a one-minute Break to completion, and confirm the sound plays exactly once. Disable the setting, repeat, and confirm no expiration sound plays.",
+          "Sources": [
+            "L1004"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-BREAK-AUTH",
+      "Assertions": [
+        {
+          "Id": "ZI-BREAK-AUTH.behavior",
+          "Description": "Back up the user's screensaver configuration, enable Break authentication/lock, and invoke Break. Confirm ordinary input cannot dismiss to the desktop without Windows account authentication; authenticate, confirm the session returns normally, and verify the original screensaver path, timeout, active, and secure settings are restored. Repeat once to detect stale restoration state.",
+          "Sources": [
+            "#46506"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-SNIP",
+      "Assertions": [
+        {
+          "Id": "ZI-SNIP.behavior",
+          "Description": "Invoke Snip, select a distinctive region, and paste into Paint; confirm the clipboard image matches the selection. Invoke the displayed save-Snip shortcut and confirm Save As suggests `ZoomIt YYYY-MM-DD HHMMSS.png` using the current local time and saves a valid PNG to the chosen path.",
+          "Sources": [
+            "L995, #43073, #43172"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-SCREENSHOT-NAME",
+      "Assertions": [
+        {
+          "Id": "ZI-SCREENSHOT-NAME.behavior",
+          "Description": "From static Zoom or Draw, save a screenshot twice at least one second apart. Confirm each Save As dialog suggests the timestamped `ZoomIt YYYY-MM-DD HHMMSS.png` pattern, the names differ, and both saved PNG files open with the expected annotated or magnified content.",
+          "Sources": [
+            "#43172"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-OCR",
+      "Assertions": [
+        {
+          "Id": "ZI-OCR.behavior",
+          "Description": "Display known high-contrast text in an installed Windows OCR language, invoke OCR, select only that text, and paste the clipboard into Notepad. Confirm the recognized text substantially matches the source, allowing minor whitespace differences, and the next OCR invocation works without stale selection UI.",
+          "Sources": [
+            "#46506"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-PANORAMA",
+      "Assertions": [
+        {
+          "Id": "ZI-PANORAMA.behavior",
+          "Description": "Open a long, textured, non-animated document, invoke Panorama, select its viewport, scroll slowly through several screens, and stop with the Panorama shortcut. Paste the clipboard result and confirm one continuous image is taller than the viewport with no missing, duplicated, or badly misaligned bands. Repeat with the displayed save-Panorama shortcut and confirm a valid image is written.",
+          "Sources": [
+            "#46506"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-CAPTURE-SETTINGS",
+      "Assertions": [
+        {
+          "Id": "ZI-CAPTURE-SETTINGS.behavior",
+          "Description": "Open ZoomIt Settings and confirm **Snip**, **Text recognition and extraction**, and **Scrolling screenshot** are grouped together; Snip and OCR have no empty expansion area, while Panorama expands to show its save shortcut. Change Panorama's base shortcut and confirm the displayed save shortcut toggles Shift immediately and persists after reopening Settings.",
+          "Sources": [
+            "#47132, #47197"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-RECORD",
+      "Assertions": [
+        {
+          "Id": "ZI-RECORD.behavior",
+          "Description": "Foreground moving content, start full-screen Record with its configured shortcut, capture a short clip, and press the shortcut again. Confirm recording stops once, Save As completes, the MP4 opens with the expected desktop motion, and another recording can start without restarting ZoomIt.",
+          "Sources": [
+            "L994"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-RECORD-SCOPE",
+      "Assertions": [
+        {
+          "Id": "ZI-RECORD-SCOPE.behavior",
+          "Description": "Exercise the displayed full-screen, region, and window Record shortcuts. Confirm full-screen captures the active display, region captures only the selected rectangle, window captures the intended foreground window, and each mode produces one playable output without switching to a different recording scope.",
+          "Sources": [
+            "#43073"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-RECORD-FORMAT",
+      "Assertions": [
+        {
+          "Id": "ZI-RECORD-FORMAT.behavior",
+          "Description": "On a clean/reset ZoomIt profile, confirm MP4 is the default format. Record moving content as MP4 and GIF with 100% and 50% scaling, save each to a custom name/folder, and confirm the correct `.mp4`/`.gif` extension, playable animation, approximately 30 fps MP4 and 15 fps GIF when inspected, and roughly half-sized dimensions at 50% without severe corruption or encoder failure.",
+          "Sources": [
+            "#43589"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-REGION-ASPECT",
+      "Assertions": [
+        {
+          "Id": "ZI-REGION-ASPECT.behavior",
+          "Description": "Enable **Lock region selection to 16:9 aspect ratio**, start region recording, and drag both landscape and portrait selections. Confirm saved dimensions approximate 16:9 and 9:16 respectively. Disable the setting and confirm an arbitrary non-16:9 region can be selected and recorded.",
+          "Sources": [
+            "#47695"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-DEVICES",
+      "Assertions": [
+        {
+          "Id": "ZI-DEVICES.behavior",
+          "Description": "Open the microphone and camera selectors and confirm every currently available permitted device appears once. Select non-default devices where available, close/reopen Settings and restart ZoomIt, and confirm the selections persist without retaining a disconnected duplicate.",
+          "Sources": [
+            "L1005, #47529"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-AUDIO-SOURCES",
+      "Assertions": [
+        {
+          "Id": "ZI-AUDIO-SOURCES.behavior",
+          "Description": "Record four short MP4 clips with audio set to: neither source, system only, microphone only, and both. Confirm the first output has no audio stream, system-only contains the played tone but not speech, microphone-only contains speech but not the tone, and both contains both sources.",
+          "Sources": [
+            "#45700"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-MICROPHONE",
+      "Assertions": [
+        {
+          "Id": "ZI-MICROPHONE.behavior",
+          "Description": "During microphone recording, confirm Windows reports microphone use. Stop recording and confirm ZoomIt releases the microphone before the save/trim flow completes. With an asymmetric stereo microphone source, compare Mono off/on and confirm Mono on folds the microphone signal equally into both output channels without preventing playback.",
+          "Sources": [
+            "#45386, #45387"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-CAMERA-LIFETIME",
+      "Assertions": [
+        {
+          "Id": "ZI-CAMERA-LIFETIME.behavior",
+          "Description": "Select a camera, start MP4 recording, and confirm one live topmost webcam preview appears. Close/reopen Settings and restart ZoomIt, then confirm the selected camera remains selected and a new recording can initialize the same device without a stale handle or duplicate preview.",
+          "Sources": [
+            "#47529"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-CAMERA-OVERLAY",
+      "Assertions": [
+        {
+          "Id": "ZI-CAMERA-OVERLAY.behavior",
+          "Description": "Across short recordings, exercise all webcam positions, sizes, and shapes; drag and resize the preview while recording and toggle it with Ctrl+C. Confirm the saved MP4 contains one composited overlay at the final visible position/size, hidden intervals are absent, the preview itself is not captured as a duplicate, and Full Screen shape forces a rectangle.",
+          "Sources": [
+            "#47529"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-TRIM",
+      "Assertions": [
+        {
+          "Id": "ZI-TRIM.behavior",
+          "Description": "Record an MP4 with visible start, middle, and end markers, stop, and open Trim. Confirm preview, play/pause/seek, and start/end controls work; trim away both outer markers, save, and confirm duration/content match the selected interval. Immediately record and save a second clip and confirm no stale trim/session state blocks it.",
+          "Sources": [
+            "#45334, #46034"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-APPEND",
+      "Assertions": [
+        {
+          "Id": "ZI-APPEND.behavior",
+          "Description": "Create distinct compatible MP4 clips A and B and append B to A using **None**, **Fade to black**, and **Fade to white**. Confirm every output plays A then B, includes both durations, shows only the selected transition without corrupt frames, and Save or Cancel leaves ZoomIt ready for another recording.",
+          "Sources": [
+            "#47529"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-CMDPAL-STATE",
+      "Assertions": [
+        {
+          "Id": "ZI-CMDPAL-STATE.behavior",
+          "Description": "With ZoomIt enabled, search Command Palette and confirm distinct actions for **Zoom**, **Draw**, **Break**, **Live Zoom**, **Snip**, and **Record**, plus **ZoomIt settings**. Disable ZoomIt and confirm the six mode actions disappear while Settings remains and opens the correct page; re-enable it and confirm the actions return.",
+          "Sources": [
+            "#44006"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-CMDPAL-INVOKE",
+      "Assertions": [
+        {
+          "Id": "ZI-CMDPAL-INVOKE.behavior",
+          "Description": "Invoke each of the six ZoomIt mode actions from Command Palette and confirm the palette dismisses before ZoomIt captures or magnifies the desktop and each action starts only its named mode. With ZoomIt enabled but its process unavailable, invoke an action and confirm Command Palette shows a **ZoomIt is not running** error rather than crashing or silently leaving a stale overlay.",
+          "Sources": [
+            "#44006"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ZI-CMDPAL-PINS",
+      "Assertions": [
+        {
+          "Id": "ZI-CMDPAL-PINS.behavior",
+          "Description": "Pin all six ZoomIt actions and the Settings result to Command Palette Home, restart Command Palette or PowerToys, and confirm all seven entries remain pinned with distinct identities and still invoke the correct mode or Settings page.",
+          "Sources": [
+            "#45840"
+          ]
+        }
+      ]
+    }
+  ]
+}

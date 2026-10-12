@@ -1,33 +1,57 @@
-# New+ — PowerToys release checklist
-
-> Source: split from `release-checklist-annotated.md` (generated 2026-06-06); items rewritten to be
-> definitive against the New+ sign-off runs (`verify-NewPlus-*`) and `../modules/new-plus.md`.
-> One module per file.
+# New+ - PowerToys release checklist
 
 ## Legend
 
-Each item is annotated with an admin-requirement tag:
+- `[ADMIN: NO]` - standard-user coverage, subject to the stated fixtures.
+- `[ADMIN: YES]` - requires an authorized elevated session.
+- `[ADMIN: COND]` - retain ordinary and elevated variants independently.
+- `[ID: ...]` - stable scenario identifier; retain every required child/input observation.
 
-**Admin requirement**:
-- `[ADMIN: NO]` - runnable from a standard (non-elevated) shell
-- `[ADMIN: YES]` - requires elevated session (writes to HKLM, %WinDir%\System32, MSI install, GPO templates, etc.)
-- `[ADMIN: COND]` - conditional - the basic case is non-admin but specific sub-cases require admin (e.g. "test with elevated target app", "Restart as admin" variants)
+## Fixtures & conventions
 
-> **Note:** New+ appears on the folder-**background** ("New") menu and **only** on the Win11 tier-1
-> (modern) context menu — **not** the classic "Show more options" (`#32768`) menu, so do not assert
-> both tiers as you would for PowerRename/Image Resizer. See `../modules/new-plus.md` for driving
-> details (settings paths, default-template source, and the synthetic-menu flow).
-
----
+- Use a disposable destination folder and synthetic file/folder templates. Preserve the original template
+  directory's complete files, bytes and directory structure, configured template path, enabled state and naming options.
+- Missing/empty-directory checks require an owned template directory selected through supported Settings,
+  or an explicitly authorized fully restorable baseline. Do not delete or empty the user's Templates folder
+  without that preservation plan. Restore the exact original state, not example defaults.
+- Test the Win11 modern folder-background menu, not the classic Show more options menu. Record each created
+  file/folder and remove only owned outputs; close only test-opened Explorer windows.
+- Directory absence, directory emptiness and Settings-driven example population are separate conditions.
+- See the [module profile](../modules/new-plus.md) for control interaction and restoration mechanics, and use the [frozen inventory](../assertion-inventories/new-plus.json) without run-local regrouping.
 
 ## New+ (9 items)
 
-- [ ] **[ADMIN: NO]** (L969) **Enable** New+ in PowerToys Settings. Right-click empty space inside a folder to open the Win11 tier-1 background ("New") menu and confirm the **`New+`** submenu is **present**; expanding it shows at least **`Open templates`**. (New+ is Win11 tier-1 background-menu only; may need an Explorer restart the first time. Corroborating signals: CLSID `{FF90D477-…}` registered under `HKCU:\Software\Classes\CLSID`, and the shell-ext log line `New+ context menu registered`.)
-- [ ] **[ADMIN: NO]** (L971) **Disable** New+ via the Settings toggle. Right-click empty space in a folder and confirm **`New+`** is **absent** from the background menu, while the rest of the "New" menu still renders (proving only New+ was gated, not a render failure). Corroborating: the CLSID `{FF90D477-…}` is **unregistered** (`HKCU` key gone) and the log shows `New+ context menu unregistered` (the sparse package itself stays `Status Ok` — hidden dynamically). **Re-enable** and confirm `New+` reappears.
-- [ ] **[ADMIN: NO]** (L973) **Delete the entire Templates folder** (`%LOCALAPPDATA%\Microsoft\PowerToys\NewPlus\Templates`), then open the New+ submenu (building the menu triggers the shell-ext to recreate the folder). Confirm the Templates folder is **recreated and empty** (0 items) and the submenu offers **only `Open templates`** (no template items). (This is the shell-ext `create_folder_if_not_exist` path — distinct from L977's default-templates copy, which only happens via the Settings-UI enable transition.)
-- [ ] **[ADMIN: NO]** (L974) Copy a **file** template (e.g. `MyTemplate.txt`) into the Templates folder. Open the New+ submenu and confirm a matching item **appears** (caption `MyTemplate` with the extension hidden if *Hide extension* is on, else `MyTemplate.txt`). **Select** the item and confirm the file **`MyTemplate.txt` is created** in the current folder (copied via `SHFileOperation FO_COPY`) and enters inline rename mode.
-- [ ] **[ADMIN: NO]** (L975) Copy a **folder-with-files** template into the Templates folder (e.g. `MyFolder\` containing `fileA.txt` and `sub\fileB.txt`). Open the New+ submenu and confirm **`MyFolder`** appears. **Select** it and confirm the folder is created **whole and recursively** in the current folder — i.e. `MyFolder\fileA.txt` **and** `MyFolder\sub\fileB.txt` all exist.
-- [ ] **[ADMIN: NO]** (L976) **Empty** the Templates folder (delete all contents but keep the folder itself). Open the New+ submenu and confirm **no template items** are listed — only the always-present **`Open templates`** command remains.
-- [ ] **[ADMIN: NO]** (L977) With the Templates folder still **empty** (from L976), **disable** and then **re-enable** New+ via the Settings toggle. Confirm re-enabling **copies the default example templates** into the Templates folder — `Example folder\` (containing `Example txt file.txt` and `Another example txt file.txt`) and `Any files or folders placed in the template folder are available via New+.txt` — and that these appear in the New+ submenu. (The copy is driven by `CopyTemplateExamples` on the Settings-UI enable transition, and only when the folder was empty; a runner-only restart does **not** copy templates.)
-- [ ] **[ADMIN: NO]** (L979) Test **Hide template filename extension** (Settings → New+; key `HideFileExtension`). With a `MyTemplate.txt` template: **ON** → the submenu caption is **`MyTemplate`** (extension hidden); **OFF** → the caption is **`MyTemplate.txt`**. In **both** cases the **created file keeps its extension** (`MyTemplate.txt`) — the option affects the menu caption only. Takes effect without an Explorer restart (handler re-reads settings per menu build).
-- [ ] **[ADMIN: NO]** (L980) Test **Hide template filename starting digits, spaces and dots** (key `HideStartingDigits`). Use a digit-prefixed template `01. Digits.txt` (set *Hide extension* OFF to isolate this option): **ON** → **both** the submenu caption **and** the created filename are **`Digits.txt`** (leading `01. ` stripped from both); **OFF** → both are **`01. Digits.txt`** (preserved). Unlike *Hide extension*, this transform applies to the created filename as well as the caption.
+### Shell entry and enablement
+
+- [ ] **Enabled background-menu entry** [ID: NP-MENU-ENABLED] [ADMIN: NO]
+  Enable New+ in Settings and open a folder's modern background menu. Confirm New+ is present and its submenu contains at least Open templates. Corroborate enabled shell registration and its registration log using the profile's read-out guidance; registration alone does not prove the menu rendered.
+
+- [ ] **Disabled and re-enabled entry** [ID: NP-MENU-DISABLED] [ADMIN: NO]
+  Disable New+ through Settings and confirm its background-menu entry is absent while the remaining menu still renders. Corroborate shell unregistration and its log, while the sparse package remains installed with Status Ok. Re-enable and confirm the entry reappears.
+
+### Template directory lifecycle
+
+- [ ] **Recreate an absent template directory** [ID: NP-MISSING-DIRECTORY] [ADMIN: NO]
+  Remove the owned/restorable Templates directory prepared above, then open the submenu. Menu construction must recreate an empty directory (0 items), showing only Open templates. This is distinct from Settings-driven example population; do not toggle enablement to make this case pass.
+
+- [ ] **Empty template directory** [ID: NP-EMPTY-DIRECTORY] [ADMIN: NO]
+  **Empty** the owned/restorable Templates directory (remove only the prepared contents, keeping the directory). Open the New+ submenu and confirm **no template items** are listed — only the always-present **`Open templates`** command remains.
+
+- [ ] **Populate default example templates** [ID: NP-DEFAULT-TEMPLATES] [ADMIN: NO]
+  With the owned Templates directory empty as in NP-EMPTY-DIRECTORY, disable/re-enable New+ through Settings. Confirm it copies `Example folder\` containing `Example txt file.txt` and `Another example txt file.txt`, plus `Any files or folders placed in the template folder are available via New+.txt`, and these appear in the submenu. Population requires the empty-directory Settings enable transition; a Runner-only restart is not a substitute.
+
+### Creating from templates
+
+- [ ] **Create from a file template** [ID: NP-FILE] [ADMIN: NO]
+  Copy a file template such as `MyTemplate.txt` into the owned Templates directory. Confirm its submenu caption is `MyTemplate` when Hide extension is on, otherwise `MyTemplate.txt`. Select it and confirm `MyTemplate.txt` is copied into the destination and enters inline rename mode.
+
+- [ ] **Create a complete folder template** [ID: NP-FOLDER] [ADMIN: NO]
+  Copy a **folder-with-files** template into the Templates folder (e.g. `MyFolder\` containing `fileA.txt` and `sub\fileB.txt`). Open the New+ submenu and confirm **`MyFolder`** appears. **Select** it and confirm the folder is created **whole and recursively** in the current folder — i.e. `MyFolder\fileA.txt` **and** `MyFolder\sub\fileB.txt` all exist.
+
+### Template naming options
+
+- [ ] **Hide template extensions** [ID: NP-EXTENSION] [ADMIN: NO]
+  Toggle Hide template filename extension in Settings with a `MyTemplate.txt` template. On shows `MyTemplate`; off shows `MyTemplate.txt`. In both states the created file retains `.txt`: the setting affects only the caption and takes effect without an Explorer restart.
+
+- [ ] **Hide leading digits and separators** [ID: NP-PREFIX] [ADMIN: NO]
+  With Hide extension off, use `01. Digits.txt` and toggle Hide template filename starting digits, spaces and dots. On makes both caption and created filename `Digits.txt`; off preserves `01. Digits.txt` in both. Unlike hiding extensions, this option changes the created filename too.

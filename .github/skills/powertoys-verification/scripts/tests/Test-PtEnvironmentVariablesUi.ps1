@@ -253,6 +253,11 @@ function Get-PtNativeWindow {
 }
 function Get-PtWindowIdentity { param($Hwnd) [pscustomobject]@{hwnd=$Hwnd;processId=8;processStartTicks=9;className='#32770'} }
 function Register-PtCreatedWindow { param($Identity,$Creation) }
+function Assert-PtForegroundOrAbort {
+    param($Hwnd)
+    Require ($Hwnd -eq 7) 'Native row click must guard the owned main dialog'
+    $script:nativeForegroundChecked=$true
+}
 function Wait-PtCondition {
     param($Description,$TimeoutSeconds,$Probe)
     for($i=0;$i -lt 3;$i++){
@@ -267,6 +272,13 @@ function Invoke-PtWinApp {
     Require $SkipRecording 'Native provider payload must remain private'
     Require ($Arguments[2] -ceq '-w') 'Native action is not HWND scoped'
     $verb=$Arguments[0];$selector=$Arguments[1]
+    if($verb -eq 'click'){
+        Require ($Arguments -ccontains '--double') 'A single native row click only selects'
+        Require $script:nativeForegroundChecked 'Native row click was not foreground guarded'
+        $script:nativeForegroundChecked=$false
+        $script:nativeOpened=$true
+        return
+    }
     if($verb -eq 'invoke'){
         if($selector -eq 'native-cancel'){
             Require ($Arguments[3] -ceq '11') 'Cancel targeted a window other than the child'
@@ -274,7 +286,7 @@ function Invoke-PtWinApp {
             if($script:nativeCancelFails){throw 'PRIVATE_CANCEL_SECRET'}
             $script:nativeCanceled=$true
             if(-not $script:nativeCancelLeavesOpen -and -not $script:nativeDelayedClose){$script:nativeOpened=$false}
-        }else{$script:nativeOpened=$true}
+        }else{throw 'Native Invoke only selects; it must not be credited as opening an editor'}
         return
     }
     if($script:nativeReadFails){throw 'PRIVATE_READ_SECRET'}
@@ -284,12 +296,26 @@ function Invoke-PtWinApp {
 }
 function Read-PtEnvPrivateName($Target,$Selector) {
     if($Target.hwnd -eq 7){
+        if($Selector -ceq $script:unrelatedNativeSelector){throw 'Unrelated native full-name read is unnecessary'}
         if($script:nativeNameFails){Stop-PtEnvUiOperation Incomplete 'Full Name property unavailable'}
         ($script:nativeRows|Where-Object selector -CEQ $Selector).FullName
     }else{
         if($script:nativeReadFails){Stop-PtEnvUiOperation ReadError 'Synthetic entry field failure'}
         (Get-PtEnvUiDescendants $script:liveTree|Where-Object selector -CEQ $Selector).name
     }
+}
+Check 'Native reader excludes unrelated visible prefixes before requesting full names' {
+    $name='PT_EV_SCOPED'
+    $other=NativeRow 'UNRELATED_PRIVATE_NAME'
+    $script:nativeRows=@($other,(NativeRow $name))
+    $script:unrelatedNativeSelector=$other.selector
+    $script:liveTree=Node Window '' '' edit @((Node Edit '100' '' native-name),(Node Edit '101' '' native-value))
+    $script:liveTree.children[0].value=$name
+    $script:liveTree.children[1].value='one'
+    try{
+        $read=Read-PtEnvNativeVariable $script:target $script:creation $name
+        Require ($read.Value -ceq 'one' -and $script:nativeCanceled) 'Scoped native value or cancellation missing'
+    }finally{$script:unrelatedNativeSelector=$null}
 }
 Check 'Native 529-character names use complete text and cancel without saving even for mismatches' {
     $name='PT_EV_'+('L'*523)
@@ -326,6 +352,7 @@ Check 'Native absence, truncation and observation errors remain distinct and pre
     $script:nativeRows=@(NativeRow 'Other')
     $read=Read-PtEnvNativeVariable $script:target $script:creation MISSING
     Require ($read.Status -eq 'Absent' -and -not $script:nativeOpened) 'Native absence opened an unrelated row'
+    $script:nativeRows=@(NativeRow 'MISSING')
     $script:nativeNameFails=$true
     Reject {Read-PtEnvNativeVariable $script:target $script:creation MISSING} Incomplete
     $script:nativeNameFails=$false

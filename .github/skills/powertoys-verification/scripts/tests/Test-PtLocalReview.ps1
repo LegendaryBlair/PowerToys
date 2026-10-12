@@ -148,6 +148,33 @@ Check 'Thin case wrapper preserves the original error and closes the failed atte
     Require ($state.Attempts[0].Complete -and $state.Steps[0].Status -eq 'Error') 'Error did not close cleanly'
     Require ($state.Items[0].Verdict -eq 'BLOCKED') 'Driver failure became product failure'
 }
+Check 'Missing-coverage batches retain every row and reject overwriting observations before recording' {
+    $items=@(@{Id='batch';Description='Three independent prerequisites';Admin='NO';Clarity='CLEAR';UserVisible=$false
+        Assertions=@(foreach($id in 'one','two','three'){@{Id=$id;Description="Required $id"}})})
+    $run=New-PtVerificationRun -Workspace "$Workspace\dispositions" -Module 'Disposition fixture' `
+        -Bits 'Synthetic only' -Scenario InfrastructureAcceptance -Items $items -Inputs $inputs
+    $rows=@(
+        @{Id='one';Verdict='BLOCKED';Category='BLK-ENV';Reason='Elevation unavailable.'},
+        @{Id='two';Verdict='NOT-OBSERVED';Category='not-observed';Reason='Second surface was not exercised.'},
+        @{Id='three';Verdict='BLOCKED';Category='BLK-HARDWARE';Reason='Second monitor unavailable.'})
+    $before=$run.Sequence
+    $invalid=@($rows[0],@{Id='absent';Verdict='BLOCKED';Category='BLK-ENV';Reason='Invalid ID'})
+    Reject {Add-PtVerificationDispositions -Run $run -ItemId batch -Dispositions $invalid} 'unique assertion IDs'
+    Require ($run.Sequence -eq $before) 'Invalid batch partially recorded earlier rows'
+    Reject {Add-PtVerificationDispositions $run batch @($rows[0],$rows[0])} 'unique assertion IDs'
+    Reject {Add-PtVerificationDispositions $run batch @(@{Id='one';Verdict='PASS';Category='fixture';Reason='Not observed'})} 'only accept'
+    $result=Add-PtVerificationDispositions -Run $run -ItemId batch -Dispositions $rows -EvidencePaths @($proofFile)
+    $state=Get-PtReportState $run
+    Require ($result.Attempt.Closed -and $state.Steps.Count -eq 1) 'Batch did not create and finish its real recording step'
+    foreach($row in $rows){
+        $actual=@($state.Items[0].Assertions|Where-Object Id -CEQ $row.Id)[0]
+        Require ($actual.Verdict -ceq $row.Verdict -and $actual.Reason -ceq $row.Reason -and
+            $actual.Evidence.Count -eq 1) "Disposition lost or changed: $($row.Id)"
+    }
+    Require (@($state.Events|Where-Object Type -EQ AssertionObserved).Count -eq 3) 'Collection was flattened to its first row'
+    Reject {Add-PtVerificationDispositions $run batch @($rows[0])} 'already has an observation'
+    Require (@($state.Attempts|Where-Object {$_.Id -cnotin $state.Steps.AttemptId}).Count -eq 0) 'Batch introduced an empty attempt'
+}
 Check 'Thin run template executes review then cleanup; a root failure still produces cleanup and partial output' {
     $skill = [IO.Path]::GetFullPath("$PSScriptRoot\..\..")
     $template = "$skill\templates\verification-run.ps1"
@@ -182,6 +209,8 @@ Check 'Thin run template executes review then cleanup; a root failure still prod
     Require ($state.CurrentRestoration[0].Data.Verdict -eq 'PASS' -and $state.Signoff -eq 'WITHHELD') 'Failure skipped cleanup or became approved'
     $resumeArguments = $arguments.Clone()
     $resumeArguments.Items = (ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$Workspace\template-fail\run.json"))).Items
+    # Resume models a fresh controller; the failed run's persisted baseline remains intact.
+    $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
     $resumed = & $template @resumeArguments -Workspace "$Workspace\template-fail" -Cases $cases -Resume
     Require ($resumed.Signoff -eq 'APPROVED') 'Template could not continue a safely closed partial run'
     Reject { & $template @resumeArguments -Workspace "$Workspace\template-fail" -Cases $cases -Resume } 'completed'

@@ -54,6 +54,29 @@ Check 'All four actual module entry paths reject absent wiring before creating a
             -Cases {throw 'must not run'} -Cleanup {} -NoFriction} 'require ResourcePlan'
         Require (-not (Test-Path $target)) 'Missing wiring reached run creation'
     }
+    Check 'Every supplied checklist rejects run-local regrouping before creating a run' {
+        foreach($module in 'Advanced Paste','Color Picker','Crop And Lock','Environment Variables',
+            'File Locksmith','Image Resizer','New+','Peek','PowerRename','PowerToys Settings',
+            'Shortcut Guide','Workspaces','ZoomIt'){
+            $target=Join-Path $Workspace ('inventory-'+$module.Replace(' ',''))
+            Reject {& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $target -Module $module `
+                -Bits 'Synthetic inventory rejection; no product execution' -Items @(@{Id='regrouped'}) `
+                -Inputs @(@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath}) -Preflight {throw 'must not run'} `
+                -Cases {throw 'must not run'} -ResourcePlan $plan -CleanupPlan $steps -NoFriction} 'frozen module inventory'
+            Require (-not (Test-Path $target)) 'Regrouped inventory reached run creation'
+        }
+    }
+    Check 'Additional inventories do not silently require the aligned resource adapter' {
+        foreach($module in 'Advanced Paste','Crop And Lock','File Locksmith','Image Resizer',
+            'NewPlus','Peek','PowerRename','Settings','ZoomIt'){
+            $target=Join-Path $Workspace ('legacy-wiring-'+$module.Replace(' ',''))
+            Reject {& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $target -Module $module `
+                -Bits 'Synthetic legacy wiring boundary' -Items @(@{Id='regrouped'}) `
+                -Inputs @(@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath}) -Preflight {throw 'must not run'} `
+                -Cases {throw 'must not run'} -Cleanup {} -NoFriction} 'frozen module inventory'
+            Require (-not (Test-Path $target)) 'Boundary probe reached run creation'
+        }
+    }
 }
 Check 'A file resource needs only its local cleanup and explicit verifier' {
     $local=@{Schema='PtRunResources.v1';Resources=@(@{Id='local';Kind='File';RestoreStep='files'})}

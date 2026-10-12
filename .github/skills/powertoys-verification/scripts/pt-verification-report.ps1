@@ -791,6 +791,17 @@ function Invoke-PtVerificationStep {
     if ($original) { $PSCmdlet.ThrowTerminatingError($original) }
 }
 
+function Assert-PtVerificationVerdictCategory {
+    param([string]$Verdict,[string]$Category)
+    $blocked=@('BLK-ENV','BLK-HARDWARE','BLK-DRAG-REQUIRED','BLK-DESTRUCTIVE','BLK-VISUAL-RENDER',
+        'BLK-OVERLAY-INPUT-BLOCK','BLK-EXTERNAL-APP','BLK-INFRASTRUCTURE','BLK-INCOMPLETE')
+    if(($Verdict -eq 'FAIL' -and $Category -cnotin @('product','checklist-stale','checklist-ambiguous')) -or
+        ($Verdict -eq 'BLOCKED' -and $Category -cnotin $blocked) -or
+        ($Verdict -eq 'NOT-OBSERVED' -and $Category -cne 'not-observed')){
+        throw 'Unknown verdict taxonomy category.'
+    }
+}
+
 function Add-PtVerificationAssertion {
     [CmdletBinding()]
     param(
@@ -819,10 +830,7 @@ function Add-PtVerificationAssertion {
         }
         if (-not $Evidence.Count) { $Evidence = @($raw[0].Data.Evidence) }
     }
-    $blocked = @('BLK-ENV','BLK-HARDWARE','BLK-DRAG-REQUIRED','BLK-DESTRUCTIVE','BLK-VISUAL-RENDER','BLK-OVERLAY-INPUT-BLOCK','BLK-EXTERNAL-APP','BLK-INFRASTRUCTURE','BLK-INCOMPLETE')
-    if (($Verdict -eq 'FAIL' -and $Category -cnotin @('product','checklist-stale','checklist-ambiguous')) -or
-        ($Verdict -eq 'BLOCKED' -and $Category -cnotin $blocked) -or
-        ($Verdict -eq 'NOT-OBSERVED' -and $Category -cne 'not-observed')) { throw 'Unknown verdict taxonomy category.' }
+    Assert-PtVerificationVerdictCategory $Verdict $Category
     if ($Verdict -eq 'PASS' -and -not $Evidence.Count) { throw 'PASS requires explicit observed evidence, not a successful command.' }
     Assert-PtReportEvidence $Attempt $Evidence
     if ($Verdict -eq 'PASS' -and -not @($Evidence | Where-Object { -not $_.ReferenceOnly }).Count) {
@@ -929,6 +937,53 @@ function Invoke-PtVerificationCase {
     }
     if ($original) { $PSCmdlet.ThrowTerminatingError($original) }
     [pscustomobject]@{ Attempt = $attempt; Output = $output }
+}
+
+function Add-PtVerificationDispositions {
+    <#
+    .SYNOPSIS
+    Record every unobserved child's explicit blocker or missing-work reason in one real step.
+    .NOTES
+    Never replaces existing observations/judgments or assigns PASS/FAIL. Review those through
+    their producing attempts. A packet keeps collection arguments from becoming positional scalars.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Run, [Parameter(Mandatory)][string]$ItemId,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][object[]]$Dispositions,
+        [string[]]$EvidencePaths=@())
+    Assert-PtReportOpen $Run
+    $metadata=ConvertFrom-PtReportJson ([IO.File]::ReadAllText((Join-Path $Run.Workspace 'run.json')))
+    $item=@($metadata.Items|Where-Object Id -CEQ $ItemId)
+    if($item.Count -ne 1){throw "Unknown inventory item: $ItemId"}
+    $events=@(Read-PtReportEvents $Run)
+    if(Get-PtReportItemCompletion $events $ItemId){throw 'Item is completed; reopen it before recording missing coverage.'}
+    $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach($row in $Dispositions){
+        if(-not $row -or $row.Id -cnotin $item[0].Assertions.Id -or -not $ids.Add($row.Id)){
+            throw 'Dispositions require unique assertion IDs from this item.'
+        }
+        if($row.Verdict -cnotin 'BLOCKED','NOT-OBSERVED'){
+            throw 'Dispositions only accept explicit BLOCKED or NOT-OBSERVED taxonomy.'
+        }
+        Assert-PtVerificationVerdictCategory $row.Verdict $row.Category
+        Assert-PtReportSummaryText $row.Reason 'Reason'
+        if(@($events|Where-Object {$_.ItemId -ceq $ItemId -and
+            $_.Type -in 'ObservationRecorded','AssertionObserved' -and $_.Data.AssertionId -ceq $row.Id}).Count){
+            throw "Assertion $($row.Id) already has an observation/judgment; review its producing attempt."
+        }
+    }
+    $packet=[pscustomobject]@{Rows=$Dispositions;EvidencePaths=$EvidencePaths}
+    Invoke-PtVerificationCase -Run $Run -ItemId $ItemId -Name 'Coverage disposition only' -Stage Record `
+        -Command 'Record each explicitly unobserved assertion without product actions' -ArgumentList @($packet) -Action {
+            param($attempt,$data)
+            $evidence=@(foreach($path in $data.EvidencePaths){
+                Add-PtVerificationArtifact -Attempt $attempt -Path $path -Kind Evidence -Description 'Prerequisite or missing-coverage evidence'
+            })
+            foreach($row in $data.Rows){
+                Add-PtVerificationAssertion -Attempt $attempt -AssertionId $row.Id -Verdict $row.Verdict `
+                    -Category $row.Category -Reason $row.Reason -Evidence $evidence
+            }
+        }
 }
 
 function Invalidate-PtVerificationAssertion {

@@ -351,6 +351,25 @@ Add-PtVerificationAssertion -Attempt $attempt -AssertionId restartPersistence `
     -Verdict BLOCKED -Category BLK-INCOMPLETE -Reason 'Restart persistence remains unfinished.'
 ```
 
+For several children with **no existing observation or judgment**, use the collection-safe
+recording helper, not a run-local callback loop:
+
+```powershell
+$missing = @(
+    @{Id='launch';Verdict='BLOCKED';Category='BLK-ENV';Reason='Authorized elevation is unavailable.'},
+    @{Id='token';Verdict='BLOCKED';Category='BLK-ENV';Reason='No elevated editor was launched.'}
+)
+Add-PtVerificationDispositions -Run $run -ItemId $itemId -Dispositions $missing `
+    -EvidencePaths @($recordedPrerequisitePath) | Out-Null
+```
+
+It validates the entire batch, records every row in a real step, and refuses to overwrite
+existing evidence or invent PASS/FAIL. Review observed children through their producing
+attempt instead. Passing `-ArgumentList @(@($missing))` to `param($attempt,$records)` does
+**not** preserve a list as one argument: it binds the first row and leaves the others in
+`$args`. For other collection callbacks, use a single named packet object with a collection
+property, and read that property inside the callback.
+
 `BLK-INFRASTRUCTURE` records an execution obstacle; it is not proof of its cause.
 Separate the diagnosis in the reason/evidence: a proven driver/selector/recorder mistake
 is a test bug, a missing required external condition is an infrastructure issue, and an
@@ -441,6 +460,13 @@ sealing. It receives a reporting-only Diagnostic attempt. Explicitly report part
 if execution was interrupted. Do not drive the product or repeat cleanup inside it.
 For a manual recorder lifecycle, create the equivalent Diagnostic attempt only after
 actual cleanup. Never attach statistics by creating another Cleanup context.
+Use `Invoke-PtVerificationCase -Context Diagnostic -Kind Diagnostic -ScriptFile $reportScript`
+with a real `-Name` and `-Command`; the script receives the attempt and performs extraction
+and registration. The template's `-Report` callback already provides that recorded step.
+Do not separately start/stop an empty "source" or "statistics" attempt merely to attach files:
+artifact registration alone is not an executed command/probe and correctly withholds signoff.
+Attach source material inside the actual producing/reporting step instead. Existing empty
+attempts remain history; do not add fake no-op steps or weaken the completeness gate.
 
 After extraction, register the **sanitized** JSON within that reporting attempt:
 
@@ -449,6 +475,10 @@ After extraction, register the **sanitized** JSON within that reporting attempt:
 Add-PtVerificationArtifact -Attempt $attempt -Path $statisticsJsonPath `
     -Name statistics.json -Kind Evidence -Description 'Agent tool distribution, case execution metrics, source ranges and limitations'
 ```
+
+That `-Name` form imports an external file. If `statisticsJsonPath` was already returned by
+`New-PtVerificationArtifactPath -Attempt $attempt -Name statistics.json`, register that exact
+reserved path **without `-Name`**; do not allocate or alias a second artifact.
 
 The caller's extraction action creates this file from its accessible logs. There is no
 automatic session-log collector hidden in the template or renderer. When logs or attribution

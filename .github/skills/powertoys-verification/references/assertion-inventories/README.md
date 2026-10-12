@@ -1,13 +1,22 @@
 # Frozen module assertion inventories
 
-New Scenario A runs for the four aligned profiles use these reviewed, versioned files:
+Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 
 | Module | Revision | Scenarios | Required children |
 |---|---|---|---|
-| Color Picker | 1 | 17 | 25 |
-| Workspaces | 1 | 40 | 72 |
-| Shortcut Guide | 1 | 19 | 96 |
+| Advanced Paste | 1 | 29 | 32 |
+| Color Picker | 2 | 17 | 25 |
+| Crop And Lock | 1 | 13 | 14 |
 | Environment Variables | 3 | 29 | 135 |
+| File Locksmith | 2 | 10 | 10 |
+| Image Resizer | 1 | 12 | 18 |
+| New+ | 1 | 9 | 9 |
+| Peek | 1 | 18 | 18 |
+| PowerRename | 2 | 16 | 17 |
+| PowerToys Settings | 1 | 28 | 29 |
+| Shortcut Guide | 3 | 19 | 96 |
+| Workspaces | 2 | 38 | 72 |
+| ZoomIt | 1 | 39 | 39 |
 
 `Import-PtAssertionInventory` validates schema, revision, source SHA256, scenario coverage,
 IDs, nonempty descriptions and retention of named source assertions. The hash is over
@@ -15,11 +24,26 @@ UTF-8 checklist text with CRLF normalized to LF, not over a generated run script
 The loader never creates IDs based on a driver's grouping. The full source block remains
 each scenario's description, including parameter matrices, setup and restoration requirements.
 
-String children resolve exact named checklist assertions; object children explicitly split
-legacy prose. A child covering several required inputs passes only after **all** those inputs
-are observed. Keep individual parameter observations even when they share one source child.
-Color Picker CP01-CP25 and the existing named SG assertions retain their source IDs.
-Workspaces and SG prose children now have explicit descriptive IDs.
+All current definitions are explicit `{Id, Description}` objects. Legacy string children
+remain readable for recorded old inputs, but new checklists do not repeat the detailed child
+list in Markdown. A child covering several required inputs passes only after **all** those
+inputs are observed. Keep individual parameter observations even when they share one child.
+`Sources` on new definitions retains original requirement aliases where supplied; it is
+provenance, not a substitute for observing the described behavior.
+
+Color Picker revision 2 and Shortcut Guide revision 2 move the original named expectations
+into JSON without changing child IDs or scenario membership. Workspaces revision 2 merges
+WS14/WS15 and WS17/WS18 under WS14 and WS17, retaining all 72 child IDs/descriptions.
+`PreviousScenarioIds` records those two case mappings. Other scenario IDs are not renumbered.
+The nine new inventories retain each original checkbox as a required child, including the
+independent constituents of merged workflows. Their initial counts are not comparable to
+ad-hoc child groupings from earlier reports.
+
+PowerRename revision 2 corrects unchanged Titlecase preview to an empty/no-op row.
+File Locksmith revision 2 expects independently established locking PIDs rather than a
+fixed installer process count. Shortcut Guide revision 3 expects the physical work-area
+host rectangle, not full monitor bounds. IDs/counts are retained; these corrected
+expectations apply to new run inputs and do not rescore old checklist failures.
 
 Environment Variables follows the Workspaces layout: functional prose cases in Markdown,
 explicit child IDs/descriptions here. Revision 3 changes presentation and order only:
@@ -42,8 +66,11 @@ $items = $inventory.Items
 # Pass Items to the existing run/template; record both input files.
 ```
 
-The thin template rejects different run-local Items for these four Scenario A modules
+The thin template rejects different run-local Items for all 13 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
+Only Color Picker, Workspaces, Shortcut Guide and Environment Variables currently require
+the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify
+another profile's ownership/restoration implementation or silently impose that adapter on it.
 Change the mapping only through review: increment `Revision`, retain stable IDs where
 meaning is unchanged, document semantic splits/merges, and update the source hash when
 the checklist changes. Rebuilding an inventory to conceal missing coverage is not review.

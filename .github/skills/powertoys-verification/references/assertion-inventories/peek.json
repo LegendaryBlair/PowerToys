@@ -1,0 +1,223 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "7B0156276157C0D74692B7C02DF97B6214ABEFAE70389A948E81A4372B577BDF",
+  "Items": [
+    {
+      "Id": "PEEK-IMAGE",
+      "Assertions": [
+        {
+          "Id": "PEEK-IMAGE.behavior",
+          "Description": "**Image** — Peek an image (e.g. `small-image.png`, 200×150). Confirm the **image previewer** renders the bitmap, sized to the source, with the pin + \"Open with\" buttons visible.",
+          "Sources": [
+            "L697"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-TEXT",
+      "Assertions": [
+        {
+          "Id": "PEEK-TEXT.behavior",
+          "Description": "**Text or dev file** — Peek a source file (e.g. `Program.cs`). Confirm the **developer/text previewer** renders the code with **syntax highlighting and line numbers** (not raw plain text, not blank).",
+          "Sources": [
+            "L698"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-MARKDOWN",
+      "Assertions": [
+        {
+          "Id": "PEEK-MARKDOWN.behavior",
+          "Description": "**Markdown file** — Peek a `.md` file containing an H1, bold text, and a bullet list. Confirm the preview renders **formatted markdown** (H1 styled, bold applied, list bulleted) — not the raw `#`/`**` source.",
+          "Sources": [
+            "L699"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-PDF",
+      "Assertions": [
+        {
+          "Id": "PEEK-PDF.behavior",
+          "Description": "**PDF** — Peek a 1-page PDF with known marker text. Confirm the **PDF page renders** with the marker text visible and a PDF toolbar (zoom / page nav), not an error.",
+          "Sources": [
+            "L700"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-HTML",
+      "Assertions": [
+        {
+          "Id": "PEEK-HTML.behavior",
+          "Description": "**HTML** — Peek an `.html` file whose `<h1>` contains a marker. Confirm the HTML is **rendered** (heading shown as a styled heading), not shown as raw markup.",
+          "Sources": [
+            "L701"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-ARCHIVE",
+      "Assertions": [
+        {
+          "Id": "PEEK-ARCHIVE.behavior",
+          "Description": "**Archive files (.zip, .tar, .rar)** — Peek a `.zip` containing ≥1 file. Confirm the **archive previewer** lists the entries in a tree and shows directory/file counts + sizes (e.g. `0 directories | 1 files | … bytes`). The same previewer handles `.tar`/`.rar`.",
+          "Sources": [
+            "L702"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-UNSUPPORTED",
+      "Assertions": [
+        {
+          "Id": "PEEK-UNSUPPORTED.behavior",
+          "Description": "**Unsupported file** — Peek a file of an unhandled type (e.g. `unsupported.xyz` / `.exe`). Confirm the **unsupported-file view** is shown with **File Type / Size / Date Modified** metadata (and a generic icon) instead of a previewer, and Peek does not crash.",
+          "Sources": [
+            "L703"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-PIN-SWITCH",
+      "Assertions": [
+        {
+          "Id": "PEEK-PIN-SWITCH.behavior",
+          "Description": "**Pin, switch between different-sized images** — Open Peek on the 3-image selection, **pin** the window (pin toggle), move it to a known position/size, then switch between the images. Confirm the window stays at the **same position and size** across every switch (does not re-center/resize to each image).",
+          "Sources": [
+            "L706"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-PIN-REOPEN",
+      "Assertions": [
+        {
+          "Id": "PEEK-PIN-REOPEN.behavior",
+          "Description": "**Pin, close and reopen** — With the window pinned at a known place/size, close Peek (`Esc`) and reopen it on the same selection. Confirm the new window opens at the **same pinned place and size**.",
+          "Sources": [
+            "L707"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-UNPIN-SWITCH",
+      "Assertions": [
+        {
+          "Id": "PEEK-UNPIN-SWITCH.behavior",
+          "Description": "**Unpin, switch file** — From the pinned window, **unpin**, then switch to a different file. Confirm the window **moves to the default placement** (leaves the pinned coordinates and re-centers/sizes to the new file).",
+          "Sources": [
+            "L708"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-UNPIN-REOPEN",
+      "Assertions": [
+        {
+          "Id": "PEEK-UNPIN-REOPEN.behavior",
+          "Description": "**Unpin, close and reopen** — With the window unpinned, close (`Esc`) and reopen Peek. Confirm the new window opens at the **default place/size**, not the previously-pinned coordinates.",
+          "Sources": [
+            "L709"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-OPEN-CLICK",
+      "Assertions": [
+        {
+          "Id": "PEEK-OPEN-CLICK.behavior",
+          "Description": "**By clicking a button** — With a file peeked, click the **\"Open with <default app>\"** button. Confirm the file opens in its default application (a new app process/window for that file appears; match by the file's window title).",
+          "Sources": [
+            "L712"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-OPEN-ENTER",
+      "Assertions": [
+        {
+          "Id": "PEEK-OPEN-ENTER.behavior",
+          "Description": "**By pressing Enter** — With the Peek window focused, press **Enter**. Confirm the file opens in its default application (same result as L712).",
+          "Sources": [
+            "L713"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-CLI",
+      "Assertions": [
+        {
+          "Id": "PEEK-CLI.behavior",
+          "Description": "**Peek via command** — Run `PowerToys.Peek.UI.exe <file>`. Confirm it opens a `<file> - Peek` window previewing that file (the CLI accepts a file-path argument and shows the previewer).",
+          "Sources": [
+            "L716"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-CONCURRENT",
+      "Assertions": [
+        {
+          "Id": "PEEK-CONCURRENT.behavior",
+          "Description": "**Peek works while a session is already on** — Open several Peek sessions on different files, leaving prior windows open. Confirm each launch opens its own window and previews correctly with the others still open (no crash/hang, no fatal errors in `Peek\\Logs`).",
+          "Sources": [
+            "L717"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-REBIND",
+      "Assertions": [
+        {
+          "Id": "PEEK-REBIND.behavior",
+          "Description": "**Change the activation shortcut** — In Settings → Peek, change the activation shortcut (e.g. `Ctrl+Space` → `Ctrl+Shift+Space`). After the change takes effect (the runner re-registers the hook — it is **not** hot-reloaded), confirm the **new** chord opens Peek and the **old** chord no longer does. Restore the original shortcut afterward.",
+          "Sources": [
+            "L721"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-FOLDER-NAVIGATION",
+      "Assertions": [
+        {
+          "Id": "PEEK-FOLDER-NAVIGATION.behavior",
+          "Description": "**Folder navigation with Left/Right arrows** — With a **single** file selected in a folder, open Peek and press `RightArrow` / `LeftArrow`. Confirm you can cycle through **all files in the folder** (in order, wrapping at the ends).",
+          "Sources": [
+            "L719"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "PEEK-SELECTION-NAVIGATION",
+      "Assertions": [
+        {
+          "Id": "PEEK-SELECTION-NAVIGATION.behavior",
+          "Description": "**Selection-scoped navigation** — Select **multiple** files (a subset of a folder), open Peek and press `RightArrow` / `LeftArrow`. Confirm navigation cycles **only among the selected files** and never escapes into the folder's other files.",
+          "Sources": [
+            "L720"
+          ]
+        }
+      ]
+    }
+  ]
+}

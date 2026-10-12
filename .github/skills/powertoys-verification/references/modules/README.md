@@ -54,7 +54,8 @@ The shared helper is `scripts/pt-explorer-contextmenu.ps1` (`Test-PtDesktopInter
 
 Your module profile then only documents the **module-specific** quirks: settings.json schema keys, expected verb caption regex, capability/control recipes, source citations, ceiling.
 
-`power-rename.md` is the model — ~9 KB despite covering 18 items because the generic mechanics live in the canonical flow doc.
+`power-rename.md` keeps shell mechanics separate from the functionally grouped checklist;
+current scenario/assertion counts live in the [checklist index](../release-checklist/index.md).
 
 ## Profile template
 

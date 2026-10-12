@@ -180,7 +180,8 @@ for restoring the captured original.
 
 - Use `Get-PtShortcutGuideHost` / `Wait-PtShortcutGuideHost` from `pt-shortcut-guide.ps1` to
   resolve a live Shortcut Guide PID, then its native host HWND by owner PID and class
-  (`WinUIDesktopWin32WindowClass`). Exclude tooltip/`PopupHost` windows; confirm full-monitor bounds
+  (`WinUIDesktopWin32WindowClass`). Exclude tooltip/`PopupHost` windows; compare the host against
+  `GetMonitorInfoW`'s physical `RcWork` rectangle, not the full `RcMonitor` bounds,
   after showing the host. `MainWindowHandle` is only a hint, and English titles are not identifiers.
   Re-resolve after enable cycles or restarts; do not retain exited process objects.
 - Poll saved enable state, host readiness, and populated content separately.
@@ -201,6 +202,17 @@ for restoring the captured original.
   `Restore-PtForegroundAfterShell -Hwnd <tracked-target>` for the test-owned transition.
   Start/Search and even the taskbar can be absent from `EnumWindows` during this state.
   Verify the target again before the next chord; do not infer closure from an empty enumeration.
+  Observe the actual panel before classifying it: Start can be hosted by `SearchHost` with
+  a stale feed-error window title. Pinned/Recommended sections and the user/Power controls
+  distinguish the rendered Start panel from a search-results surface. A transient zero
+  foreground during the transition is an observation to wait through within a bounded
+  timeout, not permission to inject into another window.
+- A guide-HWND screenshot can exclude the taskbar. For indicator alignment, capture the
+  guide and the separately identified taskbar together, and inspect digit `0` as well as
+  `1` through `9`; the presentation helper's numeric projection is not a complete count.
+  Compare native physical rectangles, not cached WinForms `Screen.Bounds` mixed with
+  physical work-area values. `OverlayWindow.xaml.cs` sizes the host from `RcWork` through
+  `AppWindow.MoveAndResize`; no extra DPI multiplication belongs in that comparison.
 
 An inspect result containing only the native host and a `PopupHost` is not an empty shortcut
 page. Use the shared [UI observation contract](../ui-observations.md) to assess the captured
@@ -292,6 +304,14 @@ generated PowerToys manifest. Declare these writes before enable/restart, includ
 dependent filenames. Native host readiness alone does not establish writer completion.
 Before Show Desktop, establish that all affected windows can be restored at the current
 integrity level; block only that variant if not. A native snapshot grants no extra authority.
+Minimize-all can change `WINDOWPLACEMENT.ptMinPosition` even when normal/maximized bounds
+look restored. An exact rollback must handle `WPF_SETMINPOSITION`; Chromium windows can
+also require restoring their normal bounds while unmaximized. Preserve the original
+snapshot and report a failed comparison rather than silently accepting only visible bounds.
+When a non-elevated child creates a fixture, establish a durable foreground target before
+its baseline capture. Otherwise a short-lived launcher Terminal window can become the
+fixture's restoration target and disappear before cleanup. A successfully closed owned tab
+does not certify restoration of that missing foreground identity.
 
 ### Restoration order
 
@@ -317,6 +337,14 @@ integrity level; block only that variant if not. A native snapshot grants no ext
 Check restoration feasibility before the case: if a required restart cannot coexist with
 the declared original disk/cache state, do not begin that variant without a viable plan.
 An unexpected limitation during cleanup remains explicit incomplete restoration.
+
+For a content-only rollback of an already-indexed generated PowerToys manifest, a process
+restart is not necessarily required: wait for startup copying/indexing/population to finish,
+then use the guarded existing-file rollback against its attributed post-state. Keep that
+initialized process running and confirm the original rows through ordinary opening and page
+selection, followed by another file-hash comparison. Page selection reloads manifest
+content; this does not establish equivalent behavior for index or localization caches.
+Record this as restoration, not a replacement PASS for a failed ordinary test.
 
 ### Restoration verification
 

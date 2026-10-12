@@ -20,10 +20,13 @@
 | JSON convert (CSV/XML) | invoke paste-as-json | target content read-back |
 | Color swatch | clip a `#RRGGBB` string, ShowUI | preview row shows swatch |
 | Clipboard history panel | enable Windows history, seed entries, invoke `btn-clipboardhistor-*` | `itm-*` history ListItems enumerable |
-| AI custom paste | `InputTxtBox` | disabled unless IsAIEnabled + provider key (BLK-EXTERNAL otherwise) |
+| AI custom paste availability | `InputTxtBox` / the current PromptBox; Settings' Paste with AI toggle | `IsAIEnabled` plus an allowed configured provider controls service availability; use supported clipboard content. Missing provider credentials are `BLK-EXTERNAL-APP`. |
+| AI section visibility | Settings' **Show the AI paste input box** checkbox (`ShowAIPaste`) | MainPage binds PromptBox visibility to `ShowAIPasteSection`, independently of its `IsEnabled` service binding. Do not use the Paste with AI toggle as a visibility control. |
 
 ## Common BLOCKED traps
-- IsAIEnabled=false ⇒ InputTxtBox/AIProviderButton `[disabled]` → all AI items BLK-EXTERNAL.
+- `IsAIEnabled=false` disables custom input/provider actions; `ShowAIPaste=false` hides the section.
+  A deliberately disabled state is the expected observation in its toggle case, not automatically a blocker.
+  An unavailable authorized provider blocks only AI execution, not ordinary paste formats.
 - Clipboard-history button collapsed (`ShowClipboardHistoryButton`, MainPage.xaml:172) until Windows clipboard history is ON. Enable `HKCU\Software\Microsoft\Clipboard\EnableClipboardHistory=1` + seed entries first — it IS UIA-enumerable, not BLK-VISUAL-RENDER.
 - Notepad RichEdit isn't UIA-readable; read content via Ctrl+A/Ctrl+C then `Clipboard.GetText`.
 - Don't mark the clipboard-history panel BLK-VISUAL-RENDER: AP is WinUI 3 → fully UIA-capable. A control absent from the tree is Collapsed by a view-model flag, not opaque — enable its precondition + confirm via XAML `AutomationProperties` before blocking.
@@ -31,3 +34,7 @@
 ## Source citations
 - `src\modules\AdvancedPaste\` (settings keys above)
 - MainPage.xaml:172 `ShowClipboardHistoryButton`; :192 history ListView (AutomationProperties.Name per item)
+- `AdvancedPasteXAML\Pages\MainPage.xaml`: PromptBox `IsEnabled` and `Visibility` bindings.
+  `ViewModels\OptionsViewModel.cs`: `IsCustomAIServiceEnabled`, `IsCustomAIAvailable`, `ShowAIPasteSection`.
+  `src\settings-ui\Settings.UI\SettingsXAML\Views\AdvancedPastePage.xaml`:
+  `AdvancedPaste_EnableAIToggle` versus `AdvancedPasteShowAIPasteSettingsCard`.
