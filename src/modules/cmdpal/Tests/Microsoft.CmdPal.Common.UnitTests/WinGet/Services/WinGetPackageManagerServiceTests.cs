@@ -11,6 +11,32 @@ namespace Microsoft.CmdPal.Common.UnitTests.WinGet.Services;
 public class WinGetPackageManagerServiceTests
 {
     [TestMethod]
+    public async Task GetStorePackagesByIdAsync_ReturnsEmptyResult_WhenInputIsEmpty()
+    {
+        var service = new WinGetPackageManagerService(() => null);
+
+        var result = await service.GetStorePackagesByIdAsync([]);
+
+        Assert.IsTrue(result.IsSuccess);
+        Assert.IsNotNull(result.Value);
+        Assert.AreEqual(0, result.Value.Count);
+    }
+
+    [TestMethod]
+    public async Task GetStorePackagesByIdAsync_ReturnsUnavailableResult_WhenFactoryIsUnavailable()
+    {
+        var service = new WinGetPackageManagerService(() => null);
+
+        var result = await service.GetStorePackagesByIdAsync(["9NZ06M9CNV77"]);
+
+        Assert.IsFalse(service.State.IsAvailable);
+        Assert.IsTrue(result.IsUnavailable);
+        Assert.IsFalse(result.IsSuccess);
+        Assert.IsNull(result.Value);
+        Assert.AreEqual(service.State.Message, result.ErrorMessage);
+    }
+
+    [TestMethod]
     public async Task SearchPackagesAsync_ReturnsUnavailableResult_WhenFactoryIsUnavailable()
     {
         var service = new WinGetPackageManagerService(() => null);
