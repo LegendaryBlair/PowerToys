@@ -81,6 +81,13 @@ A medium-IL File Locksmith can't `DuplicateHandle`/read modules of higher-integr
 ## Fixture files needed
 None pre-canned. Create a temp file and lock it with a helper process (pwsh holding `File.Open(path, OpenOrCreate, Read, ReadWrite)` so multiple lockers coexist).
 
+For the installer-entry case, record the owned installer processes and their executable,
+module and file-handle relationships before inspecting the result. `find_processes_recursive`
+matches handles and loaded modules to the selected path, not the installer's entire process
+tree. A separate out-of-process `wixstdba.exe` does not imply a second row for the installer
+image. Do not infer expected lockers from File Locksmith's own list, or equate an unavailable
+CLI scan with a successful independent oracle; retain CLI failures separately from UI results.
+
 ## Source citations
 - `FileLocksmithLibInterop\FileLocksmith.cpp:18-113` — `find_processes_recursive` (handles + modules, recursive).
 - `FileLocksmithLibInterop\NativeMethods.cpp:62-140` — `ReadPathsFromFile`, `StartAsElevated` (runas/--elevated).

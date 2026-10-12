@@ -39,7 +39,7 @@ function New-PtResourceSession {
     <#.SYNOPSIS
     Snapshot pre-existing native windows/process IDs before navigation or fixture creation.
     #>
-    param([Parameter(Mandatory)]$Run)
+    param([Parameter(Mandatory)]$Run,$ResourcePlan)
     if(Get-PtActiveResourceSession){throw 'A resource session is already active.'}
     $baselinePath=Join-Path $Run.Workspace 'resource-baseline.json'
     $sessionPath=Join-Path $Run.Workspace 'resource-session.json'
@@ -47,6 +47,9 @@ function New-PtResourceSession {
     $baseline=[pscustomobject]@{
         RunId=$Run.Id; Windows=@(Get-PtNativeWindow | Select-Object Hwnd,ProcessId,ClassName)
         ProcessIds=@(Get-Process | Select-Object -ExpandProperty Id)
+        ProcessScopes=@(foreach($resource in @($ResourcePlan.Resources|Where-Object Kind -EQ 'Process')){
+            [pscustomobject]@{FilePath=$resource.FilePath;Identities=@(Get-PtResourceProcessCandidates $resource.FilePath)}
+        })
     }
     Write-PtReportText $baselinePath (ConvertTo-Json $baseline -Depth 10)
     $session=[pscustomobject]@{
@@ -102,7 +105,8 @@ function Start-PtOwnedProcess {
     if(-not $session){throw 'A resource session is required.'}
     Assert-PtResourceSession $session
     if($session.ResourcePlan -and -not @($session.ResourcePlan.Resources|Where-Object {
-        $_.Kind -eq 'Window' -and $_.Ownership -eq 'Owned'
+        $_.Ownership -eq 'Owned' -and ($_.Kind -eq 'Window' -or
+            ($_.Kind -eq 'Process' -and $_.FilePath -ieq [IO.Path]::GetFullPath($FilePath)))
     }).Count){throw 'Owned process launch is not declared in the run resource plan.'}
     $before=@(Get-Process|Select-Object -ExpandProperty Id)
     $record=[pscustomobject]@{Id=[guid]::NewGuid().ToString('N');FilePath=$FilePath;Arguments=$ArgumentList
@@ -115,9 +119,103 @@ function Start-PtOwnedProcess {
         $record.ProcessId=$process.Id
         if($process.Id -in $before){throw 'Launch reused an existing process; ownership not established.'}
         $record.ProcessStartTicks=$process.StartTime.ToUniversalTime().Ticks
+        $identity=Get-PtResourceProcessIdentity -ProcessId $process.Id
+        if(-not $identity -or $identity.processStartTicks -ne $record.ProcessStartTicks){
+            throw 'Launched process exited or changed identity before ownership was recorded.'
+        }
+        $record|Add-Member NoteProperty ImagePath $identity.path
         $record.State='Started';Save-PtResourceSession $session
         $record
     }catch{$record.State='Unresolved';Save-PtResourceSession $session;throw}
+}
+
+function Get-PtResourceProcessIdentity {
+    param([Parameter(Mandatory)][int]$ProcessId)
+    if(-not (Get-Command Get-PtLifecycleProcessProbe -ErrorAction Ignore)){. "$PSScriptRoot\pt-module-lifecycle.ps1"}
+    Get-PtLifecycleProcessProbe -ProcessId $ProcessId
+}
+
+function Get-PtResourceProcessCandidates {
+    param([Parameter(Mandatory)][string]$FilePath)
+    $name=[IO.Path]::GetFileNameWithoutExtension($FilePath)
+    foreach($process in @(Get-Process|Where-Object ProcessName -EQ $name)){
+        $identity=Get-PtResourceProcessIdentity -ProcessId $process.Id
+        if($identity -and $identity.path -ieq $FilePath){$identity}
+    }
+}
+
+function Invoke-PtOwnedProcessActivation {
+    <#
+    .SYNOPSIS
+    Track one declared executable activated indirectly, without adopting an existing singleton.
+    .NOTES
+    Action performs the caller-authorized broker/COM activation once. All candidate processes
+    remain visible to final cleanup even if activation fails or yields ambiguous results.
+    #>
+    param([Parameter(Mandatory)][string]$FilePath,[Parameter(Mandatory)][scriptblock]$Action,
+        [object[]]$ArgumentList=@(),[ValidateRange(0.1,300)][double]$TimeoutSeconds=5)
+    $session=Get-PtActiveResourceSession
+    if(-not $session){throw 'A resource session is required.'}
+    Assert-PtResourceSession $session
+    if(-not [IO.Path]::IsPathFullyQualified($FilePath) -or -not @($session.ResourcePlan.Resources|Where-Object {
+        $_.Kind -eq 'Process' -and $_.Ownership -eq 'Owned' -and $_.FilePath -ieq $FilePath
+    }).Count){throw 'Indirect activation requires a declared owned Process with its exact executable path.'}
+    if(@(Get-PtResourceProcessCandidates $FilePath).Count){throw 'The executable already has a borrowed process; do not claim ownership by activation.'}
+    $before=@(Get-Process|Select-Object -ExpandProperty Id)
+    $record=[pscustomobject]@{Id=[guid]::NewGuid().ToString('N');FilePath=$FilePath;Arguments=@()
+        ProcessId=0;ProcessStartTicks=0L;ImagePath=$FilePath;Lifetime='Run';State='Starting'}
+    $session.Processes+=@($record);Save-PtResourceSession $session
+    try{
+        & $Action @ArgumentList|Out-Null
+        $identity=Wait-PtCondition -Description 'one newly activated declared process' -TimeoutSeconds $TimeoutSeconds -Probe {
+            $found=@(Get-PtResourceProcessCandidates $FilePath)
+            if($found.Count -gt 1){throw 'Indirect activation produced ambiguous process ownership.'}
+            if($found.Count -eq 1){
+                if($found[0].processId -in $before){throw 'Activation reused a pre-existing process.'}
+                $found[0]
+            }
+        }
+        $record.ProcessId=$identity.processId;$record.ProcessStartTicks=$identity.processStartTicks
+        $record.State='Started';Save-PtResourceSession $session
+        $record
+    }catch{$record.State='Unresolved';Save-PtResourceSession $session;throw}
+}
+
+function Stop-PtOwnedProcess {
+    <#
+    .SYNOPSIS
+    Request exit once for an exact tracked process, then independently confirm its absence.
+    .NOTES
+    No automatic termination fallback. RequestExit receives the immutable identity and supplied
+    arguments; it must use the fixture's authorized shutdown protocol, not name-based killing.
+    #>
+    param([Parameter(Mandatory)]$Creation,[Parameter(Mandatory)][scriptblock]$RequestExit,
+        [object[]]$ArgumentList=@(),[ValidateRange(0.1,300)][double]$TimeoutSeconds=5)
+    $session=Get-PtActiveResourceSession
+    if(-not $session){throw 'A resource session is required.'}
+    Assert-PtResourceSession $session
+    $matches=@($session.Processes|Where-Object Id -CEQ $Creation.Id)
+    if($matches.Count -ne 1 -or $matches[0].State -ne 'Started' -or
+        $matches[0].ProcessId -ne $Creation.ProcessId -or $matches[0].ProcessStartTicks -ne $Creation.ProcessStartTicks -or
+        [string]::IsNullOrWhiteSpace($matches[0].ImagePath)){throw 'Process exit requires the original resolved launch/activation record.'}
+    $record=$matches[0]
+    $identity=Get-PtResourceProcessIdentity -ProcessId $record.ProcessId
+    if(-not $identity){return [pscustomobject]@{ProcessId=$record.ProcessId;Exited=$true;AlreadyExited=$true}}
+    if($identity.processStartTicks -ne $record.ProcessStartTicks -or $identity.path -ine $record.ImagePath){
+        throw 'Process identity changed; no exit request was sent.'
+    }
+    Assert-PtProcessRelease -ProcessId $record.ProcessId
+    foreach($window in @(Get-PtNativeWindow -ProcessId $record.ProcessId)){
+        $owned=@($session.Windows|Where-Object {$_.Ownership -eq 'Owned' -and $_.Identity.hwnd -eq $window.Hwnd})
+        if($owned.Count -ne 1){throw 'Process exit could affect an unowned window.'}
+        Assert-PtWindowIdentity $owned[0].Identity
+    }
+    & $RequestExit $identity @ArgumentList|Out-Null
+    Wait-PtCondition -Description 'owned process exit after its shutdown request' -TimeoutSeconds $TimeoutSeconds -Probe {
+        $current=Get-PtResourceProcessIdentity -ProcessId $record.ProcessId
+        -not $current -or $current.processStartTicks -ne $record.ProcessStartTicks
+    }|Out-Null
+    [pscustomobject]@{ProcessId=$record.ProcessId;Exited=$true;AlreadyExited=$false}
 }
 
 function Assert-PtRunResourcePlan {
@@ -134,7 +232,7 @@ function Assert-PtRunResourcePlan {
     $handles=[Collections.Generic.HashSet[long]]::new()
     foreach($resource in $Plan.Resources){
         Assert-PtReportName $resource.Id
-        if(-not $ids.Add($resource.Id) -or $resource.Kind -cnotin 'Settings','Window','File','Clipboard','Other'){
+        if(-not $ids.Add($resource.Id) -or $resource.Kind -cnotin 'Settings','Window','Process','File','Clipboard','Other'){
             throw 'Resources require unique IDs and known kinds.'
         }
         if($resource.Kind -eq 'Settings'){
@@ -149,6 +247,10 @@ function Assert-PtRunResourcePlan {
             if($resource.Kind -eq 'Clipboard' -and $step[0].Phase -cne 'Clipboard'){throw 'Clipboard resources require a Clipboard-phase restore step.'}
             if($resource.Kind -eq 'Window' -and $resource.Ownership -cnotin 'Borrowed','Owned'){
                 throw 'Window resources must explicitly declare Borrowed or Owned.'
+            }
+            if($resource.Kind -eq 'Process' -and ($resource.Ownership -cne 'Owned' -or
+                -not [IO.Path]::IsPathFullyQualified([string]$resource.FilePath) -or $step[0].Phase -cne 'Quiesce')){
+                throw 'Process resources require Owned, an absolute FilePath and a Quiesce cleanup step.'
             }
         }
     }
@@ -353,11 +455,47 @@ function Complete-PtResourceSession {
         [pscustomobject]@{Resource="window-$($record.Identity.hwnd)";Status=$status;Reason=$reason}
     })
     foreach($record in $session.Processes){
-        $process=Get-Process -Id $record.ProcessId -ErrorAction SilentlyContinue
-        $alive=$process -and $process.StartTime.ToUniversalTime().Ticks -eq $record.ProcessStartTicks
         $unresolved=$record.State -ne 'Started'
-        $rows+=@([pscustomobject]@{Resource="launch-$($record.Id)";Status=$(if($alive -or $unresolved){'BLOCKED'}else{'PASS'})
-            Reason=$(if($unresolved){'Launch ownership is unresolved.'}elseif($alive){'Owned process still alive.'}else{'Owned process exited.'})})
+        $status='BLOCKED';$reason='Launch ownership is unresolved.'
+        if(-not $unresolved){
+            try{
+                $identity=Get-PtResourceProcessIdentity -ProcessId $record.ProcessId
+                $alive=$identity -and $identity.processStartTicks -eq $record.ProcessStartTicks
+                $status=if($alive){'BLOCKED'}else{'PASS'}
+                $reason=if($alive){'Owned process still alive.'}else{'Owned process exited.'}
+            }catch{$reason="Owned process exit could not be observed: $($_.Exception.Message)"}
+        }
+        $rows+=@([pscustomobject]@{Resource="launch-$($record.Id)";Status=$status;Reason=$reason})
+    }
+    $baseline=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($session.BaselinePath))
+    foreach($resource in @($session.ResourcePlan.Resources|Where-Object Kind -EQ 'Process')){
+        $scope=@($baseline.ProcessScopes|Where-Object FilePath -IEQ $resource.FilePath)
+        if($scope.Count -ne 1){
+            $rows+=@([pscustomobject]@{Resource="process-$($resource.Id)";Status='BLOCKED'
+                Reason='Declared process scope has no original identity baseline.'})
+            continue
+        }
+        foreach($original in $scope[0].Identities){
+            $status='PASS';$reason='Pre-existing declared process retained.'
+            try{
+                $current=Get-PtResourceProcessIdentity -ProcessId $original.processId
+                if(-not $current -or $current.processStartTicks -ne $original.processStartTicks -or
+                    $current.path -ine $original.path){throw 'Pre-existing declared process identity changed or exited.'}
+            }catch{$status='BLOCKED';$reason=$_.Exception.Message}
+            $rows+=@([pscustomobject]@{Resource="borrowed-process-$($original.processId)";Status=$status;Reason=$reason})
+        }
+        foreach($identity in @(Get-PtResourceProcessCandidates $resource.FilePath)){
+            if(@($scope[0].Identities|Where-Object {
+                $_.processId -eq $identity.processId -and $_.processStartTicks -eq $identity.processStartTicks
+            }).Count){continue}
+            $tracked=@($session.Processes|Where-Object {
+                $_.ProcessId -eq $identity.processId -and $_.ProcessStartTicks -eq $identity.processStartTicks
+            })
+            if(-not $tracked.Count){
+                $rows+=@([pscustomobject]@{Resource="process-$($resource.Id)-$($identity.processId)";Status='BLOCKED'
+                    Reason='A new declared-executable process remains without a launch record; no ownership or permission to terminate is inferred.'})
+            }
+        }
     }
     foreach($record in $session.Obligations){
         Assert-PtProcessRelease -ProcessId @() # Refresh completed live guards without releasing anything.

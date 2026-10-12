@@ -42,8 +42,9 @@ report nonzero bounds without exposing a usable action pattern.
 
 ### 3. Quick Access
 
-Quick Access has a stunted UIA tree. Keyboard focus starts on **More**; tab eight times to
-Workspaces and press Enter. Prefer keyboard navigation over coordinate clicking.
+Inspect the current Quick Access HWND first. When it exposes a unique Button named
+**Workspaces**, invoke that real action. Otherwise use observed keyboard focus order;
+do not assume a fixed number of Tab presses, since the enabled-module set changes the list.
 
 ### 4. Workspace card and desktop shortcut
 
@@ -135,6 +136,13 @@ come from the checklist.
   in Workspaces settings; restore the original sort choice as well as edited workspace data.
 - Persisted values are read from `workspaces.json`; always restore the original file or delete
   only disposable cards through the UI.
+- `temp-workspaces.json` can be consumed/deleted as the editor loads a recapture. If it is
+  already gone, save only the uniquely identified run-owned draft and inspect that persisted
+  record before reopening it for filtering. Never launch the intermediate capture.
+- Native snapshot application IDs can be empty until the editor saves them. Do not use empty
+  IDs as an inclusion allowlist. An executable path also identifies every captured instance
+  of that app, including user instances. Use unique saved application IDs and independently
+  established fixture identity/state when retaining only one instance.
 - Screenshots of the editing page preview provide the most reliable read-out for custom,
   maximized, and minimized states.
 - Launcher rows are virtualized. Capture the launcher immediately after invoking a workspace,
@@ -254,6 +262,11 @@ Use the window mix required by the case: unpackaged/packaged apps at distinct re
 minimized/maximized windows, or an elevated Win32 fixture only for eligible integrity checks.
 Choose resizable Win32 fixtures: `SnapshotUtils.GetApps` excludes non-Steam windows without
 a thick frame, so fixed-size dialogs such as Character Map are unsuitable capture fixtures.
+For a UWP fixture such as Calculator, resolve the owned CoreWindow's actual top-level
+`ApplicationFrameWindow` before maximizing or reading placement. Changing the child
+CoreWindow's `showCmd` does not maximize the visible app frame. A frame hosted by a shared
+ApplicationFrameHost process requires new-window evidence and window-only ownership; never
+adopt or terminate the shared host process.
 For classic console fixtures, resolve the client process's actual `ConsoleWindowClass` HWND
 rather than assuming the `conhost.exe` launcher owns it. A later workspace launch can delegate
 that client to Windows Terminal; inspect the real visible host and saved window state, not a

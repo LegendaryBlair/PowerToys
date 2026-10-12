@@ -6,18 +6,23 @@
 **Templates folder (default)**: `%LOCALAPPDATA%\Microsoft\PowerToys\NewPlus\Templates` (per `TemplateLocation`)
 **Default-templates source**: `%LOCALAPPDATA%\PowerToys\WinUI3Apps\Assets\NewPlus\Templates` (also `%ProgramFiles%\PowerToys\...` on machine installs)
 **Logs**: `%LOCALAPPDATA%\Microsoft\PowerToys\NewPlus\NewPlus.ShellExtension\Logs\v<ver>\log_<date>.log`
-**Packaged command**: sparse MSIX `Microsoft.PowerToys.NewPlusContextMenu`; command CLSID `{FF90D477-E32A-4BE8-8CC5-A502A97F5401}`
+**Packaged command**: sparse MSIX `Microsoft.PowerToys.NewPlusContextMenu`; modern command CLSID `{69824FC6-4660-4A09-9E7C-48DA63C6CC0F}`.
+**Runtime/legacy command**: CLSID `{FF90D477-E32A-4BE8-8CC5-A502A97F5401}`; this is the HKCU registration reported by the Runner's registration log.
 **Named Event**: none. **DSC**: n/a.
 
-> Read **`../references/explorer-context-menu-flow.md` first** — New+ is a Win11 packaged-IExplorerCommand context-menu module; the menu can only be eyeballed via a real synthetic right-click on an **unlocked interactive desktop**. On a locked/RDP-minimized desktop (`Test-PtDesktopInteractive=False`) all "menu appears / template appears / hidden-caption" assertions are BLK-ENV / BLK-VISUAL-RENDER, not product FAILs.
+> Read **`..\explorer-context-menu-flow.md` first** — New+ is a Win11 packaged-IExplorerCommand context-menu module; the menu can only be eyeballed via a real synthetic right-click on an **unlocked interactive desktop**. On a locked/RDP-minimized desktop (`Test-PtDesktopInteractive=False`) all "menu appears / template appears / hidden-caption" assertions are BLK-ENV / BLK-VISUAL-RENDER, not product FAILs.
 
 ## Entry-paths (try in order)
 
 ### 1. Enable/disable + registration gate (menu presence/absence)
 Drive enable/disable through the **Settings-UI toggle** (entry-path 2 / the shared helper) — it's the faithful user flow, runs the Settings→runner IPC path, and (uniquely for New+) triggers the enable-time `CopyTemplateExamples` that seeds the default templates. Observe the gate:
-- CLSID registered ⇒ `Test-Path "HKCU:\Software\Classes\CLSID\{FF90D477-E32A-4BE8-8CC5-A502A97F5401}"` is `True` (enabled) / `False` (disabled).
+- Runtime/legacy CLSID registered ⇒ `Test-Path "HKCU:\Software\Classes\CLSID\{FF90D477-E32A-4BE8-8CC5-A502A97F5401}"` is `True` (enabled) / `False` (disabled).
 - Log lines `New+ context menu registered` / `... unregistered` + `Runtime registration completed for CLSID ...`.
 - Sparse package stays `Status Ok` even when disabled (hidden dynamically — SKILL.md pitfall #11).
+
+Keep the two CLSIDs distinct: the HKCU probe corroborates runtime/legacy registration,
+not activation of the modern packaged command. Read the installed package manifest when
+checking its identity; only the actual modern menu proves that it rendered.
 
 > The toggle needs an unlocked interactive desktop. If it's locked / RDP-minimized so the Settings UI can't be driven, mark the item `BLK-ENV` (`references/environment-setup.md`).
 
@@ -56,7 +61,9 @@ popup). Template items render with **caption transforms applied** (HideFileExten
 | 6 | Hide file extension | `HideFileExtension` / `btn-hidethefileexte-24a0` | strips ext from **menu caption only** (`get_menu_title`, `show_extension=false`); created file keeps ext — caption is BLK-VISUAL-RENDER if locked |
 | 7 | Hide starting digits/spaces/dots | `HideStartingDigits` / `btn-hideleadingdigi-24a8` | strips leading digits+separator from **both** menu caption and **created filename** (`remove_starting_digits_from_filename` via `get_menu_title` + `copy_template`); needs a digit-prefixed template + render |
 
-> Verify a setting actually drives behavior by editing the **module-owned** `NewPlus\settings.json` (not the PT-store mirror) and relaunching; the Settings toggles round-trip into this same file.
+> For Scenario A, drive these settings through the shipped Settings UI and read the
+> **module-owned** `NewPlus\settings.json` as corroborating evidence. Do not edit it to
+> bypass the UI; preserve and restore the original values.
 
 ## Common BLOCKED traps
 - **Default templates are only seeded by the Settings-UI enable transition** (`NewPlusViewModel.IsEnabled` → `CopyTemplateExamples`) — always drive enable via the UIA toggle for any template-auto-copy item.
@@ -65,11 +72,29 @@ popup). Template items render with **caption transforms applied** (HideFileExten
 - Don't edit `…\PowerToys\New\settings.json` — wrong path; the file is under `NewPlus\`. Re-reads per menu build, so don't restart Explorer to apply a setting.
 - Use the folder **background** ("New") menu, not `Open-PtExplorerContextMenu`; **expand the `New+` submenu** before enumerating templates. Locked desktop ⇒ menu-render items are BLK-ENV, not product FAIL.
 
+- If a command-line-created Explorer fixture exposes only base background verbs, try a
+  standard **Win+E** window as a distinct entry path before concluding New+ is absent.
+  Prove its HWND is new before navigating it to the owned destination, and allow the
+  modern menu to populate. Do not adopt or navigate a pre-existing user window.
+- File existence is not proof of inline rename. The rename worker is asynchronous and
+  currently polls for up to two seconds (`template_item.cpp`, `rename_on_other_thread_workaround`).
+  Observe the actual `Edit` / `UIRenameTextElement` for the owned filename and take a
+  passive screenshot before sending Escape. A focused `ListItem` or an early empty
+  Explorer view does not establish rename mode; never press F2 to make the assertion pass.
+- The Settings **Change** button opens a legacy **Browse For Folder** dialog. A synchronous
+  UIA Invoke can time out while leaving that dialog open. Re-observe the owned dialog
+  instead of replaying Change; preserve the original template path and tree before
+  selecting an owned directory through the picker. If UIA is unavailable, use a reviewed
+  passive capture and guarded native tree keyboard input. Do not send pointer-bearing
+  `BFFM_SETSELECTION` messages across processes or bypass the picker with a settings write.
+
 ## Fixture files needed
 - A plain file (e.g. `test.txt`) and a folder-with-files to drop into Templates (template-appears items).
 - A digit-prefixed template (e.g. `01. Test.txt`) to exercise Hide-starting-digits.
 
 ## Source citations
+- `src\modules\NewPlus\NewShellExtensionContextMenu\AppxManifest.xml` — modern packaged CLSID and directory/background declarations.
+- `src\modules\NewPlus\NewShellExtensionContextMenu\RuntimeRegistration.h` and `src\modules\NewPlus\NewShellExtensionContextMenu.win10\shell_context_menu_win10.h` — runtime/legacy CLSID.
 - `src/modules/NewPlus/NewShellExtensionContextMenu/template_item.cpp` — `get_menu_title` (hide-extension), `remove_starting_digits_from_filename`, `copy_object_to`.
 - `src/modules/NewPlus/NewShellExtensionContextMenu/new_utilities.h` — `copy_template`, `create_folder_if_not_exist`, `get_newplus_setting_hide_*`, `register_msix_package`.
 - `src/modules/NewPlus/NewShellExtensionContextMenu/shell_context_sub_menu.cpp` — `create_folder_if_not_exist(root)` + template enumeration.

@@ -29,12 +29,19 @@ function Get-Process {
     param([int]$Id)
     if($Id){$script:processes[$Id]}else{$script:processes.Values}
 }
+function Get-PtResourceProcessIdentity {
+    param([int]$ProcessId)
+    $process=$script:processes[$ProcessId]
+    if($process){[pscustomobject]@{processId=$ProcessId;processStartTicks=$process.StartTime.ToUniversalTime().Ticks
+        path=$process.Path;sessionId=1}}
+}
 function Start-Process {
     param($FilePath,$ArgumentList,[switch]$PassThru,$ErrorAction)
     if($FilePath -eq 'reused.exe'){return $script:processes[10]}
     if($FilePath -eq 'failed.exe'){throw 'Synthetic launch failure'}
     $script:nextProcess++
-    $value=[pscustomobject]@{Id=$script:nextProcess;StartTime=[datetime]'2026-01-01T01:00:00Z'}
+    $value=[pscustomobject]@{Id=$script:nextProcess;StartTime=[datetime]'2026-01-01T01:00:00Z'
+        Path=[IO.Path]::GetFullPath($FilePath);ProcessName=[IO.Path]::GetFileNameWithoutExtension($FilePath)}
     $script:processes[$value.Id]=$value
     $value
 }
@@ -43,14 +50,20 @@ function Native([long]$Hwnd,[int]$ProcessId){
     Get-PtWindowIdentity $Hwnd
 }
 function Session {
+    param($ResourcePlan,[string]$BaselineHelper)
     $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
     $script:windows=@{};$script:processes=@{10=[pscustomobject]@{Id=10;StartTime=[datetime]'2025-01-01T00:00:00Z'}}
     Native 10 10|Out-Null
+    if($BaselineHelper){
+        $script:processes[11]=[pscustomobject]@{Id=11;StartTime=[datetime]'2025-01-02T00:00:00Z'
+            Path=$BaselineHelper;ProcessName=[IO.Path]::GetFileNameWithoutExtension($BaselineHelper)}
+    }
     $run=New-PtVerificationRun -Workspace (Join-Path $Workspace ([guid]::NewGuid().ToString('N'))) `
         -Module 'Session fixture' -Bits 'Offline synthetic objects; no product mutation' -Scenario InfrastructureAcceptance `
         -Items @(@{Id='I1';Description='Contract';Admin='NO';Clarity='CLEAR';UserVisible=$false;Assertions=@(@{Id='a';Description='Synthetic behavior'})}) `
         -Inputs @(Get-PtVerificationInputs -Skill (Split-Path $helpers -Parent) -Inputs @(@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath}))
-    New-PtResourceSession $run|Out-Null
+    $session=New-PtResourceSession $run -ResourcePlan $ResourcePlan
+    $session.ResourcePlan=$ResourcePlan;Save-PtResourceSession $session
     $run
 }
 Check 'Borrowed and pre-existing windows cannot become owned or be closed' {
@@ -103,6 +116,82 @@ Check 'Unresolved launches remain visible at final resource completion' {
     try{Reject {Complete-PtResourceSession $attempt} 'unresolved ownership'}
     finally{Stop-PtVerificationAttempt $attempt -Reason 'Expected unresolved launch'}
     Require (@((Get-PtReportState $run).Restoration|Where-Object Verdict -eq 'PASS').Count -eq 0) 'Failed launch certified clean'
+}
+Check 'Headless launches require declaration, gate cleanup and survive controller resume' {
+    $path=[IO.Path]::GetFullPath('headless.exe')
+    $steps=@(@{Id='helper-exit';Phase='Quiesce';DependsOn=@();Action={};Verify={$true}})
+    $plan=@{Schema='PtRunResources.v1';Resources=@(@{Id='helper';Kind='Process';Ownership='Owned';FilePath=$path;RestoreStep='helper-exit'})}
+    Assert-PtRunResourcePlan $plan $steps
+    $run=Session $plan
+    Reject {Start-PtOwnedProcess other.exe} 'not declared'
+    $creation=Start-PtOwnedProcess $path
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Alive helper' -Kind Normal
+    try{Reject {Complete-PtResourceSession $attempt} 'unresolved ownership'}
+    finally{Stop-PtVerificationAttempt $attempt -Reason 'Owned headless process correctly blocked cleanup'}
+    $global:PtActiveResourceSession=$null
+    Open-PtResourceSession $run|Out-Null
+    $script:exitRequests=0
+    $exit={param($identity) $script:exitRequests++;$script:processes.Remove($identity.processId)}
+    $receipt=Stop-PtOwnedProcess $creation -RequestExit $exit
+    Require ($receipt.Exited -and $script:exitRequests -eq 1) 'Headless shutdown was not observed exactly once'
+    $receipt=Stop-PtOwnedProcess $creation -RequestExit $exit
+    Require ($receipt.AlreadyExited -and $script:exitRequests -eq 1) 'Exited process received a second shutdown request'
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Exited helper' -Kind Normal
+    try{Complete-PtResourceSession $attempt|Out-Null}
+    finally{Stop-PtVerificationAttempt $attempt -Reason 'Headless absence observed'}
+}
+Check 'Headless release rejects changed identities, borrowed siblings and clipboard obligations' {
+    $run=Session
+    $creation=Start-PtOwnedProcess headless.exe
+    $script:exitRequests=0
+    $exit={param($identity) $script:exitRequests++;$script:processes.Remove($identity.processId)}
+    $guard=[pscustomobject]@{Restored=$false};Add-PtClipboardObligation $guard $creation.ProcessId
+    Reject {Stop-PtOwnedProcess $creation -RequestExit $exit} 'clipboard obligation'
+    $guard.Restored=$true
+    Native 31 $creation.ProcessId|Out-Null
+    Reject {Stop-PtOwnedProcess $creation -RequestExit $exit} 'unowned window'
+    $script:windows.Remove(31L)
+    $original=$script:processes[$creation.ProcessId].StartTime
+    $script:processes[$creation.ProcessId].StartTime=$original.AddDays(1)
+    Reject {Stop-PtOwnedProcess $creation -RequestExit $exit} 'identity changed'
+    Require ($script:exitRequests -eq 0) 'Rejected shutdown invoked its callback'
+    $script:processes[$creation.ProcessId].StartTime=$original
+    Reject {Stop-PtOwnedProcess $creation -RequestExit {throw 'Shutdown protocol failed'}} 'Shutdown protocol failed'
+    Reject {Stop-PtOwnedProcess $creation -RequestExit {} -TimeoutSeconds 0.1} 'Timed out'
+    Require ($script:processes.ContainsKey($creation.ProcessId)) 'Failed graceful exit silently terminated the process'
+}
+Check 'Indirect activation tracks new processes and detects omitted or ambiguous ownership' {
+    $path=[IO.Path]::GetFullPath('extension.exe')
+    $plan=@{Schema='PtRunResources.v1';Resources=@(@{Id='extension';Kind='Process';Ownership='Owned';FilePath=$path;RestoreStep='exit'})}
+    $run=Session $plan
+    $creation=Invoke-PtOwnedProcessActivation -FilePath $path -Action {param($exe) Start-Process $exe -PassThru|Out-Null} -ArgumentList @($path)
+    Require ($creation.State -eq 'Started' -and $creation.ImagePath -ceq $path) 'Indirect process was not tracked'
+    Reject {Invoke-PtOwnedProcessActivation $path -Action {throw 'must not activate twice'}} 'borrowed process'
+    Stop-PtOwnedProcess $creation -RequestExit {param($identity) $script:processes.Remove($identity.processId)}|Out-Null
+    Start-Process $path -PassThru|Out-Null
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Omitted process' -Kind Normal
+    try{Reject {Complete-PtResourceSession $attempt} 'unresolved ownership'}
+    finally{Stop-PtVerificationAttempt $attempt -Reason 'Unregistered declared executable remains'}
+    $rows=Get-Content (Join-Path $run.Workspace (Get-PtReportState $run).CurrentRestoration[0].Data.Evidence[0].Path) -Raw|ConvertFrom-Json
+    Require (@($rows|Where-Object Reason -Like '*without a launch record*').Count -eq 1) 'An omitted headless launch was certified clean'
+    $run=Session $plan
+    Reject {Invoke-PtOwnedProcessActivation $path -Action {
+        param($exe) Start-Process $exe -PassThru|Out-Null;Start-Process $exe -PassThru|Out-Null
+    } -ArgumentList @($path)} 'ambiguous process ownership'
+    Require ((Get-PtActiveResourceSession).Processes[0].State -eq 'Unresolved') 'Ambiguous activation silently adopted one process'
+}
+Check 'Pre-existing declared helpers remain borrowed and PID reuse does not preserve their identity' {
+    $path=[IO.Path]::GetFullPath('borrowed-helper.exe')
+    $plan=@{Schema='PtRunResources.v1';Resources=@(@{Id='helper';Kind='Process';Ownership='Owned';FilePath=$path;RestoreStep='exit'})}
+    $run=Session $plan -BaselineHelper $path
+    Reject {Invoke-PtOwnedProcessActivation $path -Action {throw 'must not activate'}} 'borrowed process'
+    $script:processes[11].StartTime=$script:processes[11].StartTime.AddDays(1)
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Recycled borrowed PID' -Kind Normal
+    try{Reject {Complete-PtResourceSession $attempt} 'unresolved ownership'}
+    finally{Stop-PtVerificationAttempt $attempt -Reason 'Original helper identity was not retained'}
+    $state=Get-PtReportState $run
+    $rows=Get-Content (Join-Path $run.Workspace $state.CurrentRestoration[0].Data.Evidence[0].Path) -Raw|ConvertFrom-Json
+    Require (@($rows|Where-Object {$_.Resource -eq 'borrowed-process-11' -and $_.Status -eq 'BLOCKED'}).Count -eq 1) 'PID reuse was mistaken for original-process preservation'
 }
 Check 'Settings restores page, scroll and minimized placement; failed UI cleanup still restores placement' {
     $run=Session

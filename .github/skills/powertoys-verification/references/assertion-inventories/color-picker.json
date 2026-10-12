@@ -1,24 +1,192 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 1,
-  "SourceSha256": "75852F37D459749672940F60B9F2DCCE42704D85ED7D8D4E735339BA15FD5448",
+  "Revision": 2,
+  "SourceSha256": "4C10FC0216A0D3ACBE02C0D5D0BD0E37510C5C4AED5C7D8F2FED3B534F5C0836",
   "Items": [
-    {"Id":"CP-BINDINGS","Assertions":["CP01","CP04","CP23"]},
-    {"Id":"CP-ELEVATED-START","Assertions":["CP02"]},
-    {"Id":"CP-ELEVATION-RESTART","Assertions":["CP03"]},
-    {"Id":"CP-ACTIVATION-FLOWS","Assertions":["CP05","CP12"]},
-    {"Id":"CP-COPY-FORMATS","Assertions":["CP06","CP07"]},
-    {"Id":"CP-PICKER-VISUALS","Assertions":["CP08","CP18"]},
-    {"Id":"CP-FORMAT-LIST","Assertions":["CP09","CP17"]},
-    {"Id":"CP-HISTORY","Assertions":["CP10","CP11"]},
-    {"Id":"CP-ADJUST","Assertions":["CP13"]},
-    {"Id":"CP-LOGS","Assertions":["CP14"]},
-    {"Id":"CP-LOCALIZATION","Assertions":["CP15"]},
-    {"Id":"CP-CIELAB","Assertions":["CP16"]},
-    {"Id":"CP-REFRESH-RATE","Assertions":["CP19"]},
-    {"Id":"CP-CMDPAL","Assertions":["CP20","CP21"]},
-    {"Id":"CP-WELCOME","Assertions":["CP22"]},
-    {"Id":"CP-ATTRIBUTION","Assertions":["CP24"]},
-    {"Id":"CP-SETTINGS-LINK","Assertions":["CP25"]}
+    {
+      "Id": "CP-BINDINGS",
+      "Assertions": [
+        {
+          "Id": "CP01",
+          "Description": "With normally started, non-elevated PowerToys, enable Color Picker\n    through Settings and use its configured shortcut. The selected activation surface opens. Record runner\n    integrity, configured chord and actual surface. Source L84-L85."
+        },
+        {
+          "Id": "CP04",
+          "Description": "Change the activation shortcut through the shortcut editor.\n    The new chord activates Color Picker and the former chord does not; restore the original chord and confirm\n    activation again. Do not substitute a named event for keyboard-binding observations. Source L88."
+        },
+        {
+          "Id": "CP23",
+          "Description": "At a supported narrow Settings window size, inspect the Color\n    Picker activation shortcut control. Its edit action remains visible and usable rather than collapsing due to\n    the removed page-level minimum width. Restore window placement. Source #46035; the width is supplied by\n    the common shortcut control, not by every page."
+        }
+      ]
+    },
+    {
+      "Id": "CP-ELEVATED-START",
+      "Assertions": [
+        {
+          "Id": "CP02",
+          "Description": "Start PowerToys elevated, enable Color Picker and use its\n    configured shortcut. The selected activation surface opens. Source L84/L86."
+        }
+      ]
+    },
+    {
+      "Id": "CP-ELEVATION-RESTART",
+      "Assertions": [
+        {
+          "Id": "CP03",
+          "Description": "Use Settings' Restart as administrator action, then activate\n    Color Picker with its configured shortcut. Record the new runner's integrity and actual surface. Source L84/L87."
+        }
+      ]
+    },
+    {
+      "Id": "CP-ACTIVATION-FLOWS",
+      "Assertions": [
+        {
+          "Id": "CP05",
+          "Description": "Configure and exercise all three baseline activation flows: picker followed by\n    editor after selecting a color; editor directly; picker-only that copies the selected color and closes without\n    opening the editor. Use activation and mouse-button settings as exposed by the installed version.\n    Close each surface before the next activation and restore the original settings. Source L89."
+        },
+        {
+          "Id": "CP12",
+          "Description": "Use Pick color in the editor. The picker appears, can sample\n    the controlled surface and returns the new color to the editor. Source L96."
+        }
+      ]
+    },
+    {
+      "Id": "CP-WELCOME",
+      "Assertions": [
+        {
+          "Id": "CP22",
+          "Description": "Navigate to the Color Picker page in Welcome to PowerToys while\n    the module is disabled: Launch is disabled. Enable the module and navigate to that page again: Launch is\n    enabled and opens the configured surface. The claim is evaluated on page navigation, not an undocumented\n    live-update requirement. Restore the original enabled state and close only the test-opened Welcome window.\n    Source #44736."
+        }
+      ]
+    },
+    {
+      "Id": "CP-SETTINGS-LINK",
+      "Assertions": [
+        {
+          "Id": "CP25",
+          "Description": "From the installed Color Picker editor, use Open settings\n    while Settings is closed or showing another module. The Color Picker Settings page becomes the foreground\n    destination in the same installation. This is the normal installed-path regression for #48905, not proof of\n    missing/misdirected registry or elevated fallback branches; those require a separately authorized disposable\n    environment. Restore the previous Settings page/visibility."
+        }
+      ]
+    },
+    {
+      "Id": "CP-COPY-FORMATS",
+      "Assertions": [
+        {
+          "Id": "CP06",
+          "Description": "Change Color format for clipboard in Settings and pick a known\n    color. The actual clipboard text uses the selected format and represents the sampled color. Exercise two\n    different formats and restore the original. Source L90."
+        },
+        {
+          "Id": "CP07",
+          "Description": "Copy at least two displayed formats from the editor for the\n    same selected color. Each actual clipboard value matches that row's representation and the selected color. Source L91."
+        }
+      ]
+    },
+    {
+      "Id": "CP-FORMAT-LIST",
+      "Assertions": [
+        {
+          "Id": "CP09",
+          "Description": "Enable a previously disabled format, disable an enabled format,\n    and reorder enabled formats through Settings. Reopen the editor and confirm presence, absence and ordering\n    separately. Restore the original enabled set, format strings and order. Source L93."
+        },
+        {
+          "Id": "CP17",
+          "Description": "In the Color Picker editor, inspect format labels such as HEX and\n    RGB. Their foreground is legible against the rendered background, without the washed-out secondary-text\n    appearance addressed by the change. Capture the actual image and state the theme tested. Source #45367."
+        }
+      ]
+    },
+    {
+      "Id": "CP-CIELAB",
+      "Assertions": [
+        {
+          "Id": "CP16",
+          "Description": "Edit a CIELAB format through Settings. For the same picked color,\n    compare default `%Lc`, `%Ca`, `%Cb` with `%Lci`, `%Cai`, `%Cbi`: default values retain the existing two-decimal\n    rounding, the `i` forms round to integers, and an integer-rounded zero is `0`, not `-0`. Confirm the Settings\n    format help describes `i`; restore the original format. Source #42986."
+        }
+      ]
+    },
+    {
+      "Id": "CP-PICKER-VISUALS",
+      "Assertions": [
+        {
+          "Id": "CP08",
+          "Description": "Turn Show color name on, activate the picker and observe a\n    name for the sampled color; turn it off and confirm the name is hidden. Restore the original value. Source L92."
+        },
+        {
+          "Id": "CP18",
+          "Description": "Zoom into a known-color surface using the picker. The magnified\n    image does not contain the picker's own UI corner; after zooming in/out, the picker remains visible in a normal\n    screen capture. Observe the magnified pixels as well as the restored capture behavior. Source #48762."
+        }
+      ]
+    },
+    {
+      "Id": "CP-REFRESH-RATE",
+      "Assertions": [
+        {
+          "Id": "CP19",
+          "Description": "Exercise display-frequency reports of `0` and `1`: both use the\n    60 Hz fallback without overflow or one-second sampling. Valid reports greater than `1` retain their actual\n    rate. Record which values the environment can supply. Ordinary picking at 60 Hz does not prove the sentinel\n    branches; missing conditions remain explicitly blocked. Source #49973."
+        }
+      ]
+    },
+    {
+      "Id": "CP-HISTORY",
+      "Assertions": [
+        {
+          "Id": "CP10",
+          "Description": "Select a non-current color from editor history. The selected\n    swatch and displayed values change to that entry, without removing other entries. Source L94."
+        },
+        {
+          "Id": "CP11",
+          "Description": "Remove a test-owned color from editor history. That entry is\n    absent and other entries remain; verify the history after reopening, then restore the original history. Source L95."
+        }
+      ]
+    },
+    {
+      "Id": "CP-ADJUST",
+      "Assertions": [
+        {
+          "Id": "CP13",
+          "Description": "Open Adjust color for the editor's selected color.\n    The adjustment UI shows that color and exposes its editing controls; dismiss it without leaving an unintended\n    color/history change. Source L97."
+        }
+      ]
+    },
+    {
+      "Id": "CP-CMDPAL",
+      "Assertions": [
+        {
+          "Id": "CP20",
+          "Description": "In Command Palette's PowerToys extension, open Color Picker,\n    open its Settings page, and use saved colors to copy an existing history entry. When the module is disabled,\n    the Settings command remains but picker/saved-color commands are absent. Restore module state and clipboard.\n    Missing expected extension commands are an integration failure, not merely an assumed unavailable prerequisite.\n    Sources #44006, #44520."
+        },
+        {
+          "Id": "CP21",
+          "Description": "Pin a Color Picker PowerToys-extension command in Command Palette,\n    leave and return to its start page, then use the pinned command. The command remains identifiable and performs\n    its intended action. Remove only the pin created by the test. Source #45840."
+        }
+      ]
+    },
+    {
+      "Id": "CP-LOCALIZATION",
+      "Assertions": [
+        {
+          "Id": "CP15",
+          "Description": "In a supported non-English Windows display language, open\n    Color Picker/editor and inspect their visible labels and tooltips for that language. Also inspect the Color\n    Picker command titles, descriptions and saved-colors labels in Command Palette's PowerToys extension (#44520).\n    Restore the original language if changed. If changing the language requires an unavailable language pack, sign-out or shared-session\n    disruption, record that condition rather than claiming localization from English resources. Source L37."
+        }
+      ]
+    },
+    {
+      "Id": "CP-ATTRIBUTION",
+      "Assertions": [
+        {
+          "Id": "CP24",
+          "Description": "In a supported non-English Settings language, inspect both Color\n    Picker attribution links. Translatable wording is localized, contributor/product names remain intact and\n    link targets are unchanged. English-only rendering or the existence of an `x:Uid` is not localization proof.\n    Source #49690."
+        }
+      ]
+    },
+    {
+      "Id": "CP-LOGS",
+      "Assertions": [
+        {
+          "Id": "CP14",
+          "Description": "Examine Color Picker logs generated during this run.\n    Report any new errors with timestamps and the responsible action; absence of historical errors is not required.\n    An empty interval with no module execution is insufficient. Source L98."
+        }
+      ]
+    }
   ]
 }

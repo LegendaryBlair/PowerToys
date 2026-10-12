@@ -1,0 +1,376 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "DDD6B8BBF604DD60A44D9468BF9CDFC8B55EA2268AF502AFB5E1E875F971860A",
+  "Items": [
+    {
+      "Id": "AP-RICH-CONTROL",
+      "Assertions": [
+        {
+          "Id": "AP-RICH-CONTROL.behavior",
+          "Description": "Copy rich text (mixed colors, bold, underline); paste with Ctrl+V into a rich editor - rich text pasted with colors/formatting intact",
+          "Sources": [
+            "L866"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-PLAIN-HOTKEY",
+      "Assertions": [
+        {
+          "Id": "AP-PLAIN-HOTKEY.behavior",
+          "Description": "Copy rich text; paste with the Paste-as-Plain-Text hotkey - plain text pasted, formatting stripped",
+          "Sources": [
+            "L867"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-PLAIN-REPASTE",
+      "Assertions": [
+        {
+          "Id": "AP-PLAIN-REPASTE.behavior",
+          "Description": "Immediately after the plain-text shortcut conversion, paste again with Ctrl+V without copying new source. Confirm it is still plain text: the clipboard retains plain UnicodeText and HTML/RTF are absent.",
+          "Sources": [
+            "L868"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-PLAIN-CLICK",
+      "Assertions": [
+        {
+          "Id": "AP-PLAIN-CLICK.behavior",
+          "Description": "Copy rich text; open AP, click \"Paste as plain text\" - plain text pasted, formatting stripped",
+          "Sources": [
+            "L870"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-PLAIN-KEY",
+      "Assertions": [
+        {
+          "Id": "AP-PLAIN-KEY.behavior",
+          "Description": "Copy rich text; open AP, press Ctrl+1 - plain text pasted, formatting stripped",
+          "Sources": [
+            "L872"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-MARKDOWN-HOTKEY",
+      "Assertions": [
+        {
+          "Id": "AP-MARKDOWN-BINDING.behavior",
+          "Description": "Open Settings, set the Paste-as-Markdown direct hotkey - chord saved to settings.json",
+          "Sources": [
+            "L874"
+          ]
+        },
+        {
+          "Id": "AP-MARKDOWN-HOTKEY.behavior",
+          "Description": "Copy HTML (Markdown-convertible); paste with the set hotkey - converted to Markdown",
+          "Sources": [
+            "L876"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-MARKDOWN-CLICK",
+      "Assertions": [
+        {
+          "Id": "AP-MARKDOWN-CLICK.behavior",
+          "Description": "Copy HTML; open AP, click \"Paste as markdown\" - converted to Markdown",
+          "Sources": [
+            "L878"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-MARKDOWN-KEY",
+      "Assertions": [
+        {
+          "Id": "AP-MARKDOWN-KEY.behavior",
+          "Description": "Copy HTML; open AP, press Ctrl+2 - converted to Markdown",
+          "Sources": [
+            "L880"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-JSON-HOTKEY",
+      "Assertions": [
+        {
+          "Id": "AP-JSON-BINDING.behavior",
+          "Description": "Open Settings, set the Paste-as-JSON direct hotkey - chord saved to settings.json",
+          "Sources": [
+            "L882"
+          ]
+        },
+        {
+          "Id": "AP-JSON-HOTKEY.behavior",
+          "Description": "Copy XML or CSV; paste with the set hotkey - converted to JSON",
+          "Sources": [
+            "L884"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-JSON-CLICK",
+      "Assertions": [
+        {
+          "Id": "AP-JSON-CLICK.behavior",
+          "Description": "Copy XML or CSV; open AP, click \"Paste as JSON\" - converted to JSON",
+          "Sources": [
+            "L886"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-JSON-KEY",
+      "Assertions": [
+        {
+          "Id": "AP-JSON-KEY.behavior",
+          "Description": "Copy XML or CSV; open AP, press Ctrl+3 - converted to JSON",
+          "Sources": [
+            "L888"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AI-CONFIG",
+      "Assertions": [
+        {
+          "Id": "AP-AI-CONFIG.behavior",
+          "Description": "With an authorized OpenAI endpoint and credential, configure OpenAI in Settings. Confirm it reports configured, remains selected after reopening Settings, and is available for the following custom-prompt case. Do not expose the credential in observations or captures.",
+          "Sources": [
+            "L890"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AI-PROMPT",
+      "Assertions": [
+        {
+          "Id": "AP-AI-PROMPT.behavior",
+          "Description": "With an authorized configured AI provider, copy synthetic text such as `alpha beta`, open Advanced Paste and submit \"Insert smiley after every word\". Confirm the transformed result preserves both source words in order with a smiley after each, and can be pasted into the owned target.",
+          "Sources": [
+            "L891"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AI-REGENERATE",
+      "Assertions": [
+        {
+          "Id": "AP-AI-REGENERATE.behavior",
+          "Description": "With an authorized configured AI provider, enter a prompt for synthetic clipboard text and generate a preview. Regenerate, select the resulting preview and paste it. Confirm regeneration completes and the target receives the selected current result, not a stale earlier preview.",
+          "Sources": [
+            "L893"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-CUSTOM-ACTIONS",
+      "Assertions": [
+        {
+          "Id": "AP-CUSTOM-ACTIONS.behavior",
+          "Description": "With an authorized configured provider, create two owned actions with distinguishable transformations. Assign and exercise a direct shortcut and each displayed Ctrl+number action. Confirm the matching transformation is pasted, disabling an action makes it unavailable, re-enabling restores it, and reordering changes the displayed action order consistently. Restore the original actions/bindings.",
+          "Sources": [
+            "L894"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AI-PREVIEW",
+      "Assertions": [
+        {
+          "Id": "AP-AI-PREVIEW.behavior",
+          "Description": "Disable Custom format preview - result pasted right away",
+          "Sources": [
+            "L895"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AI-ENABLED",
+      "Assertions": [
+        {
+          "Id": "AP-AI-ENABLED.behavior",
+          "Description": "With AI allowed by existing policy, keep **Show the AI paste input box** on and disable **Paste with AI** in Settings. Confirm the visible custom input/provider section cannot accept an AI operation. Re-enable with an authorized configured provider and supported clipboard input; confirm the section becomes usable. This tests AI service availability, not the independent visibility checkbox.",
+          "Sources": [
+            "L896"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-IMAGE-INPUT",
+      "Assertions": [
+        {
+          "Id": "AP-IMAGE-INPUT.behavior",
+          "Description": "Copy an image to the clipboard, open AP - image is accepted as input (image-input handling); a custom/AI action can run on it (image preview shown, no error)",
+          "Sources": [
+            "#44021"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AUTO-COPY",
+      "Assertions": [
+        {
+          "Id": "AP-AUTO-COPY.behavior",
+          "Description": "Select text in an editor and invoke a custom-action hotkey WITHOUT pressing Ctrl+C first - AP auto-copies the selection and acts on it; clipboard is preserved",
+          "Sources": [
+            "#44767"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AUTO-COPY-ELECTRON",
+      "Assertions": [
+        {
+          "Id": "AP-AUTO-COPY-ELECTRON.behavior",
+          "Description": "Repeat the auto-copy custom-action hotkey in an Electron/Chromium app (VS Code / Chrome) - selection is still auto-copied (no longer fails on those apps)",
+          "Sources": [
+            "#46486"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-AI-VISIBILITY",
+      "Assertions": [
+        {
+          "Id": "AP-AI-VISIBILITY.behavior",
+          "Description": "With AI service/provider prerequisites satisfied, toggle **Show the AI paste input box** off/on in Settings. Confirm the custom-input and provider section hides/appears accordingly, without changing the AI-service enablement setting. Keep this visibility result distinct from disabling **Paste with AI**. Applies to the visibility setting introduced by #45242; attest its inclusion in the installed build.",
+          "Sources": [
+            "#45242"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-PROVIDER-SWITCH",
+      "Assertions": [
+        {
+          "Id": "AP-PROVIDER-SWITCH.behavior",
+          "Description": "With an authorized configured AI provider/endpoint, settings: switch AI provider (OpenAI / Azure OpenAI / Gemini / Foundry Local) - the configured endpoint persists per provider (Gemini does not keep an Azure placeholder; Foundry local port change is picked up on the fly)",
+          "Sources": [
+            "#44293, #45362, #43716"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-HISTORY-DELETE",
+      "Assertions": [
+        {
+          "Id": "AP-HISTORY-DELETE.behavior",
+          "Description": "Open AP, click Clipboard history, delete entry, verify gone from Win+V",
+          "Sources": [
+            "L898"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-HISTORY-SELECT",
+      "Assertions": [
+        {
+          "Id": "AP-HISTORY-SELECT.behavior",
+          "Description": "Open AP, click Clipboard history, click entry, verify put on top of Win+V",
+          "Sources": [
+            "L899"
+          ]
+        },
+        {
+          "Id": "AP-HISTORY-RESELECT.behavior",
+          "Description": "Clipboard history: select the same item twice - no duplicate entry is created",
+          "Sources": [
+            "#44212"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-HISTORY-DISABLED",
+      "Assertions": [
+        {
+          "Id": "AP-HISTORY-DISABLED.behavior",
+          "Description": "Disable Windows clipboard history (Settings > System > Clipboard) - the Clipboard history button in AP is disabled/hidden",
+          "Sources": [
+            "L900"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-COLOR-SWATCH",
+      "Assertions": [
+        {
+          "Id": "AP-COLOR-SWATCH.behavior",
+          "Description": "Copy a hex color string (e.g. `#3478F6`), open Clipboard history in AP - that entry shows an RGB color-swatch preview next to the value",
+          "Sources": [
+            "#43990"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-MODULE-DISABLED",
+      "Assertions": [
+        {
+          "Id": "AP-MODULE-DISABLED.behavior",
+          "Description": "Disable Advanced Paste, then press its hotkeys - nothing happens (AP window does not open; no process spawned)",
+          "Sources": [
+            "L901"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-SETTINGS-UPGRADE",
+      "Assertions": [
+        {
+          "Id": "AP-SETTINGS-UPGRADE.behavior",
+          "Description": "Open the Advanced Paste Settings page after upgrading from an older settings.json - page loads without crashing (settings upgraded safely)",
+          "Sources": [
+            "#44862, #45207, #45699"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "AP-CLIPBOARD-RECOVERY",
+      "Assertions": [
+        {
+          "Id": "AP-CLIPBOARD-RECOVERY.behavior",
+          "Description": "With an unreadable/locked clipboard (e.g. another app holds an open clipboard handle), trigger Paste as JSON - AP fails gracefully (no crash, error toast/no-op); then copy valid XML/CSV and confirm Paste as JSON converts correctly again",
+          "Sources": [
+            "#48124"
+          ]
+        }
+      ]
+    }
+  ]
+}

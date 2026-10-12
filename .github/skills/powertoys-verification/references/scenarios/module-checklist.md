@@ -1,7 +1,7 @@
 # Scenario A — Single-module release checklist
 
 **Use when:** the task supplies (or points at) a module's checklist and asks you to verify every
-item — e.g. "verify all 18 Color Picker items", "sign off Command Palette's 88 items".
+item — e.g. "verify Color Picker's complete checklist" or "sign off Workspaces".
 
 This is the skill's original scenario; `SKILL.md` Steps 1–7 are written for it, so this doc is
 short — it only nails down the inputs and the report shape.
@@ -20,13 +20,15 @@ Installed artifact is immutable; mutate only through the shipped UI and restore 
 | Input | Source |
 |---|---|
 | Checklist (the set of items) | `../release-checklist/<module>.md` — **this file IS the items to verify.** Each item carries `[ADMIN: …]` + `[CLARITY: …]` metadata. See `../release-checklist/index.md` for the full module list. |
+| Stable assertions | `../assertion-inventories/<module>.json` for every supplied checklist. Load with `Import-PtAssertionInventory` and use its `Items` unchanged; record both files. Clear prose defaults to `Clarity=CLEAR` when the optional tag is absent. |
 | Per-module recipes | `../modules/<module>.md` if it exists (entry-paths, item recipes, BLOCKED traps, fixtures). **Check this first.** If absent, fall back to the `SKILL.md` §2 drive-stack and author one afterwards (template in `../modules/README.md`). |
 
 ## Run order
 
 1. `../pre-flight.md` — pre-flight + bootstrap (`SKILL.md` Step 1).
-2. For each checklist item: pick a bucket from the verb (`SKILL.md` §2.A/§2.B/§2.C), drive it, then
-   classify (`SKILL.md` §3). One verdict + evidence per item.
+2. Load the frozen inventory. For each checklist item, pick a bucket from the verb
+   (`SKILL.md` §2.A/§2.B/§2.C), drive every required child/input, then classify (`SKILL.md` §3).
+   Retain independent child outcomes; sharing a workflow does not reduce coverage.
 3. `../reporting-format.md` — per-item table + top-of-report summary + §G retrospective.
 4. `../pre-flight.md` §State hygiene + §Final wrap-up.
 5. `SKILL.md` Step 7 — archive the workspace to the sign-off folder.

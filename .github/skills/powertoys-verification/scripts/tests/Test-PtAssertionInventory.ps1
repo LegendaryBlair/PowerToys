@@ -10,14 +10,33 @@ function Reject([scriptblock]$Body,[string]$Pattern){
     try{& $Body|Out-Null}catch{if($_.Exception.Message -notmatch $Pattern){throw};return}
     throw "Expected rejection: $Pattern"
 }
-foreach($name in 'color-picker','workspaces','shortcut-guide','environment-variables'){
+$expectedInventories=[ordered]@{
+    'advanced-paste'=@(29,32); 'color-picker'=@(17,25); 'crop-and-lock'=@(13,14)
+    'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(12,18)
+    'new-plus'=@(9,9); 'peek'=@(18,18); 'power-rename'=@(16,17); 'settings'=@(28,29)
+    'shortcut-guide'=@(19,96); 'workspaces'=@(38,72); 'zoomit'=@(39,39)
+}
+$checklists=@(Get-ChildItem "$skill\references\release-checklist" -Filter '*.md' |
+    Where-Object Name -NE 'index.md' | ForEach-Object BaseName)
+Require (@(Compare-Object @($expectedInventories.Keys) $checklists).Count -eq 0) 'A supplied checklist lacks reviewed inventory coverage'
+foreach($name in $expectedInventories.Keys){
     $source="$skill\references\release-checklist\$name.md"
     $path="$skill\references\assertion-inventories\$name.json"
     $inventory=Import-PtAssertionInventory $path $source
     $again=Import-PtAssertionInventory $path $source
     Require ((ConvertTo-Json $inventory -Depth 20 -Compress) -ceq (ConvertTo-Json $again -Depth 20 -Compress)) 'Inventory is nondeterministic'
-    $expected=switch($name){'color-picker'{@(17,25)} 'workspaces'{@(40,72)} 'shortcut-guide'{@(19,96)} 'environment-variables'{@(29,135)}}
+    $expected=$expectedInventories[$name]
     Require ($inventory.Items.Count -eq $expected[0] -and @($inventory.Items.Assertions).Count -eq $expected[1]) 'Inventory count changed without reviewed test update'
+    $text=[IO.File]::ReadAllText($source).Replace("`r`n","`n")
+    Require ($text -match '(?s)## Legend.*## Fixtures & conventions.*## [^\n]+ \(\d+ items\).*### ') "Functional layout missing: $name"
+    Require ($text -notmatch '(?m)^## (Scope and provenance|Provenance and applicability|Original baseline|PR disposition|Coverage accounting|Scenario IDs and assertion coverage)' -and
+        $text -notmatch '(?m)^### .*PR-derived|^\s+\*\*(Covers|Arrange|Act|Assert|Restore):\*\*') "Checklist mixes operating/history sections: $name"
+    $manifest=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
+    Require (@($manifest.Items.Assertions | Where-Object {$_ -is [string]}).Count -eq 0) "Current child definitions still depend on inline Markdown: $name"
+    Require (@($manifest.Items.Assertions | Where-Object {$_.Description -match '^- \*\*[^*]+\*\*'}).Count -eq 0) "Legacy child identity wrapper leaked into an explicit expectation: $name"
+    foreach($item in $inventory.Items){
+        Require ($item.Description -match ('\A- \[ \] \*\*[^\r\n]+\*\* \[ID: '+[regex]::Escape($item.Id)+'\] \[ADMIN: ')) "Explicit case header missing: $name/$($item.Id)"
+    }
     $edited=Join-Path $Workspace "$name.md"
     [IO.File]::WriteAllText($edited,[IO.File]::ReadAllText($source)+' changed')
     Reject {Import-PtAssertionInventory $path $edited} 'hash mismatch'
@@ -35,10 +54,16 @@ foreach($name in 'color-picker','workspaces','shortcut-guide','environment-varia
     Reject {Import-PtAssertionInventory $bad $source} 'unique IDs'
     $results+=@(@{Module=$name;Scenarios=$expected[0];Assertions=$expected[1];Status='PASS'})
 }
-$source="$skill\references\release-checklist\color-picker.md"
-$path="$skill\references\assertion-inventories\color-picker.json"
-$manifest=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($path))
-$manifest.Items[0].Assertions=@($manifest.Items[0].Assertions|Where-Object {$_ -ne 'CP01'})
+$source=Join-Path $Workspace 'legacy-named-source.md'
+$text="- [ ] **Legacy named source** [ID: legacy] [ADMIN: NO]`n  - **CP01 [ADMIN: NO]** First required behavior.`n  - **CP04 [ADMIN: NO]** Second required behavior.`n"
+Write-PtReportText $source $text
+$manifest=@{Schema='PtAssertionInventory.v1';Revision=1
+    SourceSha256=Get-PtReportHash ([Text.Encoding]::UTF8.GetBytes($text))
+    Items=@(@{Id='legacy';Assertions=@('CP01','CP04')})}
+$legacy=Join-Path $Workspace 'legacy-named-source.json'
+Write-PtReportText $legacy (ConvertTo-Json $manifest -Depth 20)
+Require (@((Import-PtAssertionInventory $legacy $source).Items.Assertions).Count -eq 2) 'Legacy recorded string definitions no longer load'
+$manifest.Items[0].Assertions=@('CP04')
 $bad=Join-Path $Workspace 'omitted-named-source.json'
 Write-PtReportText $bad (ConvertTo-Json $manifest -Depth 20)
 Reject {Import-PtAssertionInventory $bad $source} 'omitted named assertion: CP01'
@@ -62,6 +87,20 @@ $bad=Join-Path $Workspace 'env-reordered-scenario.json'
 Write-PtReportText $bad (ConvertTo-Json $manifest -Depth 20)
 Reject {Import-PtAssertionInventory $bad $source} 'ID/order'
 $results+=@(@{Name='Named-source retention and explicit child description/uniqueness/order contracts';Status='PASS'})
+$mergeCases=@(
+    @{Module='workspaces';Case='WS14';Children=@('WS14.menu-edit','WS15.card-edit')},
+    @{Module='workspaces';Case='WS17';Children=@('WS17.remove-app','WS18.add-back')},
+    @{Module='image-resizer';Case='IR-FIT-MODES';Children=@('IR-FILL.behavior','IR-FIT.behavior','IR-STRETCH.behavior')},
+    @{Module='image-resizer';Case='IR-UNITS';Children=@('IR-CENTIMETERS.behavior','IR-INCHES.behavior','IR-PERCENT.behavior','IR-PIXELS.behavior')},
+    @{Module='power-rename';Case='PR-REGEX';Children=@('PR-REGEX-MATCH.behavior','PR-REGEX-BACKREFERENCE.behavior')}
+)
+foreach($case in $mergeCases){
+    $inventory=Import-PtAssertionInventory "$skill\references\assertion-inventories\$($case.Module).json" `
+        "$skill\references\release-checklist\$($case.Module).md"
+    $item=@($inventory.Items|Where-Object Id -CEQ $case.Case)
+    Require ($item.Count -eq 1 -and @(Compare-Object $case.Children @($item[0].Assertions.Id)).Count -eq 0) "Merged case lost an independent observation: $($case.Case)"
+}
+$results+=@(@{Name='Merged workflows retain original independent observations';Status='PASS'})
 $fixture=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$skill\references\assertion-inventories\color-picker-cielab-fixture.json"))
 $linear=@(foreach($component in $fixture.Rgb){
     $v=$component/255.0

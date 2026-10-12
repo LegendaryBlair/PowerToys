@@ -34,10 +34,15 @@ if (($NoFriction -and $Retrospective.Count) -or (-not $NoFriction -and -not $Ret
 if([bool]$Cleanup -eq [bool]$CleanupPlan){throw 'Supply exactly one CleanupPlan or legacy Cleanup callback.'}
 Get-ChildItem "$Skill\scripts" -Filter '*.ps1' |
     Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
-$profileKey=switch($Module.Replace(' ','').ToLowerInvariant()){
+$inventoryKey=switch($Module.Replace(' ','').ToLowerInvariant()){
+    'advancedpaste'{'advanced-paste'} 'cropandlock'{'crop-and-lock'}
+    'filelocksmith'{'file-locksmith'} 'imageresizer'{'image-resizer'}
+    'new+'{'new-plus'} 'newplus'{'new-plus'} 'peek'{'peek'} 'powerrename'{'power-rename'}
+    'settings'{'settings'} 'powertoyssettings'{'settings'} 'zoomit'{'zoomit'}
     'colorpicker'{'color-picker'} 'workspaces'{'workspaces'} 'shortcutguide'{'shortcut-guide'}
     'environmentvariables'{'environment-variables'}
 }
+$profileKey=if($inventoryKey -in 'color-picker','workspaces','shortcut-guide','environment-variables'){$inventoryKey}
 if($Scenario -eq 'A' -and $profileKey -and (-not $ResourcePlan -or $Cleanup)){
     throw 'Aligned module runs require ResourcePlan and CleanupPlan; legacy Cleanup cannot substitute for resource wiring.'
 }
@@ -48,16 +53,16 @@ if($ResourcePlan){
     $SettingsHwnd=@($ResourcePlan.Resources|Where-Object Kind -EQ 'Settings'|ForEach-Object Hwnd)
 }
 elseif($CleanupPlan){Assert-PtCleanupPlan $CleanupPlan}
-if($Scenario -eq 'A' -and $profileKey){
-    $inventoryPath="$Skill\references\assertion-inventories\$profileKey.json"
-    $checklistPath="$Skill\references\release-checklist\$profileKey.md"
+if($Scenario -eq 'A' -and $inventoryKey){
+    $inventoryPath="$Skill\references\assertion-inventories\$inventoryKey.json"
+    $checklistPath="$Skill\references\release-checklist\$inventoryKey.md"
     $inventory=Import-PtAssertionInventory $inventoryPath $checklistPath
     if((ConvertTo-Json -InputObject $Items -Depth 30 -Compress) -cne
         (ConvertTo-Json -InputObject $inventory.Items -Depth 30 -Compress)){
         throw 'Use the frozen module inventory Items; run-local child regrouping is not accepted.'
     }
-    foreach($source in @(@{Path=$inventoryPath;Name="$profileKey-inventory.json";Role='Other'},
-        @{Path=$checklistPath;Name="$profileKey-checklist.md";Role='Checklist'})){
+    foreach($source in @(@{Path=$inventoryPath;Name="$inventoryKey-inventory.json";Role='Other'},
+        @{Path=$checklistPath;Name="$inventoryKey-checklist.md";Role='Checklist'})){
         if(-not @($Inputs|Where-Object {[IO.Path]::GetFullPath($_.Path) -ieq [IO.Path]::GetFullPath($source.Path)}).Count){$Inputs+=@($source)}
     }
 }
@@ -90,7 +95,7 @@ $sessionOpened=$false
 $scopeState=[pscustomobject]@{Settings=@();Desktop=$null}
 try {
     if($Resume){Open-PtResourceSession -Run $run|Out-Null}
-    else{New-PtResourceSession -Run $run|Out-Null}
+    else{New-PtResourceSession -Run $run -ResourcePlan $ResourcePlan|Out-Null}
     $sessionOpened=$true
     $resources=Get-PtActiveResourceSession
     if($ResourcePlan){

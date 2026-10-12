@@ -1,196 +1,91 @@
-# Color Picker - release checklist through 0.101
+# Color Picker - PowerToys release checklist
 
-## Scope and provenance
+## Legend
 
-- Baseline: the user-supplied 0.96 `tests-checklist-template.md`, SHA256
-  `F7EBCF506EB07BA16774FAE4F606496CD23A72FEAAB33F9C0B44C5F6957EAAFA`.
-  Preserve all 14 Color Picker checkboxes at source lines 85-98, plus its explicit localization checkbox at line 37.
-- Product cutoff: stable `v0.101.2362.0`, commit `389b1a3827b2cf577723288df15437490ef0663a`.
-  PR discovery starts after `v0.96.0`, commit `068cccc22b37fa11d521bedebd21b92280dbf12f`.
-  A release-branch cherry-pick counts when the changed code is present; main-branch ancestry alone is insufficient.
-- The worktree's newer main code is not the identity of the installed product. #49174 belongs to milestone
-  0.102 and is absent from the stable cutoff. To apply these behavior claims to a later WinUI artifact, record
-  that artifact's migration inclusion explicitly; the earlier WPF run is not migration evidence.
-- This is a module checklist, not a claim that every branch of every shared-library PR has been tested.
-  Installation, whole-suite telemetry setup and other modules' general tests remain outside this module run.
-- Items tagged `[CLARITY: REWRITTEN]` make the original action's observable outcome explicit.
-  Source line numbers below refer to the baseline file, not this document.
-- The baseline's three activation choices are now expressed by two activation choices plus mouse-button actions
-  (`ColorPickerActivationAction` and `ColorPickerClickAction` at the stable tag). CP05 preserves the three user
-  flows rather than requiring obsolete option captions.
-- `[ADMIN: YES]` variants require an appropriately elevated runner/session. If unavailable, record only those
-  variants as BLOCKED and continue non-admin coverage, following the user's requested execution policy.
-- Record partial observations, exact blocked conditions and state restoration. A source diff is not a runtime PASS.
-  Use a test-owned, known-color surface for picking; back up settings, history and clipboard before modifying them.
+- `[ADMIN: NO]` - standard-user coverage, subject to the stated fixtures.
+- `[ADMIN: YES]` - requires an authorized elevated Runner/session.
+- `[ID: ...]` - stable scenario identifier; all CP01-CP25 children remain independently reportable.
+- `[CLARITY: REWRITTEN]` - an existing requirement has an explicit executable interpretation.
 
-## Execution scenarios (17 scenarios, 25 retained assertions)
+## Fixtures & conventions
 
-The scenario checkboxes share setup/actions; **CP01-CP25 remain required, individually reported assertions**.
-Their text, admin conditions and baseline/PR sources are retained. Record constituent observations separately:
-one successful action cannot stand in for the whole scenario. Restore shared setup after the affected assertions.
+- Use a test-owned known-color surface and disposable history colors. Preserve settings,
+  history, clipboard, window placement and any companion state before mutation; restore
+  the exact original values and close only test-owned surfaces.
+- Confirm the installed UI stack and activation model. The three picker/editor user flows
+  can be configured through activation and mouse-button settings, not necessarily three
+  identically named options. A later WinUI artifact requires its migration inclusion to be
+  recorded; an earlier WPF observation is not WinUI evidence.
+- Missing elevation, a supported non-English language or controlled display-frequency input
+  blocks only that condition. Do not install language packs, disrupt the shared session,
+  or manufacture registry/elevation fallback conditions without authorization.
+- Use the [module profile](../modules/color-picker.md) for interaction/restoration and the
+  [frozen inventory](../assertion-inventories/color-picker.json) for detailed assertions.
+  A missing integration command does not prove its dependent pin/history actions failed.
 
-A scenario is PASS only when all its required assertions pass, FAIL when a valid product/checklist failure is
-observed, otherwise BLOCKED when required coverage remains unexecuted. Record an unexecuted dependent action
-as **not observed**, with the dependency and reason; do not invent its outcome. Continue independent assertions.
-For example, missing CmdPal extension commands fail availability; pin persistence is then not observed, not
-a second independently demonstrated pinning defect. The combined scenario still fails.
+## Color Picker (17 items)
 
-Grouping alone does not create new live results or convert the previous 25-item report into new PASS results.
-Elevated startup, elevation restart, the two language conditions, CIELAB arithmetic and refresh-rate injection
-remain separate because their setup or correctness evidence differs. The prior archive is unchanged.
+### Activation and entry points
 
-- [ ] **CP-BINDINGS [ADMIN: NO]** - Standard activation, shortcut editing and narrow layout.
-  Reuse the non-admin enable cycle and shortcut dialog. Observe the original chord before editing; the narrow
-  layout check can share the edit session but does not replace actual old/new/restored binding observations.
-  - **CP01 [ADMIN: NO] [CLARITY: REWRITTEN]** With normally started, non-elevated PowerToys, enable Color Picker
-    through Settings and use its configured shortcut. The selected activation surface opens. Record runner
-    integrity, configured chord and actual surface. Source L84-L85.
-  - **CP04 [ADMIN: NO] [CLARITY: REWRITTEN]** Change the activation shortcut through the shortcut editor.
-    The new chord activates Color Picker and the former chord does not; restore the original chord and confirm
-    activation again. Do not substitute a named event for keyboard-binding observations. Source L88.
-  - **CP23 [ADMIN: NO] [CLARITY: CLEAR]** At a supported narrow Settings window size, inspect the Color
-    Picker activation shortcut control. Its edit action remains visible and usable rather than collapsing due to
-    the removed page-level minimum width. Restore window placement. Source #46035; the width is supplied by
-    the common shortcut control, not by every page.
+- [ ] **Configured shortcut, rebinding and narrow Settings layout** [ID: CP-BINDINGS] [ADMIN: NO] [CLARITY: REWRITTEN]
+  Start PowerToys normally and verify its non-elevated token. Enable Color Picker through Settings and use the displayed original shortcut; confirm the configured surface opens. Change to an unused chord, confirm it activates and the previous chord does not, then restore and exercise the original. At a supported narrow Settings width, confirm the shortcut edit control remains visible and usable; restore placement. Physical-key observations cannot be replaced by a Named Event.
 
-- [ ] **CP-ELEVATED-START [ADMIN: YES]** - Elevated startup.
-  - **CP02 [ADMIN: YES] [CLARITY: REWRITTEN]** Start PowerToys elevated, enable Color Picker and use its
-    configured shortcut. The selected activation surface opens. Source L84/L86.
+- [ ] **Elevated startup** [ID: CP-ELEVATED-START] [ADMIN: YES] [CLARITY: REWRITTEN]
+  Start PowerToys elevated, enable Color Picker and use its configured shortcut. Confirm the selected activation surface opens and record the actual Runner integrity.
 
-- [ ] **CP-ELEVATION-RESTART [ADMIN: YES]** - Restart as administrator.
-  - **CP03 [ADMIN: YES] [CLARITY: REWRITTEN]** Use Settings' Restart as administrator action, then activate
-    Color Picker with its configured shortcut. Record the new runner's integrity and actual surface. Source L84/L87.
+- [ ] **Restart as administrator** [ID: CP-ELEVATION-RESTART] [ADMIN: YES] [CLARITY: REWRITTEN]
+  Use Settings' Restart as administrator action, confirm the new Runner's integrity, and activate Color Picker with its configured shortcut. Confirm the selected surface opens; elevated startup alone does not prove this restart route.
 
-- [ ] **CP-ACTIVATION-FLOWS [ADMIN: NO]** - Picker/editor transitions.
-  Reuse one controlled surface and activation-settings snapshot. Include the editor's real Pick action as a
-  distinct entry; launching through the configured shortcut does not prove that button.
-  - **CP05 [ADMIN: NO] [CLARITY: REWRITTEN]** Configure and exercise all three baseline activation flows: picker followed by
-    editor after selecting a color; editor directly; picker-only that copies the selected color and closes without
-    opening the editor. Use activation and mouse-button settings as exposed by the installed version.
-    Close each surface before the next activation and restore the original settings. Source L89.
-  - **CP12 [ADMIN: NO] [CLARITY: REWRITTEN]** Use Pick color in the editor. The picker appears, can sample
-    the controlled surface and returns the new color to the editor. Source L96.
+- [ ] **Picker/editor transitions** [ID: CP-ACTIVATION-FLOWS] [ADMIN: NO] [CLARITY: REWRITTEN]
+  On the controlled surface, separately exercise picker then editor after selection, direct editor, and picker-only copy then close without editor. Close each surface before the next activation. Also invoke the editor's actual Pick color action and confirm it samples the controlled surface and returns the new color to the editor. Restore the original activation/mouse-button settings.
 
-- [ ] **CP-COPY-FORMATS [ADMIN: NO]** - Picker and editor clipboard formats.
-  Reuse the known color and clipboard snapshot. Observe the picker-selected default format separately from
-  each editor row's own copy action; they are different routes.
-  - **CP06 [ADMIN: NO] [CLARITY: REWRITTEN]** Change Color format for clipboard in Settings and pick a known
-    color. The actual clipboard text uses the selected format and represents the sampled color. Exercise two
-    different formats and restore the original. Source L90.
-  - **CP07 [ADMIN: NO] [CLARITY: REWRITTEN]** Copy at least two displayed formats from the editor for the
-    same selected color. Each actual clipboard value matches that row's representation and the selected color. Source L91.
+- [ ] **Welcome launch guard** [ID: CP-WELCOME] [ADMIN: NO]
+  Navigate to Color Picker in Welcome while the module is disabled and confirm Launch is disabled. Enable the module and navigate to that page again; Launch must be enabled and open the configured surface. Observe on page navigation, not an unspecified live-update condition. Restore enablement and close only owned Welcome windows.
 
-- [ ] **CP-PICKER-VISUALS [ADMIN: NO]** - Color name and magnifier.
-  Reuse the picker over one controlled surface: compare name on/off and zoom content/capture restoration
-  without selecting a different color between observations.
-  - **CP08 [ADMIN: NO] [CLARITY: REWRITTEN]** Turn Show color name on, activate the picker and observe a
-    name for the sampled color; turn it off and confirm the name is hidden. Restore the original value. Source L92.
-  - **CP18 [ADMIN: NO] [CLARITY: CLEAR]** Zoom into a known-color surface using the picker. The magnified
-    image does not contain the picker's own UI corner; after zooming in/out, the picker remains visible in a normal
-    screen capture. Observe the magnified pixels as well as the restored capture behavior. Source #48762.
+- [ ] **Editor Settings link** [ID: CP-SETTINGS-LINK] [ADMIN: NO] [CLARITY: REWRITTEN]
+  With Settings closed or showing another module, use the installed editor's Open settings action. Confirm the same installation's Settings becomes foreground on Color Picker, then restore its previous page/visibility. This covers normal installed-path resolution, not missing/misdirected registry or elevated fallback branches requiring a disposable environment.
 
-- [ ] **CP-FORMAT-LIST [ADMIN: NO]** - Format configuration and label rendering.
-  Inspect label contrast on the editor already opened to check the updated format list. Keep presence,
-  absence, order and rendered contrast as separate observations.
-  - **CP09 [ADMIN: NO] [CLARITY: REWRITTEN]** Enable a previously disabled format, disable an enabled format,
-    and reorder enabled formats through Settings. Reopen the editor and confirm presence, absence and ordering
-    separately. Restore the original enabled set, format strings and order. Source L93.
-  - **CP17 [ADMIN: NO] [CLARITY: CLEAR]** In the Color Picker editor, inspect format labels such as HEX and
-    RGB. Their foreground is legible against the rendered background, without the washed-out secondary-text
-    appearance addressed by the change. Capture the actual image and state the theme tested. Source #45367.
+### Clipboard and color formats
 
-- [ ] **CP-HISTORY [ADMIN: NO]** - History selection, removal and persistence.
-  Share one history snapshot and owned color set. Select before removing; retain the reopen and unrelated-entry
-  checks, then restore the original history.
-  - **CP10 [ADMIN: NO] [CLARITY: REWRITTEN]** Select a non-current color from editor history. The selected
-    swatch and displayed values change to that entry, without removing other entries. Source L94.
-  - **CP11 [ADMIN: NO] [CLARITY: REWRITTEN]** Remove a test-owned color from editor history. That entry is
-    absent and other entries remain; verify the history after reopening, then restore the original history. Source L95.
+- [ ] **Picker and editor clipboard formats** [ID: CP-COPY-FORMATS] [ADMIN: NO] [CLARITY: REWRITTEN]
+  Select each of two clipboard formats in Settings and pick a known color; independently compare actual clipboard text with that color's expected representation. In the editor, copy at least two displayed format rows for the same color and compare each actual clipboard value with its own row. Preserve both routes and restore the clipboard and original default format.
 
-- [ ] **CP-ADJUST [ADMIN: NO]** - Adjustment popup.
-  - **CP13 [ADMIN: NO] [CLARITY: REWRITTEN]** Open Adjust color for the editor's selected color.
-    The adjustment UI shows that color and exposes its editing controls; dismiss it without leaving an unintended
-    color/history change. Source L97.
+- [ ] **Format list and label rendering** [ID: CP-FORMAT-LIST] [ADMIN: NO] [CLARITY: REWRITTEN]
+  Enable one disabled format, disable an enabled format and reorder enabled formats through Settings. Reopen the editor and separately confirm presence, absence and order. Inspect rendered HEX/RGB labels for legibility rather than washed-out secondary text; capture the actual image and record its theme. Restore the original enabled set, format strings and order.
 
-- [ ] **CP-LOGS [ADMIN: NO]** - Run-scoped logs.
-  - **CP14 [ADMIN: NO] [CLARITY: REWRITTEN]** Examine Color Picker logs generated during this run.
-    Report any new errors with timestamps and the responsible action; absence of historical errors is not required.
-    An empty interval with no module execution is insufficient. Source L98.
+- [ ] **CIELAB rounding** [ID: CP-CIELAB] [ADMIN: NO]
+  Edit a CIELAB format through Settings. For the same known picked color, compare `%Lc`, `%Ca`, `%Cb` with `%Lci`, `%Cai`, `%Cbi`: defaults retain two-decimal rounding, `i` forms round to integers, and a negative fraction rounding to zero produces `0`, not `-0`. Use the independently defined near-gray fixture where needed. Confirm format help describes `i` and restore the original format.
 
-- [ ] **CP-LOCALIZATION [ADMIN: NO]** - Module and extension language.
-  - **CP15 [ADMIN: NO] [CLARITY: REWRITTEN]** In a supported non-English Windows display language, open
-    Color Picker/editor and inspect their visible labels and tooltips for that language. Also inspect the Color
-    Picker command titles, descriptions and saved-colors labels in Command Palette's PowerToys extension (#44520).
-    Restore the original language if changed. If changing the language requires an unavailable language pack, sign-out or shared-session
-    disruption, record that condition rather than claiming localization from English resources. Source L37.
+### Picker display and sampling
 
-- [ ] **CP-CIELAB [ADMIN: NO]** - CIELAB formatting arithmetic.
-  - **CP16 [ADMIN: NO] [CLARITY: CLEAR]** Edit a CIELAB format through Settings. For the same picked color,
-    compare default `%Lc`, `%Ca`, `%Cb` with `%Lci`, `%Cai`, `%Cbi`: default values retain the existing two-decimal
-    rounding, the `i` forms round to integers, and an integer-rounded zero is `0`, not `-0`. Confirm the Settings
-    format help describes `i`; restore the original format. Source #42986.
+- [ ] **Color name and magnifier** [ID: CP-PICKER-VISUALS] [ADMIN: NO] [CLARITY: REWRITTEN]
+  Over one controlled surface, toggle Show color name on/off and confirm the sampled color's name appears/is hidden. Zoom in and inspect the magnified pixels: the picker's own UI corner must not be included. After zooming in/out, confirm the picker is visible in a normal screen capture. Restore the original setting.
 
-- [ ] **CP-REFRESH-RATE [ADMIN: NO]** - Controlled display-frequency reports.
-  - **CP19 [ADMIN: NO] [CLARITY: CLEAR]** Exercise display-frequency reports of `0` and `1`: both use the
-    60 Hz fallback without overflow or one-second sampling. Valid reports greater than `1` retain their actual
-    rate. Record which values the environment can supply. Ordinary picking at 60 Hz does not prove the sentinel
-    branches; missing conditions remain explicitly blocked. Source #49973.
+- [ ] **Display-frequency edge cases** [ID: CP-REFRESH-RATE] [ADMIN: NO]
+  With controlled frequency inputs, exercise reports `0` and `1`; both must use the 60 Hz fallback without overflow or one-second sampling. Reports greater than `1` retain their actual rate. Record which values were supplied: ordinary 60 Hz picking does not cover the sentinel branches.
 
-- [ ] **CP-CMDPAL [ADMIN: NO]** - Extension commands and pinning.
-  Discover the provider once, exercise launch/settings/history commands and pin a discovered command before
-  changing enablement. Keep command availability, disabled filtering and pin persistence distinct.
-  - **CP20 [ADMIN: NO] [CLARITY: CLEAR]** In Command Palette's PowerToys extension, open Color Picker,
-    open its Settings page, and use saved colors to copy an existing history entry. When the module is disabled,
-    the Settings command remains but picker/saved-color commands are absent. Restore module state and clipboard.
-    Missing expected extension commands are an integration failure, not merely an assumed unavailable prerequisite.
-    Sources #44006, #44520.
-  - **CP21 [ADMIN: NO] [CLARITY: CLEAR]** Pin a Color Picker PowerToys-extension command in Command Palette,
-    leave and return to its start page, then use the pinned command. The command remains identifiable and performs
-    its intended action. Remove only the pin created by the test. Source #45840.
+### History and adjustment
 
-- [ ] **CP-WELCOME [ADMIN: NO]** - Welcome launch guard.
-  - **CP22 [ADMIN: NO] [CLARITY: CLEAR]** Navigate to the Color Picker page in Welcome to PowerToys while
-    the module is disabled: Launch is disabled. Enable the module and navigate to that page again: Launch is
-    enabled and opens the configured surface. The claim is evaluated on page navigation, not an undocumented
-    live-update requirement. Restore the original enabled state and close only the test-opened Welcome window.
-    Source #44736.
+- [ ] **Select, remove and reopen history** [ID: CP-HISTORY] [ADMIN: NO] [CLARITY: REWRITTEN]
+  Select a non-current owned history color and confirm the swatch and displayed values change without removing other entries. Remove an owned color, confirm it is absent and unrelated entries remain, then reopen and verify persistence. Restore the original history.
 
-- [ ] **CP-ATTRIBUTION [ADMIN: NO]** - Settings attribution language.
-  - **CP24 [ADMIN: NO] [CLARITY: CLEAR]** In a supported non-English Settings language, inspect both Color
-    Picker attribution links. Translatable wording is localized, contributor/product names remain intact and
-    link targets are unchanged. English-only rendering or the existence of an `x:Uid` is not localization proof.
-    Source #49690.
+- [ ] **Adjustment popup** [ID: CP-ADJUST] [ADMIN: NO] [CLARITY: REWRITTEN]
+  Open Adjust color for the editor's selected color. Confirm the popup shows that color and its editing controls; dismiss without leaving an unintended color/history change.
 
-- [ ] **CP-SETTINGS-LINK [ADMIN: NO]** - Editor Settings link.
-  - **CP25 [ADMIN: NO] [CLARITY: REWRITTEN]** From the installed Color Picker editor, use Open settings
-    while Settings is closed or showing another module. The Color Picker Settings page becomes the foreground
-    destination in the same installation. This is the normal installed-path regression for #48905, not proof of
-    missing/misdirected registry or elevated fallback branches; those require a separately authorized disposable
-    environment. Restore the previous Settings page/visibility.
+### Command Palette integration
 
-## PR disposition
+- [ ] **Commands, disabled filtering and pinning** [ID: CP-CMDPAL] [ADMIN: NO]
+  In the PowerToys extension, invoke Color Picker, its Settings command and a saved color that copies the expected history value. Pin a discovered command, leave and return to Home, and confirm the identifiable pin still performs its action. With Color Picker disabled, Settings remains but picker/saved-color commands are absent. Restore module/clipboard state and remove only the owned pin. Observe command availability before its dependent actions; missing shipped commands are an integration failure.
 
-| PR | Change | Checklist disposition |
-|---|---|---|
-| #44006 | PowerToys extension, picker/settings/saved-color commands | CP20 |
-| #44520 | Localized extension labels | CP15 includes non-English command/history labels; CP20 covers the underlying command workflows |
-| #45840 | Stable command IDs for pinning | CP21 |
-| #44736 | Disabled-module Welcome launch guard | CP22 |
-| #45367 | Format-label contrast | CP17 |
-| #42986 | Optional CIELAB integer formatting | CP16 |
-| #46035 | Shortcut-control minimum width moved into the shared control | CP23 |
-| #48762 | Exclude picker UI during magnifier capture, then restore affinity | CP18; release history contains a cherry-pick, not two independent changes |
-| #49690 | Localizable Settings attribution links | CP24 |
-| #49973 | Refresh-rate sentinel handling | CP19; stable cherry-pick `e213200b5a` |
-| #48905 | Resolve installed paths from the running executable first | CP25 installed-path smoke; stable cherry-pick `9ee025f2a7`; other callers/fallbacks outside this module |
-| #48467 | New UI-test framework; hidden HEX observation field in picker | Observation aid, not a new end-user checklist item |
-| #46679 | Color conversion unit tests | Supporting expected-format material; no independent shipped UX claim |
-| #43505 | Command Palette theme/icon infrastructure | No separate Color Picker behavior; ordinary integration appearance in CP20 |
-| #42644, #44064, #44331, #44721, #45542 | Settings serialization, services and common controls refactors | Existing activation/settings/format baseline covers module-facing regression; no invented new feature |
-| #44304, #44639, #45420, #37651, #46712, #47119, #41280, #48842, #46729 | Build, dependency, spelling or test infrastructure | Not new installed-module UX assertions |
-| #49161, #48891, #48027, #45606, #48085 | Mention Color Picker but modify another module or repository tooling | Excluded after path/diff review |
-| #49174 | WPF to WinUI 3 migration, milestone 0.102 | Outside baseline PR cutoff; later WinUI regression runs must prove build inclusion; not covered by the earlier WPF archive |
+### Localization
 
-For each PR-derived result retain the PR description, relevant diff and actual release-code inclusion evidence
-in the run archive. The baseline/PR origin survives grouping: do not silently drop a source requirement merely
-because several items share setup.
+- [ ] **Module and extension language** [ID: CP-LOCALIZATION] [ADMIN: NO] [CLARITY: REWRITTEN]
+  In a supported non-English Windows display language, inspect picker/editor labels and tooltips, plus Command Palette's Color Picker titles, descriptions and saved-color labels. Confirm the selected translations rather than English resource presence. Restore the original language; unavailable packs or disruptive sign-out requirements remain explicit blockers.
+
+- [ ] **Settings attribution language** [ID: CP-ATTRIBUTION] [ADMIN: NO]
+  In a supported non-English Settings language, inspect both attribution links. Translatable wording must be localized, contributor/product names preserved and link targets unchanged. English-only rendering or an `x:Uid` is not proof.
+
+### Diagnostics
+
+- [ ] **Run-scoped logs** [ID: CP-LOGS] [ADMIN: NO] [CLARITY: REWRITTEN]
+  After actual Color Picker execution, examine logs generated during this run and report new errors with timestamps and responsible actions. Historical errors are not new failures; an empty interval without module execution is insufficient.

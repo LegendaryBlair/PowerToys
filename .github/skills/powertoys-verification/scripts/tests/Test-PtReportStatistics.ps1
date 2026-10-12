@@ -63,6 +63,8 @@ try{
     Require $global:PtStatisticsFixture.ReportCalled 'Report callback was not invoked'
     $run=Open-PtVerificationRun "$Workspace\success"
     $state=Get-PtReportState $run
+    Require ($state.Signoff -eq 'APPROVED') 'Report/source registration left an otherwise passing run withheld'
+    Require (@($state.Attempts|Where-Object {$_.Id -cnotin $state.Steps.AttemptId}).Count -eq 0) 'Report callback created a source-only or statistics-only empty attempt'
     Require (@($state.Attempts|Where-Object Phase -EQ Cleanup).Count -eq 1) 'Statistics created another cleanup attempt'
     Require (@($state.CurrentRestoration|Where-Object {$_.Data.Verdict -ne 'PASS'}).Count -eq 0) 'Reporting changed restoration status'
     $reportText=[IO.File]::ReadAllText("$Workspace\success\report.md")
