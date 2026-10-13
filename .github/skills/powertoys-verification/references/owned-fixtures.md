@@ -60,8 +60,16 @@ try {
 
 Explorer creation uses `/n` and verifies a new HWND displaying the exact fixture path.
 Unexpected reuse of a user window is rejected; it does not confer ownership. Cleanup
-requires the same native identity and path, requests normal close, waits for that HWND
+requires the same native identity and path, restores the saved pointer while the owned
+Explorer is still foregroundable, requests normal close, waits for that HWND
 to disappear, and deletes only the empty owned folder.
+
+The ordering matters for a medium-integrity worker returning to an elevated caller:
+closing Explorer first can reactivate that caller, after which `SetCursorPos` may return
+false even for the current coordinates. The final desktop comparison restores foreground
+only after the pointer and skips a pointer write when its position already matches.
+Refused movement and mismatched readback still fail cleanup; no elevation or forced
+process restart is used to bypass the boundary.
 
 If a test creates files in the folder, it must own and remove those explicit files before
 folder cleanup, or use the [directory snapshot contract](directory-snapshots.md).
