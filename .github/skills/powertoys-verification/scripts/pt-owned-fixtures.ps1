@@ -287,6 +287,14 @@ function Remove-PtExplorerFixture {
             throw 'Explorer fixture navigated or changed identity; refusing to close unrelated state.'
         }
         Assert-PtProcessRelease -ProcessId $Fixture.Identity.processId
+        if($Fixture.Desktop.coordinateSpace -cne 'Physical'){throw 'Explorer fixture has an unspecified pointer coordinate space.'}
+        # Closing the last owned window can reactivate an elevated caller that blocks pointer writes.
+        $pointer=[PtDesktop+POINT]::new()
+        if(-not [PtDesktop]::GetCursorPos([ref]$pointer)){throw 'Cannot read pointer before closing the owned Explorer.'}
+        if($pointer.X -ne $Fixture.Desktop.pointer.X -or $pointer.Y -ne $Fixture.Desktop.pointer.Y){
+            Assert-PtForegroundOrAbort -Hwnd $Fixture.Identity.hwnd
+            Restore-PtPointerPosition -Point $Fixture.Desktop.pointer | Out-Null
+        }
         $matches[0].Quit()
         Wait-PtCondition -Description 'owned Explorer window exit' -TimeoutSeconds 5 -Probe {
             -not [PtDesktop]::IsWindow([IntPtr][long]$Fixture.Identity.hwnd)

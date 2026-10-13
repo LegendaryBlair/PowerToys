@@ -10,6 +10,7 @@ Do not load helpers from another worktree to fill an unresolved dependency.
 |---|---|---|
 | Run, step and assertion records | `pt-verification-report.ps1`, operation/render helpers | Keep one recorder and explicit subassertion inventory; do not import CP `New-PtRecordedRun` or its second archive model. |
 | Window identity and physical geometry | `pt-desktop.ps1`, `pt-state-snapshot.ps1` | Keep lowercase `hwnd/processId/processStartTicks/className`; a native window record has no `ProcessName` field. Identity is not ownership. |
+| Pointer restoration | `Restore-PtPointerPosition`, `Restore-PtDesktopSnapshot` | Verify already-restored coordinates without input; otherwise restore the pointer before returning foreground to a higher-integrity window. Owned Explorer cleanup performs this before closing its interaction window. Refusal/readback mismatch remains an error. |
 | Controls, values and shortcut recording | `pt-uia.ps1`, `pt-ui-observation.ps1`, `pt-shortcut-recorder.ps1` | Keep typed scoped resolution and the existing recorder; no CP `Resolve-PtUiControl` / `Set-PtScopedToggle` wrapper. |
 | Input and module lifecycle | existing chord/held-key/foreground/lifecycle helpers | Explicit operations, no automatic Runner restart; active-session clipboard dependencies gate disable/restart. |
 | Live settings reads | `pt-file-io.ps1` | Shared read/write/delete handles prevent readers blocking normal writers; not a guarantee of an atomic, fully settled JSON document. |

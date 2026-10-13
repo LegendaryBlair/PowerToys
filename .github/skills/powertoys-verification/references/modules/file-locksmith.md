@@ -68,9 +68,43 @@ Source: `ExplorerCommand.cpp:182-227`, `dllmain.cpp:94-159`, `IPC.cpp`, `NativeM
 > **Mapping process**: read the actual checklist item → identify the capability → find its row → drive the named control and design your own inputs + assertions. If no row matches, drive ad-hoc and add a row (capability + control + observation point; no canned inputs).
 
 ## Common BLOCKED traps (avoid)
+- **Nested timeouts**: a `winapp wait-for --timeout` is in milliseconds, while
+  `Invoke-PtWinApp -TimeoutSeconds` bounds the whole CLI process. Keep the outer timeout
+  longer than the requested wait, particularly for a drive scan; otherwise the wrapper
+  terminates the observer before its own wait expires. Record this as a driver error,
+  not a File Locksmith crash.
+- **Fixture and shell readiness**: wait for the actual drive row after navigating an owned
+  Explorer window to This PC; the namespace can become current before its items populate.
+  Record installer PID/start-time liveness again when collecting scan results. An early
+  image/module oracle alone cannot distinguish an empty scan from a fixture that exited.
+- **Menu tiers**: if a settled directory menu lacks the entry, record that observation and
+  try the real Show more options menu. Keep the two tier results separate; successful
+  classic-menu launch does not prove modern-menu presence.
+- **Medium-worker cleanup returning to an elevated caller**: use the current `Remove-PtExplorerFixture`,
+  which restores the pointer before closing the owned Explorer, followed by exact desktop comparison.
+  Do not close the last ordinary window, reactivate an elevated Terminal, and only then attempt
+  `SetCursorPos`. A successful file scan is separate from a failed cleanup; preserve both outcomes.
+- **A disappearing UI is not necessarily a stale selector**: correlate the exact PID/start time with
+  Application Error/WER before repeating inspection. An interop access violation is a product failure,
+  not readiness to poll indefinitely; retain the faulting module/code and restore owned resources.
 - **Don't BLOCK the lock-detection / End-task / scroll-doesn't-crash items as "needs a real installer / right-click"** — both the CLI and the `last-run.log`+UI back-door fully drive them with any locked file. The context menu literally just writes `last-run.log` + launches the same exe.
 - **Launching the UI from an elevated shell makes it elevated** (title "Administrator: …") and hides the `RestartAsAdminBtn`. To test the non-elevated case (Recipes 7-8), launch via a **scheduled task with `-RunLevel Limited` / LogonType Interactive** — it lands on the user's desktop at medium IL.
 - **`set-value` does fire the Reload** here (TogglePattern/Invoke work); no TextChanged gotchas.
+
+### Recorder and borrowed-Settings caveats
+
+Check the actual loaded shell helper before driving: legacy `pt-explorer-contextmenu.ps1`
+functions still contain direct `winapp ui` calls. An ambient attempt alone does not record
+those native calls. Route them through `Invoke-PtWinApp`, retain the executed adapter source
+and actual executable identity, and verify that nested commands appear in the journal.
+Do not reconstruct missing commands after the run.
+
+The Settings snapshot helper compares scroll percentages exactly. A provider may return
+the float32-quantized form of a previously captured double after `SetScrollPercent`, causing
+a false restoration timeout. Preserve the original snapshot and both raw values; only use
+a documented precision-aware comparison when the values actually agree at that provider
+precision and all other captured state matches. Never round away an arbitrary scroll
+displacement or change the baseline to make cleanup pass.
 
 ## Elevation semantics (non-elevated FL invisibility — Recipes 7-8 core)
 A medium-IL File Locksmith can't `DuplicateHandle`/read modules of higher-integrity processes, so the **elevated PowerToys.exe runner is invisible** to a non-elevated FL and **visible** to an elevated FL (which also calls `SetDebugPrivilege`, `App.xaml.cs:53-61`). Per-user installs put PowerToys under `%LOCALAPPDATA%\PowerToys`, not "Program Files" — use the PT install dir as the stand-in and note the caveat.

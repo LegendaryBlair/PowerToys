@@ -247,6 +247,30 @@ function Get-PtDesktopSnapshot {
     }
 }
 
+function Restore-PtPointerPosition {
+    <#
+    .SYNOPSIS
+    Restore a physical pointer position once, or verify an already-restored position without input.
+    #>
+    param([Parameter(Mandatory)]$Point)
+    foreach($coordinate in 'X','Y'){
+        if(($Point.$coordinate -isnot [int] -and $Point.$coordinate -isnot [long]) -or
+            $Point.$coordinate -lt [int]::MinValue -or $Point.$coordinate -gt [int]::MaxValue){
+            throw 'Pointer restoration requires explicit integer physical X/Y coordinates.'
+        }
+    }
+    $actual=[PtDesktop+POINT]::new()
+    if(-not [PtDesktop]::GetCursorPos([ref]$actual)){throw 'Cannot read pointer before restoration; no pointer input was sent.'}
+    if($actual.X -eq $Point.X -and $actual.Y -eq $Point.Y){return $actual}
+    if(-not [PtDesktop]::SetCursorPos($Point.X,$Point.Y)){
+        throw "Pointer restore failed: SetCursorPos refused ($($Point.X),$($Point.Y)); foreground HWND $([PtDesktop]::GetForegroundWindow().ToInt64()). Restore while the owned interaction window is still active, before returning to a higher-integrity foreground."
+    }
+    if(-not [PtDesktop]::GetCursorPos([ref]$actual) -or $actual.X -ne $Point.X -or $actual.Y -ne $Point.Y){
+        throw 'Pointer restore comparison failed after the single position request.'
+    }
+    $actual
+}
+
 function Restore-PtDesktopSnapshot {
     <# .SYNOPSIS
     Attempt every restoration, then surface all errors; never mask partial cleanup as success.
@@ -260,11 +284,12 @@ function Restore-PtDesktopSnapshot {
         try { Restore-PtWindowSnapshot -Snapshot $window | Out-Null }
         catch { $errors.Add($_.Exception.Message) }
     }
+    try { Restore-PtPointerPosition -Point $Snapshot.pointer | Out-Null }
+    catch { $errors.Add($_.Exception.Message) }
     try {
         Assert-PtWindowIdentity -Identity $Snapshot.foreground
         Assert-PtForegroundOrAbort -Hwnd $Snapshot.foreground.hwnd
     } catch { $errors.Add($_.Exception.Message) }
-    if (-not [PtDesktop]::SetCursorPos($Snapshot.pointer.X, $Snapshot.pointer.Y)) { $errors.Add('Pointer restore failed.') }
     $point = [PtDesktop+POINT]::new()
     if (-not [PtDesktop]::GetCursorPos([ref]$point) -or $point.X -ne $Snapshot.pointer.X -or $point.Y -ne $Snapshot.pointer.Y) {
         $errors.Add('Pointer restore comparison failed.')
