@@ -15,7 +15,7 @@
   "all enabled" state.
 - **Representative module**: use one isolated, launchable module with a deterministic Named Event
   or visible process (for example Color Picker) for cross-surface enable/disable checks. Use
-  **Find My Mouse** for the legacy mouse-utility Quick Access case.
+  **Find My Mouse** for the mouse-utility Quick Access case.
 - **Quick Access**: distinguish the flyout launch page from **All apps**. Record the original
   Quick Access enabled state, shortcut, and sort order.
 - **Elevation**: record the Runner and Settings process integrity levels before and after every
@@ -24,6 +24,8 @@
   a disposable VM or an explicitly approved machine state. Preserve the report across reboots.
 - **Appearance and language**: record the original PowerToys theme, Windows app theme, display
   language, tray-icon options, and update-notification options; restore them in `finally`.
+- **Build-dependent presentation**: establish expected localized labels and the new-feature
+  badge set from the tested build's resources/release inputs before observing the UI.
 - **State hygiene**: close only Settings, Quick Access, OOBE/SCOOBE, and fixture windows opened by
   the current case. Do not terminate unrelated user applications.
 - See the [module profile](../modules/settings.md) for control interaction and restoration mechanics, and use the [frozen inventory](../assertion-inventories/settings.json) without run-local regrouping.
@@ -35,8 +37,8 @@
 - [ ] **Main window and entry routes** [ID: SET-MAIN-WINDOW] [ADMIN: NO]
   Open **PowerToys Settings** from the tray context menu and confirm one window opens on **Home**. Invoke Settings again from the tray and from a module's **Open settings** action; confirm the existing single Settings window is focused and navigates to the requested page rather than creating duplicate main windows.
 
-- [ ] **Every visible module page** [ID: SET-NAVIGATION] [ADMIN: NO]
-  Expand every navigation group and open every visible module page once. Confirm each selection shows the matching page title, the navigation selection follows the page, and `PowerToys.Settings.exe` remains alive without a navigation failure or blank page.
+- [ ] **Navigation, page titles, and feature badges** [ID: SET-NAVIGATION] [ADMIN: NO]
+  Expand every navigation group and open every visible module page once. Confirm matching page titles and navigation selection without a crash or blank page. Open General and expand the update-channel card; its description and choices must render without a navigation error. Confirm the File Explorer Add-ons rail label and page title agree in the selected language. Check module/group NEW badges against the tested build's declared new-feature set, including Window Hopper and Shortcut Guide, and confirm Home and Welcome agree with that set.
 
 - [ ] **Dashboard sorting** [ID: SET-DASHBOARD-SORT] [ADMIN: NO]
   On **Home**, switch the Utilities card between **Alphabetical** and **By status**. Confirm exactly one sort choice is checked, card order matches the selection, and the selected order persists after closing every Settings window and reopening.
@@ -83,10 +85,7 @@
 - [ ] **Change and reset the shortcut** [ID: SET-QUICK-ACCESS-BINDING] [ADMIN: NO]
   Assign Quick Access an unused shortcut and confirm the new chord opens the flyout while the old chord does not. Reopen the shortcut editor, click **Reset**, and confirm Settings does not crash, all shortcut key/modifier fields clear, the chord no longer opens Quick Access, and the cleared state persists after reopening Settings.
 
-- [ ] **Settings and Quick Access language** [ID: SET-LOCALIZATION] [ADMIN: NO]
-  Change the PowerToys language to a non-English supported language and use the page's restart action. Confirm Settings and Quick Access core chrome, sort labels, and actions use localized resources rather than missing-resource keys or unintended English fallback. Restore the original language.
-
-### Tray icon and appearance
+### Tray icon, appearance, and localization
 
 - [ ] **Tray icon visibility** [ID: SET-TRAY-VISIBILITY] [ADMIN: NO]
   Toggle **Show system tray icon** off and confirm the PowerToys icon disappears while Runner remains active and Settings stays usable. Turn it on again and confirm exactly one icon returns and both left-click and right-click actions still work.
@@ -95,7 +94,10 @@
   Enable **Use theme-aware tray icon**, switch the Windows app theme between Light and Dark, and confirm the icon redraws to remain visible in each theme without restarting PowerToys or creating a duplicate icon. Disable the option and confirm theme changes no longer select the adaptive variant.
 
 - [ ] **Coherent Settings themes** [ID: SET-THEME] [ADMIN: NO]
-  Switch PowerToys Settings through Light, Dark, and **Use Windows setting**, reopening Home, General, and What's New after each change. Confirm navigation, cards, dialogs, imagery, text, focus states, and disabled controls remain readable and use one coherent theme at narrow and wide window sizes.
+  Switch PowerToys Settings through Light, Dark, and **Use Windows setting**, checking Home, General, and What's New at narrow and wide sizes. Confirm navigation, cards, dialogs, imagery, text, focus states, and disabled controls remain readable and coherent. Explicitly check Windows Light / PowerToys Dark and Windows Dark / PowerToys Light, including What's New Markdown headings, links, body text, and caption buttons. With What's New kept open, switch PowerToys Light -> Dark while Windows stays Light, then Dark -> Light while Windows stays Dark; the same window's content and caption buttons must adopt the selected theme without reopening. Restore both original themes.
+
+- [ ] **Settings, Quick Access, and attribution language** [ID: SET-LOCALIZATION] [ADMIN: NO]
+  Change the PowerToys language to a non-English supported language and use the page's restart action. Confirm Settings and Quick Access core chrome, sort labels, and actions use localized resources rather than missing-resource keys or unintended English fallback. Inspect every attribution link on Color Picker, Image Resizer, Mouse Utilities, Mouse Without Borders, New+, Quick Accent, PowerToys Run, Text Extractor, File Explorer Add-ons, PowerRename, Shortcut Guide, and ZoomIt: surrounding attribution wording is localized, author/product/format names are preserved, and each link retains its intended destination. Restore the original language.
 
 ### Settings backup and restore
 
@@ -104,8 +106,8 @@
 
 ### Updates
 
-- [ ] **Last-checked display** [ID: SET-LAST-CHECKED] [ADMIN: NO]
-  Trigger **Check for updates**, then inspect both Home and General. Confirm they show the same last-checked value using **Today at ...** or **Yesterday at ...** for recent checks instead of a raw timestamp, and that the value remains correct after reopening Settings.
+- [ ] **Update-check display and settings isolation** [ID: SET-LAST-CHECKED] [ADMIN: NO]
+  Establish a reversible non-default module on/off combination and record the full enabled map and General preferences. Trigger **Check for updates** without downloading or installing. Before cleanup or compensating changes, confirm the enabled map and all General preferences remain unchanged, the selected modules' toggles and runtime state still match, and Home and General show the same last-checked value using **Today at ...** or **Yesterday at ...** for recent checks rather than a raw timestamp. Confirm the display remains correct after reopening Settings, then restore the original state. Update-status cache changes are expected; preference resets are not.
 
 - [ ] **Clean-install automatic-download default** [ID: SET-CLEAN-UPDATE-DEFAULT] [ADMIN: YES]
   On a clean installation or clean user profile with no existing general `settings.json`, open General and confirm **Download updates automatically** is enabled on first render and remains enabled after restarting PowerToys.
@@ -121,8 +123,8 @@
 - [ ] **Return from What's New** [ID: SET-WHATS-NEW-ENTRY] [ADMIN: NO]
   Open **What's New** from Home and General, then choose **Open Settings**. Confirm the existing main Settings window returns to **Home**, not a blank or stale module page, and repeated invocation does not create duplicate main windows.
 
-- [ ] **What's New and OOBE layout** [ID: SET-SECONDARY-LAYOUT] [ADMIN: NO]
-  Resize What's New and OOBE/SCOOBE wide and narrow. Confirm page content remains within the shared maximum width, refreshed PowerToys imagery loads without broken placeholders, release text remains readable, and primary navigation/actions stay reachable without horizontal scrolling.
+- [ ] **Secondary-window layout and startup** [ID: SET-SECONDARY-LAYOUT] [ADMIN: NO]
+  Resize What's New and OOBE/SCOOBE wide and narrow. Confirm page content remains within the shared maximum width, PowerToys imagery loads without broken placeholders, release text remains readable, and primary navigation/actions stay reachable without horizontal scrolling. Separately open the shortcut-conflict window from Home without changing any shortcuts. Confirm a nonempty native title and readable visible title appear with usable conflict-list or empty-state content, Settings stays alive through initial layout, and the owned window can be closed and reopened normally.
 
 - [ ] **Secondary-window process lifetime** [ID: SET-SECONDARY-LIFETIME] [ADMIN: NO]
   Open What's New or OOBE/SCOOBE, close the main Settings window, and confirm `PowerToys.Settings.exe` remains alive while the secondary window stays functional. Use **Open Settings** to restore the main window, close it again, then close the last secondary window and confirm the Settings process exits cleanly.

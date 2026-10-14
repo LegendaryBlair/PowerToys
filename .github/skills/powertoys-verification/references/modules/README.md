@@ -32,7 +32,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 | Color Picker | `color-picker.md` | Shared WIP harness baseline; WinUI profile and 25-assertion checklist migrated from the Color Picker branch |
 | Environment Variables | `environment-variables.md` | Shared WIP harness, private restoration helper and functional 29-scenario checklist with frozen assertion IDs |
 | Workspaces | `workspaces.md` | ✅ written 2026-08-12 (bottom-up automation profile plus an embedded top-down human workflow and sanitized visual landmarks) |
-| PowerToys Settings | `settings.md` | ✅ written 2026-08-14 (Settings/Quick Access state transitions, restart-safe recipes, backup picker flow, update/elevation blocks, and verified product quirks) |
+| PowerToys Settings | `settings.md` | Aligned operating-profile format: scoped main/secondary/Quick Access controls, hide-versus-exit lifecycle and explicit restoration/fixture boundaries; empty-shortcut, classic-picker and specialist-observer support still needs acceptance |
 | Shortcut Guide | `shortcut-guide.md` | ✅ written 2026-08-21 (app-aware manifests, Windows-key modes, overlay lifecycle, search/pinning, localization and CmdPal traps) |
 | ZoomIt | `zoomit.md` | ✅ written 2026-08-19 (hosted events, registry-backed settings, recording flows, input-blocking overlays, and hardware/drag constraints) |
 | Crop And Lock | `crop-and-lock.md` | ✅ written 2026-08-19 (mode events, selector lifecycle, shortcut persistence, crop creation, and real-drag constraints) |

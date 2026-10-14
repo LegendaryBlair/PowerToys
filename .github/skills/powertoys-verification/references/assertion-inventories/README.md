@@ -13,7 +13,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | New+ | 1 | 9 | 9 |
 | Peek | 1 | 18 | 18 |
 | PowerRename | 2 | 16 | 17 |
-| PowerToys Settings | 1 | 28 | 29 |
+| PowerToys Settings | 2 | 28 | 50 |
 | Shortcut Guide | 3 | 19 | 96 |
 | Workspaces | 2 | 38 | 72 |
 | ZoomIt | 1 | 39 | 39 |
@@ -30,6 +30,11 @@ list in Markdown. A child covering several required inputs passes only after **a
 inputs are observed. Keep individual parameter observations even when they share one child.
 `Sources` on new definitions retains original requirement aliases where supplied; it is
 provenance, not a substitute for observing the described behavior.
+
+Settings retains its existing scenario/child IDs and reports navigation details, all 12
+attribution pages, opposite/live theme conditions, immediate update-check isolation and
+shortcut-conflict startup as independent children. Static/reopened theme observations and
+final restoration cannot replace live-window transitions or pre-cleanup isolation evidence.
 
 Color Picker revision 2 and Shortcut Guide revision 2 move the original named expectations
 into JSON without changing child IDs or scenario membership. Workspaces revision 2 merges

@@ -1,7 +1,7 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 1,
-  "SourceSha256": "DE475722B2D91B815DE0781420281AD7099A5702F0B3B8029E323BD67B6D3F09",
+  "Revision": 2,
+  "SourceSha256": "175F891C26A5212D9F56A3E32F95CCC7B2742EB77A586BAA84E8745A28D81A82",
   "Items": [
     {
       "Id": "SET-MAIN-WINDOW",
@@ -18,6 +18,27 @@
         {
           "Id": "SET-NAVIGATION.behavior",
           "Description": "Expand every navigation group and open every visible module page once. Confirm each selection shows the matching page title, the navigation selection follows the page, and `PowerToys.Settings.exe` remains alive without a navigation failure or blank page."
+        },
+        {
+          "Id": "SET-NAVIGATION.general-update-channel",
+          "Description": "Open General, expand its update-channel card, and confirm the description and Stable/Insider choices render without a navigation exception, blank content, or Settings process exit. This observation does not change the channel or certify channel-selection/policy behavior.",
+          "Sources": [
+            "#49801"
+          ]
+        },
+        {
+          "Id": "SET-NAVIGATION.file-explorer-label",
+          "Description": "Confirm the navigation label and destination page title both use File Explorer Add-ons, or the matching localized product label, rather than mismatched names.",
+          "Sources": [
+            "#49692"
+          ]
+        },
+        {
+          "Id": "SET-NAVIGATION.new-badges",
+          "Description": "Freeze the expected new-feature set from the tested build's matching source/release inputs before observing badges. Check Window Hopper, Shortcut Guide and their navigation groups, plus the matching Home and Welcome module entries. For a set declaring Window Hopper new and Shortcut Guide not new, Window Hopper and its Windowing & Layouts group carry NEW while Shortcut Guide does not. Require each surface to match its declared set; do not infer that set from the observed UI or a newer checkout.",
+          "Sources": [
+            "#49995"
+          ]
         }
       ]
     },
@@ -178,18 +199,6 @@
       ]
     },
     {
-      "Id": "SET-LOCALIZATION",
-      "Assertions": [
-        {
-          "Id": "SET-LOCALIZATION.behavior",
-          "Description": "Change the PowerToys language to a non-English supported language and use the page's restart action. Confirm Settings and Quick Access core chrome, sort labels, and actions use localized resources rather than missing-resource keys or unintended English fallback. Restore the original language.",
-          "Sources": [
-            "#44626"
-          ]
-        }
-      ]
-    },
-    {
       "Id": "SET-TRAY-VISIBILITY",
       "Assertions": [
         {
@@ -222,6 +231,130 @@
           "Sources": [
             "#46922, #48024"
           ]
+        },
+        {
+          "Id": "SET-THEME.os-light-app-dark",
+          "Description": "Establish effective Windows Light and PowerToys Dark. Inspect Home, General and What's New at narrow and wide sizes, explicitly including rendered Markdown headings, links, body text and caption buttons in What's New. All must remain readable and follow the selected PowerToys theme, not the opposite Windows theme.",
+          "Sources": [
+            "#48910"
+          ]
+        },
+        {
+          "Id": "SET-THEME.os-dark-app-light",
+          "Description": "Establish effective Windows Dark and PowerToys Light. Inspect Home, General and What's New at narrow and wide sizes, explicitly including rendered Markdown headings, links, body text and caption buttons in What's New. All must remain readable and follow the selected PowerToys theme, not the opposite Windows theme.",
+          "Sources": [
+            "#48910"
+          ]
+        },
+        {
+          "Id": "SET-THEME.live-light-to-dark",
+          "Description": "Keep an owned What's New window open with release text rendered and Windows held at Light. Change PowerToys from Light to Dark; the same HWND must remain usable and update its Markdown headings, links, body and caption buttons to readable Dark-theme rendering without a close/reopen workaround.",
+          "Sources": [
+            "#48910"
+          ]
+        },
+        {
+          "Id": "SET-THEME.live-dark-to-light",
+          "Description": "Keep an owned What's New window open with release text rendered and Windows held at Dark. Change PowerToys from Dark to Light; the same HWND must remain usable and update its Markdown headings, links, body and caption buttons to readable Light-theme rendering without a close/reopen workaround. Restore both original themes after the matrix.",
+          "Sources": [
+            "#48910"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "SET-LOCALIZATION",
+      "Assertions": [
+        {
+          "Id": "SET-LOCALIZATION.behavior",
+          "Description": "Change the PowerToys language to a non-English supported language and use the page's restart action. Confirm Settings and Quick Access core chrome, sort labels, and actions use localized resources rather than missing-resource keys or unintended English fallback. Restore the original language.",
+          "Sources": [
+            "#44626"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-color-picker",
+          "Description": "In the selected non-English language, inspect both Color Picker attribution links. Localize the surrounding wording, preserve Martin Chrzan, Color Picker, Niels Laute and UX, and retain the respective destinations https://github.com/martinchrzan/ColorPicker/ and https://medium.com/@Niels9001/a-fluent-color-meter-for-powertoys-20407ededf0c without missing-resource keys or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-image-resizer",
+          "Description": "In the selected non-English language, confirm Image Resizer localizes attribution wording while preserving Brice Lambson and ImageResizer, retaining https://github.com/bricelam/ImageResizer/, and showing no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-mouse-utilities",
+          "Description": "In the selected non-English language, inspect both Mouse Utilities attribution links. Localize the surrounding wording, preserve Raymond Chen, Find My Mouse, Michael Clayton, Mouse Jump and FancyMouse, and retain the respective destinations https://devblogs.microsoft.com/oldnewthing/author/oldnewthing and https://michael-clayton.com/projects/fancymouse without missing-resource keys or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-mouse-without-borders",
+          "Description": "In the selected non-English language, confirm Mouse Without Borders localizes the original-contributors attribution while preserving both supplied forms of Truong Do's name, including the original Vietnamese diacritics. Retain https://github.com/microsoft/PowerToys/blob/main/COMMUNITY.md#mouse-without-borders-original-contributors and the separate Mouse without Borders product link http://aka.ms/mm; show no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-new-plus",
+          "Description": "In the selected non-English language, confirm New+ localizes attribution wording while preserving Christian Gaardmark, New++ and Productivity Plus Pack, retaining https://www.onegreatworld.com/products/productivity-plus-pack/?ref=settings_pt, and showing no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-quick-accent",
+          "Description": "In the selected non-English language, confirm Quick Accent localizes attribution wording while preserving Damien Leroy and PowerAccent, retaining https://github.com/damienleroy/PowerAccent, and showing no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-powertoys-run",
+          "Description": "In the selected non-English language, confirm PowerToys Run localizes the Window Walker attribution while preserving Beta Tadele and Window Walker, retaining https://github.com/betsegaw/windowwalker/, and showing no missing-resource key or unintended English attribution fallback. Its separate Wox product name/link https://github.com/Wox-launcher/Wox/ remains unchanged.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-text-extractor",
+          "Description": "In the selected non-English language, confirm Text Extractor localizes attribution wording while preserving Joseph Finney and Text Grab, retaining https://github.com/TheJoeFin/Text-Grab, and showing no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-file-explorer",
+          "Description": "In the selected non-English language, inspect both File Explorer Add-ons attribution links. Localize surrounding wording, preserve Noraa Junker, Pedro Lamas, G-Code, Binary G-Code, STL and QOI, and retain the respective destinations https://noraajunker.ch and https://www.pedrolamas.com without missing-resource keys or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-power-rename",
+          "Description": "In the selected non-English language, confirm PowerRename localizes attribution wording while preserving Chris Davis and SmartRenamer, retaining https://github.com/chrdavis/SmartRename, and showing no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-shortcut-guide",
+          "Description": "In the selected non-English language, confirm Shortcut Guide localizes attribution wording while preserving Noraa Junker and Shortcut Guide V2, retaining https://noraajunker.ch, and showing no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
+        },
+        {
+          "Id": "SET-LOCALIZATION.attribution-zoomit",
+          "Description": "In the selected non-English language, confirm ZoomIt localizes attribution wording while preserving Sysinternals ZoomIt, Mark Russinovich, Alex Mihaiuc and John Stephens, retaining https://learn.microsoft.com/sysinternals/downloads/zoomit, and showing no missing-resource key or unintended English attribution fallback.",
+          "Sources": [
+            "#49690"
+          ]
         }
       ]
     },
@@ -252,6 +385,13 @@
           "Description": "Trigger **Check for updates**, then inspect both Home and General. Confirm they show the same last-checked value using **Today at ...** or **Yesterday at ...** for recent checks instead of a raw timestamp, and that the value remains correct after reopening Settings.",
           "Sources": [
             "#46923"
+          ]
+        },
+        {
+          "Id": "SET-LAST-CHECKED.settings-isolation",
+          "Description": "Before Check for updates, use authorized reversible module toggles to establish a non-default on/off combination and record the full enabled map, persisted General preferences and selected modules' UI/runtime state. Immediately after the actual check and before cleanup, reassert the entire enabled map and all General preferences unchanged, with the selected modules' toggles and actual runtime still matching. Keep timestamp/update-cache changes separate from preferences; final restoration cannot substitute for this immediate observation. Do not download/install or inject a fabricated IPC payload; restore the original fixture state afterward.",
+          "Sources": [
+            "#50018"
           ]
         }
       ]
@@ -309,9 +449,16 @@
       "Assertions": [
         {
           "Id": "SET-SECONDARY-LAYOUT.behavior",
-          "Description": "Resize What's New and OOBE/SCOOBE wide and narrow. Confirm page content remains within the shared maximum width, refreshed PowerToys imagery loads without broken placeholders, release text remains readable, and primary navigation/actions stay reachable without horizontal scrolling.",
+          "Description": "Resize What's New and OOBE/SCOOBE wide and narrow. Confirm page content remains within the shared maximum width, PowerToys imagery loads without broken placeholders, release text remains readable, and primary navigation/actions stay reachable without horizontal scrolling.",
           "Sources": [
             "#48024"
+          ]
+        },
+        {
+          "Id": "SET-SECONDARY-LAYOUT.conflict-startup",
+          "Description": "From Home's shortcut-conflict entry, open the actual conflict window under the configured language without changing any shortcut or Ignore setting. Observe its nonempty native window title and readable visible title at initial usable layout, its populated list or legitimate no-conflicts state, and the surviving Settings process. Close the owned window, reopen through the same entry, and confirm another usable nonempty-titled window. Welcome/What's New results and injected missing-resource branches are not substitutes for this ordinary startup observation.",
+          "Sources": [
+            "#49069"
           ]
         }
       ]
