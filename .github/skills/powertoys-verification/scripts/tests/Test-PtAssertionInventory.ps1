@@ -13,7 +13,7 @@ function Reject([scriptblock]$Body,[string]$Pattern){
 $expectedInventories=[ordered]@{
     'advanced-paste'=@(29,32); 'color-picker'=@(17,25); 'crop-and-lock'=@(13,14)
     'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(12,18)
-    'new-plus'=@(9,9); 'peek'=@(18,18); 'power-rename'=@(16,17); 'settings'=@(28,29)
+    'new-plus'=@(9,9); 'peek'=@(18,18); 'power-rename'=@(16,17); 'settings'=@(28,50)
     'shortcut-guide'=@(19,96); 'workspaces'=@(38,72); 'zoomit'=@(39,39)
 }
 $checklists=@(Get-ChildItem "$skill\references\release-checklist" -Filter '*.md' |
