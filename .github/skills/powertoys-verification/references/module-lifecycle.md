@@ -168,5 +168,73 @@ exiting candidates, PID reuse, path/session filtering, ambiguity and error prove
 The installed acceptance uses SG (`Resident`) and Find My Mouse (`RunnerHosted`),
 does not invoke either module's feature, and leaves its recorded run open for the
 caller's final file/directory/desktop cleanup and fixed report finalization.
-Use this helper instead of the legacy force-killing `Restart-PtRunner` for module-local
-verification. AppX-specific recycling remains a separate explicit adapter, not a fallback.
+Use this helper for module-local verification. AppX-specific recycling remains a separate
+explicit adapter, not a fallback.
+
+## Full PowerToys restart
+
+`Restart-PtRunner` in `scripts/pt-state.ps1` is the **single full PowerToys restart API**.
+Runner owns the tray, module loader and shutdown lifecycle; its normal exit also closes
+Settings and stops its managed modules/Quick Access. This is not a Windows reboot and
+does not promise to keep every module process alive. There is no separate runner-only
+restart or `Restart-PowerToys` alias. Use module disable/enable when only that module
+needs a lifecycle transition.
+
+| Parameter | Contract |
+|---|---|
+| `Prepare` | Required callback receiving the captured installation/process/visible-window state and `ArgumentList`. Preserve affected files and logical UI state, settle actual drafts and clipboard dependencies, then return exactly Boolean true. A process being present/enabled does not itself establish an unsafe activity. |
+| `VerifyReady` | Required read-only callback receiving the newly observed Runner identity and `ArgumentList`. Check the case's actual Settings/module readiness; return exactly Boolean true or false. False is polled, exceptions propagate. Native tray-host readiness alone does not certify all modules. |
+| `RestartAction` | Optional real product action that performs its own complete restart, such as Settings Restart, language Restart or Restart as administrator. Invoked once; failure never falls back to a manual restart. |
+| `Launch` | Optional launch adapter for the normal exit/relaunch route, receiving the original state and `ArgumentList`. Required when the driver and original Runner tokens differ; preserve the original user's session/token and executable path. It cannot be combined with `RestartAction`. |
+| `ExpectedElevation` | `Preserve` by default. `Elevated`/`NonElevated` require a product `RestartAction`; the helper validates the actual result, never approves UAC or silently elevates. |
+| `TimeoutSeconds` | Bound for each exit/readiness observation, not a whole-run cutoff. A timeout does not permit force-kill, action replay or installing different bits. |
+
+The default route resolves one current-session Runner, its actual executable/hash and exact
+tray HWND, posts normal `WM_CLOSE`, observes that creation's exit, then starts the same path
+once. It checks the new path, session and token plus two stable native/readiness observations.
+The launch token must match the old Runner; use the real product restart route or an explicitly
+verified launch adapter otherwise. No fixed install path, first-process selection, force-kill
+or fixed startup sleep remains. Ordinary graceful exit can flush cached settings, so apply
+preferences through their supported Settings UI; do not use a restart to conceal an ineffective
+direct edit to root JSON.
+
+Supply real preparation/readiness callbacks, not constant success stubs. The operation belongs
+inside the existing recorded case/step:
+
+```powershell
+# Both callbacks come from the case's declared preservation/readiness plan.
+$restart = Restart-PtRunner -Prepare $prepareRestart -VerifyReady $observeRestartReadiness `
+    -ArgumentList @($fixtureContext)
+# For a specified UI route, add -RestartAction $invokeActualRestartControl instead.
+```
+
+The receipt records `Before`, `After`, route, action/launch progress and
+`InvalidatePriorReferences`. On error, `Exception.Data['RunnerRestartReceipt']` preserves the
+partial progress; keep it with the original error and perform the declared cleanup. Rediscover
+module/Settings HWNDs and controls even if a numeric PID/HWND is reused. A successful restart
+is not a file/draft restoration receipt or a product assertion.
+
+For borrowed main Settings that must survive **logically**, opt in before capturing the run
+baseline with a Settings resource's `AllowRunnerRestart=true` (or
+`Get-PtSettingsUiSnapshot -AllowRunnerRestart` for a manual resource session). The common
+operation records the authorized transition. In the declared cleanup, pass the independently
+identified new main window to
+`Restore-PtSettingsUiSnapshot -Snapshot $original -ReplacementIdentity $newMainIdentity`.
+It verifies same installation/session and a new creation after the restart, restores supported
+page/scroll/placement and records the replacement separately. The immutable original snapshot
+is not rewritten. The template's subsequent restore/final comparison uses that replacement,
+including original Settings foreground restoration.
+
+Other borrowed windows and explicit same-process-lifetime resources still need their actual
+preservation contract; this opt-in does not discard unknown drafts, waive clipboard ownership
+or turn all new module processes into disposable owned fixtures. Prefer a logical `Other`
+resource with paired cleanup for processes expected to change, rather than a declaration that
+the old process must remain alive. Do not label restart itself destructive or skip an entire
+module because unrelated ordinary PowerToys processes exist. Report the specific unresolved
+state/permission instead. Windows reboot, installer replacement and corruption fixtures remain
+separate boundaries.
+
+`scripts\tests\Test-PtRunnerRestart.ps1` covers the contract with failure injection and an
+actual hidden native fixture executing `WM_CLOSE`/same-path relaunch. It does not restart the
+installed product. Session/resource/template tests cover Settings replacement authorization,
+baseline retention and logical restoration.

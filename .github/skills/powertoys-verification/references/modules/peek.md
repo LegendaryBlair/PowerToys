@@ -81,7 +81,7 @@ Wakes the resident Peek process (different from CLI back-door — respects curre
 | 9 | Concurrent Peek sessions don't crash/interfere | launch `Peek.UI.exe` several times on different files, leaving windows open | each spawns its own process/window; no error in `Peek\Logs` |
 | 10 | Arrow keys cycle between selected files | Shell COM multi-file selection → Ctrl+Space → `Send-PtChord` Right/Left | window title updates to each file in sequence, wraps at the ends |
 | 11 | Multi-file selection scopes navigation | select a subset of a folder → navigate | only the selected files cycle, not the rest |
-| 12 | Activation-hotkey reassignment takes effect | edit `Peek\settings.json` `properties.ActivationShortcut` → `Restart-PtRunner` (**not hot-reloaded** — see Gotchas) → press the new chord, then the old chord | new chord opens Peek; old chord does nothing |
+| 12 | Activation-hotkey reassignment takes effect | Use Peek's actual Settings shortcut recorder; save, then press the new chord and the old chord before any restart | new chord opens Peek; old chord does nothing; restore the original through the same recorder |
 
 > **Mapping process**: read the actual checklist item → identify the capability → find its row → drive the named control and design your own inputs + assertions for *that* item. If no row matches, it's a NEW capability — drive ad-hoc and add a row (capability + control + observation point; no canned inputs).
 
@@ -95,7 +95,7 @@ If the agent tried Shell COM + Ctrl+Space and got `GetForegroundWindow()=0` + `S
 
 Module quirks that mislead driving:
 - **Elevated Peek breaks WebView2 previews.** Launching `Peek.UI.exe` from an elevated shell → high-IL Peek → `PreviewWV2_Loaded` NRE + endless "Busy" for dev/md/PDF/HTML (image still works). Launch **non-elevated** (`Start-PtNonElevated`); NOT a product bug. See entry-path 1 warning.
-- **Activation-shortcut is NOT hot-reloaded.** Editing `Peek\settings.json` `ActivationShortcut` does nothing until `Restart-PtRunner`. Restart after the change AND after restoring.
+- **A direct JSON edit is not the shortcut-recorder path.** Use the shipped Settings UI and observe real binding behavior before restarting. Only a separately specified full-restart persistence case uses the shared [Restart-PtRunner contract](../module-lifecycle.md#full-powertoys-restart); a restart cannot conceal a failed immediate binding update.
 - **PinButton spawns a `PopupHost` teaching-tip** (~192x63) that surfaces first in `list-windows`. Match by title suffix `- Peek`, or cache the Peek HWND before invoking PinButton.
 - **Win11 Notepad tabs/session-restore** muddy open-with-default tests: spawned Notepad restores prior tabs. Match `"<file> - Notepad"` explicitly.
 - **Don't `Stop-Process PowerToys.Peek.UI`** to close between iterations — bypasses the pin-save handler. Use Esc / `winapp ui invoke CloseButton`.

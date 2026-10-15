@@ -52,7 +52,7 @@ function Test-ProcessElevated {
             $ti = [Runtime.InteropServices.Marshal]::AllocHGlobal(4)
             $rl = 0
             try {
-                [PtTok]::GetTokenInformation($t, 20, $ti, 4, [ref]$rl) | Out-Null
+                if (-not [PtTok]::GetTokenInformation($t, 20, $ti, 4, [ref]$rl)) { return $null }
                 return ([Runtime.InteropServices.Marshal]::ReadInt32($ti) -eq 1)
             } finally { [Runtime.InteropServices.Marshal]::FreeHGlobal($ti) }
         } finally { [PtTok]::CloseHandle($t) | Out-Null }

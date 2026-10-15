@@ -36,6 +36,13 @@ Check 'Missing Settings target and cleanup comparisons fail before driving' {
     $copy.Resources[0].Hwnd=0
     Reject {Assert-PtRunResourcePlan $copy $steps} 'unique, positive'
 }
+Check 'Settings restart permission must be an explicit Boolean resource field' {
+    $copy=ConvertFrom-PtReportJson (ConvertTo-Json $plan -Depth 10)
+    $copy.Resources[0]|Add-Member NoteProperty AllowRunnerRestart 'yes'
+    Reject {Assert-PtRunResourcePlan $copy $steps} 'AllowRunnerRestart must be Boolean'
+    $copy.Resources[0].AllowRunnerRestart=$true
+    Assert-PtRunResourcePlan $copy $steps
+}
 Check 'Borrowed windows cannot omit ownership and duplicate resources remain invalid' {
     $copy=ConvertFrom-PtReportJson (ConvertTo-Json $plan -Depth 10)
     $copy.Resources[2].Ownership=$null

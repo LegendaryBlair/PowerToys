@@ -1,4 +1,4 @@
-# Settings-specific UI state over canonical window identities. No Settings process creation/termination.
+# Settings-specific UI state over canonical identities, with explicit Runner-restart handover.
 foreach($dependency in 'pt-ui-observation','pt-state-snapshot','pt-foreground-guard'){. "$PSScriptRoot\$dependency.ps1"}
 
 function Get-PtSettingsAutomationRoot {
@@ -113,13 +113,20 @@ function Get-PtSettingsUiSnapshot {
     <#.SYNOPSIS
     Capture the borrowed Settings window before navigation, preserving only explicitly supported state.
     #>
-    param([Parameter(Mandatory)][long]$Hwnd,[Parameter(Mandatory)][string]$Workspace)
+    param([Parameter(Mandatory)][long]$Hwnd,[Parameter(Mandatory)][string]$Workspace,[switch]$AllowRunnerRestart)
     $identity=Get-PtWindowIdentity $Hwnd
     $session=Get-PtActiveResourceSession
     if($session){
         Assert-PtResourceSession $session
+        $planned=@($session.ResourcePlan.Resources|Where-Object {$_.Kind -eq 'Settings' -and $_.Hwnd -eq $Hwnd})
+        if($AllowRunnerRestart -and $planned.Count -eq 1 -and $planned[0].AllowRunnerRestart -ne $true){
+            throw 'Settings restart permission must agree with the original resource plan.'
+        }
         $existing=@($session.Settings|Where-Object {$_.Identity.hwnd -eq $Hwnd})
         if($existing.Count){
+            if($AllowRunnerRestart -and -not $existing[0].AllowRunnerRestart){
+                throw 'A same-instance Settings baseline cannot become restartable after capture.'
+            }
             if($existing[0].Hash -cne (Get-PtReportHash ([IO.File]::ReadAllBytes($existing[0].Path)))){
                 throw 'Settings original snapshot changed.'
             }
@@ -137,6 +144,15 @@ function Get-PtSettingsUiSnapshot {
         Scope=@('WindowIdentity','Placement','Visibility','SelectedPage','NamedExpansion','NamedScrollPatterns')
         UnsupportedState=@('IME composition/conversion','Keyboard focus','Unsaved page drafts','Unexposed scroll state')+@($ui.UnsupportedControls)
         Path=Join-Path $Workspace "settings-ui-$([guid]::NewGuid().ToString('N')).json"
+    }
+    if($AllowRunnerRestart){
+        if(-not $session){throw 'Restartable Settings requires an active resource session.'}
+        $process=Get-PtResourceProcessIdentity -ProcessId $identity.processId
+        if(-not $process -or [IO.Path]::GetFileName($process.path) -ine 'PowerToys.Settings.exe'){
+            throw 'Restartable Settings must belong to the actual Settings executable.'
+        }
+        $snapshot|Add-Member NoteProperty AllowRunnerRestart $true
+        $snapshot|Add-Member NoteProperty Process $process
     }
     Write-PtReportText $snapshot.Path (ConvertTo-Json $snapshot -Depth 20)
     Register-PtSettingsObligation $snapshot
@@ -182,8 +198,45 @@ function Set-PtSettingsUiState {
     }
 }
 
+function Get-PtSettingsRestorationSnapshot {
+    <#.SYNOPSIS
+    Resolve an explicitly authorized replacement without rewriting the original baseline.
+    #>
+    param([Parameter(Mandatory)]$Snapshot,$ReplacementIdentity)
+    $session=Get-PtActiveResourceSession
+    $record=@($session.Settings|Where-Object Path -CEQ $Snapshot.Path)
+    if(-not $ReplacementIdentity -and $record.Count -eq 1){$ReplacementIdentity=$record[0].ReplacementIdentity}
+    if(-not $ReplacementIdentity){return $Snapshot}
+    if(-not $session -or $record.Count -ne 1 -or -not $Snapshot.AllowRunnerRestart -or
+        -not $record[0].AllowRunnerRestart -or -not $record[0].RestartAuthorization){
+        throw 'Settings replacement requires original opt-in and a recorded Restart-PtRunner transition.'
+    }
+    Assert-PtResourceSession $session
+    if($record[0].Hash -cne (Get-PtReportHash ([IO.File]::ReadAllBytes($Snapshot.Path)))){
+        throw 'Settings original snapshot changed.'
+    }
+    $authorization=$record[0].RestartAuthorization
+    $runner=Get-PtLifecycleRunner
+    if($runner.path -ine $authorization.Runner.path -or $runner.sessionId -ne $authorization.Runner.sessionId -or
+        ($runner.processId -eq $authorization.Runner.processId -and $runner.processStartTicks -eq $authorization.Runner.processStartTicks)){
+        throw 'The authorized Runner has not been replaced by the same installation/session.'
+    }
+    Assert-PtWindowIdentity $ReplacementIdentity
+    $process=Get-PtResourceProcessIdentity -ProcessId $ReplacementIdentity.processId
+    if(-not $process -or $process.path -ine $Snapshot.Process.path -or
+        $process.sessionId -ne $Snapshot.Process.sessionId -or
+        $process.processStartTicks -lt $authorization.StartedTicks -or
+        $ReplacementIdentity.className -cne $Snapshot.Identity.className){
+        throw 'Settings replacement path/session/creation/class does not match the authorized restart.'
+    }
+    $effective=ConvertFrom-PtReportJson (ConvertTo-Json $Snapshot -Depth 20)
+    $effective.Identity=$ReplacementIdentity;$effective.Native.identity=$ReplacementIdentity
+    $effective.Scope=@($Snapshot.Scope|Where-Object {$_ -cne 'WindowIdentity'})+@('AuthorizedReplacementIdentity')
+    $effective
+}
+
 function Restore-PtSettingsUiSnapshot {
-    param([Parameter(Mandatory)]$Snapshot)
+    param([Parameter(Mandatory)]$Snapshot,$ReplacementIdentity)
     $session=Get-PtActiveResourceSession
     if($session){
         Assert-PtResourceSession $session
@@ -197,6 +250,12 @@ function Restore-PtSettingsUiSnapshot {
     if($stored.Schema -cne 'PtSettingsUi.v1' -or
         (ConvertTo-Json $stored -Depth 20 -Compress) -cne (ConvertTo-Json $Snapshot -Depth 20 -Compress)){
         throw 'Settings baseline changed; refusing restoration.'
+    }
+    $Snapshot=Get-PtSettingsRestorationSnapshot -Snapshot $Snapshot -ReplacementIdentity $ReplacementIdentity
+    if($ReplacementIdentity){
+        $registered[0].ReplacementIdentity=$ReplacementIdentity
+        $registered[0].Restored=$false
+        Save-PtResourceSession $session
     }
     Assert-PtWindowIdentity $Snapshot.Identity
     $failure=$null

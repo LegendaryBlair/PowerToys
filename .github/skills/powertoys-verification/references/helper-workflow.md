@@ -13,6 +13,7 @@ Do not load helpers from another worktree to fill an unresolved dependency.
 | Pointer restoration | `Restore-PtPointerPosition`, `Restore-PtDesktopSnapshot` | Verify already-restored coordinates without input; otherwise restore the pointer before returning foreground to a higher-integrity window. Owned Explorer cleanup performs this before closing its interaction window. Refusal/readback mismatch remains an error. |
 | Controls, values and shortcut recording | `pt-uia.ps1`, `pt-ui-observation.ps1`, `pt-shortcut-recorder.ps1` | Keep typed scoped resolution and the existing recorder; no CP `Resolve-PtUiControl` / `Set-PtScopedToggle` wrapper. |
 | Input and module lifecycle | existing chord/held-key/foreground/lifecycle helpers | Explicit operations, no automatic Runner restart; active-session clipboard dependencies gate disable/restart. |
+| Full PowerToys restart | `Restart-PtRunner` in `pt-state.ps1` | One explicit [restart operation](module-lifecycle.md#full-powertoys-restart), normal exit/relaunch or actual product action, checked new identity/token and caller-declared readiness; never a Windows reboot or automatic error recovery. |
 | Live settings reads | `pt-file-io.ps1` | Shared read/write/delete handles prevent readers blocking normal writers; not a guarantee of an atomic, fully settled JSON document. |
 | File and directory restoration | `pt-state-snapshot.ps1`, `pt-directory-snapshot.ps1` | Reuse snapshot shape. Explicit `-ExpectedState` adds guarded existing-file rollback; directory rollback handles owned existence changes. Legacy unguarded calls are not concurrency-safe. |
 | Private environment preservation | `pt-environment-variables-state.ps1` | Module-specific encrypted raw-value/type and file baselines; use the common recorder/cleanup with [privacy-safe integration](environment-variables-fixtures.md#wip-run-integration), not a separate report system. |
@@ -23,10 +24,11 @@ Do not load helpers from another worktree to fill an unresolved dependency.
 | Ownership, Settings and cleanup | `pt-session-safety.ps1`, `pt-settings-session.ps1`, `pt-cleanup-plan.ps1` | Persist borrowed/created resources, supported original Settings UI state and explicit cleanup dependencies; use the [session safety contract](session-safety.md). |
 | Stable assertions | `pt-assertion-inventory.ps1` | [Reviewed source-bound inventories](assertion-inventories/README.md), not run-local child generation. |
 
-`pt-state.ps1` remains a legacy convenience surface. New workflows use the strict lifecycle
-reader for enablement, not `Test-PtModuleEnabled`'s missing-value fallback, and do not call
-`Restart-PtRunner` or force-copy `Restore-PtModuleSettings` as generic recovery. Retaining
-old callers is compatibility, not an endorsement of their weaker ownership/restore behavior.
+Most of `pt-state.ps1` remains a legacy convenience surface; `Restart-PtRunner` is the shared
+explicit full-restart operation. New workflows use the strict lifecycle reader for enablement,
+not `Test-PtModuleEnabled`'s missing-value fallback, and do not force-copy
+`Restore-PtModuleSettings` as generic recovery. Restart requires real preparation/readiness
+callbacks and does not rescue a failed Normal observation.
 
 The thin template enables resource protection before Preflight. Supply Settings HWNDs
 **before navigation**, explicit cleanup dependencies and comparisons against this run's

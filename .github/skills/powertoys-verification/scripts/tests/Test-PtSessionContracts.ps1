@@ -238,5 +238,44 @@ Check 'Cleanup enforces order, requires Boolean comparison and continues indepen
         Reject {Invoke-PtCleanupPlan $attempt @($steps[2],$steps[0])} 'safe order'
     }finally{Stop-PtVerificationAttempt $attempt -Reason 'Expected injected failures'}
 }
+Check 'Restartable Settings restores onto an authorized replacement without altering the baseline' {
+    $run=Session
+    $script:ui=[pscustomobject]@{PageAutomationId='DashboardNavItem';Expansion=@();Scroll=@();UnsupportedControls=@()}
+    $script:placement=[pscustomobject]@{showCmd=1;Normal=@(10,20,600,800)}
+    $script:processes[10]|Add-Member NoteProperty Path 'C:\fixture\PowerToys.Settings.exe'
+    function Get-PtWindowSnapshot {param($Hwnd) [pscustomobject]@{identity=Get-PtWindowIdentity $Hwnd;placement=$script:placement;visible=$true}}
+    function Restore-PtWindowSnapshot {param($Snapshot) $script:placement=$Snapshot.placement;$Snapshot}
+    function Read-PtSettingsUiState {param($Hwnd) $script:ui}
+    function Get-PtSettingsCurrentState {param($Hwnd,[switch]$AllowTemporaryRestore) [pscustomobject]@{Native=Get-PtWindowSnapshot $Hwnd;Ui=$script:ui}}
+    function Set-PtSettingsUiState {param($Hwnd,$State) $script:ui=$State}
+    function Show-PtSettingsForObservation {param($Hwnd)}
+    function Get-PtLifecycleRunner {[pscustomobject]@{processId=31;processStartTicks=300L;sessionId=1;path='C:\fixture\PowerToys.exe'}}
+    $snapshot=Get-PtSettingsUiSnapshot 10 $run.Workspace -AllowRunnerRestart
+    $original=[IO.File]::ReadAllText($snapshot.Path)
+    $script:processes[30]=[pscustomobject]@{Id=30;StartTime=[datetime]'2026-01-01T00:00:00Z';Path='C:\fixture\PowerToys.Settings.exe'}
+    $replacement=Native 30 30
+    Reject {Restore-PtSettingsUiSnapshot $snapshot -ReplacementIdentity $replacement} 'recorded Restart-PtRunner'
+    $session=Get-PtActiveResourceSession
+    $session.Settings[0].RestartAuthorization=[pscustomobject]@{
+        Runner=[pscustomobject]@{processId=29;processStartTicks=200L;sessionId=1;path='C:\fixture\PowerToys.exe'}
+        StartedTicks=([datetime]'2025-12-31T00:00:00Z').Ticks
+    }
+    Save-PtResourceSession $session
+    $script:processes[30].Path='C:\foreign\PowerToys.Settings.exe'
+    Reject {Restore-PtSettingsUiSnapshot $snapshot -ReplacementIdentity $replacement} 'replacement path/session'
+    $script:processes[30].Path='C:\fixture\PowerToys.Settings.exe'
+    $script:windows.Remove(10L);$script:processes.Remove(10)
+    $script:ui=[pscustomobject]@{PageAutomationId='GeneralNavItem';Expansion=@();Scroll=@();UnsupportedControls=@()}
+    $restored=Restore-PtSettingsUiSnapshot $snapshot -ReplacementIdentity $replacement
+    Require ($restored.Restored -and $restored.Identity.hwnd -eq 30 -and $script:ui.PageAutomationId -ceq 'DashboardNavItem') 'Logical state did not follow authorized replacement'
+    Require ([IO.File]::ReadAllText($snapshot.Path) -ceq $original -and $snapshot.Identity.hwnd -eq 10) 'Original baseline identity was overwritten'
+    Restore-PtSettingsUiSnapshot $snapshot|Out-Null
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Restarted Settings logical restoration' -Kind Normal
+    try{Complete-PtResourceSession $attempt|Out-Null}
+    finally{Stop-PtVerificationAttempt $attempt -Reason 'Actual replacement and original logical state compared'}
+    $session.Settings[0].ReplacementIdentity.processStartTicks++
+    Save-PtResourceSession $session
+    Reject {Restore-PtSettingsUiSnapshot $snapshot} 'identity changed'
+}
 $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
 "PASS: $($results.Count) session contract groups; no real desktop/clipboard mutation. $Workspace"
