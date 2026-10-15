@@ -31,6 +31,10 @@ Every non-Settings resource maps `RestoreStep` to a real cleanup step with both 
 and `Verify`; Clipboard requires phase `Clipboard`, and Window requires explicit
 `Ownership=Borrowed/Owned`. A Settings resource requires its known positive HWND and
 uses the template's built-in adapter, not a substitute cleanup callback.
+For a case that explicitly restarts PowerToys, a main Settings resource can declare
+`AllowRunnerRestart=$true` before capture. This preserves supported logical UI state across
+the authorized replacement instead of promising that the original HWND survives. It does
+not preserve arbitrary drafts; settle those in the restart preparation.
 Headless/helper processes use `Kind='Process'`, `Ownership='Owned'`, an absolute `FilePath`,
 and a `Quiesce` cleanup step. Pass the plan to `New-PtResourceSession -ResourcePlan` when not
 using the template, so the original process identities are captured before activation.
@@ -128,6 +132,16 @@ missing minimized UIA data matches a stale receipt.
 Completion re-reads supported Settings state after the last lifecycle operation. A prior
 successful receipt does not cover a later navigation. Settings close/reopen assertions
 require a genuinely owned launch; an existing Settings window is not expendable.
+
+For declared full PowerToys restarts, use the existing
+[`Restart-PtRunner`](module-lifecycle.md#full-powertoys-restart), not a direct kill/relaunch.
+The original Settings snapshot remains immutable. An opted-in snapshot can be restored with
+`Restore-PtSettingsUiSnapshot -Snapshot $snapshot -ReplacementIdentity $newMainIdentity`
+after independently resolving the new main. The helper checks its executable/session,
+creation time and class against the recorded transition; completion then checks logical
+state on that replacement. The template also remaps an originally foreground Settings
+window to that verified replacement without altering the original desktop baseline.
+Without the original opt-in, same-instance preservation remains mandatory.
 
 ## Cleanup dependencies
 

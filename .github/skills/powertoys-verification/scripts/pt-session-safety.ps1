@@ -236,6 +236,9 @@ function Assert-PtRunResourcePlan {
             throw 'Resources require unique IDs and known kinds.'
         }
         if($resource.Kind -eq 'Settings'){
+            if($null -ne $resource.AllowRunnerRestart -and $resource.AllowRunnerRestart -isnot [bool]){
+                throw 'Settings AllowRunnerRestart must be Boolean when supplied.'
+            }
             if($resource.Hwnd -isnot [long] -and $resource.Hwnd -isnot [int]){throw 'Settings resources require an explicit native HWND.'}
             if($resource.Hwnd -le 0 -or -not $handles.Add($resource.Hwnd)){
                 throw 'Settings HWNDs must be unique, positive values.'
@@ -421,7 +424,8 @@ function Register-PtSettingsObligation {
     if(-not $session){return}
     Assert-PtResourceSession $session
     $session.Settings+=@([pscustomobject]@{Path=$Snapshot.Path;Identity=$Snapshot.Identity
-        Hash=Get-PtReportHash ([IO.File]::ReadAllBytes($Snapshot.Path));Restored=$false;RestorationPath=$null;RestorationHash=$null})
+        Hash=Get-PtReportHash ([IO.File]::ReadAllBytes($Snapshot.Path));Restored=$false;RestorationPath=$null;RestorationHash=$null
+        AllowRunnerRestart=($Snapshot.AllowRunnerRestart -eq $true);ReplacementIdentity=$null;RestartAuthorization=$null})
     Save-PtResourceSession $session
 }
 
@@ -449,7 +453,15 @@ function Complete-PtResourceSession {
         $exists=[PtDesktop]::IsWindow([IntPtr][long]$record.Identity.hwnd)
         $status='PASS';$reason='Owned window is absent.'
         if($record.Ownership -eq 'Borrowed'){
-            try{Assert-PtWindowIdentity $record.Identity;$reason='Borrowed identity retained; UI-state receipt is separate.'}
+            try{
+                $settings=@($session.Settings|Where-Object {$_.Identity.hwnd -eq $record.Identity.hwnd -and $_.ReplacementIdentity})
+                if($settings.Count -eq 1){
+                    Assert-PtWindowIdentity $settings[0].ReplacementIdentity
+                    $reason='Explicitly restartable Settings has a replacement identity; logical-state comparison follows.'
+                }else{
+                    Assert-PtWindowIdentity $record.Identity;$reason='Borrowed identity retained; UI-state receipt is separate.'
+                }
+            }
             catch{$status='BLOCKED';$reason=$_.Exception.Message}
         }elseif($exists){$status='BLOCKED';$reason='Owned window remains or identity was recycled; no automatic close.'}
         [pscustomobject]@{Resource="window-$($record.Identity.hwnd)";Status=$status;Reason=$reason}
@@ -509,6 +521,7 @@ function Complete-PtResourceSession {
                 (Get-PtReportHash ([IO.File]::ReadAllBytes($record.RestorationPath))) -cne $record.RestorationHash -or
                 (Get-PtReportHash ([IO.File]::ReadAllBytes($record.Path))) -cne $record.Hash){throw 'Settings restoration receipt missing or changed.'}
             $snapshot=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($record.Path))
+            $snapshot=Get-PtSettingsRestorationSnapshot -Snapshot $snapshot
             Assert-PtWindowIdentity $snapshot.Identity
             $observed=Get-PtSettingsCurrentState $snapshot.Identity.hwnd -AllowTemporaryRestore
             $ui=$observed.Ui;$native=$observed.Native

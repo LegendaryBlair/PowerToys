@@ -9,7 +9,7 @@
 **Settings UI section keys**: IsAIEnabled, AutoCopySelectionForCustomActionHotkey, paste-as-{plain,markdown,json}-hotkey, additional-actions, custom-actions
 
 ## Entry-paths (try in order)
-1. Enable module: master `settings.json` `enabled.AdvancedPaste=true` + `Restart-PtRunner` (it ships DISABLED). Then `Invoke-PtSharedEvent -Name AdvancedPaste.ShowUI`. Window title "Advanced Paste", class WinUIDesktopWin32WindowClass.
+1. Enable Advanced Paste through its actual Settings toggle and observe the [module lifecycle](../module-lifecycle.md). Do not rewrite the root enabled flag and restart all PowerToys merely to enable one module. Then `Invoke-PtSharedEvent -Name AdvancedPaste.ShowUI`. Window title "Advanced Paste", class WinUIDesktopWin32WindowClass.
 2. Paste options are a ListView: invoke `itm-pasteasplaintex-*` / `itm-pasteasmarkdown-*` / `itm-pasteasjson*` (suffix is dynamic — match by `Select-String 'pasteas...'`). They paste into the previously-focused window.
 
 ## Recipes — control/observation map

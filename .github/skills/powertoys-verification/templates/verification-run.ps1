@@ -111,7 +111,16 @@ try {
             Save-PtResourceSession $resources
         }
         foreach($hwndValue in $SettingsHwnd){
-            Get-PtSettingsUiSnapshot -Hwnd $hwndValue -Workspace $run.Workspace|Out-Null
+            $resource=@($ResourcePlan.Resources|Where-Object {$_.Kind -eq 'Settings' -and $_.Hwnd -eq $hwndValue})
+            $restartable=$resource.Count -eq 1 -and $resource[0].AllowRunnerRestart -eq $true
+            $existing=@($resources.Settings|Where-Object {$_.Identity.hwnd -eq $hwndValue})
+            if($Resume -and $restartable -and $existing.Count -eq 1 -and $existing[0].RestartAuthorization){
+                if($existing[0].Hash -cne (Get-PtReportHash ([IO.File]::ReadAllBytes($existing[0].Path)))){
+                    throw 'Restartable Settings baseline changed before resume.'
+                }
+                continue
+            }
+            Get-PtSettingsUiSnapshot -Hwnd $hwndValue -Workspace $run.Workspace -AllowRunnerRestart:$restartable|Out-Null
         }
     }
     Invoke-PtVerificationCase -Run $run -Context Preflight -Name 'Preflight' `
@@ -144,7 +153,16 @@ finally {
                         }
                     }
                     if($state.Desktop){
-                        try{Restore-PtDesktopSnapshot $state.Desktop|Out-Null}
+                        try{
+                            $desktop=ConvertFrom-PtReportJson (ConvertTo-Json $state.Desktop -Depth 20)
+                            foreach($record in (Get-PtActiveResourceSession).Settings){
+                                if($record.Restored -and $record.ReplacementIdentity -and
+                                    (ConvertTo-Json $desktop.foreground -Compress) -ceq (ConvertTo-Json $record.Identity -Compress)){
+                                    $desktop.foreground=$record.ReplacementIdentity
+                                }
+                            }
+                            Restore-PtDesktopSnapshot $desktop|Out-Null
+                        }
                         catch{
                             if($cleanupError){$cleanupError.Exception.Data['DesktopCleanupFailure']=$_.Exception.Message}
                             else{$cleanupError=$_}
