@@ -24,7 +24,7 @@ function Check([string]$name,[scriptblock]$body){
 $saved=@{}
 foreach($name in 'Get-PtRunnerRestartState','Get-PtLifecycleProcessProbe','Get-PtLifecycleProcessCandidates',
     'Get-PtLifecycleProcessIdentity','Get-PtLifecycleRunner','Get-PtNativeWindow','Get-PtWindowIdentity',
-    'Test-ProcessElevated','Send-PtRunnerExit','Start-PtRunnerAfterExit','Assert-PtProcessRelease','Get-PtActiveResourceSession'){
+    'Test-ProcessElevated','Send-PtRunnerExit','Start-PtRunnerAfterExit','Get-PtRunnerShellLaunchTarget','Assert-PtProcessRelease','Get-PtActiveResourceSession'){
     $saved[$name]=(Get-Command $name).ScriptBlock
 }
 function ResetFixture {
@@ -87,6 +87,10 @@ function Start-PtRunnerAfterExit {
     $fixture.Launches++;$fixture.Started=$true
     Require ($State.Runner.path -ceq $image) 'Launch lost actual installation path'
     [pscustomobject]@{ProcessId=$fixture.New.processId}
+}
+function Get-PtRunnerShellLaunchTarget {
+    param($State)
+    [pscustomobject]@{Shortcut="$image.lnk";Target=$image;Sha256='synthetic'}
 }
 function Assert-PtProcessRelease {
     param($ProcessId)
@@ -244,12 +248,23 @@ try{
     } -VerifyReady {
         param($identity)
         [IO.File]::ReadAllText("$Workspace\fixture-ready.txt") -ceq "$($identity.processId)"
+    } -RestartAction {
+        param($before)
+        Assert-PtWindowIdentity $before.Host
+        if(-not [PtDesktop]::PostMessage([IntPtr]$before.Host.hwnd,0x0010,[IntPtr]::Zero,[IntPtr]::Zero)){
+            throw 'Synthetic product-action exit failed.'
+        }
+        Wait-PtCondition -Description 'synthetic product-action exit' -TimeoutSeconds 5 -Probe {
+            $null -eq (Get-PtLifecycleProcessProbe $before.Runner.processId)
+        }|Out-Null
+        $process=Start-Process -FilePath $image -PassThru -ErrorAction Stop
+        $process.Dispose()
     } -TimeoutSeconds 5
     Require ($receipt.Ready -and $receipt.Before.Runner.processId -ne $receipt.After.Runner.processId -and
         $receipt.Before.Elevated -eq $receipt.After.Elevated) 'Native restart did not preserve path/token or change process'
     Require ($null -eq (Get-PtLifecycleProcessProbe $initial.Id)) 'Original fixture did not exit'
     Write-PtReportText "$Workspace\native-restart.json" (ConvertTo-Json $receipt -Depth 15)
-    $results.Add(@{Name='Actual hidden native host, graceful WM_CLOSE, same-path launch and observed identity/token/readiness';Status='PASS'})
+    $results.Add(@{Name='Actual hidden native fixture product-action callback, same-path launch and observed identity/token/readiness; not a tray acceptance';Status='PASS'})
 }finally{
     foreach($candidate in @(Get-PtLifecycleProcessCandidates 'PowerToys')){
         $identity=Get-PtLifecycleProcessIdentity $candidate -AllowExited

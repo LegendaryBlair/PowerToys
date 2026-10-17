@@ -186,17 +186,48 @@ needs a lifecycle transition.
 | `VerifyReady` | Required read-only callback receiving the newly observed Runner identity and `ArgumentList`. Check the case's actual Settings/module readiness; return exactly Boolean true or false. False is polled, exceptions propagate. Native tray-host readiness alone does not certify all modules. |
 | `RestartAction` | Optional real product action that performs its own complete restart, such as Settings Restart, language Restart or Restart as administrator. Invoked once; failure never falls back to a manual restart. |
 | `Launch` | Optional launch adapter for the normal exit/relaunch route, receiving the original state and `ArgumentList`. Required when the driver and original Runner tokens differ; preserve the original user's session/token and executable path. It cannot be combined with `RestartAction`. |
+| `OverflowButtonName` | Actual localized hidden-icons button name; defaults to the observed English `Show Hidden Icons`. `SystemTrayIcon` alone is not unique: input indicators and other Shell buttons share it. |
 | `ExpectedElevation` | `Preserve` by default. `Elevated`/`NonElevated` require a product `RestartAction`; the helper validates the actual result, never approves UAC or silently elevates. |
 | `TimeoutSeconds` | Bound for each exit/readiness observation, not a whole-run cutoff. A timeout does not permit force-kill, action replay or installing different bits. |
 
-The default route resolves one current-session Runner, its actual executable/hash and exact
-tray HWND, posts normal `WM_CLOSE`, observes that creation's exit, then starts the same path
-once. It checks the new path, session and token plus two stable native/readiness observations.
-The launch token must match the old Runner; use the real product restart route or an explicitly
-verified launch adapter otherwise. No fixed install path, first-process selection, force-kill
-or fixed startup sleep remains. Ordinary graceful exit can flush cached settings, so apply
-preferences through their supported Settings UI; do not use a restart to conceal an ineffective
-direct edit to root JSON.
+The default route is the actual user flow, implemented by `pt-runner-ui.ps1`:
+
+1. Attest one current-session Runner and the installed Start menu shortcut that targets its
+   executable, without extra arguments or the Shell Link run-as flag.
+2. Resolve the actual `PowerToys v...` tray Button, not Awake or the Settings taskbar button.
+   Open the overflow only when needed. Guard a native right-click with unique live UIA bounds,
+   a second bounds read and the exact native root hit receiver; always release the button.
+3. Invoke the real Runner-owned menu item with AutomationId `40001` through winapp
+   `--action invoke`. Its localized caption can be **Close**, not necessarily **Exit**.
+   This ID is used for UIA lookup, never sent as a private window command.
+4. Observe the old Runner and its recorded direct children finishing production shutdown.
+   Open the attested shortcut through Windows Shell once, then verify the new path/hash,
+   session, token and two stable caller-supplied readiness observations.
+
+The current default adapter covers an interactive Windows 11 desktop with medium-integrity
+driver/Runner, a visible or overflowed icon and one matching installed shortcut. It refuses
+an already-open unowned popup and never changes tray visibility, startup policy or bindings
+to manufacture prerequisites. Other taskbar providers/locales need their actual supported
+locator; elevation-sensitive cases use the real product `RestartAction`.
+
+winapp supplies discovery and menu Invoke; the gesture uses the existing native taskbar
+input primitive. This avoids depending on a transient CLI slug or on UIA point lookup exposing
+a child Button inside a composed Shell surface. Native input is outside winapp's arbitration:
+keep UI driving serial, use the same workflow ID for cooperating CLI calls and retain hit
+guards. There is no force-foreground trick, `WM_CLOSE`/`WM_COMMAND` exit shortcut, default
+`Start-Process`, forced child shutdown, fixed installation path or fixed startup sleep.
+Ordinary production exit can flush cached settings: apply preferences through supported UI
+instead of using restart to conceal an ineffective direct edit to root JSON.
+
+`Invoke-PtRunnerTrayCommand` also provides the actual Settings/Quick Access menu actions.
+Its optional read-only `Observe` callback runs before owned overflow cleanup, because closing
+that popup can deactivate Quick Access. An invoked command is not proof of its outcome.
+Overflow cleanup uses the captured closed-button caption, current popup visibility and a
+guarded physical chevron click. It skips input if the popup has already closed, checks the
+live bounds/native hit receiver and verifies disappearance. Do not substitute an unconditional
+second UIA Invoke or Escape focused on the taskbar: those were not reliable on the tested Shell.
+Pointer cleanup is attempted independently even if popup dismissal fails.
+Do not automatically acknowledge arbitrary startup dialogs; preserve and report them.
 
 Supply real preparation/readiness callbacks, not constant success stubs. The operation belongs
 inside the existing recorded case/step:
@@ -234,7 +265,24 @@ module because unrelated ordinary PowerToys processes exist. Report the specific
 state/permission instead. Windows reboot, installer replacement and corruption fixtures remain
 separate boundaries.
 
+For a restartable borrowed companion, declare its exact HWND/path and a real logical-state
+cleanup step **before capture**:
+
+```powershell
+@{Id='quick-access';Kind='Window';Ownership='Borrowed';Hwnd=$qaIdentity.hwnd
+  FilePath=$qaExecutable;AllowRunnerRestart=$true;RestoreStep='restore-qa-logical-state'}
+```
+
+`Register-PtBorrowedWindow` records that original contract. After the common restart,
+`Register-PtRestartedWindow -OriginalIdentity $qaIdentity -ReplacementIdentity $newQaIdentity`
+verifies the authorized installation/session/creation transition. The window remains borrowed,
+not disposable; its plan's cleanup must separately restore and verify page, cloak/visibility,
+preferences and any other declared state. Existing verified replacements remain usable after
+a later failed restart attempt; an unknown new HWND still requires fresh transition evidence.
+
 `scripts\tests\Test-PtRunnerRestart.ps1` covers the contract with failure injection and an
-actual hidden native fixture executing `WM_CLOSE`/same-path relaunch. It does not restart the
-installed product. Session/resource/template tests cover Settings replacement authorization,
-baseline retention and logical restoration.
+actual hidden native fixture supplied through `RestartAction`. It does not exercise a real
+tray or restart the installed product. `Test-PtRunnerTray.ps1` checks the tray command protocol;
+live acceptance must additionally prove the real gesture/menu/shortcut sequence and cleanup.
+Session/resource/template tests cover Settings/companion replacement authorization, immutable
+baselines and logical restoration.

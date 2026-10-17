@@ -52,6 +52,18 @@ Check 'Borrowed windows cannot omit ownership and duplicate resources remain inv
     $copy.Resources[2].Id=$copy.Resources[1].Id
     Reject {Assert-PtRunResourcePlan $copy $steps} 'unique IDs'
 }
+Check 'Companion restart opt-in requires a borrowed HWND and exact executable scope' {
+    $resource=@{Id='companion';Kind='Window';Ownership='Owned';Hwnd=90L
+        FilePath='C:\fixture\PowerToys.QuickAccess.exe';AllowRunnerRestart=$true;RestoreStep='windows'}
+    $restartPlan=@{Schema='PtRunResources.v1';Resources=@($resource)}
+    Reject {Assert-PtRunResourcePlan $restartPlan $steps} 'Restartable borrowed windows'
+    $resource.Ownership='Borrowed';$resource.FilePath='relative.exe'
+    Reject {Assert-PtRunResourcePlan $restartPlan $steps} 'exact HWND'
+    $resource.FilePath='C:\fixture\PowerToys.QuickAccess.exe'
+    Assert-PtRunResourcePlan $restartPlan $steps
+    $resource.AllowRunnerRestart='yes'
+    Reject {Assert-PtRunResourcePlan $restartPlan $steps} 'must be Boolean'
+}
 Check 'All four actual module entry paths reject absent wiring before creating a run' {
     foreach($module in 'Color Picker','Workspaces','Shortcut Guide','Environment Variables'){
         $target=Join-Path $Workspace $module.Replace(' ','')

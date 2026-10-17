@@ -67,6 +67,20 @@ Check 'Legacy AppId foreground APIs use the bounded command wrapper' {
         Reject { Get-PtHwnd -AppId offline-fixture } 'bounded command failure'
     } finally { Set-Item Function:Invoke-PtWinApp -Value $original }
 }
+Check 'Optional empty search accepts only the actual zero-match protocol' {
+    $empty='{"matchCount":0,"hasMore":false,"matches":[]}'
+    Require (Test-PtWinAppEmptySearch 1 $empty '') 'Expected no-match exit was rejected'
+    foreach($invalid in '{"matchCount":0,"hasMore":true,"matches":[]}',
+        '{"matchCount":1,"hasMore":false,"matches":[{}]}',
+        '{"matchCount":0,"hasMore":false,"matches":[],"error":{"code":"access_denied"}}',
+        '{"error":{"code":"element_not_found"}}','{}'){
+        Require (-not(Test-PtWinAppEmptySearch 1 $invalid '')) 'Unexpected CLI failure became a normal absence'
+    }
+    Require (-not(Test-PtWinAppEmptySearch 2 $empty '')) 'Wrong exit code was accepted'
+    Require (-not(Test-PtWinAppEmptySearch 1 $empty 'provider failed')) 'stderr failure was hidden'
+    Reject {Test-PtWinAppEmptySearch 1 'not-json' ''} 'JSON|Unexpected'
+    Reject {Invoke-PtWinApp -Arguments @('invoke','unused') -AllowNoMatches} 'only supported'
+}
 Check 'File bytes, absence, JSON round-trip and idempotent restoration' {
     $path = Join-Path $Workspace 'file-fixture.bin'
     $absent = Get-PtFileSnapshot -Path $path

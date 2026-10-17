@@ -36,6 +36,7 @@ public static class PtTaskbarNative {
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(POINT point);
     [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll", SetLastError=true)] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     public static long PointWindow(int x, int y) {
         var previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
@@ -64,12 +65,14 @@ public static class PtTaskbarNative {
         // Aim inside the pixel's normalized cell, not at a boundary between pixels.
         return (int)((offset*65536L+32768L)/extent);
     }
+    public static bool RightButtonDown() { return (GetAsyncKeyState(2) & 0x8000) != 0; }
+    public static bool LeftButtonDown() { return (GetAsyncKeyState(1) & 0x8000) != 0; }
     public static uint Mouse(string kind, int x, int y) {
         if (IntPtr.Size!=8 || Marshal.SizeOf<INPUT>()!=40)
             throw new PlatformNotSupportedException("Native taskbar input requires the 40-byte x64/ARM64 INPUT ABI.");
         var input=new INPUT();
-        if (kind=="Down" || kind=="Up") {
-            input.data.mi.dwFlags=kind=="Down" ? 0x0002u : 0x0004u;
+        if (kind=="Down" || kind=="Up" || kind=="RightDown" || kind=="RightUp") {
+            input.data.mi.dwFlags=kind=="Down" ? 0x0002u : kind=="Up" ? 0x0004u : kind=="RightDown" ? 0x0008u : 0x0010u;
             return SendInput(1, new[] {input}, Marshal.SizeOf<INPUT>());
         }
         if (kind!="Move") throw new ArgumentException("Unknown mouse operation.");
@@ -451,7 +454,7 @@ function Get-PtTaskbarPointer {
 }
 
 function Send-PtTaskbarMouse {
-    param([ValidateSet('Move','Down','Up')][string]$Kind,[int]$X,[int]$Y)
+    param([ValidateSet('Move','Down','Up','RightDown','RightUp')][string]$Kind,[int]$X,[int]$Y)
     Initialize-PtTaskbarNative
     [PtTaskbarNative]::Mouse($Kind, $X, $Y)
 }

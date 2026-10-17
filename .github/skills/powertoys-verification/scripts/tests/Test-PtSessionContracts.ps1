@@ -269,13 +269,55 @@ Check 'Restartable Settings restores onto an authorized replacement without alte
     $restored=Restore-PtSettingsUiSnapshot $snapshot -ReplacementIdentity $replacement
     Require ($restored.Restored -and $restored.Identity.hwnd -eq 30 -and $script:ui.PageAutomationId -ceq 'DashboardNavItem') 'Logical state did not follow authorized replacement'
     Require ([IO.File]::ReadAllText($snapshot.Path) -ceq $original -and $snapshot.Identity.hwnd -eq 10) 'Original baseline identity was overwritten'
+    $session.Settings[0].RestartAuthorization=[pscustomobject]@{Runner=Get-PtLifecycleRunner;StartedTicks=[datetime]::UtcNow.Ticks}
+    Save-PtResourceSession $session
     Restore-PtSettingsUiSnapshot $snapshot|Out-Null
+    $other=Native 31 30
+    Reject {Restore-PtSettingsUiSnapshot $snapshot -ReplacementIdentity $other} 'authorized Runner has not been replaced'
+    $script:windows.Remove(31L)
     $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Restarted Settings logical restoration' -Kind Normal
     try{Complete-PtResourceSession $attempt|Out-Null}
     finally{Stop-PtVerificationAttempt $attempt -Reason 'Actual replacement and original logical state compared'}
     $session.Settings[0].ReplacementIdentity.processStartTicks++
     Save-PtResourceSession $session
     Reject {Restore-PtSettingsUiSnapshot $snapshot} 'identity changed'
+}
+$global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
+Check 'Originally restartable companions track replacements without acquiring termination ownership' {
+    $path='C:\fixture\PowerToys.QuickAccess.exe'
+    $plan=@{Schema='PtRunResources.v1';Resources=@(
+        @{Id='quick-access';Kind='Window';Ownership='Borrowed';Hwnd=10L;FilePath=$path
+            AllowRunnerRestart=$true;RestoreStep='quick-access-state'})}
+    Assert-PtRunResourcePlan $plan @(@{Id='quick-access-state';Phase='Windows';DependsOn=@();Action={};Verify={$true}})
+    $run=Session $plan
+    $script:processes[10]|Add-Member NoteProperty Path $path
+    $original=Get-PtWindowIdentity 10
+    $record=Register-PtBorrowedWindow $original
+    $script:processes[30]=[pscustomobject]@{Id=30;StartTime=[datetime]'2026-01-01T00:00:00Z';Path=$path}
+    $replacement=Native 30 30
+    function Get-PtLifecycleRunner {[pscustomobject]@{processId=31;processStartTicks=300L;sessionId=1;path='C:\fixture\PowerToys.exe'}}
+    Reject {Register-PtRestartedWindow $original $replacement} 'recorded Runner restart'
+    $record.RestartAuthorization=[pscustomobject]@{
+        Runner=[pscustomobject]@{processId=29;processStartTicks=200L;sessionId=1;path='C:\fixture\PowerToys.exe'}
+        StartedTicks=([datetime]'2025-12-31T00:00:00Z').Ticks
+    }
+    Save-PtResourceSession (Get-PtActiveResourceSession)
+    $script:processes[30].Path='C:\other\PowerToys.QuickAccess.exe'
+    Reject {Register-PtRestartedWindow $original $replacement} 'replacement path/session'
+    $script:processes[30].Path=$path
+    $script:windows.Remove(10L);$script:processes.Remove(10)
+    Register-PtRestartedWindow $original $replacement|Out-Null
+    Require ($record.Identity.hwnd -eq 10 -and $record.ReplacementIdentity.hwnd -eq 30 -and $record.Ownership -ceq 'Borrowed') 'Original identity or borrowed ownership was rewritten'
+    Reject {Assert-PtWindowRelease $replacement} 'no explicit owned'
+    $record.RestartAuthorization=[pscustomobject]@{Runner=Get-PtLifecycleRunner;StartedTicks=[datetime]::UtcNow.Ticks}
+    Save-PtResourceSession (Get-PtActiveResourceSession)
+    Register-PtRestartedWindow $original $replacement|Out-Null
+    $other=Native 31 30
+    Reject {Register-PtRestartedWindow $original $other} 'authorized Runner has not been replaced'
+    $script:windows.Remove(31L)
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Companion replacement identity check' -Kind Normal
+    try{Complete-PtResourceSession $attempt|Out-Null}
+    finally{Stop-PtVerificationAttempt $attempt -Reason 'Only authorized identity replacement checked; logical UI belongs to the declared cleanup step'}
 }
 $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
 "PASS: $($results.Count) session contract groups; no real desktop/clipboard mutation. $Workspace"
