@@ -66,7 +66,7 @@ function Wait-PtSettingsUiState {
 }
 
 function Show-PtSettingsForObservation {
-    param([Parameter(Mandatory)][long]$Hwnd)
+    param([Parameter(Mandatory)][long]$Hwnd,[switch]$RevealNavigation)
     $native=Get-PtWindowSnapshot $Hwnd
     if(-not $native.visible -or $native.placement.showCmd -in 2,6,7,11){
         $show=if(($native.placement.flags -band 2) -and $native.placement.showCmd -in 2,6,7,11){3}else{9}
@@ -77,7 +77,47 @@ function Show-PtSettingsForObservation {
         $window.Visible -and -not $window.Minimized
     }|Out-Null
     Assert-PtForegroundOrAbort -Hwnd $Hwnd
+    if($RevealNavigation -and -not (Read-PtSettingsUiState $Hwnd -AllowUnselected)){
+        $button=Resolve-PtUiElement -Hwnd $Hwnd -AutomationId PART_PaneButton -ControlType Button
+        $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+    }
     Wait-PtSettingsUiState $Hwnd|Out-Null
+}
+
+function Test-PtSettingsUiStateMatch {
+    param([Parameter(Mandatory)]$Expected,[Parameter(Mandatory)]$Actual,[switch]$AllowWinUiFloatReadback)
+    $expectedText=ConvertTo-Json $Expected -Depth 20 -Compress
+    if((ConvertTo-Json $Actual -Depth 20 -Compress) -ceq $expectedText){return $true}
+    if(-not $AllowWinUiFloatReadback -or $Expected.Scroll.Count -ne $Actual.Scroll.Count){return $false}
+    $wire=ConvertFrom-PtReportJson $expectedText
+    for($index=0;$index -lt $wire.Scroll.Count;$index++){
+        if($wire.Scroll[$index].Id -cne $Actual.Scroll[$index].Id){return $false}
+        foreach($axis in 'Horizontal','Vertical'){
+            $requested=$Expected.Scroll[$index].$axis
+            $observed=$Actual.Scroll[$index].$axis
+            if($requested -isnot [double] -and $requested -isnot [int] -and $requested -isnot [long]){return $false}
+            if($observed -ne $requested -and $observed -ne [double][single]$requested){return $false}
+            $wire.Scroll[$index].$axis=$observed
+        }
+    }
+    (ConvertTo-Json $Actual -Depth 20 -Compress) -ceq (ConvertTo-Json $wire -Depth 20 -Compress)
+}
+
+function Wait-PtSettingsScrollLayout {
+    param([Parameter(Mandatory)][long]$Hwnd)
+    $settled=@{Signature=$null;Count=0}
+    Wait-PtCondition -Description 'Settings scroll viewport and extent settlement' -TimeoutSeconds 5 -PollMilliseconds 100 -Probe {
+        $metrics=@(foreach($element in Get-PtSettingsUiElements $Hwnd){
+            $pattern=$null
+            if($element.Current.AutomationId -and $element.TryGetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern,[ref]$pattern)){
+                [pscustomobject]@{Id=$element.Current.AutomationId;Width=$element.Current.BoundingRectangle.Width
+                    Height=$element.Current.BoundingRectangle.Height;Horizontal=$pattern.Current.HorizontalViewSize;Vertical=$pattern.Current.VerticalViewSize}
+            }
+        })
+        $signature=ConvertTo-Json -InputObject @($metrics|Sort-Object Id) -Compress
+        if($metrics.Count -and $signature -ceq $settled.Signature){$settled.Count++}else{$settled.Count=1;$settled.Signature=$signature}
+        $settled.Count -ge 3
+    }|Out-Null
 }
 
 function Get-PtSettingsCurrentState {
@@ -160,7 +200,7 @@ function Get-PtSettingsUiSnapshot {
 }
 
 function Set-PtSettingsUiState {
-    param([Parameter(Mandatory)][long]$Hwnd,[Parameter(Mandatory)]$State)
+    param([Parameter(Mandatory)][long]$Hwnd,[Parameter(Mandatory)]$State,[switch]$DeferScroll)
     function Element([string]$Id){
         Wait-PtCondition -Description "realized Settings control $Id" -TimeoutSeconds 5 -Probe {
             $matches=@((Get-PtSettingsUiElements $Hwnd)|Where-Object {$_.Current.AutomationId -ceq $Id})
@@ -190,10 +230,30 @@ function Set-PtSettingsUiState {
         $pattern=(Element $item.Id).GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
         if($pattern.Current.ExpandCollapseState -ne [Windows.Automation.ExpandCollapseState]::Collapsed){$pattern.Collapse()}
     }
-    foreach($item in $State.Scroll){
-        $pattern=(Element $item.Id).GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
+    if(-not $DeferScroll){Set-PtSettingsScrollState -Hwnd $Hwnd -Scroll $State.Scroll|Out-Null}
+}
+
+function Set-PtSettingsScrollState {
+    param([Parameter(Mandatory)][long]$Hwnd,[object[]]$Scroll)
+    if(-not $Scroll.Count){return}
+    Wait-PtSettingsScrollLayout $Hwnd
+    foreach($item in $Scroll){
+        $matches=@((Get-PtSettingsUiElements $Hwnd)|Where-Object {$_.Current.AutomationId -ceq $item.Id})
+        $element=Select-PtUniqueUiElement -Elements $matches -Description "Settings $($item.Id)"
+        $pattern=$element.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
         if($pattern.Current.HorizontalScrollPercent -ne $item.Horizontal -or $pattern.Current.VerticalScrollPercent -ne $item.Vertical){
+            $before=[pscustomobject]@{HorizontalView=$pattern.Current.HorizontalViewSize;VerticalView=$pattern.Current.VerticalViewSize}
             $pattern.SetScrollPercent($item.Horizontal,$item.Vertical)
+            Wait-PtSettingsScrollLayout $Hwnd
+            $after=[pscustomobject]@{HorizontalView=$pattern.Current.HorizontalViewSize;VerticalView=$pattern.Current.VerticalViewSize}
+            $changed=(ConvertTo-Json $before -Compress) -cne (ConvertTo-Json $after -Compress)
+            if($changed){
+                # A newly realized extent changes the meaning of a percentage; apply once to that observed layout.
+                $pattern.SetScrollPercent($item.Horizontal,$item.Vertical)
+                Wait-PtSettingsScrollLayout $Hwnd
+            }
+            [pscustomobject]@{Id=$item.Id;Before=$before;After=$after;ReappliedForChangedExtent=$changed
+                Horizontal=$pattern.Current.HorizontalScrollPercent;Vertical=$pattern.Current.VerticalScrollPercent}
         }
     }
 }
@@ -215,19 +275,11 @@ function Get-PtSettingsRestorationSnapshot {
     if($record[0].Hash -cne (Get-PtReportHash ([IO.File]::ReadAllBytes($Snapshot.Path)))){
         throw 'Settings original snapshot changed.'
     }
-    $authorization=$record[0].RestartAuthorization
-    $runner=Get-PtLifecycleRunner
-    if($runner.path -ine $authorization.Runner.path -or $runner.sessionId -ne $authorization.Runner.sessionId -or
-        ($runner.processId -eq $authorization.Runner.processId -and $runner.processStartTicks -eq $authorization.Runner.processStartTicks)){
-        throw 'The authorized Runner has not been replaced by the same installation/session.'
-    }
-    Assert-PtWindowIdentity $ReplacementIdentity
-    $process=Get-PtResourceProcessIdentity -ProcessId $ReplacementIdentity.processId
-    if(-not $process -or $process.path -ine $Snapshot.Process.path -or
-        $process.sessionId -ne $Snapshot.Process.sessionId -or
-        $process.processStartTicks -lt $authorization.StartedTicks -or
-        $ReplacementIdentity.className -cne $Snapshot.Identity.className){
-        throw 'Settings replacement path/session/creation/class does not match the authorized restart.'
+    if($record[0].ReplacementIdentity -and
+        (ConvertTo-Json $record[0].ReplacementIdentity -Compress) -ceq (ConvertTo-Json $ReplacementIdentity -Compress)){
+        Assert-PtWindowIdentity $ReplacementIdentity
+    }else{
+        Assert-PtRestartedWindowIdentity $Snapshot.Identity $Snapshot.Process $record[0].RestartAuthorization $ReplacementIdentity
     }
     $effective=ConvertFrom-PtReportJson (ConvertTo-Json $Snapshot -Depth 20)
     $effective.Identity=$ReplacementIdentity;$effective.Native.identity=$ReplacementIdentity
@@ -258,18 +310,29 @@ function Restore-PtSettingsUiSnapshot {
         Save-PtResourceSession $session
     }
     Assert-PtWindowIdentity $Snapshot.Identity
+    $winUi=$Snapshot.Identity.className -ceq 'WinUIDesktopWin32WindowClass'
+    $normalFinal=$Snapshot.Native.visible -and $Snapshot.Native.placement.showCmd -notin 2,6,7,11
+    $placement=Get-PtWindowSnapshot $Snapshot.Identity.hwnd
+    $alreadyRestored=$false
+    if($normalFinal -and (ConvertTo-Json $placement -Depth 20 -Compress) -ceq (ConvertTo-Json $Snapshot.Native -Depth 20 -Compress)){
+        $current=Read-PtSettingsUiState $Snapshot.Identity.hwnd -AllowUnselected
+        $alreadyRestored=$current -and (Test-PtSettingsUiStateMatch -Expected $Snapshot.Ui -Actual $current -AllowWinUiFloatReadback:$winUi)
+    }
+    $scrollTransitions=@()
     $failure=$null
-    try{
+    if(-not $alreadyRestored){try{
         # Restore original layout before applying scroll percentages. WinUI may unload its
         # automation subtree while minimized, so observe while surfaced, then re-minimize.
         Restore-PtWindowSnapshot $Snapshot.Native|Out-Null
-        Show-PtSettingsForObservation $Snapshot.Identity.hwnd
+        Show-PtSettingsForObservation $Snapshot.Identity.hwnd -RevealNavigation:($Snapshot.Scope -contains 'AuthorizedReplacementIdentity')
         $current=Wait-PtSettingsUiState $Snapshot.Identity.hwnd
-        if((ConvertTo-Json $current -Depth 15 -Compress) -cne (ConvertTo-Json $Snapshot.Ui -Depth 15 -Compress)){
-            Set-PtSettingsUiState -Hwnd $Snapshot.Identity.hwnd -State $Snapshot.Ui
-            $current=Wait-PtCondition -Description 'Original Settings expansion and scroll readback' -TimeoutSeconds 5 -Probe {
-                $actual=Read-PtSettingsUiState $Snapshot.Identity.hwnd -AllowUnselected
-                if($actual -and (ConvertTo-Json $actual -Depth 15 -Compress) -ceq (ConvertTo-Json $Snapshot.Ui -Depth 15 -Compress)){$actual}
+        if(-not (Test-PtSettingsUiStateMatch -Expected $Snapshot.Ui -Actual $current -AllowWinUiFloatReadback:$winUi)){
+            Set-PtSettingsUiState -Hwnd $Snapshot.Identity.hwnd -State $Snapshot.Ui -DeferScroll:$normalFinal
+            if(-not $normalFinal){
+                $current=Wait-PtCondition -Description 'Original Settings expansion and scroll readback' -TimeoutSeconds 5 -Probe {
+                    $actual=Read-PtSettingsUiState $Snapshot.Identity.hwnd -AllowUnselected
+                    if($actual -and (Test-PtSettingsUiStateMatch -Expected $Snapshot.Ui -Actual $actual -AllowWinUiFloatReadback:$winUi)){$actual}
+                }
             }
         }
     }catch{$failure=$_}
@@ -279,9 +342,21 @@ function Restore-PtSettingsUiSnapshot {
         else{$failure=$_}
     }
     if($failure){throw $failure}
+    if($normalFinal){
+        # Final placement can change the viewport; replay percentages only after that transition.
+        $current=Read-PtSettingsUiState $Snapshot.Identity.hwnd
+        if(-not (Test-PtSettingsUiStateMatch -Expected $Snapshot.Ui -Actual $current -AllowWinUiFloatReadback:$winUi)){
+            $scrollTransitions=@(Set-PtSettingsScrollState -Hwnd $Snapshot.Identity.hwnd -Scroll $Snapshot.Ui.Scroll)
+        }
+        $current=Wait-PtCondition -Description 'final-layout Settings state readback' -TimeoutSeconds 5 -Probe {
+            $actual=Read-PtSettingsUiState $Snapshot.Identity.hwnd -AllowUnselected
+            if($actual -and (Test-PtSettingsUiStateMatch -Expected $Snapshot.Ui -Actual $actual -AllowWinUiFloatReadback:$winUi)){$actual}
+        }
+    }}
     $receiptPath="$($Snapshot.Path).restored-$([guid]::NewGuid().ToString('N')).json"
     $receipt=[pscustomobject]@{Restored=$true;Scope=$Snapshot.Scope;UnsupportedState=$Snapshot.UnsupportedState;Path=$receiptPath
-        Identity=$Snapshot.Identity;Ui=$current;Native=$placement}
+        Identity=$Snapshot.Identity;Ui=$current;Native=$placement;ScrollTransitions=@($scrollTransitions)
+        ScrollComparison=$(if($winUi){'Exact or exact float32 command readback; original raw percentages retained'}else{'Exact'})}
     Write-PtReportText $receiptPath (ConvertTo-Json $receipt -Depth 20)
     Complete-PtSettingsObligation $Snapshot $receiptPath
     $receipt

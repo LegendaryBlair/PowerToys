@@ -203,16 +203,30 @@ function Get-PtForegroundWindow {
     Get-PtNativeWindow -Hwnd $foreground
 }
 
+function Test-PtWinAppEmptySearch {
+    param([int]$ExitCode,[string]$Output,[string]$ErrorOutput)
+    if($ExitCode -ne 1 -or -not [string]::IsNullOrWhiteSpace($ErrorOutput)){return $false}
+    $empty=ConvertFrom-Json -InputObject $Output -ErrorAction Stop
+    if(@($empty.PSObject.Properties.Name|Where-Object {$_ -cnotin 'matchCount','hasMore','matches'}).Count){return $false}
+    ($empty.matchCount -is [int] -or $empty.matchCount -is [long]) -and $empty.matchCount -eq 0 -and
+        $empty.hasMore -is [bool] -and -not $empty.hasMore -and $empty.matches -is [array] -and $empty.matches.Count -eq 0
+}
+
 function Invoke-PtWinApp {
     <# .SYNOPSIS
-    Run a bounded winapp ui command. Return raw output; throw on timeout or nonzero exit.
+    Run a bounded winapp ui command. Return raw output; throw on timeout or unexpected nonzero exit.
+    .PARAMETER AllowNoMatches
+    Only for search: accept exit 1 with a complete zero-match JSON response and no stderr.
+    Malformed output, partial results, other errors and timeouts still throw.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][AllowEmptyString()][ValidateNotNull()][string[]]$Arguments,
         [ValidateRange(1,120)][int]$TimeoutSeconds = 15,
-        [switch]$SkipRecording
+        [switch]$SkipRecording,
+        [switch]$AllowNoMatches
     )
+    if($AllowNoMatches -and $Arguments[0] -cne 'search'){throw 'AllowNoMatches is only supported for an explicit search query.'}
     if (-not $SkipRecording -and (Get-Command Get-PtActiveVerificationAttempt -ErrorAction Ignore)) {
         $activeAttempt = Get-PtActiveVerificationAttempt
         if ($activeAttempt) {
@@ -220,9 +234,9 @@ function Invoke-PtWinApp {
             return Invoke-PtVerificationStep -Attempt $activeAttempt -Name 'winapp' `
                 -Command ('winapp ui ' + ($quoted -join ' ')) `
                 -Implementation ${function:Invoke-PtWinApp} `
-                -ArgumentList @($Arguments, $TimeoutSeconds) -Action {
-                    param([string[]]$RecordedArguments, [int]$RecordedTimeout)
-                    Invoke-PtWinApp -Arguments $RecordedArguments -TimeoutSeconds $RecordedTimeout -SkipRecording
+                -ArgumentList @($Arguments, $TimeoutSeconds, $AllowNoMatches.IsPresent) -Action {
+                    param([string[]]$RecordedArguments, [int]$RecordedTimeout, [bool]$RecordedNoMatches)
+                    Invoke-PtWinApp -Arguments $RecordedArguments -TimeoutSeconds $RecordedTimeout -SkipRecording -AllowNoMatches:$RecordedNoMatches
                 }
         }
     }
@@ -251,7 +265,10 @@ function Invoke-PtWinApp {
         }
         $output = $stdout.GetAwaiter().GetResult()
         $errorOutput = $stderr.GetAwaiter().GetResult()
-        if ($process.ExitCode -ne 0) { throw "winapp ui $($Arguments -join ' ') failed ($($process.ExitCode)): $errorOutput$output" }
+        if ($process.ExitCode -ne 0) {
+            if($AllowNoMatches -and (Test-PtWinAppEmptySearch -ExitCode $process.ExitCode -Output $output -ErrorOutput $errorOutput)){return $output}
+            throw "winapp ui $($Arguments -join ' ') failed ($($process.ExitCode)): $errorOutput$output"
+        }
         if ($errorOutput) { Write-Verbose $errorOutput }
         return $output
     } finally { $process.Dispose() }

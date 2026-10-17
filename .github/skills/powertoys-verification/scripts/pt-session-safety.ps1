@@ -91,7 +91,63 @@ function Register-PtBorrowedWindow {
         return $found[0]
     }
     $record=[pscustomobject]@{Identity=$Identity;Ownership='Borrowed';Lifetime='Run';Creation=$null;Closed=$false}
+    $restartable=@($session.ResourcePlan.Resources|Where-Object {
+        $_.Kind -eq 'Window' -and $_.Ownership -eq 'Borrowed' -and $_.Hwnd -eq $Identity.hwnd -and $_.AllowRunnerRestart -eq $true
+    })
+    if($restartable.Count){
+        if($restartable.Count -ne 1){throw 'Ambiguous restartable borrowed-window declaration.'}
+        $process=Get-PtResourceProcessIdentity $Identity.processId
+        if(-not $process -or $process.path -ine $restartable[0].FilePath){throw 'Restartable borrowed window does not match its declared executable.'}
+        $record|Add-Member NoteProperty AllowRunnerRestart $true
+        $record|Add-Member NoteProperty Process $process
+        $record|Add-Member NoteProperty ReplacementIdentity $null
+        $record|Add-Member NoteProperty RestartAuthorization $null
+    }
     $session.Windows+=@($record);Save-PtResourceSession $session
+    $record
+}
+
+function Assert-PtRestartedWindowIdentity {
+    param($OriginalIdentity,$OriginalProcess,$Authorization,$ReplacementIdentity)
+    $runner=Get-PtLifecycleRunner
+    if(-not $Authorization -or $runner.path -ine $Authorization.Runner.path -or
+        $runner.sessionId -ne $Authorization.Runner.sessionId -or
+        ($runner.processId -eq $Authorization.Runner.processId -and $runner.processStartTicks -eq $Authorization.Runner.processStartTicks)){
+        throw 'The authorized Runner has not been replaced by the same installation/session.'
+    }
+    Assert-PtWindowIdentity $ReplacementIdentity
+    $process=Get-PtResourceProcessIdentity $ReplacementIdentity.processId
+    if(-not $process -or $process.path -ine $OriginalProcess.path -or
+        $process.sessionId -ne $OriginalProcess.sessionId -or
+        $process.processStartTicks -lt $Authorization.StartedTicks -or
+        $ReplacementIdentity.className -cne $OriginalIdentity.className){
+        throw 'Window replacement path/session/creation/class does not match the authorized restart.'
+    }
+}
+
+function Register-PtRestartedWindow {
+    <#.SYNOPSIS
+    Track an originally restartable borrowed companion's new identity without claiming logical restoration.
+    #>
+    param([Parameter(Mandatory)]$OriginalIdentity,[Parameter(Mandatory)]$ReplacementIdentity)
+    $session=Get-PtActiveResourceSession
+    if(-not $session){throw 'A resource session is required.'}
+    Assert-PtResourceSession $session
+    $records=@($session.Windows|Where-Object {
+        $_.Ownership -eq 'Borrowed' -and (ConvertTo-Json $_.Identity -Compress) -ceq (ConvertTo-Json $OriginalIdentity -Compress)
+    })
+    if($records.Count -ne 1 -or -not $records[0].AllowRunnerRestart -or -not $records[0].RestartAuthorization){
+        throw 'Companion replacement requires original plan opt-in and a recorded Runner restart.'
+    }
+    $record=$records[0]
+    if($record.ReplacementIdentity -and
+        (ConvertTo-Json $record.ReplacementIdentity -Compress) -ceq (ConvertTo-Json $ReplacementIdentity -Compress)){
+        Assert-PtWindowIdentity $ReplacementIdentity
+        return $record
+    }
+    Assert-PtRestartedWindowIdentity $record.Identity $record.Process $record.RestartAuthorization $ReplacementIdentity
+    $record.ReplacementIdentity=$ReplacementIdentity
+    Save-PtResourceSession $session
     $record
 }
 
@@ -250,6 +306,14 @@ function Assert-PtRunResourcePlan {
             if($resource.Kind -eq 'Clipboard' -and $step[0].Phase -cne 'Clipboard'){throw 'Clipboard resources require a Clipboard-phase restore step.'}
             if($resource.Kind -eq 'Window' -and $resource.Ownership -cnotin 'Borrowed','Owned'){
                 throw 'Window resources must explicitly declare Borrowed or Owned.'
+            }
+            if($resource.Kind -eq 'Window' -and $null -ne $resource.AllowRunnerRestart){
+                if($resource.AllowRunnerRestart -isnot [bool]){throw 'Window AllowRunnerRestart must be Boolean.'}
+                if($resource.AllowRunnerRestart -and ($resource.Ownership -cne 'Borrowed' -or
+                    ($resource.Hwnd -isnot [long] -and $resource.Hwnd -isnot [int]) -or $resource.Hwnd -le 0 -or
+                    -not [IO.Path]::IsPathFullyQualified([string]$resource.FilePath))){
+                    throw 'Restartable borrowed windows require their exact HWND and executable FilePath plus the logical-state cleanup step.'
+                }
             }
             if($resource.Kind -eq 'Process' -and ($resource.Ownership -cne 'Owned' -or
                 -not [IO.Path]::IsPathFullyQualified([string]$resource.FilePath) -or $step[0].Phase -cne 'Quiesce')){
@@ -455,7 +519,10 @@ function Complete-PtResourceSession {
         if($record.Ownership -eq 'Borrowed'){
             try{
                 $settings=@($session.Settings|Where-Object {$_.Identity.hwnd -eq $record.Identity.hwnd -and $_.ReplacementIdentity})
-                if($settings.Count -eq 1){
+                if($record.AllowRunnerRestart -and $record.ReplacementIdentity){
+                    Assert-PtWindowIdentity $record.ReplacementIdentity
+                    $reason='Authorized borrowed companion replacement retained; its declared logical-state cleanup comparison is separate.'
+                }elseif($settings.Count -eq 1){
                     Assert-PtWindowIdentity $settings[0].ReplacementIdentity
                     $reason='Explicitly restartable Settings has a replacement identity; logical-state comparison follows.'
                 }else{
@@ -525,7 +592,8 @@ function Complete-PtResourceSession {
             Assert-PtWindowIdentity $snapshot.Identity
             $observed=Get-PtSettingsCurrentState $snapshot.Identity.hwnd -AllowTemporaryRestore
             $ui=$observed.Ui;$native=$observed.Native
-            if((ConvertTo-Json $ui -Depth 20 -Compress) -cne (ConvertTo-Json $snapshot.Ui -Depth 20 -Compress) -or
+            if(-not (Test-PtSettingsUiStateMatch -Expected $snapshot.Ui -Actual $ui `
+                -AllowWinUiFloatReadback:($snapshot.Identity.className -ceq 'WinUIDesktopWin32WindowClass')) -or
                 (ConvertTo-Json $native -Depth 20 -Compress) -cne (ConvertTo-Json $snapshot.Native -Depth 20 -Compress)){
                 throw 'Settings changed after its restoration receipt.'
             }

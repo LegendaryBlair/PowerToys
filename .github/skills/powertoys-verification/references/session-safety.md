@@ -55,6 +55,7 @@ Settings HWND and run-local file/UI comparisons.
 | API | Required contract |
 |---|---|
 | `Register-PtBorrowedWindow -Identity` | Existing Settings/Editor/Welcome windows remain borrowed. Identity proves which object, not permission to close it. |
+| `Register-PtRestartedWindow -OriginalIdentity -ReplacementIdentity` | Only an originally restartable borrowed Window resource with exact HWND/path and logical cleanup can bind a new same-installation/session instance after the recorded Runner transition. Does not grant termination ownership or certify logical restoration. |
 | `Start-PtOwnedProcess -FilePath -ArgumentList [-Lifetime Case/Run]` | Persist launch intent before starting a dedicated fixture process. Require a new PID and its actual start time; shared-host or broker launches need a dedicated adapter. Arguments follow `Start-Process` quoting rules. |
 | `Invoke-PtOwnedProcessActivation -FilePath -Action [-ArgumentList]` | For a declared Process executable, run one explicit broker/COM activation and record the new exact identity. Refuse an existing singleton and ambiguous multiple processes. No activation retry or ownership by name alone. |
 | `Stop-PtOwnedProcess -Creation -RequestExit [-ArgumentList]` | Check recorded PID/start time/image path, clipboard dependencies and every native sibling before calling the supplied shutdown protocol once. Wait for actual exit; protocol errors or timeout remain failures. No automatic force-kill fallback. |
@@ -142,6 +143,21 @@ creation time and class against the recorded transition; completion then checks 
 state on that replacement. The template also remaps an originally foreground Settings
 window to that verified replacement without altering the original desktop baseline.
 Without the original opt-in, same-instance preservation remains mandatory.
+
+Quick Access and other companions can use an originally declared borrowed Window resource
+with `AllowRunnerRestart=true`, exact `Hwnd`/`FilePath` and a real `RestoreStep`; see the
+[full restart contract](module-lifecycle.md#full-powertoys-restart). Do not register a cloaked
+companion as permanently same-instance when the case explicitly tests a complete restart.
+Retain original and replacement identities separately and verify the companion's logical
+state in that step. A successful identity handover alone is not a page/state comparison.
+
+Settings restoration reveals an unrealized rail only for an authorized replacement, then
+restores navigation/expansion and final placement before applying percentages to the settled
+scroll extent. A changed extent can require one explicit reapplication; an unchanged extent
+never triggers a blind replay. An already-correct visible window is compared without refocusing
+or rewriting it. WinUI scroll comparison accepts the original raw percentage or exactly its
+float32 command readback, not a decimal tolerance or a rounded bucket. Real scroll drift and
+every other UI difference still fail, and the immutable original percentages remain intact.
 
 ## Cleanup dependencies
 

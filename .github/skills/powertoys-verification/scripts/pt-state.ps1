@@ -3,6 +3,7 @@
 # process spawn detection, AppX probe.
 . "$PSScriptRoot\pt-file-io.ps1"
 . "$PSScriptRoot\pt-verification-report.ps1"
+. "$PSScriptRoot\pt-runner-ui.ps1"
 
 function Get-PtSettings {
     <#
@@ -88,10 +89,13 @@ function Get-PtRunnerRestartState {
     })
     $hosts=@(Get-PtNativeWindow -ProcessId $runner.processId -ClassName 'PToyTrayIconWindow')
     if($hosts.Count -ne 1){throw 'Exactly one native Runner tray host is required before restart.'}
+    $children=@(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($runner.processId)" -ErrorAction Stop |
+        Select-Object -ExpandProperty ProcessId)
     [pscustomobject]@{
         Runner=$runner;Elevated=$elevated;Host=Get-PtWindowIdentity $hosts[0].Hwnd
         ImageHash=(Get-FileHash -LiteralPath $runner.path -Algorithm SHA256 -ErrorAction Stop).Hash
         Processes=$processes
+        ChildProcesses=@($processes|Where-Object processId -In $children)
         VisibleWindows=@(foreach($identity in $processes){
             foreach($window in @(Get-PtNativeWindow -ProcessId $identity.processId -Visible)){
                 if(-not (Test-PtWindowCloaked -Hwnd $window.Hwnd)){
@@ -119,9 +123,9 @@ function Assert-PtRunnerRestartResources {
     Assert-PtResourceSession $session
     $affected=@($State.Processes.processId)
     foreach($record in @($session.Windows|Where-Object {
-        $_.Ownership -eq 'Borrowed' -and $_.Identity.processId -in $affected
+        $_.Ownership -eq 'Borrowed' -and ($_.Identity.processId -in $affected -or $_.ReplacementIdentity.processId -in $affected)
     })){
-        if(-not @($session.Settings|Where-Object {
+        if(-not $record.AllowRunnerRestart -and -not @($session.Settings|Where-Object {
             $_.Identity.hwnd -eq $record.Identity.hwnd -and $_.AllowRunnerRestart
         }).Count){
             throw "Restart would invalidate borrowed window $($record.Identity.hwnd)'s same-instance restoration contract. Declare supported logical-state preservation before the run; do not rewrite its baseline."
@@ -139,22 +143,14 @@ function Assert-PtRunnerRestartResources {
 }
 
 function Send-PtRunnerExit {
-    param([Parameter(Mandatory)]$State)
-    Assert-PtRunnerRestartIdentity $State.Runner
-    Assert-PtWindowIdentity $State.Host
-    if(-not [PtDesktop]::PostMessage([IntPtr][long]$State.Host.hwnd,0x0010,[IntPtr]::Zero,[IntPtr]::Zero)){
-        throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error(),'Runner WM_CLOSE request failed.')
-    }
+    param([Parameter(Mandatory)]$State,[string]$OverflowButtonName='Show Hidden Icons')
+    Invoke-PtRunnerTrayCommand -State $State -Command Exit -OverflowButtonName $OverflowButtonName
 }
 
 function Start-PtRunnerAfterExit {
     param([Parameter(Mandatory)]$State)
-    $parameters=@{FilePath=$State.Runner.path;PassThru=$true;ErrorAction='Stop'}
-    if(-not $State.Elevated){$parameters.ArgumentList=@('--dont-elevate')}
-    $process=Start-Process @parameters
-    try{
-        [pscustomobject]@{ProcessId=$process.Id}
-    }finally{$process.Dispose()}
+    if(-not $State.LaunchTarget){throw 'No attested Windows Shell launch target was prepared before exit.'}
+    Invoke-PtRunnerShellLaunch -Target $State.LaunchTarget
 }
 
 function Restart-PtRunner {
@@ -191,6 +187,7 @@ function Restart-PtRunner {
         [scriptblock]$VerifyReady,
         [scriptblock]$RestartAction,
         [scriptblock]$Launch,
+        [ValidateNotNullOrEmpty()][string]$OverflowButtonName='Show Hidden Icons',
         [object[]]$ArgumentList=@(),
         [ValidateSet('Preserve','Elevated','NonElevated')][string]$ExpectedElevation='Preserve',
         [ValidateRange(0.1,300)][double]$TimeoutSeconds=30
@@ -211,9 +208,9 @@ function Restart-PtRunner {
     $before=Get-PtRunnerRestartState
     $expected=if($ExpectedElevation -eq 'Preserve'){$before.Elevated}else{$ExpectedElevation -eq 'Elevated'}
     $receipt=[pscustomobject]@{
-        Scope='PowerToys';Route=$(if($RestartAction){'ProductAction'}else{'GracefulExitAndLaunch'})
+        Scope='PowerToys';Route=$(if($RestartAction){'ProductAction'}else{'TrayExitAndShellLaunch'})
         Before=$before;After=$null;ExpectedElevated=$expected
-        Phase='Preparation';ActionIssued=$false;LaunchIssued=$false;LaunchResult=$null
+        Phase='Preparation';ActionIssued=$false;ExitResult=$null;LaunchIssued=$false;LaunchResult=$null
         InvalidatePriorReferences=$false;Ready=$false
     }
     try{
@@ -222,6 +219,7 @@ function Restart-PtRunner {
             if($caller -isnot [bool] -or $caller -ne $before.Elevated){
                 throw 'Caller and Runner elevation differ. Supply a verified same-user Launch adapter or the real product RestartAction; no process was stopped.'
             }
+            $before|Add-Member NoteProperty LaunchTarget (Get-PtRunnerShellLaunchTarget $before)
         }
         $prepared=@(& $Prepare (ConvertFrom-PtReportJson (ConvertTo-Json $before -Depth 15)) @ArgumentList)
         if($prepared.Count -ne 1 -or $prepared[0] -isnot [bool] -or -not $prepared[0]){
@@ -241,6 +239,12 @@ function Restart-PtRunner {
         Assert-PtRunnerRestartResources $current
         $session=Get-PtActiveResourceSession
         if($session){
+            foreach($record in @($session.Windows|Where-Object {
+                $_.AllowRunnerRestart -and
+                ($_.Identity.processId -in $current.Processes.processId -or $_.ReplacementIdentity.processId -in $current.Processes.processId)
+            })){
+                $record.RestartAuthorization=[pscustomobject]@{Runner=$before.Runner;StartedTicks=[DateTime]::UtcNow.Ticks}
+            }
             foreach($record in @($session.Settings|Where-Object {
                 $_.AllowRunnerRestart -and
                 ($_.Identity.processId -in $current.Processes.processId -or $_.ReplacementIdentity.processId -in $current.Processes.processId)
@@ -252,13 +256,21 @@ function Restart-PtRunner {
         }
         $receipt.Phase='Request';$receipt.ActionIssued=$true;$receipt.InvalidatePriorReferences=$true
         if($RestartAction){& $RestartAction (ConvertFrom-PtReportJson (ConvertTo-Json $current -Depth 15)) @ArgumentList|Out-Null}
-        else{Send-PtRunnerExit $current}
+        else{$receipt.ExitResult=Send-PtRunnerExit -State $current -OverflowButtonName $OverflowButtonName}
         $receipt.Phase='Exit'
         Wait-PtCondition -Description 'the recorded Runner instance to exit' -TimeoutSeconds $TimeoutSeconds -Probe {
             $actual=Get-PtLifecycleProcessProbe -ProcessId $before.Runner.processId
             -not $actual -or $actual.processStartTicks -ne $before.Runner.processStartTicks
         }|Out-Null
         if(-not $RestartAction){
+            Wait-PtCondition -Description 'the original direct Runner children to finish their production shutdown' `
+                -TimeoutSeconds $TimeoutSeconds -Probe {
+                    foreach($child in $before.ChildProcesses){
+                        $actual=Get-PtLifecycleProcessProbe -ProcessId $child.processId
+                        if($actual -and $actual.processStartTicks -eq $child.processStartTicks){return $false}
+                    }
+                    $true
+                }|Out-Null
             $receipt.Phase='Launch'
             $existing=@(Get-PtLifecycleProcessCandidates 'PowerToys'|Where-Object SessionId -EQ $before.Runner.sessionId)
             if($existing.Count){throw 'A Runner already appeared after exit; refusing a duplicate launch.'}
@@ -305,8 +317,9 @@ function Restart-PtRunner {
         $receipt.After=$after;$receipt.Phase='Complete';$receipt.Ready=$true
         $receipt
     }catch{
-        $_.Exception.Data['RunnerRestartReceipt']=$receipt
-        throw
+        $failure=$_
+        $failure.Exception.Data['RunnerRestartReceipt']=$receipt
+        throw $failure
     }
 }
 
