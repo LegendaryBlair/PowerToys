@@ -73,6 +73,28 @@ Check 'Borrowed and pre-existing windows cannot become owned or be closed' {
     Reject {Register-PtOwnedWindowRecord (Get-PtActiveResourceSession) $identity Run 'fake'} 'Pre-existing'
     Require ($script:windows.Count -eq 1) 'Borrowed window changed'
 }
+Check 'Additional process scopes retain the original baseline and seal pre-activation identities' {
+    $path=[IO.Path]::GetFullPath('late-helper.exe')
+    $run=Session -ResourcePlan @{Schema='PtRunResources.v1';Resources=@()} -BaselineHelper $path
+    $session=Get-PtActiveResourceSession
+    $hash=$session.BaselineHash
+    $scope=Add-PtResourceProcessScope -Id late-helper -FilePath $path -RestoreStep helper-exit
+    Require ($session.BaselineHash -ceq $hash -and (Get-PtReportHash ([IO.File]::ReadAllBytes($session.BaselinePath))) -ceq $hash) 'Original baseline was rewritten'
+    $captured=Get-PtAdditionalProcessScope $session $scope
+    Require ($captured.Identities.Count -eq 1 -and $captured.Identities[0].processId -eq 11) 'Existing helper was omitted from the added scope'
+    Reject {Add-PtResourceProcessScope -Id duplicate -FilePath $path -RestoreStep helper-exit} 'already declared'
+    [IO.File]::AppendAllText($scope.Path,' ')
+    Reject {Assert-PtResourceSession $session} 'snapshot changed'
+}
+Check 'An attempted helper activation cannot acquire a replacement scope' {
+    $run=Session -ResourcePlan @{Schema='PtRunResources.v1';Resources=@()}
+    $session=Get-PtActiveResourceSession
+    $path=[IO.Path]::GetFullPath('attempted.exe')
+    $session.Processes+=@([pscustomobject]@{Id='failed';FilePath=$path;ImagePath=$path;State='Unresolved'})
+    Save-PtResourceSession $session
+    Reject {Add-PtResourceProcessScope -Id attempted -FilePath $path -RestoreStep helper-exit} 'activation already attempted'
+    Require (-not $session.AdditionalProcessScopes) 'Failed launch acquired a new baseline'
+}
 Check 'Direct launches require actual PID/start time and reject shared process adoption' {
     $run=Session
     Reject {Start-PtOwnedProcess reused.exe} 'reused'

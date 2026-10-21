@@ -91,7 +91,7 @@ function New-PtNotepadFixture {
     $fixture = [pscustomobject]@{
         Kind='Notepad'; Id=$id; Workspace=$workspacePath; Path=(Join-Path $workspacePath "pt-notepad-$id.txt")
         ReceiptPath=(Join-Path $workspacePath "fixture-$id.json"); Baseline=$baseline
-        Desktop=(Get-PtDesktopSnapshot); Identity=$null; TabRuntimeId=@(); OwnsWindow=$false; CloseRequested=$false; ContentClosed=$false; Closed=$false
+        Desktop=(Get-PtDesktopSnapshot); Identity=$null; TabRuntimeId=@(); OwnsWindow=$false; CloseRequested=$false; DiscardRequested=$false; ContentClosed=$false; Closed=$false
     }
     Assert-PtOwnedFixture $fixture Notepad
     Save-PtOwnedFixture $fixture
@@ -135,9 +135,13 @@ function Remove-PtNotepadFixture {
     A save prompt is not silently accepted. Use DiscardFixtureEdits only for test-owned changes.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Fixture,[switch]$DiscardFixtureEdits)
+    param([Parameter(Mandatory)]$Fixture,[switch]$DiscardFixtureEdits,
+        [ValidateNotNullOrEmpty()][string]$DiscardButtonName="Don't save")
     Initialize-PtOwnedFixtures
     Assert-PtOwnedFixture $Fixture Notepad
+    if(-not $Fixture.PSObject.Properties['DiscardRequested']){
+        $Fixture|Add-Member -NotePropertyName DiscardRequested -NotePropertyValue $false
+    }
     if ($Fixture.Closed) { return $Fixture }
     if (-not $Fixture.Identity) { Resolve-PtOwnedNotepadTarget -Fixture $Fixture -TimeoutSeconds 2 | Out-Null }
     $cleanupError=$null
@@ -176,11 +180,23 @@ function Remove-PtNotepadFixture {
             if (-not [PtDesktop]::IsWindow([IntPtr]$h)) { return $true }
             $remaining = @(Get-PtNotepadTabs $h | Where-Object { (@($_.GetRuntimeId()) -join ',') -ceq ($Fixture.TabRuntimeId -join ',') })
             if (-not $remaining.Count) { return $true }
-            if ($DiscardFixtureEdits) {
+            if($remaining.Count -ne 1 -or -not $remaining[0].Current.Name.Contains("pt-notepad-$($Fixture.Id)")){
+                throw 'Pending close no longer identifies the owned Notepad tab; discard refused.'
+            }
+            if ($DiscardFixtureEdits -and -not $Fixture.DiscardRequested) {
+                if(-not $remaining[0].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected){
+                    throw 'Pending close no longer has the owned Notepad tab selected; discard refused.'
+                }
                 $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$h)
                 $buttonCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty,'SecondaryButton')
-                $discard = @($root.FindAll([Windows.Automation.TreeScope]::Descendants,$buttonCondition) | Where-Object { -not $_.Current.IsOffscreen })
-                if ($discard.Count -eq 1 -and $discard[0].Current.Name -eq "Don't save") {
+                $discard = @($root.FindAll([Windows.Automation.TreeScope]::Descendants,$buttonCondition) | Where-Object {
+                    -not $_.Current.IsOffscreen -and $_.Current.IsEnabled -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Button
+                })
+                if ($discard.Count -eq 1 -and $discard[0].Current.Name -ceq $DiscardButtonName) {
+                    Assert-PtWindowIdentity $Fixture.Identity
+                    if($Fixture.OwnsWindow){Restore-PtPointerPosition $Fixture.Desktop.pointer|Out-Null}
+                    $Fixture|Add-Member -Force -NotePropertyName DiscardRequested -NotePropertyValue $true
+                    Save-PtOwnedFixture $Fixture
                     $discard[0].GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
                 }
             }
@@ -210,7 +226,13 @@ function Remove-PtNotepadFixture {
         }|Out-Null
         Restore-PtWindowSnapshot $original[0].Window | Out-Null
     }
-    if($Fixture.OwnsWindow -and [PtDesktop]::IsWindow([IntPtr]$h)){throw 'Owned Notepad window still contains untracked state; preserved instead of closing other tabs.'}
+    if($Fixture.OwnsWindow){
+        Wait-PtCondition -Description 'owned Notepad window disappearance; remaining tabs are preserved' -TimeoutSeconds 4 -Probe {
+            if(-not [PtDesktop]::IsWindow([IntPtr]$h)){return $true}
+            Assert-PtWindowIdentity $Fixture.Identity
+            $false
+        }|Out-Null
+    }
     if ([IO.File]::Exists($Fixture.Path)) { Remove-Item -LiteralPath $Fixture.Path -ErrorAction Stop }
     } catch {$cleanupError=$_;$cleanupError.Exception.Data['FixtureReceipt']=$Fixture.ReceiptPath;throw}
     finally {

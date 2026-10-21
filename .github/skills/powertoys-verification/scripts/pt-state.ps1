@@ -137,7 +137,10 @@ function Assert-PtRunnerRestartResources {
         throw 'Restart requires an originally restartable Settings resource, not a same-instance restoration promise.'
     }
     $baseline=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($session.BaselinePath))
-    if(@($baseline.ProcessScopes.Identities|Where-Object {$_.processId -in $affected}).Count){
+    $processScopes=@($baseline.ProcessScopes)+@(foreach($reference in @($session.AdditionalProcessScopes)){
+        if($reference){Get-PtAdditionalProcessScope -Session $session -Reference $reference}
+    })
+    if(@($processScopes.Identities|Where-Object {$_.processId -in $affected}).Count){
         throw 'Restart conflicts with a declared pre-existing process identity that must survive. Use an explicit logical lifecycle resource instead of a same-instance process scope.'
     }
 }

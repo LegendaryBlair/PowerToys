@@ -175,6 +175,7 @@ Read the same page instance for live synchronization before any diagnostic navig
 | Symptom / condition | Diagnose / recover | Interpretation boundary |
 |---|---|---|
 | Main HWND survives Close | Observe visibility and secondary/process lifetime; normally reopen main, then close final owned secondary. | Expected hiding, not automatically a close failure. No Runner kill/restart to force HWND destruction. |
+| First-launch What's New is visible while a second main HWND is hidden | Enumerate both roles before assuming one Settings HWND. The hidden main can expose navigation controls with no selected page, which the shared Settings snapshot cannot preserve. Use a supported paired observation first; obtain explicit window-state reset approval if normalizing startup UI is necessary. | Do not repeatedly wait for a selection, close the secondary to manufacture a baseline, or infer a shutdown defect from this preservation gap. Continue independent binary checks and retain the lifecycle coverage limitation. |
 | Page/group lookup fails | Inspect actual page landmark, parent expansion/viewport and current bounds; requery exact ID/type. | Universal Header, substring and zero-size assumptions are driver bugs. For process exit, correlate PID/time with Application Error/WER before more UIA. |
 | Secondary Settings query has many matches | Exact localized footer Name from a complete NavigationViewItem set, then unique-selector requery. | Release view-model class names are not valid alternate targets. |
 | Secondary UIA searches time out although release content is painted | Review a fresh passive capture. If scoped UIA queries and point observations expose only host panes, use an explicitly recorded visual locator plus exact native-window hit testing; retain the producing image and geometry. Fit only an owned secondary before input when its footer is outside the work area. | UIA timeout does not prove blank product content. A historical image is a locator, not fresh PASS evidence; require current painted-target evidence and observe the actual foreground/destination after the click. |
@@ -233,11 +234,56 @@ original `AllowRunnerRestart` opt-in and a recorded `Restart-PtRunner` transitio
 Both routes restore supported page/scroll/expansion/placement, not Quick Access/OOBE, IME,
 drafts or every module file. Original identities remain in the immutable receipt.
 
+Quick Access enable/disable is itself a companion lifecycle boundary: it can replace the
+companion PID/start time/HWND without restarting Runner. Before this case, declare a
+module-local replacement contract and preserve the original flyout page, rendered language,
+visibility and shared sort. A same-identity borrowed-window record is insufficient.
+Re-resolve the new host before observing it; do not rewrite the original record or use
+`Register-PtRestartedWindow` without its required Runner transition. If the replacement
+adapter is unavailable, report the prerequisite before toggling, not after destroying the
+borrowed identity.
+
 Empty shortcut/Reset rollback, bounded classic-picker handling, effective OS-theme observation
 and heading/speech observation are capability gaps to resolve before their mutations.
 This profile does not claim those shared adapters have been implemented.
 Attribution-link activation likewise requires an actual owned-tab observer/cleanup plan;
 an unavailable browser adapter blocks that link observation, not unrelated localized text.
+
+Run-local adapters verified on `0.102.2883.0` provide these starting points, not shared-helper guarantees:
+
+- Quick Access **Clear** and **Reset** commit the empty six-field binding and close the editor
+  immediately; do not invoke Save afterward. Prove empty-value rollback before assigning a chord.
+- When classic folder-picker controls appear only as generic panes under PowerShell 7, load the
+  matching framework's `WPF\UIAutomationClientsideProviders.dll` and register its assembly through
+  `Windows.Automation.ClientSettings.RegisterClientSideProviderAssembly`. This is client-local;
+  do not register COM components or replace the real folder-selection flow with registry writes.
+- Narrator's `NarratorSpeechRecapDialog` can render spoken history without exposing UIA/native
+  edit text. Capture the real recap rather than claiming speech from heading properties or
+  copying it through the user's clipboard; preserve Narrator preferences and track its process.
+- The diagnostics policy is `AllowDataDiagnostics`, not `AllowTelemetry`. A usable Generate
+  package button is only the start: observe the worker's terminal result and private output.
+- Capture the Settings UI snapshot at the same final placement as the original desktop snapshot,
+  before test-only maximization. Otherwise their native-placement restoration contracts conflict.
+  If display bounds change and exclude the original physical pointer point, report that limit;
+  do not change display resolution, rebaseline the pointer or claim a clamped point is restored.
+- A restarted WPF companion can have a different GUID in its `HwndWrapper` class. The shared
+  exact-class replacement guard can reject it even when executable, list state and placement
+  match. Retain that guard failure and the independent logical-state evidence; do not rewrite
+  the original identity or silently treat registration failure as a restoration PASS.
+- A PowerShell directory move can partially traverse a profile before a sharing failure.
+  Record and recover the actual source/destination file set; do not assume a failed move was
+  atomic. For an authorized clean-configuration fixture, same-parent atomic file renames can
+  isolate settings while retaining locked logs. Preserve every original and check rollback.
+- For update recovery, name the corruption input explicitly. `IsJsonFileCorrupted` in the
+  tested build detects NUL bytes; syntactically truncated JSON is a separate probe, not an
+  interchangeable fixture. Use a nondefault UI-written sentinel to distinguish restoration
+  from replacement by defaults. The installer can start Runner before Stage 2 resumes, so a
+  pause fixture must verify no Runner exists at the actual corruption boundary. Never corrupt
+  a live file merely because the updater itself is paused.
+- Update logs use dated filenames (`UpdateLogs\update-log_YYYY-MM-DD.log`). Preserve offsets
+  across the actual files, including a date rollover, rather than reading the logger template
+  name. An exiting/recreated primary-action provider can return a COM error after work starts:
+  continue only observation of that one request; never replay Install based on its return code.
 
 For backup, choose the checklist's reversible General/module values, private directory and
 complete affected-file baseline first. Execute real selection -> backup -> changes -> restore

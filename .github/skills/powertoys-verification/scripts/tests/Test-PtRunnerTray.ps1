@@ -74,7 +74,11 @@ function Invoke-PtWinApp {
         $f.Clicks++;$f.Menu=$true
     }elseif($Arguments[0] -eq 'invoke'){
         Require ($Arguments -contains '--action' -and $Arguments -contains 'invoke') 'Implicit action fallback requested'
-        if($Arguments[1] -eq 'Localized hidden icons'){$f.Overflow=-not $f.Overflow}
+        if($Arguments[1] -eq 'Localized hidden icons'){
+            if($f.TooltipAlias){throw 'ambiguous_selector: Button, ToolTip and Text share the hidden-icons caption'}
+            $f.Overflow=-not $f.Overflow
+        }
+        elseif($Arguments[1] -eq 'overflow'){$f.Overflow=-not $f.Overflow}
         elseif($Arguments[1] -in '40001','40002','40006'){
             if($Arguments[1] -eq '40001'){$f.Exit++}
             $f.Menu=$false
@@ -94,6 +98,12 @@ Check 'Visible Runner icon does not open hidden icons' {
     $receipt=Invoke-PtRunnerTrayCommand $state Exit
     Require (-not $receipt.OverflowOpened -and @($f.Commands|Where-Object {$_ -like '*Show Hidden Icons*'}).Count -eq 0) 'Unnecessary overflow interaction'
 }
+Check 'A matching tooltip caption does not make the resolved overflow Button ambiguous' {
+    $f.TooltipAlias=$true
+    $receipt=Invoke-PtRunnerTrayCommand $state Settings
+    Require ($receipt.AutomationId -ceq '40002') 'Settings command did not complete'
+    Require (@($f.Commands|Where-Object {$_ -like 'invoke|overflow|*'}).Count -eq 1) 'Resolved Button selector was not invoked exactly once'
+}
 Check 'Ephemeral target observation runs before overflow dismissal' {
     $receipt=Invoke-PtRunnerTrayCommand $state QuickAccess -Observe {
         param($receipt)
@@ -107,7 +117,7 @@ Check 'Cleanup honors the gesture adapter reporting closure before input' {
     $receipt=Invoke-PtRunnerTrayCommand $state Exit
     Require ($receipt.OverflowCleanup.Hidden -and -not $f.Overflow) 'Cleanup reopened the popup'
     Require (-not $receipt.OverflowCleanup.Gesture.Pressed) 'Already closed popup received input'
-    Require (@($f.Commands|Where-Object {$_ -like 'invoke|Localized hidden icons|*'}).Count -eq 1) 'Cleanup used an unconditional second UIA toggle'
+    Require (@($f.Commands|Where-Object {$_ -like 'invoke|overflow|*'}).Count -eq 1) 'Cleanup used an unconditional second UIA toggle'
 }
 Check 'An already hidden popup skips the dismissal gesture' {
     $receipt=Invoke-PtRunnerTrayCommand $state Exit -Observe {$f.Overflow=$false}

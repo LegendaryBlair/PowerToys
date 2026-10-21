@@ -55,6 +55,7 @@ Settings HWND and run-local file/UI comparisons.
 | API | Required contract |
 |---|---|
 | `Register-PtBorrowedWindow -Identity` | Existing Settings/Editor/Welcome windows remain borrowed. Identity proves which object, not permission to close it. |
+| `Add-PtResourceProcessScope -Id -FilePath -RestoreStep` | Declare a late-discovered helper before its first activation. Seals a separate current pre-activation identity snapshot; never rewrites the run baseline, an existing scope or a failed launch. The caller still supplies its real cleanup step. |
 | `Register-PtRestartedWindow -OriginalIdentity -ReplacementIdentity` | Only an originally restartable borrowed Window resource with exact HWND/path and logical cleanup can bind a new same-installation/session instance after the recorded Runner transition. Does not grant termination ownership or certify logical restoration. |
 | `Start-PtOwnedProcess -FilePath -ArgumentList [-Lifetime Case/Run]` | Persist launch intent before starting a dedicated fixture process. Require a new PID and its actual start time; shared-host or broker launches need a dedicated adapter. Arguments follow `Start-Process` quoting rules. |
 | `Invoke-PtOwnedProcessActivation -FilePath -Action [-ArgumentList]` | For a declared Process executable, run one explicit broker/COM activation and record the new exact identity. Refuse an existing singleton and ambiguous multiple processes. No activation retry or ownership by name alone. |

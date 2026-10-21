@@ -195,6 +195,8 @@ The default route is the actual user flow, implemented by `pt-runner-ui.ps1`:
 1. Attest one current-session Runner and the installed Start menu shortcut that targets its
    executable, without extra arguments or the Shell Link run-as flag.
 2. Resolve the actual `PowerToys v...` tray Button, not Awake or the Settings taskbar button.
+   Invoke the typed hidden-icons query's returned selector, not its caption: a visible tooltip
+   or text peer can share that caption and make an otherwise valid action ambiguous.
    Open the overflow only when needed. Guard a native right-click with unique live UIA bounds,
    a second bounds read and the exact native root hit receiver; always release the button.
 3. Invoke the real Runner-owned menu item with AutomationId `40001` through winapp

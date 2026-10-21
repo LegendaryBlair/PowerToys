@@ -172,7 +172,7 @@ function Invoke-PtRunnerTrayCommand {
             $toggle=Find-PtRunnerTrayControl -Target $bar -Query $OverflowButtonName
             if(-not $toggle){throw 'Runner icon and hidden-icons control are unavailable; no preference was changed.'}
             $closedButtonName=$toggle.name
-            Invoke-PtWinApp -Arguments @('invoke',$toggle.name,'-w',"$($bar.hwnd)",'--action','invoke','--json')|Out-Null
+            Invoke-PtWinApp -Arguments @('invoke',$toggle.selector,'-w',"$($bar.hwnd)",'--action','invoke','--json')|Out-Null
             $overflow=Wait-PtCondition -Description 'the newly opened tray overflow' -TimeoutSeconds $TimeoutSeconds -Probe {
                 $found=@(Get-PtRunnerTrayOverflow)
                 if($found.Count -gt 1){throw 'Ambiguous new tray overflow.'}

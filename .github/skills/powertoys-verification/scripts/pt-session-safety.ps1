@@ -33,6 +33,54 @@ function Assert-PtResourceSession {
     $baseline=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($Session.BaselinePath))
     if($baseline.RunId -cne $Session.RunId){throw 'Resource baseline run identity changed.'}
     if($Session.RunId -cne $stored.RunId -or $Session.Schema -cne 'PtResources.v1'){throw 'Invalid resource session.'}
+    foreach($scope in @($Session.AdditionalProcessScopes)){
+        if($scope){Get-PtAdditionalProcessScope -Session $Session -Reference $scope|Out-Null}
+    }
+}
+
+function Get-PtAdditionalProcessScope {
+    param($Session,$Reference)
+    $directory=[IO.Path]::GetDirectoryName($Session.Path)
+    if([IO.Path]::GetDirectoryName($Reference.Path) -ine $directory -or
+        [IO.Path]::GetFileName($Reference.Path) -cnotmatch '^process-scope-[a-f0-9]{32}\.json$'){
+        throw 'Additional process scope does not belong to this resource session.'
+    }
+    Assert-PtReportNoLink $Reference.Path
+    if((Get-PtReportHash ([IO.File]::ReadAllBytes($Reference.Path))) -cne $Reference.Hash){throw 'Additional process scope snapshot changed.'}
+    $snapshot=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($Reference.Path))
+    if($snapshot.Schema -cne 'PtProcessScope.v1' -or $snapshot.RunId -cne $Session.RunId -or
+        $snapshot.FilePath -ine $Reference.FilePath -or $snapshot.ResourceId -cne $Reference.ResourceId){
+        throw 'Additional process scope identity changed.'
+    }
+    $snapshot
+}
+
+function Add-PtResourceProcessScope {
+    <#.SYNOPSIS
+    Declare a newly discovered helper before its first activation without replacing any original baseline.
+    #>
+    param([Parameter(Mandatory)][string]$Id,[Parameter(Mandatory)][string]$FilePath,
+        [Parameter(Mandatory)][string]$RestoreStep)
+    $session=Get-PtActiveResourceSession
+    if(-not $session -or -not $session.ResourcePlan){throw 'A declared resource session is required.'}
+    Assert-PtResourceSession $session
+    if($Id -cnotmatch '^[a-z0-9][a-z0-9.-]*$' -or -not [IO.Path]::IsPathFullyQualified($FilePath) -or
+        [string]::IsNullOrWhiteSpace($RestoreStep)){throw 'Additional helper requires an ID, absolute executable and cleanup step.'}
+    $path=[IO.Path]::GetFullPath($FilePath)
+    if(@($session.ResourcePlan.Resources|Where-Object {$_.Id -ceq $Id -or $_.FilePath -ieq $path}).Count -or
+        @($session.Processes|Where-Object {$_.FilePath -ieq $path -or $_.ImagePath -ieq $path}).Count){
+        throw 'Process scope already declared or activation already attempted; do not replace its baseline.'
+    }
+    $file=Join-Path ([IO.Path]::GetDirectoryName($session.Path)) "process-scope-$([guid]::NewGuid().ToString('N')).json"
+    $snapshot=[pscustomobject]@{Schema='PtProcessScope.v1';RunId=$session.RunId;ResourceId=$Id;FilePath=$path
+        CapturedUtc=[DateTimeOffset]::UtcNow.ToString('o');Identities=@(Get-PtResourceProcessCandidates $path)}
+    Write-PtReportText $file (ConvertTo-Json $snapshot -Depth 12)
+    $reference=[pscustomobject]@{Path=$file;Hash=Get-PtReportHash ([IO.File]::ReadAllBytes($file));FilePath=$path;ResourceId=$Id}
+    if(-not $session.PSObject.Properties['AdditionalProcessScopes']){$session|Add-Member NoteProperty AdditionalProcessScopes @()}
+    $session.AdditionalProcessScopes+=@($reference)
+    $session.ResourcePlan.Resources+=@([pscustomobject]@{Id=$Id;Kind='Process';Ownership='Owned';FilePath=$path;RestoreStep=$RestoreStep})
+    Save-PtResourceSession $session
+    $reference
 }
 
 function New-PtResourceSession {
@@ -549,6 +597,9 @@ function Complete-PtResourceSession {
     $baseline=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($session.BaselinePath))
     foreach($resource in @($session.ResourcePlan.Resources|Where-Object Kind -EQ 'Process')){
         $scope=@($baseline.ProcessScopes|Where-Object FilePath -IEQ $resource.FilePath)
+        $scope+=@(foreach($reference in @($session.AdditionalProcessScopes|Where-Object FilePath -IEQ $resource.FilePath)){
+            Get-PtAdditionalProcessScope -Session $session -Reference $reference
+        })
         if($scope.Count -ne 1){
             $rows+=@([pscustomobject]@{Resource="process-$($resource.Id)";Status='BLOCKED'
                 Reason='Declared process scope has no original identity baseline.'})
