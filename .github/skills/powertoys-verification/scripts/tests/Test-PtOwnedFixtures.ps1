@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Workspace)
+param([Parameter(Mandatory)][string]$Workspace,[string]$DiscardButtonName="Don't save")
 $ErrorActionPreference='Stop'
 . "$(Split-Path $PSScriptRoot -Parent)\pt-owned-fixtures.ps1"
 . "$(Split-Path $PSScriptRoot -Parent)\pt-sendinput-chord.ps1"
@@ -46,12 +46,17 @@ try{
         $condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Document)
         $editor=Select-PtUniqueUiElement -Elements @($root.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)|Where-Object{-not $_.Current.IsOffscreen}) -Description 'owned tab text editor'
         $value=$editor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+        $ownedTab=@(Get-PtNotepadTabs $fixture.Identity.hwnd|Where-Object{
+            (@($_.GetRuntimeId()) -join ',') -ceq ($fixture.TabRuntimeId -join ',')
+        })
+        Require ($ownedTab.Count -eq 1) 'Owned tab is not unique before the edit'
+        $originalTabName=$ownedTab[0].Current.Name
         Assert-PtForegroundOrAbort -Hwnd $fixture.Identity.hwnd
         $editor.SetFocus()
         Send-PtChord -Hwnd $fixture.Identity.hwnd -Key 0x58|Out-Null
         Wait-PtCondition -Description 'actual modified state on the owned Notepad tab' -TimeoutSeconds 2 -Probe {
             @(Get-PtNotepadTabs $fixture.Identity.hwnd|Where-Object{
-                (@($_.GetRuntimeId()) -join ',') -ceq ($fixture.TabRuntimeId -join ',') -and $_.Current.Name.EndsWith('. Modified.')
+                (@($_.GetRuntimeId()) -join ',') -ceq ($fixture.TabRuntimeId -join ',') -and $_.Current.Name -cne $originalTabName
             }).Count -eq 1
         }|Out-Null
         $rejected=$false
@@ -61,7 +66,7 @@ try{
         }
         Require $rejected 'Unsaved fixture edits were silently discarded'
     }finally{
-        if($fixture){Remove-PtNotepadFixture $fixture -DiscardFixtureEdits|Out-Null}
+        if($fixture){Remove-PtNotepadFixture $fixture -DiscardFixtureEdits -DiscardButtonName $DiscardButtonName|Out-Null}
     }
     Require ($before -ceq (ReadNotepadState)) 'Modified fixture cleanup changed original Notepad state'
     $results.Add(@{Name='Unsaved owned tab requires explicit discard; pending-close receipt supports retry';Status='PASS'})

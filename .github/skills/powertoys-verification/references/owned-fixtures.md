@@ -30,18 +30,34 @@ containing untracked tabs is preserved rather than closed indiscriminately.
 
 Unsaved content is **not** automatically discarded. For changes made by the test,
 explicitly pass `-DiscardFixtureEdits`. The supported WinUI save dialog must expose the
-expected `SecondaryButton` named `Don't save`; an unknown/localized dialog remains an
-explicit cleanup error. The existing user's modified tabs are never discarded.
+expected enabled `SecondaryButton` with the Button role. Its expected name defaults to
+`Don't save`; for another UI language, explicitly pass the localized label you verified
+in the actual owned-document save dialog:
+
+```powershell
+Remove-PtNotepadFixture -Fixture $fixture -DiscardFixtureEdits `
+    -DiscardButtonName $verifiedLocalizedDiscardLabel
+```
+
+Do not automatically accept whatever text is on `SecondaryButton`. The expected label
+does not itself grant discard consent: `-DiscardFixtureEdits` is still required, and the
+pending close must retain the exact owned tab identity/name and selection. Unknown,
+disabled, ambiguous or mismatched controls remain cleanup errors. The existing user's
+modified tabs are never discarded.
 
 After an error, load the saved receipt and retry the same cleanup:
 
 ```powershell
 $fixture = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-Remove-PtNotepadFixture -Fixture $fixture -DiscardFixtureEdits
+Remove-PtNotepadFixture -Fixture $fixture -DiscardFixtureEdits `
+    -DiscardButtonName $verifiedLocalizedDiscardLabel
 ```
 
 A pending close or completed tab close is retained in the receipt, so a retry does not
-close another tab. A launch that has not yet resolved can retry discovery using its
+close another tab. `DiscardRequested` records dispatch before invoking the discard action;
+retries observe completion without replaying it. After the owned tab disappears, cleanup
+also waits for its owned window to disappear, checking identity while it remains. A
+surviving window is preserved, not force-closed. A launch that has not yet resolved can retry discovery using its
 unique file token. If identity cannot be established, the receipt/file are preserved and
 the failure is surfaced; do not kill Notepad or guess a user tab.
 
@@ -84,8 +100,13 @@ cleanup completed, not a live guarantee against subsequent user changes. Excepti
 retain the receipt path and any additional cleanup error; no failure becomes success.
 Desktop restoration is attempted even when tab/file cleanup fails.
 
+Run `scripts/tests/Test-PtNotepadCleanup.ps1` in a fresh PowerShell process for synthetic
+UIA/window tests of localized consent, asynchronous closure, no replay and refusal paths.
+It does not open Notepad or interact with the desktop.
+
 Run `scripts/tests/Test-PtOwnedFixtures.ps1 -Workspace <new-folder>` for the interactive
 contract suite. It compares the pre-existing Notepad tabs and Explorer paths, exercises
 an actual dirty document, and verifies refusal/retry for untracked folder contents.
+Supply `-DiscardButtonName` when the observed Notepad discard label is not English.
 Different Notepad versions/providers and unexpected Explorer reuse require explicit
 evidence before extending these adapters; do not claim universal app/session restoration.
