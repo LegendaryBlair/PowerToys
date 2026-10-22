@@ -13,7 +13,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | New+ | 1 | 9 | 9 |
 | Peek | 1 | 18 | 18 |
 | PowerRename | 2 | 16 | 17 |
-| PowerToys Settings | 2 | 28 | 50 |
+| PowerToys Settings | 4 | 25 | 50 |
 | Shortcut Guide | 3 | 19 | 96 |
 | Workspaces | 2 | 38 | 72 |
 | ZoomIt | 1 | 39 | 39 |
@@ -31,7 +31,18 @@ inputs are observed. Keep individual parameter observations even when they share
 `Sources` on new definitions retains original requirement aliases where supplied; it is
 provenance, not a substitute for observing the described behavior.
 
-Settings retains its existing scenario/child IDs and reports navigation details, all 12
+Settings revision 4 groups Home/Quick Access sorting under `SET-DASHBOARD-SORT` and
+secondary-window return/lifetime under `SET-WHATS-NEW-ENTRY`. Their original children and
+descriptions remain independent, including both sorting surfaces, distinct reopen boundaries,
+Home/General entry origins and process lifetime. The standalone `SET-RESTART-MEDIUM` scenario
+is covered by its retained child in `SET-LOCALIZATION`, where the actual language-change
+Restart supplies the entry path. `PreviousScenarioIds` records all three mappings;
+all 50 child IDs remain.
+The diagnostic-package policy case now names the visible Diagnostic data/Generate package
+controls and restores the original policy state, rather than requiring an unmanaged result.
+Historical reports are unchanged.
+
+Settings reports navigation details, all 12
 attribution pages, opposite/live theme conditions, immediate update-check isolation and
 shortcut-conflict startup as independent children. Static/reopened theme observations and
 final restoration cannot replace live-window transitions or pre-cleanup isolation evidence.
