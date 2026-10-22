@@ -1,7 +1,7 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 2,
-  "SourceSha256": "175F891C26A5212D9F56A3E32F95CCC7B2742EB77A586BAA84E8745A28D81A82",
+  "Revision": 4,
+  "SourceSha256": "3712DD59CF0F5DFEC0D8CAB155EFECE977B4353F290827064E092B1D6B98F912",
   "Items": [
     {
       "Id": "SET-MAIN-WINDOW",
@@ -44,12 +44,23 @@
     },
     {
       "Id": "SET-DASHBOARD-SORT",
+      "PreviousScenarioIds": [
+        "SET-DASHBOARD-SORT",
+        "SET-QUICK-ACCESS-SORT"
+      ],
       "Assertions": [
         {
           "Id": "SET-DASHBOARD-SORT.behavior",
           "Description": "On **Home**, switch the Utilities card between **Alphabetical** and **By status**. Confirm exactly one sort choice is checked, card order matches the selection, and the selected order persists after closing every Settings window and reopening.",
           "Sources": [
             "#43626, #44734"
+          ]
+        },
+        {
+          "Id": "SET-QUICK-ACCESS-SORT.behavior",
+          "Description": "Switch Quick Access **All apps** between **Alphabetical** and **By status**. Confirm the choices are mutually exclusive, each order is correct, and the selected order is retained after closing and reopening the flyout.",
+          "Sources": [
+            "#44734"
           ]
         }
       ]
@@ -86,18 +97,6 @@
           "Description": "Navigate Home with keyboard and a screen reader. Confirm heading navigation reaches the **Home** level-1 heading and each dashboard card level-2 heading, focus order follows the visual order, and every module toggle has an accessible name and state.",
           "Sources": [
             "#42438"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "SET-RESTART-MEDIUM",
-      "Assertions": [
-        {
-          "Id": "SET-RESTART-MEDIUM.behavior",
-          "Description": "Start PowerToys non-elevated, use the General page restart action, and confirm the restarted Runner and Settings processes remain at medium integrity and General reports that PowerToys is running as the current user.",
-          "Sources": [
-            "L53"
           ]
         }
       ]
@@ -170,18 +169,6 @@
           "Description": "Keep Settings open on the **Find My Mouse** page and Quick Access on **All apps**, choose **By status**, then disable Find My Mouse from Quick Access. **Without navigating away from or recreating the Mouse Utilities page**, confirm its open-page toggle and Home toggle update immediately, it moves to the disabled group without reopening the flyout, and its launch action disappears or becomes unavailable. Re-enable it and confirm the same existing page, Home, Quick Access, and the module action recover.",
           "Sources": [
             "L71-L74, #43840, #44699, #44734"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "SET-QUICK-ACCESS-SORT",
-      "Assertions": [
-        {
-          "Id": "SET-QUICK-ACCESS-SORT.behavior",
-          "Description": "Switch Quick Access **All apps** between **Alphabetical** and **By status**. Confirm the choices are mutually exclusive, each order is correct, and the selected order is retained after closing and reopening the flyout.",
-          "Sources": [
-            "#44734"
           ]
         }
       ]
@@ -264,12 +251,23 @@
     },
     {
       "Id": "SET-LOCALIZATION",
+      "PreviousScenarioIds": [
+        "SET-LOCALIZATION",
+        "SET-RESTART-MEDIUM"
+      ],
       "Assertions": [
         {
           "Id": "SET-LOCALIZATION.behavior",
-          "Description": "Change the PowerToys language to a non-English supported language and use the page's restart action. Confirm Settings and Quick Access core chrome, sort labels, and actions use localized resources rather than missing-resource keys or unintended English fallback. Restore the original language.",
+          "Description": "Starting with non-elevated PowerToys, change its language to a different, non-English supported language and click Restart in the language-change prompt. Confirm Settings and Quick Access core chrome, sort labels, and actions use localized resources rather than missing-resource keys or unintended English fallback. Restore the original language through the same language-change flow.",
           "Sources": [
             "#44626"
+          ]
+        },
+        {
+          "Id": "SET-RESTART-MEDIUM.behavior",
+          "Description": "During the localization scenario's actual language-change Restart, record Runner and Settings integrity levels before the action and identify their replacement processes afterward. Both must remain at medium integrity, and General must report that PowerToys is running as the current user. Restart as administrator or tray exit/relaunch cannot substitute for the language-change Restart action.",
+          "Sources": [
+            "L53"
           ]
         },
         {
@@ -434,12 +432,23 @@
     },
     {
       "Id": "SET-WHATS-NEW-ENTRY",
+      "PreviousScenarioIds": [
+        "SET-WHATS-NEW-ENTRY",
+        "SET-SECONDARY-LIFETIME"
+      ],
       "Assertions": [
         {
           "Id": "SET-WHATS-NEW-ENTRY.behavior",
           "Description": "Open **What's New** from Home and General, then choose **Open Settings**. Confirm the existing main Settings window returns to **Home**, not a blank or stale module page, and repeated invocation does not create duplicate main windows.",
           "Sources": [
             "#44638, #45775, #46203"
+          ]
+        },
+        {
+          "Id": "SET-SECONDARY-LIFETIME.behavior",
+          "Description": "Open What's New or OOBE/SCOOBE, close the main Settings window, and confirm `PowerToys.Settings.exe` remains alive while the secondary window stays functional. Use **Open Settings** to restore the main window, close it again, then close the last secondary window and confirm the Settings process exits cleanly.",
+          "Sources": [
+            "#45787"
           ]
         }
       ]
@@ -464,23 +473,11 @@
       ]
     },
     {
-      "Id": "SET-SECONDARY-LIFETIME",
-      "Assertions": [
-        {
-          "Id": "SET-SECONDARY-LIFETIME.behavior",
-          "Description": "Open What's New or OOBE/SCOOBE, close the main Settings window, and confirm `PowerToys.Settings.exe` remains alive while the secondary window stays functional. Use **Open Settings** to restore the main window, close it again, then close the last secondary window and confirm the Settings process exits cleanly.",
-          "Sources": [
-            "#45787"
-          ]
-        }
-      ]
-    },
-    {
       "Id": "SET-BUG-REPORT-POLICY",
       "Assertions": [
         {
           "Id": "SET-BUG-REPORT-POLICY.behavior",
-          "Description": "Apply the policy that disables PowerToys telemetry, restart PowerToys, and open General. Confirm **Create bug report** remains enabled, invokes the bug-report workflow once, and reports progress/completion normally. Remove the policy, restart, and confirm the General page returns to its unmanaged state.",
+          "Description": "In an authorized policy fixture, disable Diagnostic data by organization policy and fully close and reopen the fixture's Settings windows. In General's Diagnostics & feedback section, confirm Diagnostic data shows Off, its switch cannot be changed, and This setting is managed by your organization. is displayed. The separate Generate bug report package card's Generate package button must remain enabled. Click once and observe generation progress and successful completion with a newly generated local diagnostic package, without uploading it or submitting a GitHub issue. Restore the original policy and diagnostic-data preference, reopen Settings, and compare the switch value, editability and management notice with the pre-test baseline. Remove only this case's generated package; do not require an originally managed setting to become unmanaged.",
           "Sources": [
             "#45033"
           ]

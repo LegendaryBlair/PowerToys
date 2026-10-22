@@ -13,7 +13,7 @@
 | Shared state | Home and Quick Access share root `dashboard_sort_order`. Settings/Quick Access rendered language, PowerToys theme and effective Windows app theme are separate observations. |
 
 Use the [checklist](../release-checklist/settings.md) and [frozen inventory](../assertion-inventories/settings.json)
-unchanged: 28 scenarios / 50 children. This profile describes operations, not replacement expectations.
+unchanged: 25 scenarios / 50 children. This profile describes operations, not replacement expectations.
 Follow the [toolchain](../winapp-toolchain.md) and [recording](../recording-workflow.md) contracts.
 Source identifiers below must be confirmed against the installed UI; newer source is not installed-build evidence.
 
@@ -127,7 +127,7 @@ Do not retain volatile selectors after navigation, sorting, language or lifecycl
 | Close owned window | Main/secondary, all siblings accounted for | Tracked HWND or scoped Close action | Normal close once; observe main hiding if a secondary survives. Require process exit only at the final-window boundary. |
 | Resize/check layout | Original placement recorded | Native HWND, monitor work area and installed `WM_GETMINMAXINFO` limits | Use actual minimum, not a guessed narrow width; settle layout and inspect both scroll ends. Record default placement before fitting an owned fixture for another case. |
 | Observe accessibility | Home heading/module controls | UIA name/state, supported heading observer and real screen reader | Verify property support first; CLI rejection of HeadingLevel is not a missing product heading. Names do not establish focus order or speech. |
-| Generate bug report | General diagnostics, policy fixture authorized | Localized Generate package/Create bug report Button in its own card | Invoke once; track `PowerToys.BugReportTool.exe` and private output. Ordinary enabled state does not cover the policy variant. |
+| Generate bug report | General, Diagnostics & feedback; policy fixture authorized | Localized Generate package Button under the separate Generate bug report package card | Invoke once; track `PowerToys.BugReportTool.exe`, terminal result and private output. Diagnostic data Off alone does not establish the policy variant; also observe its disabled switch and organization-management notice. |
 
 ### Read-out notes
 
@@ -142,6 +142,18 @@ Do not retain volatile selectors after navigation, sorting, language or lifecycl
   Attribution children cover all 12 listed pages, including both links on Color Picker,
   Mouse Utilities and File Explorer Add-ons. Observe the installed language resources:
   translator comments in source do not establish a shipped translation.
+- The language-change Restart also supplies the medium-integrity preservation observation.
+  Record both process tokens before and after that action. The administrator card's Restart
+  as administrator and manual tray exit/relaunch are different routes, not substitutes.
+- The organization policy for Diagnostic data maps to `AllowDataDiagnostics=0` under
+  `SOFTWARE\Policies\PowerToys`; machine scope takes precedence over user scope
+  (`src\common\utils\gpo.h`, `getConfiguredValue` / `getAllowDataDiagnosticsValue`).
+  Preserve the authorized value's existence, kind and data separately from the user's
+  diagnostic-data preference. `GeneralViewModel` reads the policy on construction: use an
+  owned Settings session, close its main and secondary windows and verify process exit before
+  reopening. This policy UI check does not require a full Runner or Windows restart.
+  Restore the original policy, recreate Settings and compare the original visible state;
+  never remove an existing organization policy merely to clear its management notice.
 - `system_theme` is a cache, not effective Windows-theme evidence. Use an authorized reversible
   Windows theme UI/verified effective-state observer. `AppsUseLightTheme` write plus broadcast
   alone does not establish tray adoption or authorize a redraw verdict.
@@ -260,8 +272,6 @@ Run-local adapters verified on `0.102.2883.0` provide these starting points, not
 - Narrator's `NarratorSpeechRecapDialog` can render spoken history without exposing UIA/native
   edit text. Capture the real recap rather than claiming speech from heading properties or
   copying it through the user's clipboard; preserve Narrator preferences and track its process.
-- The diagnostics policy is `AllowDataDiagnostics`, not `AllowTelemetry`. A usable Generate
-  package button is only the start: observe the worker's terminal result and private output.
 - Capture the Settings UI snapshot at the same final placement as the original desktop snapshot,
   before test-only maximization. Otherwise their native-placement restoration contracts conflict.
   If display bounds change and exclude the original physical pointer point, report that limit;
