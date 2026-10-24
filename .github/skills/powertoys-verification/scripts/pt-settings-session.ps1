@@ -96,7 +96,13 @@ function Test-PtSettingsUiStateMatch {
             $requested=$Expected.Scroll[$index].$axis
             $observed=$Actual.Scroll[$index].$axis
             if($requested -isnot [double] -and $requested -isnot [int] -and $requested -isnot [long]){return $false}
-            if($observed -ne $requested -and $observed -ne [double][single]$requested){return $false}
+            if($observed -isnot [double] -and $observed -isnot [int] -and $observed -isnot [long]){return $false}
+            $rounded=[double][single]$requested
+            if($observed -ne $requested -and $observed -ne $rounded){
+                # WinUI's percentage arithmetic can add one double ULP to its float32 command readback.
+                if($requested -lt 0 -or $requested -gt 100 -or $observed -lt 0 -or $observed -gt 100 -or
+                    ($observed -ne [Math]::BitIncrement($rounded) -and $observed -ne [Math]::BitDecrement($rounded))){return $false}
+            }
             $wire.Scroll[$index].$axis=$observed
         }
     }
@@ -356,7 +362,7 @@ function Restore-PtSettingsUiSnapshot {
     $receiptPath="$($Snapshot.Path).restored-$([guid]::NewGuid().ToString('N')).json"
     $receipt=[pscustomobject]@{Restored=$true;Scope=$Snapshot.Scope;UnsupportedState=$Snapshot.UnsupportedState;Path=$receiptPath
         Identity=$Snapshot.Identity;Ui=$current;Native=$placement;ScrollTransitions=@($scrollTransitions)
-        ScrollComparison=$(if($winUi){'Exact or exact float32 command readback; original raw percentages retained'}else{'Exact'})}
+        ScrollComparison=$(if($winUi){'Exact or float32 command readback within one double ULP; original raw percentages retained'}else{'Exact'})}
     Write-PtReportText $receiptPath (ConvertTo-Json $receipt -Depth 20)
     Complete-PtSettingsObligation $Snapshot $receiptPath
     $receipt
