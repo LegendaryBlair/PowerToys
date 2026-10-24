@@ -127,3 +127,59 @@ function Restore-PtQuickAccentFileBaseline {
     if ($actual -ne $Baseline.Hash) { throw "Restoration verification failed at $($Baseline.Path)." }
     [pscustomobject]@{ Path = $Baseline.Path; Restored = $true; Hash = $actual }
 }
+
+function Invoke-PtQuickAccentCharacterDialog {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][long]$WindowHandle,
+        [Parameter(Mandatory)][string]$ManageButtonName,
+        [Parameter(Mandatory)][scriptblock]$Action
+    )
+    Add-Type -AssemblyName UIAutomationClient
+    $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$WindowHandle)
+    function Find-DialogControl([string]$Id) {
+        $root.FindFirst([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::AutomationIdProperty, $Id))
+    }
+    if ((Find-DialogControl 'CharacterSetsSearchBox') -or (Find-DialogControl 'PrimaryButton')) {
+        throw 'An existing dialog must be closed before opening character sets.'
+    }
+    $buttons = @($root.FindAll([Windows.Automation.TreeScope]::Descendants,
+        [Windows.Automation.AndCondition]::new(
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::NameProperty, $ManageButtonName),
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::Button))))
+    if ($buttons.Count -ne 1 -or -not $buttons[0].Current.IsEnabled -or $buttons[0].Current.IsOffscreen) {
+        throw 'A unique visible enabled Manage character sets button is required.'
+    }
+    $ownedSearchId = $null
+    try {
+        $buttons[0].GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+        $deadline = [DateTime]::UtcNow.AddSeconds(5)
+        do {
+            $search = Find-DialogControl 'CharacterSetsSearchBox'
+            if ($search) { break }
+            Start-Sleep -Milliseconds 50
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if (-not $search) { throw 'Character dialog did not become observable; do not open it again.' }
+        $ownedSearchId = $search.GetRuntimeId() -join ','
+        & $Action $root
+    }
+    finally {
+        $currentSearch = Find-DialogControl 'CharacterSetsSearchBox'
+        if ($ownedSearchId -and $currentSearch -and
+            (($currentSearch.GetRuntimeId() -join ',') -eq $ownedSearchId)) {
+            $cancel = Find-DialogControl 'CloseButton'
+            if (-not $cancel) { throw 'Owned character dialog has no observable Cancel control.' }
+            $cancel.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while ((Find-DialogControl 'CharacterSetsSearchBox') -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 50
+            }
+            if (Find-DialogControl 'CharacterSetsSearchBox') { throw 'Owned character dialog did not close.' }
+        }
+    }
+}
