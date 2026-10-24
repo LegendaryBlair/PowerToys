@@ -72,6 +72,23 @@ Require (-not(Test-PtSettingsUiStateMatch $expected $actual -AllowWinUiFloatRead
 $actual.Scroll[0].Vertical=$expected.Scroll[0].Vertical+0.00000001
 Require (-not(Test-PtSettingsUiStateMatch $expected $actual -AllowWinUiFloatReadback)) 'A nearby but different value was accepted by bucket rounding'
 Require ($expected.Scroll[0].Vertical -eq 27.60492298072708) 'Original raw baseline was changed'
+$roundingExpected=[pscustomobject]@{PageAutomationId='DashboardNavItem';Expansion=@();Scroll=@(@{Id='MainScrollViewer';Horizontal=-1.0;Vertical=46.52418145916063})}
+$roundingActual=ConvertFrom-PtReportJson (ConvertTo-Json $roundingExpected -Depth 8)
+$rounded=[double][single]$roundingExpected.Scroll[0].Vertical
+$roundingActual.Scroll[0].Vertical=46.524181365966804
+Require (-not(Test-PtSettingsUiStateMatch $roundingExpected $roundingActual)) 'Provider arithmetic rounding was accepted without WinUI opt-in'
+Require (Test-PtSettingsUiStateMatch $roundingExpected $roundingActual -AllowWinUiFloatReadback) 'Observed WinUI readback one double ULP above float32 was rejected'
+$roundingActual.Scroll[0].Vertical=[Math]::BitDecrement($rounded)
+Require (Test-PtSettingsUiStateMatch $roundingExpected $roundingActual -AllowWinUiFloatReadback) 'One double ULP below float32 was rejected'
+$roundingActual.Scroll[0].Vertical=[Math]::BitIncrement([Math]::BitIncrement($rounded))
+Require (-not(Test-PtSettingsUiStateMatch $roundingExpected $roundingActual -AllowWinUiFloatReadback)) 'More than one double ULP was accepted'
+$roundingActual.Scroll[0].Vertical=$rounded
+$roundingActual.Scroll[0].Horizontal=[Math]::BitIncrement(-1.0)
+Require (-not(Test-PtSettingsUiStateMatch $roundingExpected $roundingActual -AllowWinUiFloatReadback)) 'No-scroll sentinel was approximated'
+$roundingActual.Scroll[0].Horizontal=-1.0
+$roundingActual.PageAutomationId='GeneralNavItem'
+Require (-not(Test-PtSettingsUiStateMatch $roundingExpected $roundingActual -AllowWinUiFloatReadback)) 'Rounding allowance hid a changed page'
+Require ($roundingExpected.Scroll[0].Vertical -eq 46.52418145916063) 'Rounding comparison changed the original baseline'
 $scroll.Changes=0;$scroll.Current.VerticalScrollPercent=0.0
 $scroll|Add-Member -Force ScriptMethod SetScrollPercent {
     param($horizontal,$vertical)
@@ -86,5 +103,5 @@ $scroll.Changes=0;$scroll.Current.VerticalScrollPercent=0.0
 $scroll|Add-Member -Force ScriptMethod SetScrollPercent {param($horizontal,$vertical) $this.Changes++;$this.Current.VerticalScrollPercent=25.0}
 $transitions=@(Set-PtSettingsScrollState -Hwnd 1 -Scroll $expected.Scroll)
 Require ($scroll.Changes -eq 1 -and -not $transitions[0].ReappliedForChangedExtent -and $transitions[0].Vertical -eq 25.0) 'Unchanged layout triggered a blind retry or a fabricated readback'
-Write-PtReportText "$Workspace\results.json" '{"StaleProviderRebind":"PASS","NonStaleFailurePropagation":"PASS","TransientProviderAbsence":"PASS","StrictBaseline":"PASS","RealizationPolling":"PASS","NoRedundantExpansion":"PASS","NavigationScrollFirst":"PASS","AmbiguousSelectionRefusal":"PASS","ExactWinUiWireReadback":"PASS","RealDriftRejected":"PASS","ObservedExtentChange":"PASS","NoBlindReplay":"PASS"}'
+Write-PtReportText "$Workspace\results.json" '{"StaleProviderRebind":"PASS","NonStaleFailurePropagation":"PASS","TransientProviderAbsence":"PASS","StrictBaseline":"PASS","RealizationPolling":"PASS","NoRedundantExpansion":"PASS","NavigationScrollFirst":"PASS","AmbiguousSelectionRefusal":"PASS","ExactWinUiWireReadback":"PASS","WinUiArithmeticRounding":"PASS","RealDriftRejected":"PASS","ObservedExtentChange":"PASS","NoBlindReplay":"PASS"}'
 "PASS: installed-Settings readiness regressions with synthetic UIA elements only. $Workspace"

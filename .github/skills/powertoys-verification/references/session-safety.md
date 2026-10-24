@@ -156,8 +156,9 @@ Settings restoration reveals an unrealized rail only for an authorized replaceme
 restores navigation/expansion and final placement before applying percentages to the settled
 scroll extent. A changed extent can require one explicit reapplication; an unchanged extent
 never triggers a blind replay. An already-correct visible window is compared without refocusing
-or rewriting it. WinUI scroll comparison accepts the original raw percentage or exactly its
-float32 command readback, not a decimal tolerance or a rounded bucket. Real scroll drift and
+or rewriting it. WinUI scroll comparison accepts the original raw percentage or its float32
+command readback with at most one adjacent double-precision value for percentage arithmetic,
+not a decimal tolerance or a rounded bucket. The no-scroll sentinel remains exact. Real scroll drift and
 every other UI difference still fail, and the immutable original percentages remain intact.
 
 ## Cleanup dependencies
