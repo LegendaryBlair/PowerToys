@@ -71,8 +71,8 @@
       {"id":"QA-HOOKS-KEYUP","condition":"Disposable authorized Keyboard Manager remap and downstream observer","expectation":"False-start owner key-up reaches downstream and the remap still executes."},
       {"id":"QA-HOOKS-INJECTION","condition":"Disposable authorized centralized shortcut and input observer","expectation":"Quick Accent replacement/arrow injections do not retrigger unrelated shortcuts."}]},
     {"id":"QA-GUIDE","clarity":"CLEAR","assertions":[
-      {"id":"QA-GUIDE-ORDER","expectation":"Guide opens with selected sets first and others alphabetically; return restores originating Settings surface."},
-      {"id":"QA-GUIDE-FILTER","expectation":"Single-character, multi-code-point, no-match and cleared queries give corresponding filtered/empty/restored content."},
+      {"id":"QA-GUIDE-ORDER","expectation":"Guide opens with selected sets first and others alphabetically within language/special groups; return restores originating Settings surface."},
+      {"id":"QA-GUIDE-FILTER","expectation":"Single-character and multi-code-point queries retain only matching sets, keeping all mappings inside them; no-match and cleared queries show empty/restored content."},
       {"id":"QA-GUIDE-DESCRIPTION","expectation":"Hover shows the correct Unicode description; combining marks have dotted-circle display aid."}]},
     {"id":"QA-COPY","clarity":"CLEAR","assertions":[
       {"id":"QA-COPY-ORDINARY","condition":"Clipboard formats supported by preservation guard","expectation":"Click copies exact ordinary character and restores private baseline."},

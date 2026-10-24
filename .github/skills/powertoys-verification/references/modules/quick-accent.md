@@ -68,7 +68,7 @@ deduplicate peers by runtime ID. Accessible names below are English examples, no
 | Select activation mode | Expanded activation section | ComboBox `Name=Activation key` | Expand, then select the unique ListItem: `Left/Right Arrow`, `Space`, `Left, Right or Space`, or `Press and hold the letter`. Verify `SelectionPattern.Current.GetSelection()` and persistence. |
 | Set input/hold delay | Trigger mode: Input delay; hold mode: Hold duration | Spinner/NumberBox scoped by accessible label; child Edit often `AutomationId=InputBox` | Use RangeValuePattern on the spinner where supported, otherwise edit its child and commit by moving focus. Reinspect because mode changes replace visible controls. |
 | Toggle game prevention | Expanded activation section | CheckBox `Name=Do not activate when Game Mode is on` | Read TogglePattern, toggle to target state. This does not establish actual game-mode eligibility. |
-| Open language draft | Settings page, Character sets expanded | Button `Name=Manage character sets` | Confirm no existing character-set search/modal controls, then Invoke once. On driver errors cancel the owned draft before another open. |
+| Open language draft | Settings page, Character sets expanded | Button `Name=Manage character sets` | Use the [owned dialog scope](../quick-accent-fixtures.md#character-dialog-ownership): reject a pre-existing modal, Invoke once, and cancel any remaining owned draft in finally. |
 | Search character sets | Character-set draft | Group `AutomationId=CharacterSetsSearchBox`, child Edit `AutomationId=TextBox` | Focus that edit, replace its text with physical input and verify actual query/filter. ValuePattern alone can bypass the handler's UserInput condition. |
 | Change one set | Character-set draft; `AutomationId=AvailableCharacterSetsList` | Accessible language-name descendant; walk to its owning ListItem | Use SelectionItemPattern AddToSelection/RemoveFromSelection, not Select which can clear other selections. Filter first; realize/scroll and rediscover if virtualized. Require one exact owner. |
 | Select visible sets | Character-set draft | `AutomationId=SelectAllCharacterSetsCheckBox` | Inspect tri-state and Invoke/Toggle. It operates on the currently filtered sets; clear search first when intending all sets. |
@@ -135,7 +135,7 @@ timestamped frames, not a settled image. Keep unique capture filenames per attem
 | Fixture / resource | When needed | Ownership & baseline | Cleanup / restore | Verification |
 |---|---|---|---|---|
 | Unique empty Notepad document; [preparation](../quick-accent-fixtures.md#owned-input) | Baseline activation/text insertion | Run-owned file and tab; record pre-existing tabs/PIDs and localized app controls | Discard only that tab using its observed prompt; delete only the owned file | Owned document gone; unrelated tabs remain |
-| Two synthetic Latin text windows; [preparation](../quick-accent-fixtures.md#owned-input) | IME-independent pass-through, focus transfer and exclusion comparison | Run-owned host/PID/HWNDs; no clipboard, same medium integrity | Close both owned forms, then verify host exit | Both HWNDs absent; no injected participating keys held |
+| Two synthetic Latin windows; `scripts\fixtures\quick-accent-text.ps1` via [preparation](../quick-accent-fixtures.md#owned-input) | IME-independent pass-through, focus transfer and exclusion comparison | Run-owned host/PID/HWNDs; no clipboard, same medium integrity | Close both owned forms, then verify host exit | Both HWNDs absent; no injected participating keys held |
 | Module settings and usage sidecar; file-baseline helper | Before any activation or settings change | Run-owned private snapshot of original existence/bytes; per-action owned hashes | Quiesce module, leave page, guarded exact rollback, restore original enablement | Both hashes/existence after final startup and settling |
 | General enablement and Settings/guide UI | All mutation cases | Preserve general state semantically, current page/search, geometry and existing window identities | Restore only Quick Accent enablement through UI; close owned draft/guide; restore navigation/geometry | Unrelated general fields unchanged; report any replaced process identity |
 | Foreground, pointer and injected keys | Input, hover or capture | Run baseline; track only keys pressed by the driver | Release owned keys in finally; restore pointer and original foreground after owned-window cleanup | Observe final foreground/coordinates and key-up state without another correction |
@@ -144,7 +144,7 @@ timestamped frames, not a settled image. Keep unique capture filenames per attem
 
 ### Helper boundaries
 
-`pt-quick-accent.ps1` provides held input and existing/absent file rollback, not a full test runner, clipboard
+`pt-quick-accent.ps1` provides held input, owned character-dialog lifetime and existing/absent file rollback, not a full test runner, clipboard
 guard, Settings cache reset or ownership oracle. Consult the [fixture guide](../quick-accent-fixtures.md) for
 required arguments, expected-hash guards and callback lifetime. Product logs are normal diagnostic side effects;
 do not delete unrelated logs to manufacture a pristine environment.

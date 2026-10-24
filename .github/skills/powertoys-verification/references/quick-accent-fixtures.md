@@ -8,6 +8,8 @@ Create a collision-checked empty `.txt` file in the run workspace and open it in
 
 For exclusions/focus changes, a run-local WinForms TextBox host is an acceptable second synthetic text application, but does not replace the baseline's Notepad assertion. Give it a unique title and retain its script/PID. Two forms in that host provide the same-process/different-HWND condition. Launch at the same medium integrity as the installed Runner/module and verify actual tokens with `pt-admin-probe.ps1`. No clipboard is needed to set/read owned editor text through UIA.
 
+The checked-in `scripts\fixtures\quick-accent-text.ps1` supplies two such windows, with `ImeMode.Disable` confined to their owned TextBoxes. Launch it in a separate `pwsh -NoProfile -STA -File` process with `-OutputFile` pointing to a new run-workspace JSON file and `-Title` set to a collision-checked run tag. Its JSON records exact titles, HWNDs and ProcessId. Wait for this receipt and both responsive HWNDs, verify their actual token, and use `OwnedText1`/`OwnedText2` only beneath the corresponding form. Close those forms with WindowPattern.Close, waiting for each HWND to disappear before closing the next; the process exits after both close. Remove the owned identity file after cleanup. It does not alter Notepad's IME or user keyboard layout.
+
 Dot-source `scripts\pt-quick-accent.ps1` in a 64-bit `pwsh` process. Use the existing foreground helper or `winapp ui focus` and verify the exact fixture HWND and focused edit before the gesture. This helper deliberately does not focus a target on the caller's behalf.
 
 ```powershell
@@ -18,6 +20,14 @@ Invoke-PtQuickAccentGesture -WindowHandle $fixtureHwnd -KeyCode 0x41 `
 ```
 
 Omit `-TriggerCode` for press-and-hold. `-DelayMs` is a driving interval, not a readiness assertion or timing oracle. The callback runs while the letter remains down; the helper releases injected keys in `finally`, including callback failure. It rejects already-held participating keys. Each native event checks the complete SendInput return count. Record requested keys, start/end times and errors. Navigation inside the callback can use the existing `Send-PtChord` after rechecking exact foreground. Do not focus the toolbar or use a foregrounding capture: that can cancel the gesture. Never substitute PostMessage, SetValue or a named event for physical held-key activation.
+
+Bind every result observer to the same editor selected for input. A Notepad read-out cannot judge text sent to a synthetic form. Check the active IME/layout before asserting Latin pass-through in Notepad; report conditions separately instead of silently swapping fixtures.
+
+## Character-dialog ownership
+
+Use `Invoke-PtQuickAccentCharacterDialog -WindowHandle $settingsHwnd -ManageButtonName $localizedButtonName -Action $dialogAction`. Resolve the HWND from the shipped Settings process and the exact accessible button name from its expanded Character sets section. The helper rejects a pre-existing modal, opens once, waits for the dialog, and calls `$dialogAction` with the Settings UIA root. The callback can manipulate the uniquely scoped dialog and invoke its Save (`PrimaryButton`) or Cancel (`CloseButton`). If it leaves the same dialog open, including on error, `finally` cancels that draft and waits for closure. It does not close a replacement dialog or retry a failed open.
+
+Within the draft, scope `TextBox` to `CharacterSetsSearchBox`. Physical text entry triggers the user-input filter; inspect its actual value and the resulting `AvailableCharacterSetsList`. A language's accessible name may be a child of its selectable ListItem: walk to that owner, use AddToSelection/RemoveFromSelection, then re-resolve after filtering. The helper does not implement full virtualized-language enumeration. Do not use a success flag from an unrelated row as evidence of the selected set.
 
 ## File baseline and writer ordering
 

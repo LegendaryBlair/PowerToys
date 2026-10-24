@@ -94,7 +94,7 @@
 ### Reference guide and Settings
 
 - [ ] **Reference-guide browsing** [ID: QA-GUIDE] [ADMIN: NO]
-  On builds containing #49394, open the guide from Quick Accent Settings. Selected sets appear first, other sets beneath in alphabetical order. Filter by a single character and the sequence U+00B0 U+0043; only matching mappings remain. A query with no mappings shows the empty state, and clearing it restores the list. Hover a character for its Unicode description; combining marks use a dotted-circle display aid. Closing/back navigation returns to the originating Settings surface.
+  On builds containing #49394, open the guide from Quick Accent Settings. Selected sets appear first, other sets beneath alphabetically within their language/special groups. Filter by a single character and the sequence U+00B0 U+0043; only sets containing that query remain, with their other mappings retained. A query with no mappings shows the empty state, and clearing it restores the list. Hover a character for its Unicode description; combining marks use a dotted-circle display aid. Closing/back navigation returns to the originating Settings surface.
 
 - [ ] **Reference-guide copying** [ID: QA-COPY] [ADMIN: NO]
   With the supported private clipboard guard, click an ordinary character and then a combining mark in the guide. Each copies its exact underlying text; the dotted-circle display aid is not copied. Restore and verify the original clipboard formats and payloads without exposing them in evidence.
