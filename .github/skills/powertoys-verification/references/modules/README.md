@@ -36,6 +36,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 | Shortcut Guide | `shortcut-guide.md` | ✅ written 2026-08-21 (app-aware manifests, Windows-key modes, overlay lifecycle, search/pinning, localization and CmdPal traps) |
 | ZoomIt | `zoomit.md` | ✅ written 2026-08-19 (hosted events, registry-backed settings, recording flows, input-blocking overlays, and hardware/drag constraints) |
 | Crop And Lock | `crop-and-lock.md` | ✅ written 2026-08-19 (mode events, selector lifecycle, shortcut persistence, crop creation, and real-drag constraints) |
+| Quick Accent | `quick-accent.md` | Held-letter input, character-set drafts, toolbar/guide observation and usage-history preservation |
 | (other modules to be added as we encounter sign-off needs) | — | — |
 
 ## For Explorer-context-menu modules: read the canonical flow doc first
