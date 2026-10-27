@@ -182,4 +182,91 @@ function Invoke-PtQuickAccentCharacterDialog {
             if (Find-DialogControl 'CharacterSetsSearchBox') { throw 'Owned character dialog did not close.' }
         }
     }
+
+}
+
+function Get-PtQuickAccentSurfaceState {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][long]$WindowHandle)
+
+    Add-Type -AssemblyName UIAutomationClient
+    $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$WindowHandle)
+    $entries = @(
+        foreach ($element in $root.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)) {
+            $expand = $null
+            $scroll = $null
+            $current = $element.Current
+            $expander = $current.ControlType -notin @(
+                [Windows.Automation.ControlType]::ComboBox,
+                [Windows.Automation.ControlType]::MenuItem) -and
+                $element.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$expand)
+            $scroller = $element.TryGetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern, [ref]$scroll)
+            if (-not $expander -and -not $scroller) { continue }
+            [pscustomobject]@{
+                AutomationId = $current.AutomationId
+                Name = $current.Name
+                ClassName = $current.ClassName
+                ControlTypeId = $current.ControlType.Id
+                Expansion = if ($expander) { $expand.Current.ExpandCollapseState.ToString() } else { $null }
+                Horizontal = if ($scroller) { $scroll.Current.HorizontalScrollPercent } else { $null }
+                Vertical = if ($scroller) { $scroll.Current.VerticalScrollPercent } else { $null }
+            }
+        }
+    )
+    $keys = @($entries | ForEach-Object { @($_.AutomationId, $_.Name, $_.ClassName, $_.ControlTypeId) | ConvertTo-Json -Compress })
+    if (@($keys | Select-Object -Unique).Count -ne $keys.Count) {
+        throw 'Surface state contains ambiguous locators; no state was changed.'
+    }
+    [pscustomobject]@{ WindowHandle = $WindowHandle; ProcessId = $root.Current.ProcessId; Entries = $entries }
+}
+
+function Restore-PtQuickAccentSurfaceState {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Baseline)
+
+    Add-Type -AssemblyName UIAutomationClient
+    $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Baseline.WindowHandle)
+    if ($root.Current.ProcessId -ne $Baseline.ProcessId) { throw 'Surface owner changed; restoration refused.' }
+    function Find-SurfaceEntry($Entry) {
+        $matches = @($root.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) |
+            Where-Object {
+                $_.Current.AutomationId -ceq $Entry.AutomationId -and
+                $_.Current.Name -ceq $Entry.Name -and
+                $_.Current.ClassName -ceq $Entry.ClassName -and
+                $_.Current.ControlType.Id -eq $Entry.ControlTypeId
+            })
+        if ($matches.Count -ne 1) { throw 'Original surface control is absent or ambiguous; restore original page and geometry first.' }
+        $matches[0]
+    }
+    foreach ($entry in @($Baseline.Entries | Where-Object Expansion -eq 'Expanded')) {
+        $pattern = (Find-SurfaceEntry $entry).GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
+        if ($pattern.Current.ExpandCollapseState -ne 'Expanded') { $pattern.Expand() }
+    }
+    $collapsed = @($Baseline.Entries | Where-Object Expansion -eq 'Collapsed')
+    [Array]::Reverse($collapsed)
+    foreach ($entry in $collapsed) {
+        $pattern = (Find-SurfaceEntry $entry).GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
+        if ($pattern.Current.ExpandCollapseState -ne 'Collapsed') { $pattern.Collapse() }
+    }
+    Start-Sleep -Milliseconds 200
+    foreach ($entry in @($Baseline.Entries | Where-Object { $null -ne $_.Horizontal })) {
+        $pattern = (Find-SurfaceEntry $entry).GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
+        $pattern.SetScrollPercent($entry.Horizontal, $entry.Vertical)
+    }
+    Start-Sleep -Milliseconds 200
+    foreach ($entry in $Baseline.Entries) {
+        $element = Find-SurfaceEntry $entry
+        if ($entry.Expansion) {
+            $pattern = $element.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
+            if ($pattern.Current.ExpandCollapseState.ToString() -ne $entry.Expansion) { throw 'Expansion state did not restore.' }
+        }
+        if ($null -ne $entry.Horizontal) {
+            $pattern = $element.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
+            if ([Math]::Abs($pattern.Current.HorizontalScrollPercent - $entry.Horizontal) -gt 0.1 -or
+                [Math]::Abs($pattern.Current.VerticalScrollPercent - $entry.Vertical) -gt 0.1) {
+                throw 'Scroll position did not restore.'
+            }
+        }
+    }
+    [pscustomobject]@{ WindowHandle = $Baseline.WindowHandle; Restored = $true; EntriesVerified = $Baseline.Entries.Count }
 }

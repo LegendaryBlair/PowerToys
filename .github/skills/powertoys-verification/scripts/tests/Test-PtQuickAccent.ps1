@@ -2,7 +2,7 @@
 # The Microsoft Corporation licenses this file to you under the MIT license.
 # See the LICENSE file in the project root for more information.
 
-param([switch]$Interactive)
+param([switch]$Interactive, [long]$SurfaceWindowHandle = 0)
 
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\..\pt-quick-accent.ps1"
@@ -81,6 +81,7 @@ public static class PtQuickAccentTestWindow
                 throw 'Synthetic held-input callback failure'
             }
         }
+
         catch { $caught = $_ -match 'Synthetic held-input callback failure' }
         if (-not $caught -or ([PtQuickAccentInput]::GetAsyncKeyState(0x87) -band 0x8000)) {
             throw 'F24 callback failure did not release the owned key.'
@@ -125,4 +126,44 @@ public static class PtQuickAccentTestWindow
             }
         }
     }
+}
+
+if ($SurfaceWindowHandle) {
+    $surface = Get-PtQuickAccentSurfaceState -WindowHandle $SurfaceWindowHandle
+    $wrongOwner = [pscustomobject]@{
+        WindowHandle = $surface.WindowHandle
+        ProcessId = $surface.ProcessId + 1
+        Entries = $surface.Entries
+    }
+    $rejected = $false
+    try { Restore-PtQuickAccentSurfaceState -Baseline $wrongOwner }
+    catch { $rejected = $_ -match 'Surface owner changed' }
+    if (-not $rejected) { throw 'Changed surface owner was not rejected.' }
+    try {
+        $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$SurfaceWindowHandle)
+        $entry = @($surface.Entries | Where-Object { $_.Expansion -in @('Expanded', 'Collapsed') }) | Select-Object -First 1
+        if (-not $entry -or -not $entry.AutomationId) { throw 'A unique expander with AutomationId is required for the surface check.' }
+        $element = $root.FindFirst([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::AutomationIdProperty, $entry.AutomationId))
+        $pattern = $element.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
+        if ($entry.Expansion -eq 'Expanded') { $pattern.Collapse() } else { $pattern.Expand() }
+        if ($pattern.Current.ExpandCollapseState.ToString() -eq $entry.Expansion) { throw 'Expander did not change for the restoration check.' }
+        $scroller = @($surface.Entries | Where-Object { $null -ne $_.Vertical -and $_.Vertical -ge 0 -and $_.AutomationId }) | Select-Object -First 1
+        if (-not $scroller) { throw 'An actual scrollable surface is required for the restoration check.' }
+        $element = $root.FindFirst([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::AutomationIdProperty, $scroller.AutomationId))
+        $pattern = $element.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
+        $target = if ($scroller.Vertical -lt 50) { 75 } else { 25 }
+        $pattern.SetScrollPercent(-1, $target)
+        Start-Sleep -Milliseconds 200
+        if ([Math]::Abs($pattern.Current.VerticalScrollPercent - $scroller.Vertical) -lt 0.1) {
+            throw 'Scroll position did not change for the restoration check.'
+        }
+    }
+    finally {
+        Restore-PtQuickAccentSurfaceState -Baseline $surface | Out-Null
+    }
+    'PASS: changed-owner rejection and live expander/scroll round-trip restoration.'
 }
