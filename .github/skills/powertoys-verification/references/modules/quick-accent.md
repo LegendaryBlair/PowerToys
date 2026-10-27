@@ -23,7 +23,7 @@ document at compatible integrity; verify its exact foreground HWND and focused e
 | Exercise trigger-key activation | With the current mode permitting the trigger, hold the physical base-letter key and tap the trigger. Keep the letter held through observations/navigation. Destination: **Pending gesture**, then **Toolbar visible**. Release commits/dismisses. |
 | Exercise press-and-hold | Select that mode through Settings; hold the physical letter without a legacy trigger. Destination: **Pending gesture**. Pre-threshold trigger keys cancel; after the threshold they navigate the visible toolbar. |
 | Manage languages | Invoke the Settings page's **Manage character sets** button exactly once. Destination: **Character-set draft**. Search/selection changes are draft-only until Save. |
-| Browse mappings | Invoke **Open reference guide** in the expanded Character sets section. Destination: **Reference guide** in a separate Settings-owned window. Do not click character buttons without clipboard preservation. |
+| Browse mappings | Expand Character sets and activate `AutomationId=ReferenceGuideCard` (English caption: **Character reference guide**). Try InvokePattern first; use a fresh-bounds physical click if the card has no invoke provider. Destination: **Reference guide** in a separate Settings-owned window. Do not click character buttons without clipboard preservation. |
 
 There is no reason to launch the module executable directly for these user-entry assertions: doing so changes
 Runner ownership/lifecycle. The reference guide is configuration UI, not a replacement for actual insertion.
@@ -80,7 +80,7 @@ deduplicate peers by runtime ID. Accessible names below are English examples, no
 | Edit exclusions | Settings page; expanded Excluded apps | Button `Name=Excluded apps`, then its multiline Edit | Expand first. SetValue replaces the whole field; preserve existing lines, add/remove only the owned fixture entry, move focus and verify persistence. |
 | Hold/commit a letter | Exact owned foreground text editor | Physical VK in that editor, not a toolbar control | Use `Invoke-PtQuickAccentGesture` from the [fixture guide](../quick-accent-fixtures.md#owned-input); Observe callback runs with the letter held, and `finally` releases keys. Read the same editor afterward. |
 | Navigate accent list | Toolbar visible; owner editor stays foreground | `AutomationId=QuickAccentCharacterList`; ListItems expose character Names and SelectionItemPattern | Send guarded physical arrows/Space; Shift+Space reverses. Read selected peers and pixels; do not use UIA Select to stand in for keyboard navigation. |
-| Open guide | Settings page, Character sets expanded | Clickable card `Name=Open reference guide` | Invoke the discovered card. Resolve the new Settings-owned HWND by title/structural controls, not an old PID/HWND. |
+| Open guide | Settings page, Character sets expanded | `AutomationId=ReferenceGuideCard`; caption can vary by build/locale | Try UIA invoke; if unsupported, use `winapp ui click ReferenceGuideCard -w $settingsHwnd` after checking fresh visibility/bounds. Resolve the new Settings-owned HWND by title/structural controls, not an old PID/HWND. |
 | Filter guide | Reference guide | Group `AutomationId=SearchBox`, child Edit `AutomationId=TextBox` | SetValue can update this binding; verify actual query and rendered set membership. Use physical text input if binding does not react. Keep observers bound to this HWND. |
 | Browse guide rows | Reference guide; `AutomationId=LanguagesListView` | Set-heading Text, key-row label, character Button | Scroll the owning list and re-resolve descendants. A single UIA enumeration may expose only realized headings, not the entire guide. |
 | Inspect description | Reference guide, visible character row | Character Button Name is its Unicode description; scope by set/key row | Hover without clicking. Associate the actual tooltip/popup and its bounds with that target; the button's Name alone does not prove a hover tooltip appeared. |
@@ -104,6 +104,14 @@ operation: retain Notepad's actual layout/IME condition and use a separate owned
 The guide filters **sets containing the query**, retaining all mappings inside those sets. Selected sets form
 the first group; remaining language/special groups retain their own alphabetical order. The rendered dotted
 circle is a display aid, distinct from the underlying combining character. Do not infer copy behavior from it.
+
+For complete guide ordering, enumerate the first descendant Text of each realized ListItem under
+`LanguagesListView`, then advance its ScrollPattern by LargeIncrement and rediscover the items. Retain
+first-seen heading order and scroll percentages through the bottom; compare coverage with the available-set
+catalog rather than accepting one viewport as complete. Group-header Text peers are separate from set headings.
+Tooltip button names can contain Unicode names without `U+` codes. Scope the target by set/key and content,
+hover it physically, and observe a newly visible associated tooltip or scoped pixels. The button's own name
+and hover background do not establish that the tooltip appeared.
 
 ### Observation rules
 
