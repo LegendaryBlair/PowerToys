@@ -52,13 +52,14 @@ namespace ImageResizer.Models
         }
 
         [TestMethod]
+        [TestCategory("Unit")]
         public async Task ProcessAggregatesErrors()
         {
             var batch = CreateBatch(file => throw new InvalidOperationException("Error: " + file));
             batch.Files.Add("Image1.jpg");
             batch.Files.Add("Image2.jpg");
 
-            var errors = (await batch.ProcessAsync((_, __) => { }, CancellationToken.None)).ToList();
+            var errors = (await batch.ProcessAsync((_, __) => { }, new Settings(), CancellationToken.None)).ToList();
 
             Assert.AreEqual(2, errors.Count);
 
@@ -77,6 +78,7 @@ namespace ImageResizer.Models
         }
 
         [TestMethod]
+        [TestCategory("Unit")]
         public async Task ProcessReportsProgress()
         {
             var batch = CreateBatch(_ => { });
@@ -86,9 +88,32 @@ namespace ImageResizer.Models
 
             await batch.ProcessAsync(
                 (i, count) => calls.Add((i, count)),
+                new Settings(),
                 CancellationToken.None);
 
             Assert.AreEqual(2, calls.Count);
+        }
+
+        [TestMethod]
+        [TestCategory("Unit")]
+        public async Task CancelledBatchDoesNotExecuteFiles()
+        {
+            var executed = false;
+            var batch = CreateBatch(_ => executed = true);
+            batch.Files.Add("cancelled.png");
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            try
+            {
+                await batch.ProcessAsync((_, _) => { }, new Settings(), cancellation.Token);
+                Assert.Fail("A pre-cancelled batch must propagate cancellation.");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            Assert.IsFalse(executed);
         }
 
         private static ResizeBatch CreateBatch(Action<string> executeAction)

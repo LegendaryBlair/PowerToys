@@ -17,13 +17,12 @@
 #include <wil/win32_helpers.h>
 #include <wrl/module.h>
 #include "Generated Files/resource.h"
+#include "ShellSelection.h"
 
 using namespace Microsoft::WRL;
 
 HINSTANCE g_hInst = 0;
 Shared::Trace::ETWTrace trace(L"ImageResizerContextMenu");
-
-#define BUFSIZE 4096 * 4
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
@@ -180,40 +179,20 @@ protected:
 private:
     HRESULT StartNamedPipeServerAndSendData(std::wstring pipe_name)
     {
-        hPipe = CreateNamedPipe(
-            pipe_name.c_str(),
-            PIPE_ACCESS_DUPLEX |
-                WRITE_DAC,
-            PIPE_TYPE_MESSAGE |
-                PIPE_READMODE_MESSAGE |
-                PIPE_WAIT,
-            PIPE_UNLIMITED_INSTANCES,
-            BUFSIZE,
-            BUFSIZE,
-            0,
-            NULL);
+        hPipe = ImageResizer::CreateSelectionPipe(pipe_name.c_str());
 
         if (hPipe == NULL || hPipe == INVALID_HANDLE_VALUE)
         {
             return E_FAIL;
         }
 
-        // This call blocks until a client process connects to the pipe
-        BOOL connected = ConnectNamedPipe(hPipe, NULL);
-        if (!connected)
+        HRESULT result = ImageResizer::WaitForSelectionPipeClient(hPipe);
+        if (FAILED(result))
         {
-            if (GetLastError() == ERROR_PIPE_CONNECTED)
-            {
-                return S_OK;
-            }
-            else
-            {
-                CloseHandle(hPipe);
-            }
-            return E_FAIL;
+            CloseHandle(hPipe);
         }
 
-        return S_OK;
+        return result;
     }
 
     HRESULT ResizePictures(IShellItemArray* psiItemArray)
@@ -250,29 +229,7 @@ private:
         {
             CAtlFile writePipe(hPipe);
 
-            //m_pdtobj will be NULL when invoked from the MSIX build as Initialize is never called (IShellExtInit functions aren't called in case of MSIX).
-            DWORD fileCount = 0;
-            // Gets the list of files currently selected using the IShellItemArray
-            psiItemArray->GetCount(&fileCount);
-            // Iterate over the list of files
-            for (DWORD i = 0; i < fileCount; i++)
-            {
-                IShellItem* shellItem;
-                HRESULT getItemAtResult = psiItemArray->GetItemAt(i, &shellItem);
-                if (SUCCEEDED(getItemAtResult))
-                {
-                    LPWSTR itemName;
-                    // Retrieves the entire file system path of the file from its shell item
-                    HRESULT getDisplayResult = shellItem->GetDisplayName(SIGDN_FILESYSPATH, &itemName);
-                    if (SUCCEEDED(getDisplayResult))
-                    {
-                        CString fileName(itemName);
-                        fileName.Append(_T("\r\n"));
-                        // Write the file path into the input stream for image resizer
-                        writePipe.Write(fileName, fileName.GetLength() * sizeof(TCHAR));
-                    }
-                }
-            }
+            ImageResizer::WriteShellSelection(psiItemArray, writePipe);
             writePipe.Close();
         }
 

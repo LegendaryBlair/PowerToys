@@ -8,7 +8,6 @@ using System;
 using System.ComponentModel;
 using System.Linq;
 
-using ImageResizer.Helpers;
 using ImageResizer.Test;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -17,12 +16,6 @@ namespace ImageResizer.Models
     [TestClass]
     public class ResizeSizeTests
     {
-        [ClassInitialize]
-        public static void ClassInit(TestContext context)
-        {
-            ResourceLoaderInstance.GetString = key => key;
-        }
-
         [TestMethod]
         public void NameWorks()
         {

@@ -1,82 +1,144 @@
-# Image Resizer — module verification profile
+# Image Resizer - module verification profile
 
-**PT module**: `Image Resizer` (resize images via Explorer right-click; WinUI 3 GUI + headless CLI)
-**Source**: `<PT-repo>\src\modules\imageresizer\` (PT repo)
-**Settings file**: `%LOCALAPPDATA%\Microsoft\PowerToys\Image Resizer\settings.json` (PowerToys-wrapper shape: `{ "properties": { "imageresizer_*": { "value": … } }, "name": "Image Resizer", "version": "1" }`). A legacy `sizes.json` mirrors `imageresizer_sizes`; `image-resizer-settings.json` is `{}` (unused).
-**Enable flag**: `%LOCALAPPDATA%\Microsoft\PowerToys\settings.json` → `enabled."Image Resizer"` (runner-owned; **read-only for verification** — flip enable/disable via the Settings-UI toggle).
-**Logs**: `%LOCALAPPDATA%\Microsoft\PowerToys\Image Resizer\Logs\…`
-**Exes**: GUI = `%LOCALAPPDATA%\PowerToys\WinUI3Apps\PowerToys.ImageResizer.exe`; **CLI = `%LOCALAPPDATA%\PowerToys\WinUI3Apps\PowerToys.ImageResizerCLI.exe`**.
-**Context menu**: Win11 packaged `IExplorerCommand` (sparse pkg `ImageResizerContextMenuPackage.msix`, dllmain.cpp) + legacy classic `ImageResizerExt.dll` (`dll/ContextMenuHandler.cpp`). **Shipped caption = "Resize with Image Resizer"** (`IDS_IMAGERESIZER_CONTEXT_MENU_ENTRY`.
-**No global hotkey / no Named Event / no DSC for the engine** — entry is the Explorer menu (or direct exe launch).
+## Module facts
 
-**Context-menu routing (Image Resizer-specific):** appears **only on a selected image file** — NOT on
-the folder-background menu, and NOT on non-image files. Select an image first (`Select-PtExplorerFiles`,
-Shell COM) then open the file menu with `Open-PtExplorerContextMenu -FileName <img>` (see
-`references/explorer-context-menu-flow.md`). Verified caption **`Resize with Image Resizer`**.
+| Fact | Value |
+|---|---|
+| Source | `src\modules\imageresizer` |
+| GUI | `<install>\WinUI3Apps\PowerToys.ImageResizer.exe` (WinUI 3) |
+| CLI | `<install>\WinUI3Apps\PowerToys.ImageResizerCLI.exe` |
+| Processing settings | `%LOCALAPPDATA%\Microsoft\PowerToys\Image Resizer\settings.json` |
+| Enabled flag | General `settings.json`, `enabled."Image Resizer"`; change through Settings |
+| Shell | Modern sparse-package command and classic `ImageResizerExt.dll`; selected image files |
+| Activation | Explorer **Resize with Image Resizer**; no module hotkey or Named Event |
 
-## The back-door that makes this module ~fully drivable (no Explorer needed)
+### Three-layer coverage
 
-### `PowerToys.ImageResizerCLI.exe` — the deterministic engine (PREFER for all resize-behavior items)
-Shares the exact `ResizeBatch.FromCliOptions` → `ResizeBatch.ProcessAsync` → `ResizeOperation.ExecuteAsync` engine as the GUI (`ui/Cli/ImageResizerCliExecutor.cs:76-108`, `App.xaml.cs:102`). Reads live `Image Resizer\settings.json` then applies CLI overrides (`CliSettingsApplier.cs`).
-```
---width/-w  --height/-h  --unit/-u {Centimeter|Inch|Percent|Pixel}  --fit/-f {Fill|Fit|Stretch}
---size <presetIndex>  --shrink-only  --replace/-r  --ignore-orientation  --remove-metadata
---quality/-q  --keep-date-modified  --filename/-n "<%1..%6>"  --destination/-d <dir>
---show-config  --help   <files…>     (also accepts \\.\pipe\<name> and stdin file list)
-```
-`--show-config` dumps the effective settings (great pre/post check). `-d <dir>` keeps outputs isolated. Assert output dimensions with `[System.Drawing.Image]::FromFile(p)`.
-**Caveat**: `--ignore-orientation`/`--shrink-only`/`--replace`/`--keep-date-modified`/`--remove-metadata` are *flags* — they can only set the value **true**; to test the **false** case, temporarily edit `settings.json` (back up + restore).
+This module is a pilot for **Unit + Component/Functional + E2E**. The
+[checklist](../release-checklist/image-resizer.md) now contains two real user journeys.
+Its [inventory revision 2](../assertion-inventories/image-resizer.json) has new IDs;
+it is intentionally narrower than the previous exhaustive checklist, not a regrouping
+that retains every old matrix.
 
-### Direct GUI launch — for the two UI-only items (gif warning, size-list populated)
-`Start-Process PowerToys.ImageResizer.exe "<file>"` opens the window pre-loaded (argv/stdin via `ResizeBatch.FromCommandLine`). Behaviorally identical to the context-menu launch (`dllmain.cpp:219-245` just writes a pipe + launches the same exe). Then drive with `winapp ui`:
-- Size selector: `SizeComboBox` → `winapp ui invoke SizeComboBox -w <hwnd>` to expand, then `inspect` shows `itm-<name>-XXXX` ListItems.
-- Gif warning: `Message Text "Gif files with animations may not be correctly resized."` InfoBar, bound to `ViewModel.HasGifFiles` (set when any file ends `.gif`).
+The lower-layer suite is `src\modules\imageresizer\tests\ImageResizer.UnitTests.csproj`
+(MTP executable `ImageResizer.Test.exe`). Its directory name does not imply that every
+test is isolated Unit coverage:
 
-## Engine facts (verified from source — cite these for the resize items)
-- `ResizeFit`: **Fill=0, Fit=1, Stretch=2** (`ResizeFit.cs`). Fit=`min(scaleX,scaleY)`; Fill=`max`+centered-crop; Stretch=independent (`ResizeOperation.cs:449-498`).
-- `ResizeUnit`: **Centimeter=0, Inch=1, Percent=2, Pixel=3** (`ResizeUnit.cs`). Inch=`v*dpi`; cm=`v*dpi/2.54`; Percent=`v/100*orig`; Pixel=`v` (`ResizeSize.cs:109-123`). **Outputs depend on image DPI** — read actual DPI and compute expectations from it (a 120-DPI fixture gives 10cm→472px, 4in→480px).
-- Filename `%1..%6` → original-name, size-name, selected-W, selected-H, **output**-W, **output**-H (`Settings.cs:229-239`, `ResizeOperation.cs:593-601`).
-- ShrinkOnly: if target scale>1, returns `noTransformNeeded` (file copied unchanged) (`ResizeOperation.cs:462-475`).
-- KeepDateModified: `SetLastWriteTimeUtc(out, GetLastWriteTimeUtc(src))` (`ResizeOperation.cs:146-149`).
-- Replace: `File.Replace(out, src, backup)` then recycle backup — no copy left (`ResizeOperation.cs:151-156`).
-- IgnoreOrientation swap: gated by `IgnoreOrientation && !HasAuto && Unit != Percent` (`ResizeOperation.cs:419-444`).
+| Behavior | Lower-layer ownership |
+|---|---|
+| Unit conversions, auto/percent, CLI parsing/override rules | `ResizeSizeTests`, `CliOptionsTests`, `CliSettingsApplierTests` |
+| Actual dimensions, Fill/Stretch content, orientation, rounding, DPI | `ResizeOperationTests` using real Windows imaging |
+| Names, metadata, timestamps, replace and source preservation | `ResizeOperationTests`, `SettingsTests`, `ResizeFunctionalTests` |
+| Real multiple-image and mixed success/failure batches | `ResizeFunctionalTests` |
+| Settings UI serializer -> module consumer -> output | `ResizeFunctionalTests.SettingsUiJsonDrivesRealBatchOutput` |
+| Native modern-menu selection -> real pipe -> pending batch (no processing) | `ResizeFunctionalTests.ShellSelectionCreatesExpectedPendingBatch` |
+| Error aggregation, progress and pre-cancelled behavior | `ResizeBatchTests` with explicit settings and mocked operations |
 
-## Recipes — a control/observation map, NOT a per-test-case answer key
+Before relying on this smaller release scope, identify the relevant lower-layer run and
+its source/artifact revision, failures and skips. Missing lower-layer evidence is a
+release-confidence limitation, not an instruction to label unobserved UI PASS or silently
+expand the agent run into the old checklist. The remaining E2E cases still need real
+observations. Exact historical input-to-test mappings are not required.
 
-> Maps each capability to **which control/CLI flag drives it** and **where the result shows**. CLI flag *names* and fit-mode/unit/field enumerations are stable IR knowledge and stay; concrete flag *values*, fixtures, and expected outputs are per-test-case — design those at runtime.
+Build the focused project with `tools\build\build.cmd -Path src\modules\imageresizer\tests`
+and run the successfully built `ImageResizer.Test.exe --report-trx` from its output
+directory so relative fixtures resolve. Use the repository's platform/configuration
+options. The existing C# UITests are separate coverage and are not modified by this pilot.
+See `doc\devdocs\modules\imageresizer-test-layering-plan.md` for the design and execution results.
 
-| # | Capability | Drive (control / CLI flag) | Observe (where the result shows) |
+## Entry paths
+
+| Intent | Entry | Boundary |
+|---|---|---|
+| Create the representative preset | Existing Settings -> Image Resizer -> Add size -> explicit Save | Current versions use a dialog/working copy; do not assume an immediately committed inline row |
+| Real selection/activation | Owned Explorer -> select image files -> context menu -> Resize with Image Resizer | Required for the E2E journey and Shell handoff |
+| Classic entry on Windows 11 | Same selection -> Show more options -> Resize with Image Resizer | Different Shell adapter; observe separately from the modern entry |
+| Engine diagnosis | CLI with owned inputs and output directory | Same batch/operation engine, but cannot substitute for the checklist's real UI entry |
+| GUI diagnosis | Direct GUI launch with quoted file arguments | Does not prove Explorer registration or selected-file transfer |
+
+Before navigating a borrowed Settings window, preserve it with
+`Get-PtSettingsUiSnapshot` and establish the paired restoration path. Preserve original
+enablement and processing settings before mutation. Use
+[owned Explorer fixtures](../owned-fixtures.md) and the
+[shared context-menu flow](../explorer-context-menu-flow.md); do not restart Explorer
+or terminate unrelated windows.
+
+Record the actual visible Settings page heading as well as the selected rail item.
+A rail selection alone need not identify the displayed content page. If the baseline
+and its page/scroll restoration cannot be identified unambiguously, stop before
+navigation rather than discovering that mismatch during cleanup.
+
+## Control locator and interaction index
+
+Resolve one current, scoped and typed control before acting. Runtime slugs and localized
+Names are not permanent IDs. The CLI syntax comes from the pinned tool's help.
+
+| Interaction | UI state and scope | Locator | Action |
 |---|---|---|---|
-| 1 | Module disabled → context-menu entry absent | **Settings-UI toggle** via `Set-PtModuleEnabledViaSettingsUI -PageTag ImageResizer -EnabledKey 'Image Resizer'` (locked desktop → `BLK-ENV`); synthetic menu (only valid observer) | "Resize with Image Resizer" absent. Gate: `dllmain.cpp:87-91` (ECS_HIDDEN), `ContextMenuHandler.cpp:70-71,383-385`. Locked desktop → BLK-ENV |
-| 2 | Module enabled → entry present (modern + classic), click launches the GUI | synthetic menu + invoke | `Get-PtContextMenuItems` shows "Resize with Image Resizer"; classic "Show more options" too; invoke → `PowerToys.ImageResizer.exe` launches |
-| 3 | Remove a built-in size / add a custom size | edit `imageresizer_sizes` (INTEGER Ids!) + launch GUI | `SizeComboBox` reflects the edit (removed gone, custom present) |
-| 4 | Resize one / multiple files end-to-end | CLI `--size <id> [files…]` | outputs at the size's Fit dimensions |
-| 5 | GIF animation warning on `.gif` input | GUI on a `.gif` | warning InfoBar present (`winapp ui inspect`) |
-| 6 | Fit modes (Fill / Fit / Stretch) | CLI `--width --height --fit <mode>` | output shape matches the mode (crop / letterbox / exact) |
-| 7 | Unit conversion (cm / inch / percent / pixel) | CLI `--unit <u>` | output px = unit converted at the image's DPI |
-| 8 | Custom filename format (`%1`..`%6` fields) | CLI `--filename <fmt>` | output filename follows the format fields |
-| 9 | "Keep date modified" | CLI `--keep-date-modified` | output mtime == source mtime (control: without the flag, differs) |
-| 10 | "Shrink only" | CLI `--shrink-only` | an already-small image is untouched (control: a large one still shrinks) |
-| 11 | "Replace original" | CLI `--replace` | original replaced in place; no `(name) (1)` copy |
-| 12 | "Ignore orientation" | settings (false) vs flag (true) | on a portrait target over a landscape image: false→no W/H swap, true→swap |
+| Navigate to Image Resizer | Settings main window | `ImageResizerNavItem`, under `FileManagementNavItem` | Expand group if needed, select destination |
+| Enable/disable | Image Resizer Settings page | Scoped module ToggleSwitch | Toggle once and observe persisted flag; preserve original value |
+| Add preset | Image sizes card | `AddSizeButton` | Invoke, inspect the actual modal editor |
+| Edit draft fields | Current add/edit dialog | Scoped Name, fit, dimensions and unit controls | Set values/select options; read back before commit |
+| Save preset | Same dialog | Localized primary Save/Update button | Invoke once; wait for dialog dismissal and committed preset |
+| Remove owned preset | Exact uniquely named preset row | Row menu and Delete/Remove action | Invoke and confirm only that preset's deletion |
+| Select Explorer inputs | Owned Explorer window and folder | Exact fixture paths | Shell selection helper; verify selection before opening menu |
+| Launch from menu | Actual modern/classic menu | Exact localized Resize with Image Resizer MenuItem | Invoke; observe one usable GUI receiving selection |
+| Choose preset | Image Resizer input page | `SizeComboBox` | Expand, select the exact temporary preset and read back |
+| Copy rather than replace | Same input page | Localized overwrite/replace CheckBox | Set Off and observe actual state |
+| GIF warning | Input page with GIF selected | InfoBar/text for GIF animation warning | Read visible text; do not infer warning from file extension alone |
+| Process | Input page | Localized Resize Button | Invoke once; wait for actual completion or results/error page |
+| Cancel | Owned resize window | Localized Cancel or window Close | Close without processing; verify owned window exit |
 
-> **Mapping process**: read the actual checklist item → identify the capability → find its row → drive the named control/flag and design your own inputs + assertions. If no row matches, drive ad-hoc and add a row (capability + control + observation point; no canned inputs).
+### Read-out notes
 
-## Common BLOCKED traps (avoid)
-- **Don't mark the resize-behavior items BLOCKED for "needs a real right-click".** The CLI fully drives them with the identical engine; the menu is just the trigger (prove the menu→launch wiring once with the golden path in Recipe 2).
-- **PowerShell `ConvertTo-Json` writes computed numbers as doubles (`"Id": 3.0`)** → `System.Text.Json` rejects `imageresizer_sizes` and the app silently falls back to the 4 built-in default presets (Small/Medium/Large/Phone). Cast Ids to `[int]` or regex-strip `\.0`. This bit the remove-size-add-custom item (Recipe 3) the first time.
-- **cm/inch outputs depend on the fixture's DPI, not 96.** System.Drawing saves at the session display DPI (here 120). Compute expectations from the actual DPI.
-- **Idle auto-lock = BLK-ENV for the disabled-absent + enabled-present items (Recipes 1-2)** (synthetic right-click needs foreground). Disable lock/sleep before the run (`references/environment-setup.md`).
-- Don't expect `Shell.Application.Verbs()` to list the entry — Win11 packaged command (`CoCreate` → `REGDB_E_CLASSNOTREGISTERED`). Kill by `-Id <pid>` not name. Restore by re-toggling **on** via `Set-PtModuleEnabledViaSettingsUI -PageTag ImageResizer -Enabled $true`; revert any `settings.json`/`sizes.json` edits and close the Settings window.
+- Processing settings use wrapped `properties.imageresizer_*` fields in `settings.json`.
+  The native `image-resizer-settings.json` is an empty legacy/support store, not the
+  processing-options source. A legacy `sizes.json` may exist; preserve it if touched.
+- Defaults and algorithms are not inferred from the observed UI. Establish known fixture
+  dimensions/DPI and calculate the selected preset's expected output independently.
+- For Fit, expect the fitted image dimensions, not a padded canvas. Half-pixel dimensions
+  follow the current rounding rule; do not change the fixture oracle to conceal a mismatch.
+- Compare the exact output file set, names and decoded dimensions, plus original bytes.
+  A missing window or a zero CLI exit code alone is not proof of correct images.
+- The GIF warning is extension-based. Use an actual animated fixture for this user journey;
+  animation/frame correctness is covered separately below E2E.
+- Module enablement does not mean package registration is removed. Observe actual menu
+  presence/absence; the installed package can remain registered while its command is hidden.
 
-## Fixture files needed
-None pre-canned. Generate with `System.Drawing`: a landscape (e.g. 1200×800) and portrait (800×1200) JPEG, a small (100×100) PNG, a square (400×400) PNG, a `.gif` (single frame is fine — the warning is extension-based), and 3 identical images for the multi-file batch.
+## Troubleshooting
+
+| Symptom | Diagnose/recover | Interpretation boundary |
+|---|---|---|
+| Preset does not appear | Check explicit Save, committed settings, actual module file, and exact dialog/selection | Direct JSON seeding cannot rescue a failed UI-to-module connection |
+| Old inline edit selectors fail | Inspect the current ContentDialog and its primary action | Adapt the agent interaction, not production behavior or C# UITests |
+| Menu absent | Confirm image selection, native menu readiness, module enabled state and correct menu tier | A direct GUI/CLI launch is diagnostic, not menu PASS |
+| Absence query exits with code 1 | Use `Invoke-PtWinApp -AllowNoMatches` with an explicit search | Accept only the helper's validated complete zero-match response, not arbitrary command failures |
+| Duplicate modern menu matches | Scope to the full observed popup rather than all Explorer windows; deduplicate identical UIA runtime identities | The toolbar popup can expose the same menu descendants; never choose an arbitrary caption match |
+| Classic menu missing in process-scoped discovery | Observe the exact Show more options transition and find its visible `#32768` window | The classic menu can be hosted outside the owned Explorer process; do not assume the original PID |
+| Can't inject input | Record foreground and session attachment; try a supported UIA entry where equivalent | Concrete environment blocker, not a resize defect |
+| Only one output or wrong name | Compare actual selection, original files and output set before cleanup | Do not repeat Resize blindly or infer selection from the expected result |
+| Settings restoration unsupported | Preserve the baseline and report the exact missing observer/restore capability | Do not navigate or overwrite unrelated user state to simplify the run |
+
+## Fixtures and restoration
+
+Use a uniquely owned image folder and preset name. Record Settings navigation/placement,
+module enabled state, all processing settings that the GUI may save, source bytes and
+owned window identities. Preserve the desktop state required by the shared helpers.
+
+Restore in this order: finish/dismiss any owned modal or processing window; remove the
+owned preset and restore changed options/enablement; verify settings against the original
+baseline; close the owned Explorer and remove fixture files; restore borrowed Settings
+navigation/placement and foreground/pointer. Use guarded snapshots if exact rollback is
+needed, never an unconditional overwrite of unexplained concurrent edits.
 
 ## Source citations
-- `ui/Cli/ImageResizerCliExecutor.cs`, `ui/Models/CliOptions.cs`, `ui/Cli/CliSettingsApplier.cs`, `ui/Cli/Commands/ImageResizerRootCommand.cs` — CLI surface + engine reuse.
-- `ui/Models/ResizeOperation.cs:419-501,572-617,146-156` — dimension math, filename, keep-date, replace.
-- `ui/Models/ResizeSize.cs:78-124`, `ResizeFit.cs`, `ResizeUnit.cs` — unit/fit math + enum order.
-- `ui/Properties/Settings.cs:65,105-111,229-239,431-552` — paths, defaults, JSON property names, FileNameFormat.
-- `ImageResizerContextMenu/dllmain.cpp:49,79-133,219-245,284` — modern menu title, enable+image gate, launch, caption.
-- `dll/ContextMenuHandler.cpp:21,46-48,70-71,383-385` — classic menu caption + enable gate.
-- `ui/ViewModels/InputViewModel.cs:76,143`, `ImageResizerXAML/Views/InputPage.xaml:293-299`, `Strings/en-us/Resources.resw:148-149` — gif warning.
+
+- `ui\ImageResizerXAML\App.xaml.cs`, `InputViewModel.Resize`, `ProgressViewModel.StartAsync`:
+  GUI entry, settings commit, batch invocation and success/error projection.
+- `ui\Cli\ImageResizerCliExecutor.cs`, `ui\Models\ResizeBatch.cs`:
+  shared processing engine, stdin/named-pipe inputs and explicit-settings overload.
+- `ui\Models\ResizeOperation.cs`, `ui\Models\ResizeSize.cs`: actual image and conversion rules.
+- `ImageResizerContextMenu\dllmain.cpp`, `dll\ContextMenuHandler.cpp`:
+  modern/classic gate and selected-file handoff.
+- `src\settings-ui\Settings.UI\SettingsXAML\Views\ImageResizerPage.xaml.cs`:
+  working-copy Add/Edit dialog and explicit commit.

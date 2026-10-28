@@ -65,6 +65,11 @@ namespace ImageResizer
                             Thread.Sleep(150);
                         }
                     }
+
+                    if (Directory.Exists(_path))
+                    {
+                        throw new IOException($"Could not remove test directory '{_path}'.");
+                    }
                 }
 
                 disposedValue = true;

@@ -81,6 +81,7 @@ MakeAppx.exe pack /d "$(MSBuildThisFileDirectory)." /p "$(OutDir)ImageResizerCon
   <ItemGroup>
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="ShellSelection.h" />
     <None Include="resource.base.h" />
     <ClInclude Include="Generated Files/resource.h" />
     <ClInclude Include="targetver.h" />

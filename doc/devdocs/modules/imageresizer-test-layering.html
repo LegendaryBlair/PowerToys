@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Image Resizer · Execution Flow and Test Coverage</title>
+  <style>
+    :root { --ink: #192d43; --muted: #53667c; --line: #d9e2eb; --unit: #2258b6; --functional: #08765c; --e2e: #7241ac; --gap: #916000; --paper: #fff; --bg: #f2f5f9; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 "Segoe UI", "Microsoft YaHei", sans-serif; }
+    main { max-width: 1440px; margin: auto; padding: 36px 28px 64px; }
+    h1 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.25; margin: 8px 0 16px; letter-spacing: -.7px; }
+    h2 { font-size: 25px; margin: 0 0 14px; line-height: 1.4; }
+    h3 { margin: 0 0 8px; font-size: 19px; }
+    p { margin: 8px 0 16px; }
+    a { color: var(--unit); text-underline-offset: 3px; }
+    code, pre { font-family: Consolas, "Cascadia Code", monospace; }
+    code { font-size: .88em; overflow-wrap: anywhere; }
+    pre { padding: 18px; background: #f0f4f8; border-radius: 10px; overflow: auto; font-size: 14px; line-height: 1.75; }
+    .eyebrow { color: var(--functional); font-size: 13px; font-weight: 700; letter-spacing: 1.8px; }
+    .lead { max-width: 1040px; font-size: 19px; }
+    .muted, .meta { color: var(--muted); }
+    .meta { font-size: 13px; }
+    .nav { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 22px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 25px 0; }
+    .metric { min-width: 0; background: var(--paper); padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; }
+    .metric strong { display: block; font-size: 30px; line-height: 1.3; }
+    .metric span { display: block; font-size: 14px; color: var(--muted); }
+    section { margin-top: 30px; padding: 26px; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; scroll-margin-top: 18px; }
+    .callout { padding: 15px 19px; background: #fff7e5; border-left: 4px solid #cc930c; border-radius: 5px; }
+    .callout.good { background: #ecf8f3; border-color: var(--functional); }
+    .legend { display: flex; flex-wrap: wrap; gap: 9px; margin: 16px 0; }
+    .chip { display: inline-block; border: 1px solid currentColor; border-radius: 5px; padding: 2px 9px; font-size: 13px; font-weight: 600; }
+    .u { color: var(--unit); background: #edf3ff; }
+    .f { color: var(--functional); background: #e9f7f1; }
+    .e { color: var(--e2e); background: #f4edfc; }
+    .g { color: var(--gap); background: #fff5dd; }
+    .mode { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .mode-label { display: inline-block; padding: 8px 20px; border: 1px solid var(--line); border-radius: 7px; margin: 0 5px 10px 0; cursor: pointer; font-weight: 600; }
+    .mode:checked + .mode-label { background: var(--ink); color: white; border-color: var(--ink); }
+    .mode:focus-visible + .mode-label { outline: 3px solid #4d91ed; outline-offset: 3px; }
+    #mode-before:checked ~ .flow-scroll .coverage-after { visibility: hidden; }
+    #mode-after:checked ~ .flow-scroll .coverage-before { visibility: hidden; }
+    .flow-scroll { overflow: auto; border: 1px solid var(--line); border-radius: 12px; margin-top: 6px; background: #fbfdff; }
+    .flow-scroll svg { display: block; width: 100%; min-width: 1050px; height: auto; }
+    svg text { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; fill: var(--ink); }
+    .lane { fill: #edf2f7; }
+    .lane-label { font-size: 16px; font-weight: 700; fill: #5c7085; }
+    .edge { fill: none; stroke: #71869c; stroke-width: 2; marker-end: url(#arrow); }
+    .config-edge { fill: none; stroke: #08765c; stroke-width: 2; stroke-dasharray: 6 5; marker-end: url(#config-arrow); }
+    .edge-label { font-size: 13px; fill: #52687e; paint-order: stroke; stroke: #fbfdff; stroke-width: 5px; stroke-linejoin: round; }
+    .node rect { fill: #fff; stroke: #a9bdce; stroke-width: 1.7; rx: 10; }
+    .node.functional rect { stroke: var(--functional); }
+    .node.unit rect { stroke: var(--unit); }
+    .node.e2e rect { stroke: var(--e2e); }
+    .node.gap rect { stroke: #b08022; stroke-dasharray: 5 3; fill: #fffcf4; }
+    .node:hover rect { stroke-width: 3; }
+    .node-title { font-size: 18px; font-weight: 700; }
+    .node-code { font-size: 13px; fill: #52687e; }
+    .coverage-before { font-size: 14px; fill: #5d6e80; }
+    .coverage-after { font-size: 14px; fill: var(--functional); font-weight: 600; }
+    .coverage-after.e-label { fill: var(--e2e); }
+    .coverage-after.gap-label { fill: var(--gap); }
+    .flow-note { font-size: 13px; fill: #53667c; }
+    .table-wrap { overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+    th { background: #edf2f7; font-weight: 700; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    article { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 12px; }
+    article.e2e-card { border-top: 4px solid var(--e2e); }
+    article.functional-card { border-top: 4px solid var(--functional); }
+    ul, ol { margin: 8px 0 10px; padding-left: 23px; }
+    li { margin: 6px 0; }
+    .path { color: var(--muted); font-size: 12px; }
+    .small { font-size: 14px; }
+    .footer { margin: 22px 0 0; font-size: 13px; color: var(--muted); }
+    @media (max-width: 800px) {
+      main { padding: 24px 14px; }
+      section { padding: 18px; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cards { grid-template-columns: minmax(0, 1fr); }
+      .metric strong { font-size: 25px; }
+    }
+    @media print {
+      body { background: white; }
+      main { padding: 0; }
+      section { border: 0; padding: 16px 0; border-radius: 0; }
+      .mode, .mode-label, .nav { display: none; }
+      .flow-scroll { overflow: visible; }
+      .flow-scroll svg { min-width: 0; }
+      .coverage-before, .coverage-after { visibility: visible !important; }
+      article, tr, .metrics { break-inside: avoid; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">POWERTOYS · IMAGE RESIZER · THREE-LAYER PILOT</div>
+    <h1>Execution Flow and Test Coverage: Before → After</h1>
+    <p class="lead">Test rules and failure cases with <strong>Unit</strong> tests, exercise local workflows with real dependencies in <strong>Component / Functional</strong> tests, and reserve agent <strong>E2E</strong> for real entry points, UI wiring, and final outcomes.</p>
+    <p class="meta">Updated: 2026-10-27 · Original source baseline: e466450a · Branch: wip/image-resizer-test-layering-plan · Native sender extracted without business-logic changes. C# UITests unchanged. No VM used.</p>
+    <nav class="nav" aria-label="Page navigation">
+      <a href="#flow">Full execution flow</a><a href="#comparison">Before / after coverage</a><a href="#functional">Functional boundaries</a>
+      <a href="#pipe">Selection-to-task contract</a><a href="#e2e">Remaining E2E</a><a href="#results">Results and gaps</a><a href="#sources">Source references</a>
+    </nav>
+    <div class="metrics">
+      <div class="metric"><strong>149 → 159</strong><span>Expanded non-UI cases · 159/159 now passing</span></div>
+      <div class="metric"><strong>+1 U / +7 F</strong><span>New test methods · 10 added cases after expansion</span></div>
+      <div class="metric"><strong>12 → 2</strong><span>Agent checklist scenarios · 18 → 5 observations</span></div>
+      <div class="metric"><strong>5 / 5 PASS</strong><span>E2E behavior observations · Overall signoff WITHHELD</span></div>
+    </div>
+    <div class="callout"><strong>These counts are not functional coverage percentages.</strong> 149 is the original source-derived case count, not an executed baseline result. 159/159 is the current suite pass rate; 12→2 is the checklist scenario reduction. Line/branch coverage and the old checklist's execution time were not measured.</div>
+  </header>
+
+  <section id="flow">
+    <h2>01 · Main workflow: seven execution stages</h2>
+    <p><strong>One block represents a meaningful execution stage, not one function, class, or test.</strong> A stage may span several components. The original 22 detailed blocks have been grouped into seven stages; individual functions, branches, and test limitations remain in the sections below.</p>
+    <div class="legend" aria-label="Diagram legend">
+      <span class="chip u">U · No real external dependencies</span><span class="chip f">F · Local tests with real dependencies</span>
+      <span class="chip e">E · Complete real environment / agent</span><span class="chip f">+ · Added or strengthened in this pilot</span>
+      <span class="chip g">Dashed box · Partial coverage / gap</span>
+    </div>
+    <p class="small muted">Solid arrows show stage order or handoff, not the exact call/return stack. The green dashed arrow supplies processing settings. Coverage labels apply only to the named checks, not every branch in a block. “Before” is source evidence, not a historical all-green run; “E1 / E2” are the retained agent journeys.</p>
+    <input class="mode" type="radio" name="mode" id="mode-compare" checked><label class="mode-label" for="mode-compare">Compare</label>
+    <input class="mode" type="radio" name="mode" id="mode-before"><label class="mode-label" for="mode-before">Before only</label>
+    <input class="mode" type="radio" name="mode" id="mode-after"><label class="mode-label" for="mode-after">After only</label>
+    <div class="flow-scroll" tabindex="0" aria-label="Horizontally scrollable execution-flow diagram">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 1010" role="img" aria-labelledby="flow-title flow-description">
+        <title id="flow-title">Seven Image Resizer execution stages with before-and-after test coverage</title>
+        <desc id="flow-description">Stage 1 supplies settings and enablement. Stage 2 enters through Explorer or directly through GUI/CLI. Stage 3 launches the application and receives selected paths through a named pipe, stdin, or arguments. Stage 4 resolves processing options and starts the batch. Stage 5 coordinates per-file execution, errors, progress, and cancellation. Stage 6 decodes, transforms, encodes, and writes each image. Stage 7 reports results and finishes. Each block groups related logic rather than representing a single function or test. Coverage details and untested branches follow below.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#71869c"/></marker>
+          <marker id="config-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#08765c"/></marker>
+        </defs>
+        <rect class="lane" x="24" y="16" width="1272" height="28" rx="5"/>
+        <text class="lane-label" x="40" y="36">Configuration side path</text>
+        <text class="lane-label" x="476" y="36">Entry → handoff → preparation → shared processing → result</text>
+        <path class="edge" d="M400 132 H460"/>
+        <text class="edge-label" x="412" y="116">Flag</text>
+        <path class="config-edge" d="M220 210 V240 H425 V602 H460"/>
+        <text class="edge-label" x="245" y="232">Processing settings</text>
+        <path class="edge" d="M870 210 V290"/>
+        <text class="edge-label" x="886" y="257">Invoke command / direct launch</text>
+        <path class="edge" d="M870 445 V525"/>
+        <text class="edge-label" x="886" y="492">Accepted file list</text>
+        <path class="edge" d="M870 680 V721 H220 V775"/>
+        <text class="edge-label" x="465" y="714">GUI Resize or CLI execution</text>
+        <path class="edge" d="M400 860 H460"/>
+        <text class="edge-label" x="406" y="844">Each</text>
+        <path class="edge" d="M820 860 H880"/>
+        <text class="edge-label" x="828" y="844">Result</text>
+
+        <text class="lane-label" x="40" y="306">How to read a block</text>
+        <text class="flow-note" x="40" y="338">One stage, not one function or test.</text>
+        <text class="flow-note" x="40" y="364">A stage can span multiple components.</text>
+        <text class="flow-note" x="40" y="390">U / F / E cover the stated checks only.</text>
+        <text class="flow-note" x="40" y="416">Grouping does not close existing test gaps.</text>
+        <text class="lane-label" x="40" y="488">What remains E2E?</text>
+        <text class="flow-note" x="40" y="520">E1: real settings → selection → resize → output.</text>
+        <text class="flow-note" x="40" y="546">E2: enablement → menus → launch → cancel.</text>
+        <text class="flow-note" x="40" y="582">Details, tests, and limitations are below.</text>
+        <text class="flow-note" x="40" y="608">Direct CLI does not open Settings or Explorer.</text>
+
+        <a href="#functional"><g class="node functional" transform="translate(40 55)">
+          <rect width="360" height="155"/>
+          <text class="node-title" x="16" y="28">1 · Settings &amp; enablement</text>
+          <text class="node-code" x="16" y="53">Preset JSON + enable flag via Runner IPC.</text>
+          <text class="node-code" x="16" y="75">Module reads settings; watcher is separate.</text>
+          <text class="coverage-before" x="16" y="105">Before: local model / save / reload tests.</text>
+          <text class="coverage-after" x="16" y="133">After: F+ config → output; E1 UI commit.</text>
+        </g></a>
+        <a href="#e2e"><g class="node e2e" transform="translate(460 55)">
+          <rect width="820" height="155"/>
+          <text class="node-title" x="16" y="28">2 · Enter through Explorer, GUI, or CLI</text>
+          <text class="node-code" x="16" y="53">Explorer displays and gates context menus; direct GUI / CLI entry bypasses the Shell.</text>
+          <text class="node-code" x="16" y="75">Menu display has no named pipe. Modern / classic handoff starts when the command is invoked.</text>
+          <text class="coverage-before" x="16" y="105">Before: U CLI parsing plus separate agent menu / entry checks.</text>
+          <text class="coverage-after e-label" x="16" y="133">After: E2 menu enablement; E1 actual Explorer launch. Direct CLI is not covered by E2E.</text>
+        </g></a>
+        <a href="#pipe"><g class="node gap" transform="translate(460 290)">
+          <rect width="820" height="155"/>
+          <text class="node-title" x="16" y="28">3 · Launch &amp; receive file selection</text>
+          <text class="node-code" x="16" y="53">Modern: named pipe · Classic: anonymous pipe / stdin · Direct launch: argv.</text>
+          <text class="node-code" x="16" y="75">Startup checks, parsing, and file-list creation; GUI can open a picker when no files are supplied.</text>
+          <text class="coverage-before" x="16" y="105">Before: parser / input tests + E2E launch; no standalone named-pipe receiver test.</text>
+          <text class="coverage-after" x="16" y="133">After: F+ native selection → pending batch; E1 / E2 retain actual menu and GUI launch.</text>
+        </g></a>
+        <a href="#e2e"><g class="node e2e" transform="translate(460 525)">
+          <rect width="820" height="155"/>
+          <text class="node-title" x="16" y="28">4 · Resolve options &amp; start processing</text>
+          <text class="node-code" x="16" y="53">GUI: choose options → click Resize → Settings.Save → Progress. CLI: load settings and apply overrides.</text>
+          <text class="node-code" x="16" y="75">Input Cancel closes the GUI; progress Stop requests cancellation. These are distinct branches.</text>
+          <text class="coverage-before" x="16" y="105">Before: U CLI option rules; agent repeats resize option matrices.</text>
+          <text class="coverage-after e-label" x="16" y="133">After: E1 real controls once; F settings consumption. Watcher / mid-run Stop gaps remain.</text>
+        </g></a>
+        <a href="#functional"><g class="node functional" transform="translate(40 775)">
+          <rect width="360" height="170"/>
+          <text class="node-title" x="16" y="28">5 · Process the batch</text>
+          <text class="node-code" x="16" y="53">Parallel per-file work; errors / progress.</text>
+          <text class="node-code" x="16" y="75">ResizeBatch.ProcessAsync</text>
+          <text class="coverage-before" x="16" y="105">Before: mock tests; no real batch test.</text>
+          <text class="coverage-after" x="16" y="133">After: U+ pre-cancel; F+ real batches.</text>
+          <text class="coverage-after" x="16" y="155">Includes valid + corrupt input.</text>
+        </g></a>
+        <a href="#comparison"><g class="node functional" transform="translate(460 775)">
+          <rect width="360" height="170"/>
+          <text class="node-title" x="16" y="28">6 · Transform &amp; write each image</text>
+          <text class="node-code" x="16" y="53">Decode → dimensions / crop → encode → file.</text>
+          <text class="node-code" x="16" y="75">Names, metadata, time, replace / recycle.</text>
+          <text class="coverage-before" x="16" y="105">Before: real-image F + conversion U.</text>
+          <text class="coverage-after" x="16" y="133">After: F+ DPI / rounding / timestamp off.</text>
+          <text class="coverage-after" x="16" y="155">Metadata assertion handling fixed.</text>
+        </g></a>
+        <a href="#limits"><g class="node gap" transform="translate(880 775)">
+          <rect width="400" height="170"/>
+          <text class="node-title" x="16" y="28">7 · Report results &amp; finish</text>
+          <text class="node-code" x="16" y="53">GUI: close or error page. CLI: exit code.</text>
+          <text class="node-code" x="16" y="75">Outputs: files, names, dimensions, source bytes.</text>
+          <text class="coverage-before" x="16" y="105">Before: output tests and normal UI completion.</text>
+          <text class="coverage-after" x="16" y="133">After: F output checks + E1 success.</text>
+          <text class="flow-note" x="16" y="155">Gaps: error UI / mid-run Stop / CLI exit paths.</text>
+        </g></a>
+        <text class="flow-note" x="40" y="984">The main diagram groups related logic. All original coverage limits, protocol caveats, and branch details remain in the sections below.</text>
+      </svg>
+    </div>
+  </section>
+
+  <section id="comparison">
+    <h2>02 · Before and after: not one test per checklist line</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Local behavior</th><th scope="col">Starting point</th><th scope="col">After this pilot</th><th scope="col">Real connections still needed</th></tr></thead>
+        <tbody>
+          <tr><td>Dimensions, modes, units, naming</td><td>Existing <span class="chip u">U</span> conversion / CLI rules and <span class="chip f">F</span> single-image processing already provided a foundation.</td><td>Reused those tests; added X/Y DPI and half-pixel rounding <span class="chip f">F+</span> cases.</td><td>E1 selects one real preset rather than repeating the full parameter matrix.</td></tr>
+          <tr><td>Settings producer → consumer</td><td>Both sides had local tests, but composition was insufficiently tested.</td><td><code>SettingsUiJsonDrivesRealBatchOutput</code>: real producer serializer → file → explicit Reload → actual image output.</td><td>E1 checks control input, Save, and the actual module. F does not exercise the watcher.</td></tr>
+          <tr><td>Multiple images and error aggregation</td><td><code>ResizeBatchTests</code> mocked the operation. Real single-image tests alone did not establish real batch behavior.</td><td>Added multi-image and valid + corrupt-image <span class="chip f">F+</span> cases, checking failure attribution and successful output.</td><td>E1 proves the Explorer selection reaches processing. Error-page rendering remains unverified.</td></tr>
+          <tr><td>Cancellation</td><td>Mocked progress / error tests existed; the new pre-cancelled case did not.</td><td><code>CancelledBatchDoesNotExecuteFiles</code> <span class="chip u">U+</span>: cancellation before start prevents file execution.</td><td>Does not cover mid-run Stop, cancellation races, or remaining-output semantics.</td></tr>
+          <tr><td>Shell selection → pending task</td><td>Relied mainly on the real menu flow; the first pilot added only a managed sender smoke.</td><td>Now uses shared production native sender functions and real Shell objects in a separate process <span class="chip f">F+</span>; 2/128 images, Unicode, filtering and unchanged sources.</td><td>E1 retains actual menu activation, GUI launch and confirmation. <a href="#pipe">The Functional test stops before Resize.</a></td></tr>
+          <tr><td>File side effects and test confidence</td><td>Real metadata / timestamp / replace tests existed; two metadata assertions could be swallowed by catch blocks.</td><td>Fixed assertion handling; added timestamp-off coverage, isolated settings paths, mock resources, explicit settings, and visible cleanup failures.</td><td>Functional tests still use real Windows dependencies. They do not cover every format or permission failure.</td></tr>
+          <tr><td>Agent verification</td><td>12 scenarios / 18 children, including many processing matrices.</td><td>2 scenarios / 5 observations: settings-to-output and Shell enablement / entry.</td><td>Full E2E remains, with narrower responsibilities. Existing C# UITests are not added, changed, or removed.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="functional">
+    <h2>03 · Functional entry points and assertions</h2>
+    <p>The tests still use <code>ImageResizer.UnitTests.csproj</code> and MSTest / Microsoft.Testing.Platform. A small native console helper supplies real Shell selections; it is not another test suite or general-purpose TestHost. No separate Integration layer was introduced.</p>
+    <div class="cards">
+      <article class="functional-card">
+        <h3>F1 · Real batch processing</h3>
+        <pre>Isolated image directory + explicit Settings
+  → ResizeBatch.ProcessAsync
+  → ResizeOperation.ExecuteAsync
+  → Windows decoder / encoder
+  → Files on disk
+  → File set, dimensions, names, source bytes</pre>
+        <p class="small">The codec, file system, and processing engine are not mocked. Fixtures control inputs and expectations; successful output is checked even when valid and corrupt inputs coexist.</p>
+        <p class="path"><code>tests\Models\ResizeFunctionalTests.cs</code><br><code>BatchResizesMultipleImagesWithoutChangingSources</code><br><code>BatchKeepsSuccessfulOutputAndReportsCorruptInput</code></p>
+      </article>
+      <article class="functional-card">
+        <h3>F2 · Cross-component settings contract</h3>
+        <pre>Real ImageResizerSettings.ToJsonString
+  → Test writes JSON to an isolated directory
+  → Real module Settings.Reload
+  → Real batch / operation
+  → 40 × 80 output, name, timestamp, source</pre>
+        <p class="small">This checks compatibility and actual effects of the serialization producer and consumer. It <strong>does not invoke the Settings page's Save action, Runner IPC, or the watcher</strong>; those cannot be counted as covered by this test.</p>
+        <p class="path"><code>tests\Models\ResizeFunctionalTests.cs</code><br><code>SettingsUiJsonDrivesRealBatchOutput</code></p>
+      </article>
+    </div>
+    <h3 style="margin-top:22px">Added: 1 U method + 7 F methods = 10 expanded cases</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Layer</th><th scope="col">Added method</th><th scope="col">Boundary</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip u">U+</span></td><td><code>CancelledBatchDoesNotExecuteFiles</code></td><td>Mock operation; pre-cancellation only.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>BatchResizesMultipleImagesWithoutChangingSources</code></td><td>Real multiple images, output set, and source preservation.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>BatchKeepsSuccessfulOutputAndReportsCorruptInput</code></td><td>One real decode failure plus one successful input. Does not require a nonempty native error message.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>SettingsUiJsonDrivesRealBatchOutput</code></td><td>Real settings model / serializer / consumer / engine, not a Settings UI test.</td></tr>
+          <tr><td><span class="chip f">F+ × 2</span></td><td><code>ShellSelectionCreatesExpectedPendingBatch</code></td><td>Real native sender → cross-process pipe → pending task. Two data rows; no processing or GUI.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>ExecuteWithoutDatePreservationUsesOutputWriteTime</code></td><td>Actual output write time and an unchanged source file.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>TransformUsesIndependentImageDpiForPhysicalUnits</code></td><td>Real PNG at 120 / 144 DPI, producing 60 × 36 output.</td></tr>
+          <tr><td><span class="chip f">F+ × 2</span></td><td><code>FitRoundsHalfPixelsToEven</code></td><td>Two data rows: 24.5→24 and 25.5→26.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="pipe">
+    <h2>04 · Semantic contract: selection becomes a pending task</h2>
+    <div class="cards">
+      <article>
+        <h3>Real modern-menu path</h3>
+        <pre>Explorer native handler
+  → CreateNamedPipe (message mode)
+  → Launch GUI with the full pipe path argument
+  → Raw UTF-16 file paths + CRLF (no BOM)
+  → GUI FromCommandLine / CliOptions.Parse
+  → FromCliOptions receives → file list</pre>
+      </article>
+      <article>
+        <h3>Current Functional path</h3>
+        <pre>Native helper creates real IShellItemArray
+  → Shared production pipe + selection writer
+  → Message mode, BOM-free UTF-16 + CRLF
+  → Managed FromCommandLine / FromCliOptions
+  → Expected pending file set and destination
+  → STOP: no user confirmation, no processing</pre>
+      </article>
+    </div>
+    <div class="callout" style="margin-top:18px"><strong>Keep the coverage claim narrow:</strong> the same native pipe creation, connection and per-item writer functions are used by the modern command and test helper. The test does not invoke the actual COM command wrapper, register a menu, launch the GUI, exercise elevation variants, or click Resize.</div>
+    <p><span class="chip f">Implemented</span> Two cases select 2 and 128 real PNGs with spaces, Chinese text, an accent and a surrogate pair. Both add a corrupt PNG (retained until decoding) and an unsupported text file (filtered). The pending file set is exact and source bytes stay unchanged. The large case exceeds 16 KiB in aggregate; it does not require one overlong path.</p>
+    <p class="small">This replaces the earlier single-path C# sender fixture, whose byte mode and BOM differed from production. An intentional native mutation omitting the first path made both new cases fail; the mutation was removed and final artifacts rebuilt.</p>
+    <p class="small">The classic handler uses an anonymous pipe plus inherited stdin. The named-pipe test does not replace classic-entry checks; this pilot's agent E2E exercised modern resize and classic launch.</p>
+  </section>
+
+  <section id="e2e">
+    <h2>05 · The two retained agent E2E journeys</h2>
+    <p>Local tests alone cannot establish real control actions, installed Shell registration, process handoff, UI bindings, and the final user outcome. Use representative inputs for these journeys rather than repeating parameter matrices already tested below E2E.</p>
+    <div class="cards">
+      <article class="e2e-card">
+        <span class="chip e">E1 · IR-E2E-RESIZE</span>
+        <h3 style="margin-top:12px">Settings → Explorer → Resize → Output</h3>
+        <p>Create and Save a Fit / Pixel preset through the actual Settings dialog; select a PNG and animated GIF in Explorer; invoke the modern menu; select the preset in the module; click Resize once.</p>
+        <ol>
+          <li><strong>Preset connection:</strong> the name and dimensions created in Settings reach the module.</li>
+          <li><strong>Warning binding:</strong> the GIF animation warning is visibly displayed.</li>
+          <li><strong>Final result:</strong> two correctly named and sized outputs; original SHA256 values unchanged.</li>
+        </ol>
+        <p class="small"><strong>Observed:</strong> a 100 × 100 Fit preset produced a 100 × 50 PNG and 100 × 100 GIF. All three behavior observations passed.</p>
+      </article>
+      <article class="e2e-card">
+        <span class="chip e">E2 · IR-E2E-SHELL</span>
+        <h3 style="margin-top:12px">Enablement → Real menu → Module launch</h3>
+        <p>Disable and enable the module through Settings, observing the actual modern and classic menus without restarting Explorer or Runner.</p>
+        <ol>
+          <li><strong>Disabled:</strong> the menu still works, but the Image Resizer command disappears.</li>
+          <li><strong>Enabled:</strong> the command and icon return; the classic entry opens a usable window, then Cancel closes it.</li>
+        </ol>
+        <p class="small"><strong>Observed:</strong> both menus were checked on Windows 11; both behavior observations passed. The Windows 10 branch was not run in this pilot.</p>
+      </article>
+    </div>
+    <p class="small muted">C# UITests are outside this change scope. The old suite still exists, but its source presence or unexecuted cases are not evidence of passing this run. The reduction targets the verification skill's checklist.</p>
+  </section>
+
+  <section id="results">
+    <h2>06 · Verified evidence and limits of the coverage claim</h2>
+    <div class="callout good"><strong>Established:</strong> the current complete non-UI suite passed 159/159 with no skips. The native sender was extracted without changing business logic; the helper and production Shell DLL built successfully (MSIX packaging excluded). Earlier revised-inventory checks and all five retained agent E2E behavior observations passed; those installed-build results are historical, not a rerun of the refactored DLL.</div>
+    <p class="small">Non-UI tests ran against a local source build. Agent E2E used installed PowerToys <strong>0.102.2933.0</strong> and winapp <strong>0.7.1</strong>. These are distinct recorded artifact identities, not an assumption that the installation exactly matches the checkout.</p>
+    <h3 id="limits">Local paths and branches still insufficiently verified</h3>
+    <ul>
+      <li>Actual Shell command activation/GUI launch, classic inherited stdin, and permission, connection-race and disconnect matrices beyond the new pending-task cases.</li>
+      <li>The complete file-watcher / debounce / UI-dispatch update path; the settings Functional test explicitly calls Reload.</li>
+      <li>GUI error results, mid-run cancellation, and the native file picker. This E2E run primarily checked normal resize and menu enablement.</li>
+      <li>Full CLI process startup and exit codes; all codec / file-permission / disk-failure combinations; special AI / GPO branches.</li>
+      <li>Windows 10, ARM64, and other machine environments. The current 159/159 result cannot automatically be generalized to those platforms.</li>
+    </ul>
+    <div class="callout"><strong>Overall E2E signoff: WITHHELD.</strong> All behavior observations passed. Original settings bytes / existence, enablement, test files and windows, original window placement, foreground, and pointer were restored. However, the initial snapshot could not fully certify restoration of the original Settings content page / scroll state. The baseline was not rewritten to manufacture a pass. This is a verification-tool preservation-boundary issue, not a resize-function failure.</div>
+    <p><strong>Overall assessment:</strong> the original checklist's core processing rules and representative product connections have compositional coverage evidence, not “100% / 99% coverage” of the entire module. Scenario count fell by <strong>83.3%</strong> and child assertions by <strong>72.2%</strong>. This redistributes execution responsibilities; it is not code coverage.</p>
+  </section>
+
+  <section id="sources">
+    <h2>07 · Source references and evidence</h2>
+    <p>Module-relative paths below are rooted at <code>src\modules\imageresizer</code>. Prefer symbol names over line numbers, which may change.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Diagram boundary</th><th scope="col">Implementation / test location</th></tr></thead>
+        <tbody>
+          <tr><td>Settings persistence and enablement</td><td><code>src\settings-ui\Settings.UI\ViewModels\ImageResizerViewModel.cs</code>: <code>IsEnabled</code>, <code>SaveImageSizes</code><br><code>src\settings-ui\Settings.UI\SettingsXAML\Views\ImageResizerPage.xaml.cs</code>: Add / Update dialog commits</td></tr>
+          <tr><td>Menu state and both handoffs</td><td><code>ImageResizerContextMenu\dllmain.cpp</code>: <code>GetState</code>, <code>Invoke</code>, <code>ResizePictures</code><br><code>dll\ContextMenuHandler.cpp</code>: anonymous pipe and <code>hStdInput</code></td></tr>
+          <tr><td>GUI / CLI</td><td><code>ui\ImageResizerXAML\App.xaml.cs</code>; <code>ui\ViewModels\InputViewModel.cs</code>, <code>ProgressViewModel.cs</code>, <code>ResultsViewModel.cs</code><br><code>ImageResizerCLI\Program.cs</code>; <code>ui\Cli\ImageResizerCliExecutor.cs</code></td></tr>
+          <tr><td>Settings, input, and engine</td><td><code>ui\Properties\Settings.cs</code>; <code>ui\Models\CliOptions.cs</code>, <code>ResizeBatch.cs</code>, <code>ResizeOperation.cs</code>, <code>ResizeSize.cs</code></td></tr>
+          <tr><td>Added / repaired non-UI tests</td><td><code>tests\Models\ResizeFunctionalTests.cs</code>, <code>ResizeBatchTests.cs</code>, <code>ResizeOperationTests.cs</code><br><code>tests\Test\SettingsTestScope.cs</code>, <code>TestEnvironment.cs</code>; <code>tests\Properties\SettingsTests.cs</code></td></tr>
+          <tr><td>Native selection contract</td><td><code>ImageResizerContextMenu\ShellSelection.h</code><br><code>tests\NativeTests\ShellSelectionTestHost.cpp</code></td></tr>
+          <tr><td>Before / after scope and execution results</td><td><a href="imageresizer-test-layering-plan.md">Investigation, refactor plan, and execution report</a>: original projection in §03; first pilot in §10; native pending-task contract in §11.</td></tr>
+          <tr><td>Current agent inputs</td><td><code>.github\skills\powertoys-verification\references\release-checklist\image-resizer.md</code><br>Also under that skill: <code>assertion-inventories\image-resizer.json</code> (revision 2) and <code>modules\image-resizer.md</code></td></tr>
+          <tr><td>Archived E2E evidence</td><td><code>%OneDrive%\PowerToys\Module-Signoff\verify-ImageResizer-layering-8fdaf669bf23404d9c949c9fcae085c5\report.md</code><br>Run ID: <code>f05a61c14e7941f7a3aeb7d830a4ed36</code>; behavior PASS / overall signoff WITHHELD.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footer">Single-file and offline-ready: no external fonts, scripts, or CDN. View controls only change diagram coverage labels; they do not run product or test operations. The native selection test stops at the pending task, before the user confirms options.</p>
+  </section>
+</main>
+</body>
+</html>

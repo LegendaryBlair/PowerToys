@@ -12,10 +12,12 @@ using System.Threading.Tasks;
 using ImageResizer.Properties;
 using ImageResizer.Test;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Windows.Graphics.Imaging;
 
 namespace ImageResizer.Models
 {
     [TestClass]
+    [TestCategory("Functional")]
     public class ResizeOperationTests : IDisposable
     {
         // Known legacy container format GUID for PNG, used as FallbackEncoder value in settings JSON
@@ -69,6 +71,78 @@ namespace ImageResizer.Models
             await operation.ExecuteAsync();
 
             Assert.AreEqual(File.GetLastWriteTimeUtc("Test.png"), File.GetLastWriteTimeUtc(_directory.File()));
+        }
+
+        [TestMethod]
+        public async Task ExecuteWithoutDatePreservationUsesOutputWriteTime()
+        {
+            var source = Path.Combine(_directory, "source.png");
+            File.Copy("Test.png", source);
+            var original = File.ReadAllBytes(source);
+            var oldTime = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(source, oldTime);
+            var destination = Path.Combine(_directory, "output");
+            var start = DateTime.UtcNow;
+
+            await new ResizeOperation(source, destination, Settings(s => s.KeepDateModified = false)).ExecuteAsync();
+
+            var end = DateTime.UtcNow;
+            var output = Directory.GetFiles(destination).Single();
+            var modified = File.GetLastWriteTimeUtc(output);
+            Assert.IsTrue(modified >= start.AddSeconds(-2) && modified <= end.AddSeconds(2));
+            Assert.AreEqual(oldTime, File.GetLastWriteTimeUtc(source));
+            CollectionAssert.AreEqual(original, File.ReadAllBytes(source));
+        }
+
+        [TestMethod]
+        public async Task TransformUsesIndependentImageDpiForPhysicalUnits()
+        {
+            var source = Path.Combine(_directory, "dpi.png");
+            using (var stream = File.Open(source, FileMode.CreateNew, FileAccess.ReadWrite))
+            {
+                var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream.AsRandomAccessStream());
+                encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight, 24, 12, 120, 144, new byte[24 * 12 * 4]);
+                await encoder.FlushAsync();
+            }
+
+            var destination = Path.Combine(_directory, "output");
+            var settings = Settings(s =>
+            {
+                s.IgnoreOrientation = false;
+                s.SelectedSize.Unit = ResizeUnit.Inch;
+                s.SelectedSize.Fit = ResizeFit.Stretch;
+                s.SelectedSize.Width = 0.5;
+                s.SelectedSize.Height = 0.25;
+            });
+
+            await new ResizeOperation(source, destination, settings).ExecuteAsync();
+
+            await AssertEx.ImageAsync(Directory.GetFiles(destination).Single(), decoder =>
+            {
+                Assert.AreEqual(60u, decoder.PixelWidth);
+                Assert.AreEqual(36u, decoder.PixelHeight);
+            });
+        }
+
+        [DataTestMethod]
+        [DataRow(49, 24)]
+        [DataRow(51, 26)]
+        public async Task FitRoundsHalfPixelsToEven(int width, int expectedHeight)
+        {
+            var settings = Settings(s =>
+            {
+                s.IgnoreOrientation = false;
+                s.SelectedSize.Width = width;
+                s.SelectedSize.Height = 96;
+            });
+
+            await new ResizeOperation("Test.png", _directory, settings).ExecuteAsync();
+
+            await AssertEx.ImageAsync(_directory.File(), decoder =>
+            {
+                Assert.AreEqual((uint)width, decoder.PixelWidth);
+                Assert.AreEqual((uint)expectedHeight, decoder.PixelHeight);
+            });
         }
 
         [TestMethod]
@@ -562,15 +636,8 @@ namespace ImageResizer.Models
                 _directory.File(),
                 async decoder =>
                 {
-                    try
-                    {
-                        var props = await decoder.BitmapProperties.GetPropertiesAsync(DateTakenPropertyQuery);
-                        Assert.IsFalse(props.ContainsKey("System.Photo.DateTaken"), "DateTaken should be stripped");
-                    }
-                    catch (Exception)
-                    {
-                        // If GetPropertiesAsync throws, metadata is not present — which is expected
-                    }
+                    var props = await decoder.BitmapProperties.GetPropertiesAsync(DateTakenPropertyQuery);
+                    Assert.IsFalse(props.ContainsKey("System.Photo.DateTaken"), "DateTaken should be stripped");
                 });
         }
 
@@ -592,15 +659,8 @@ namespace ImageResizer.Models
                 _directory.File(),
                 async decoder =>
                 {
-                    try
-                    {
-                        var props = await decoder.BitmapProperties.GetPropertiesAsync(DateTakenPropertyQuery);
-                        Assert.IsFalse(props.ContainsKey("System.Photo.DateTaken"), "DateTaken should not exist");
-                    }
-                    catch (Exception)
-                    {
-                        // Expected: no metadata block at all
-                    }
+                    var props = await decoder.BitmapProperties.GetPropertiesAsync(DateTakenPropertyQuery);
+                    Assert.IsFalse(props.ContainsKey("System.Photo.DateTaken"), "DateTaken should not exist");
                 });
         }
 

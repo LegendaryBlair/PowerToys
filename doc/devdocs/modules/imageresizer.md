@@ -68,6 +68,17 @@ From the App.xaml.cs file, we can see that the application:
 - Uses a view model pattern with `MainViewModel`
 - Respects Group Policy settings via `GPOWrapper.GetConfiguredImageResizerEnabledValue()`
 
+## Testing strategy
+
+The [test-layering investigation and refactor plan](imageresizer-test-layering-plan.md)
+documents the current test projects, release-checklist projection, and a proposed
+behavior-preserving pilot using Unit and Component/Functional tests to reduce the
+agent verification checklist. Existing C# UI tests are outside the pilot's change scope.
+
+The [interactive execution-flow and coverage diagram](imageresizer-test-layering.html)
+shows the before/after test boundaries, remaining agent E2E journeys, and known coverage
+limitations in a standalone offline page.
+
 ## Debugging
 
 ### Debugging the Context Menu

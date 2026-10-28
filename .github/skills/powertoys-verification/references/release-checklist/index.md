@@ -12,7 +12,7 @@ One file per module; a verification run loads only its module's file.
 | Crop And Lock | 13 / 14 | `crop-and-lock.md` |
 | Environment Variables | 29 / 135 | `environment-variables.md` |
 | File Locksmith | 10 / 10 | `file-locksmith.md` |
-| Image Resizer | 12 / 18 | `image-resizer.md` |
+| Image Resizer | 2 / 5 | `image-resizer.md` |
 | New+ | 9 / 9 | `new-plus.md` |
 | Peek | 18 / 18 | `peek.md` |
 | PowerRename | 16 / 17 | `power-rename.md` |
@@ -22,6 +22,8 @@ One file per module; a verification run loads only its module's file.
 | ZoomIt | 39 / 39 | `zoomit.md` |
 
 Every checklist uses **Legend -> brief Fixtures & conventions -> functional categories**.
+Image Resizer is a three-layer pilot: its smaller E2E checklist relies on Unit/Functional
+coverage described in its module profile rather than repeating processing matrices.
 Its prose states the complete flow and outcomes; the matching
 [frozen inventory](../assertion-inventories/README.md) carries stable scenario/child IDs.
 Run every required input and entry route in a merged case, not a representative sample.

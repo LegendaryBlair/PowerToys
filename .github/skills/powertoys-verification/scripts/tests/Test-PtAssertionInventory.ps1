@@ -12,7 +12,7 @@ function Reject([scriptblock]$Body,[string]$Pattern){
 }
 $expectedInventories=[ordered]@{
     'advanced-paste'=@(29,32); 'color-picker'=@(17,25); 'crop-and-lock'=@(13,14)
-    'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(12,18)
+    'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(2,5)
     'new-plus'=@(9,9); 'peek'=@(18,18); 'power-rename'=@(16,17); 'settings'=@(25,50)
     'shortcut-guide'=@(19,96); 'workspaces'=@(38,72); 'zoomit'=@(39,39)
 }
@@ -90,8 +90,8 @@ $results+=@(@{Name='Named-source retention and explicit child description/unique
 $mergeCases=@(
     @{Module='workspaces';Case='WS14';Children=@('WS14.menu-edit','WS15.card-edit')},
     @{Module='workspaces';Case='WS17';Children=@('WS17.remove-app','WS18.add-back')},
-    @{Module='image-resizer';Case='IR-FIT-MODES';Children=@('IR-FILL.behavior','IR-FIT.behavior','IR-STRETCH.behavior')},
-    @{Module='image-resizer';Case='IR-UNITS';Children=@('IR-CENTIMETERS.behavior','IR-INCHES.behavior','IR-PERCENT.behavior','IR-PIXELS.behavior')},
+    @{Module='image-resizer';Case='IR-E2E-RESIZE';Children=@('IR-E2E-RESIZE.preset','IR-E2E-RESIZE.gif-warning','IR-E2E-RESIZE.output')},
+    @{Module='image-resizer';Case='IR-E2E-SHELL';Children=@('IR-E2E-SHELL.disabled','IR-E2E-SHELL.enabled')},
     @{Module='power-rename';Case='PR-REGEX';Children=@('PR-REGEX-MATCH.behavior','PR-REGEX-BACKREFERENCE.behavior')},
     @{Module='settings';Case='SET-DASHBOARD-SORT';Children=@('SET-DASHBOARD-SORT.behavior','SET-QUICK-ACCESS-SORT.behavior')},
     @{Module='settings';Case='SET-WHATS-NEW-ENTRY';Children=@('SET-WHATS-NEW-ENTRY.behavior','SET-SECONDARY-LIFETIME.behavior')}

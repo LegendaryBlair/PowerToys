@@ -524,6 +524,7 @@
     </Project>
   </Folder>
   <Folder Name="/modules/imageresizer/Tests/">
+    <Project Path="src/modules/imageresizer/tests/NativeTests/ImageResizer.NativeTests.vcxproj" Id="7b56d845-d7f4-43d5-af56-a30f16a60828" />
     <Project Path="src/modules/imageresizer/tests/ImageResizer.UnitTests.csproj">
       <Platform Solution="*|ARM64" Project="ARM64" />
       <Platform Solution="*|x64" Project="x64" />

@@ -9,7 +9,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Crop And Lock | 1 | 13 | 14 |
 | Environment Variables | 3 | 29 | 135 |
 | File Locksmith | 2 | 10 | 10 |
-| Image Resizer | 1 | 12 | 18 |
+| Image Resizer | 2 | 2 | 5 |
 | New+ | 1 | 9 | 9 |
 | Peek | 1 | 18 | 18 |
 | PowerRename | 2 | 16 | 17 |
@@ -17,6 +17,13 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Shortcut Guide | 3 | 19 | 96 |
 | Workspaces | 2 | 38 | 72 |
 | ZoomIt | 1 | 39 | 39 |
+
+Image Resizer revision 2 changes the verification scope, not merely the grouping:
+the previous 12 scenarios / 18 children are replaced by two representative E2E journeys
+with five observations. Processing-rule matrices are owned by the module's Unit/Functional
+tests; see its [profile](../modules/image-resizer.md). New IDs distinguish this scope from
+historical exhaustive runs. Old reports are unchanged, and lower-layer test results are
+not relabeled as observations of installed UI.
 
 `Import-PtAssertionInventory` validates schema, revision, source SHA256, scenario coverage,
 IDs, nonempty descriptions and retention of named source assertions. The hash is over
