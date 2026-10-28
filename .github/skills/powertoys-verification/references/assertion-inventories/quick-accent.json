@@ -1,84 +1,360 @@
 {
-  "schemaVersion": 1,
-  "module": "QuickAccent",
-  "checklist": "../release-checklist/quick-accent.md",
-  "items": [
-    {"id":"QA-ARROWS","clarity":"CLEAR","assertions":[
-      {"id":"QA-ARROWS-LEFT","expectation":"Left activation shows the non-activating toolbar; bidirectional navigation wraps; release inserts exactly the selected accent."},
-      {"id":"QA-ARROWS-RIGHT","expectation":"Right activation shows the non-activating toolbar; bidirectional navigation wraps; release inserts exactly the selected accent."}]},
-    {"id":"QA-SPACE","clarity":"CLEAR","assertions":[
-      {"id":"QA-SPACE-FORWARD","expectation":"Space activates and advances, wrapping last to first."},
-      {"id":"QA-SPACE-BACKWARD","expectation":"Shift+Space moves backward, wrapping first to last; release commits once without stuck Shift."}]},
-    {"id":"QA-MODES","clarity":"CLEAR","assertions":[
-      {"id":"QA-MODES-DISABLED","expectation":"Disabled Quick Accent does not activate or insert accents."},
-      {"id":"QA-MODES-ARROWS","expectation":"Both arrows activate in Arrows mode; Space passes through."},
-      {"id":"QA-MODES-SPACE","expectation":"Space activates in Space mode; both arrows pass through."},
-      {"id":"QA-MODES-EITHER","expectation":"All three triggers activate in Either mode; the selected mode persists after revisiting Settings."}]},
-    {"id":"QA-DELAY","clarity":"CLEAR","assertions":[
-      {"id":"QA-DELAY-300","expectation":"Below/above 300 ms observations distinguish false starts and sustained activation; Space and both arrow false starts retain normal behavior."},
-      {"id":"QA-DELAY-900","expectation":"Below/above 900 ms observations distinguish false starts and sustained activation; Space and both arrow false starts retain normal behavior."},
-      {"id":"QA-DELAY-REARM","expectation":"Rapid canceled gestures leave no stale popup or stuck-letter behavior in subsequent typing."}]},
-    {"id":"QA-HOLD","clarity":"CLEAR","assertions":[
-      {"id":"QA-HOLD-500","expectation":"At 500 ms configuration, quick tap, sustained hold, unselected release, navigation and selected release behave as specified."},
-      {"id":"QA-HOLD-1000","expectation":"At 1000 ms configuration, quick tap, sustained hold, unselected release, navigation and selected release behave as specified."},
-      {"id":"QA-HOLD-CANCEL","expectation":"Pre-threshold Space, Left, Right and a different supported letter independently cancel without delayed appearance or replacing intervening text; fresh activation succeeds."},
-      {"id":"QA-HOLD-SHORTCUT","expectation":"Ctrl+A remains a normal shortcut without activating the toolbar."}]},
-    {"id":"QA-FOCUS","clarity":"CLEAR","assertions":[
-      {"id":"QA-FOCUS-PROCESS","expectation":"Visible and pending gestures cancel on transfer to an owned different process without accent insertion; fresh activation succeeds."},
-      {"id":"QA-FOCUS-WINDOW","condition":"Two owned text HWNDs in the same process","expectation":"Visible and pending gestures cancel on transfer to a different same-process HWND without accent insertion."}]},
-    {"id":"QA-LANGUAGES","clarity":"CLEAR","assertions":[
-      {"id":"QA-LANGUAGES-CURRENCY","expectation":"Currency alone has no A mapping and has S currency mappings."},
-      {"id":"QA-LANGUAGES-ALL","expectation":"French E accents and a non-French mapping are accessible with All available; selection persists."},
-      {"id":"QA-LANGUAGES-DIALOG","expectation":"Filtering retains hidden selections; Cancel discards draft changes and Save commits; zero-selection Save is disabled."}]},
-    {"id":"QA-MAPPINGS","clarity":"CLEAR","assertions":[
-      {"id":"QA-MAPPINGS-CURRENCY","expectation":"Verify every Currency row probe and insert its specified P character."},
-      {"id":"QA-MAPPINGS-ICELANDIC","expectation":"Verify and insert the Icelandic I row."},
-      {"id":"QA-MAPPINGS-PJT","expectation":"Verify and insert all four Pitjantjatjara row mappings."},
-      {"id":"QA-MAPPINGS-BELARUSIAN","expectation":"Verify and insert both Belarusian U variants independently."},
-      {"id":"QA-MAPPINGS-BULGARIAN","expectation":"Verify I correction, Euro and quote mappings; insert one stated character for each key."},
-      {"id":"QA-MAPPINGS-MONEY","expectation":"Verify and insert Greek Euro, Hebrew Shekel and Vietnamese Dong independently."},
-      {"id":"QA-MAPPINGS-GRC","expectation":"Verify Greek polytonic A row and insert a stated character."},
-      {"id":"QA-MAPPINGS-INVERTED","expectation":"Verify and insert inverted exclamation/question marks for Spanish and Catalan; record layout/Shift."},
-      {"id":"QA-MAPPINGS-SPECIAL","expectation":"Verify every Special matrix key/character and ordering condition; insert a stated character for each key."},
-      {"id":"QA-MAPPINGS-IPA","expectation":"Verify every IPA matrix key/character; insert a stated character for each key."},
-      {"id":"QA-MAPPINGS-QUOTES","expectation":"Verify German comma quotes without math substitutions and insert a quote."}]},
-    {"id":"QA-FREQUENCY","clarity":"CLEAR","assertions":[
-      {"id":"QA-FREQUENCY-ON","expectation":"Usage ordering follows controlled increments relative to preserved counters and visible list."},
-      {"id":"QA-FREQUENCY-OFF","expectation":"Disabling sorting restores normal language order; original usage history is restored after the run."}]},
-    {"id":"QA-INITIAL","clarity":"CLEAR","assertions":[
-      {"id":"QA-INITIAL-ON","expectation":"With start-from-left on, both arrows select the first item and commit that item."},
-      {"id":"QA-INITIAL-OFF","expectation":"With start-from-left off, Left/Right select their middle-adjacent initial items and commit those items."}]},
-    {"id":"QA-POSITIONS","clarity":"CLEAR","assertions":[
-      {"id":"QA-POSITIONS-PRIMARY","expectation":"All nine named positions match active work-area geometry without clipping; retain each row's observation."},
-      {"id":"QA-POSITIONS-MIXED-DPI","condition":"Two monitors with different DPI","expectation":"All nine positions work on the second active monitor without scaling/placement drift."}]},
-    {"id":"QA-DESCRIPTIONS","clarity":"CLEAR","assertions":[
-      {"id":"QA-DESCRIPTIONS-OFF","expectation":"Short-list cells and last highlight remain visible without unnecessary scrolling."},
-      {"id":"QA-DESCRIPTIONS-ON","expectation":"Single-code-point and U+00B0 U+0043 descriptions correspond to selection; short-list cells remain visible."}]},
-    {"id":"QA-OVERFLOW","clarity":"CLEAR","assertions":[
-      {"id":"QA-OVERFLOW-OFF","expectation":"With descriptions off, scrollbar appears for overflow only; both edge selections scroll into view with painted highlights and selected insertion."},
-      {"id":"QA-OVERFLOW-ON","expectation":"With descriptions on, scrollbar appears for overflow only; both edge selections scroll into view with painted highlights and selected insertion."}]},
-    {"id":"QA-RENDER","clarity":"CLEAR","assertions":[
-      {"id":"QA-RENDER-FIRST","expectation":"Recorded first-visible frames for alternating lists have current, nonblank, unclipped content; record capture cadence."},
-      {"id":"QA-RENDER-THEME","condition":"Reversible supported light/dark theme control","expectation":"Both themes render legibly without losing selection or activation."},
-      {"id":"QA-RENDER-RTL","condition":"Existing RTL locale and fractional DPI","expectation":"Edge selection and layout remain correct in the additional RTL/scaling condition."}]},
-    {"id":"QA-EXCLUSIONS","clarity":"CLEAR","assertions":[
-      {"id":"QA-EXCLUSIONS-BLOCK","expectation":"Owned excluded Notepad suppresses activation while a separate unexcluded owned process still activates."},
-      {"id":"QA-EXCLUSIONS-RESTORE","expectation":"Removing only the added exclusion restores Notepad activation and preserves prior exclusions."}]},
-    {"id":"QA-GAME","clarity":"CLEAR","assertions":[
-      {"id":"QA-GAME-NORMAL","expectation":"Prevention enabled does not block the ordinary non-game text fixture."},
-      {"id":"QA-GAME-ACTIVE","condition":"Authorized active game-mode fixture","expectation":"Prevention on suppresses activation in game mode; prevention off permits it."}]},
-    {"id":"QA-HOOKS","clarity":"CLEAR","assertions":[
-      {"id":"QA-HOOKS-KEYUP","condition":"Disposable authorized Keyboard Manager remap and downstream observer","expectation":"False-start owner key-up reaches downstream and the remap still executes."},
-      {"id":"QA-HOOKS-INJECTION","condition":"Disposable authorized centralized shortcut and input observer","expectation":"Quick Accent replacement/arrow injections do not retrigger unrelated shortcuts."}]},
-    {"id":"QA-GUIDE","clarity":"CLEAR","assertions":[
-      {"id":"QA-GUIDE-ORDER","expectation":"Guide opens with selected sets first and others alphabetically within language/special groups; return restores originating Settings surface."},
-      {"id":"QA-GUIDE-FILTER","expectation":"Single-character and multi-code-point queries retain only matching sets, keeping all mappings inside them; no-match and cleared queries show empty/restored content."},
-      {"id":"QA-GUIDE-DESCRIPTION","expectation":"Hover shows the correct Unicode description; combining marks have dotted-circle display aid."}]},
-    {"id":"QA-COPY","clarity":"CLEAR","assertions":[
-      {"id":"QA-COPY-ORDINARY","condition":"Clipboard formats supported by preservation guard","expectation":"Click copies exact ordinary character and restores private baseline."},
-      {"id":"QA-COPY-COMBINING","condition":"Clipboard formats supported by preservation guard","expectation":"Click copies underlying combining mark without dotted circle and restores private baseline."}]},
-    {"id":"QA-SETTINGS","clarity":"CLEAR","assertions":[
-      {"id":"QA-SETTINGS-SIZE","expectation":"At smaller/larger supported sizes all character-set selection/search/Save/Cancel controls remain reachable."},
-      {"id":"QA-SETTINGS-LOCALE","condition":"Existing non-English Windows/app locale with shipped translations","expectation":"Module Settings/set/attribution labels use available translations and preserve proper names."}]}
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "3BD2549ED6C679730EAEE04E0D17A5137EC4803BF3DF5BDDBC26823B4CE75D59",
+  "Items": [
+    {
+      "Id": "QA-ARROWS",
+      "Assertions": [
+        {
+          "Id": "QA-ARROWS-LEFT",
+          "Description": "Left activation shows the non-activating toolbar; bidirectional navigation wraps; release inserts exactly the selected accent."
+        },
+        {
+          "Id": "QA-ARROWS-RIGHT",
+          "Description": "Right activation shows the non-activating toolbar; bidirectional navigation wraps; release inserts exactly the selected accent."
+        }
+      ]
+    },
+    {
+      "Id": "QA-SPACE",
+      "Assertions": [
+        {
+          "Id": "QA-SPACE-FORWARD",
+          "Description": "Space activates and advances, wrapping last to first."
+        },
+        {
+          "Id": "QA-SPACE-BACKWARD",
+          "Description": "Shift+Space moves backward, wrapping first to last; release commits once without stuck Shift."
+        }
+      ]
+    },
+    {
+      "Id": "QA-MODES",
+      "Assertions": [
+        {
+          "Id": "QA-MODES-DISABLED",
+          "Description": "Disabled Quick Accent does not activate or insert accents."
+        },
+        {
+          "Id": "QA-MODES-ARROWS",
+          "Description": "Both arrows activate in Arrows mode; Space passes through."
+        },
+        {
+          "Id": "QA-MODES-SPACE",
+          "Description": "Space activates in Space mode; both arrows pass through."
+        },
+        {
+          "Id": "QA-MODES-EITHER",
+          "Description": "All three triggers activate in Either mode; the selected mode persists after revisiting Settings."
+        }
+      ]
+    },
+    {
+      "Id": "QA-DELAY",
+      "Assertions": [
+        {
+          "Id": "QA-DELAY-300",
+          "Description": "Below/above 300 ms observations distinguish false starts and sustained activation; Space and both arrow false starts retain normal behavior."
+        },
+        {
+          "Id": "QA-DELAY-900",
+          "Description": "Below/above 900 ms observations distinguish false starts and sustained activation; Space and both arrow false starts retain normal behavior."
+        },
+        {
+          "Id": "QA-DELAY-REARM",
+          "Description": "Rapid canceled gestures leave no stale popup or stuck-letter behavior in subsequent typing."
+        }
+      ]
+    },
+    {
+      "Id": "QA-HOLD",
+      "Assertions": [
+        {
+          "Id": "QA-HOLD-500",
+          "Description": "At 500 ms configuration, quick tap, sustained hold, unselected release, navigation and selected release behave as specified.",
+          "Sources": [
+            "#48937",
+            "#49701"
+          ]
+        },
+        {
+          "Id": "QA-HOLD-1000",
+          "Description": "At 1000 ms configuration, quick tap, sustained hold, unselected release, navigation and selected release behave as specified.",
+          "Sources": [
+            "#48937",
+            "#49701"
+          ]
+        },
+        {
+          "Id": "QA-HOLD-CANCEL",
+          "Description": "Pre-threshold Space, Left, Right and a different supported letter independently cancel without delayed appearance or replacing intervening text; fresh activation succeeds.",
+          "Sources": [
+            "#48937",
+            "#49701"
+          ]
+        },
+        {
+          "Id": "QA-HOLD-SHORTCUT",
+          "Description": "Ctrl+A remains a normal shortcut without activating the toolbar.",
+          "Sources": [
+            "#48937",
+            "#49701"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "QA-FOCUS",
+      "Assertions": [
+        {
+          "Id": "QA-FOCUS-PROCESS",
+          "Description": "Visible and pending gestures cancel on transfer to an owned different process without accent insertion; fresh activation succeeds."
+        },
+        {
+          "Id": "QA-FOCUS-WINDOW",
+          "Description": "Prerequisite: Two owned text HWNDs in the same process. Visible and pending gestures cancel on transfer to a different same-process HWND without accent insertion."
+        }
+      ]
+    },
+    {
+      "Id": "QA-LANGUAGES",
+      "Assertions": [
+        {
+          "Id": "QA-LANGUAGES-CURRENCY",
+          "Description": "Currency alone has no A mapping and has S currency mappings."
+        },
+        {
+          "Id": "QA-LANGUAGES-ALL",
+          "Description": "French E accents and a non-French mapping are accessible with All available; selection persists."
+        },
+        {
+          "Id": "QA-LANGUAGES-DIALOG",
+          "Description": "Filtering retains hidden selections; Cancel discards draft changes and Save commits; zero-selection Save is disabled."
+        }
+      ]
+    },
+    {
+      "Id": "QA-MAPPINGS",
+      "Assertions": [
+        {
+          "Id": "QA-MAPPINGS-CURRENCY",
+          "Description": "Verify every Currency row probe and insert its specified P character."
+        },
+        {
+          "Id": "QA-MAPPINGS-ICELANDIC",
+          "Description": "Verify and insert the Icelandic I row."
+        },
+        {
+          "Id": "QA-MAPPINGS-PJT",
+          "Description": "Verify and insert all four Pitjantjatjara row mappings."
+        },
+        {
+          "Id": "QA-MAPPINGS-BELARUSIAN",
+          "Description": "Verify and insert both Belarusian U variants independently."
+        },
+        {
+          "Id": "QA-MAPPINGS-BULGARIAN",
+          "Description": "Verify I correction, Euro and quote mappings; insert one stated character for each key."
+        },
+        {
+          "Id": "QA-MAPPINGS-MONEY",
+          "Description": "Verify and insert Greek Euro, Hebrew Shekel and Vietnamese Dong independently."
+        },
+        {
+          "Id": "QA-MAPPINGS-GRC",
+          "Description": "Verify Greek polytonic A row and insert a stated character."
+        },
+        {
+          "Id": "QA-MAPPINGS-INVERTED",
+          "Description": "Verify and insert inverted exclamation/question marks for Spanish and Catalan; record layout/Shift."
+        },
+        {
+          "Id": "QA-MAPPINGS-SPECIAL",
+          "Description": "Verify every Special matrix key/character and ordering condition; insert a stated character for each key."
+        },
+        {
+          "Id": "QA-MAPPINGS-IPA",
+          "Description": "Verify every IPA matrix key/character; insert a stated character for each key."
+        },
+        {
+          "Id": "QA-MAPPINGS-QUOTES",
+          "Description": "Verify German comma quotes without math substitutions and insert a quote."
+        }
+      ]
+    },
+    {
+      "Id": "QA-FREQUENCY",
+      "Assertions": [
+        {
+          "Id": "QA-FREQUENCY-ON",
+          "Description": "Usage ordering follows controlled increments relative to preserved counters and visible list."
+        },
+        {
+          "Id": "QA-FREQUENCY-OFF",
+          "Description": "Disabling sorting restores normal language order; original usage history is restored after the run."
+        }
+      ]
+    },
+    {
+      "Id": "QA-INITIAL",
+      "Assertions": [
+        {
+          "Id": "QA-INITIAL-ON",
+          "Description": "With start-from-left on, both arrows select the first item and commit that item."
+        },
+        {
+          "Id": "QA-INITIAL-OFF",
+          "Description": "With start-from-left off, Left/Right select their middle-adjacent initial items and commit those items."
+        }
+      ]
+    },
+    {
+      "Id": "QA-POSITIONS",
+      "Assertions": [
+        {
+          "Id": "QA-POSITIONS-PRIMARY",
+          "Description": "All nine named positions match active work-area geometry without clipping; retain each row's observation."
+        },
+        {
+          "Id": "QA-POSITIONS-MIXED-DPI",
+          "Description": "Prerequisite: Two monitors with different DPI. All nine positions work on the second active monitor without scaling/placement drift."
+        }
+      ]
+    },
+    {
+      "Id": "QA-DESCRIPTIONS",
+      "Assertions": [
+        {
+          "Id": "QA-DESCRIPTIONS-OFF",
+          "Description": "Short-list cells and last highlight remain visible without unnecessary scrolling."
+        },
+        {
+          "Id": "QA-DESCRIPTIONS-ON",
+          "Description": "Single-code-point and U+00B0 U+0043 descriptions correspond to selection; short-list cells remain visible."
+        }
+      ]
+    },
+    {
+      "Id": "QA-OVERFLOW",
+      "Assertions": [
+        {
+          "Id": "QA-OVERFLOW-OFF",
+          "Description": "With descriptions off, scrollbar appears for overflow only; both edge selections scroll into view with painted highlights and selected insertion."
+        },
+        {
+          "Id": "QA-OVERFLOW-ON",
+          "Description": "With descriptions on, scrollbar appears for overflow only; both edge selections scroll into view with painted highlights and selected insertion."
+        }
+      ]
+    },
+    {
+      "Id": "QA-RENDER",
+      "Assertions": [
+        {
+          "Id": "QA-RENDER-FIRST",
+          "Description": "Recorded first-visible frames for alternating lists have current, nonblank, unclipped content; record capture cadence."
+        },
+        {
+          "Id": "QA-RENDER-THEME",
+          "Description": "Prerequisite: Reversible supported light/dark theme control. Both themes render legibly without losing selection or activation."
+        },
+        {
+          "Id": "QA-RENDER-RTL",
+          "Description": "Prerequisite: Existing RTL locale and fractional DPI. Edge selection and layout remain correct in the additional RTL/scaling condition."
+        }
+      ]
+    },
+    {
+      "Id": "QA-EXCLUSIONS",
+      "Assertions": [
+        {
+          "Id": "QA-EXCLUSIONS-BLOCK",
+          "Description": "Owned excluded Notepad suppresses activation while a separate unexcluded owned process still activates."
+        },
+        {
+          "Id": "QA-EXCLUSIONS-RESTORE",
+          "Description": "Removing only the added exclusion restores Notepad activation and preserves prior exclusions."
+        }
+      ]
+    },
+    {
+      "Id": "QA-GAME",
+      "Assertions": [
+        {
+          "Id": "QA-GAME-NORMAL",
+          "Description": "Prevention enabled does not block the ordinary non-game text fixture."
+        },
+        {
+          "Id": "QA-GAME-ACTIVE",
+          "Description": "Prerequisite: Authorized active game-mode fixture. Prevention on suppresses activation in game mode; prevention off permits it."
+        }
+      ]
+    },
+    {
+      "Id": "QA-HOOKS",
+      "Assertions": [
+        {
+          "Id": "QA-HOOKS-KEYUP",
+          "Description": "Prerequisite: Disposable authorized Keyboard Manager remap and downstream observer. False-start owner key-up reaches downstream and the remap still executes."
+        },
+        {
+          "Id": "QA-HOOKS-INJECTION",
+          "Description": "Prerequisite: Disposable authorized centralized shortcut and input observer. Quick Accent replacement/arrow injections do not retrigger unrelated shortcuts."
+        }
+      ]
+    },
+    {
+      "Id": "QA-GUIDE",
+      "Assertions": [
+        {
+          "Id": "QA-GUIDE-ORDER",
+          "Description": "Guide opens with selected sets first and others alphabetically within language/special groups; return restores originating Settings surface.",
+          "Sources": [
+            "#49394"
+          ]
+        },
+        {
+          "Id": "QA-GUIDE-FILTER",
+          "Description": "Single-character and multi-code-point queries retain only matching sets, keeping all mappings inside them; no-match and cleared queries show empty/restored content.",
+          "Sources": [
+            "#49394"
+          ]
+        },
+        {
+          "Id": "QA-GUIDE-DESCRIPTION",
+          "Description": "Hover shows the correct Unicode description; combining marks have dotted-circle display aid.",
+          "Sources": [
+            "#49394"
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "QA-COPY",
+      "Assertions": [
+        {
+          "Id": "QA-COPY-ORDINARY",
+          "Description": "Prerequisite: Clipboard formats supported by preservation guard. Click copies exact ordinary character and restores private baseline."
+        },
+        {
+          "Id": "QA-COPY-COMBINING",
+          "Description": "Prerequisite: Clipboard formats supported by preservation guard. Click copies underlying combining mark without dotted circle and restores private baseline."
+        }
+      ]
+    },
+    {
+      "Id": "QA-SETTINGS",
+      "Assertions": [
+        {
+          "Id": "QA-SETTINGS-SIZE",
+          "Description": "At smaller/larger supported sizes all character-set selection/search/Save/Cancel controls remain reachable."
+        },
+        {
+          "Id": "QA-SETTINGS-LOCALE",
+          "Description": "Prerequisite: Existing non-English Windows/app locale with shipped translations. Module Settings/set/attribution labels use available translations and preserve proper names."
+        }
+      ]
+    }
   ]
 }

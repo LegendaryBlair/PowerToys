@@ -238,7 +238,7 @@ Read the same page instance for live synchronization before any diagnostic navig
 
 Use [session safety](../session-safety.md), [paired snapshots](../helper-workflow.md),
 [directory snapshots](../directory-snapshots.md) and the [shortcut recorder](../shortcut-recorder.md).
-The Settings inventory does not automatically provide the four-module aligned ResourcePlan
+The Settings inventory does not automatically provide the aligned ResourcePlan
 adapter. Wire actual Settings resources explicitly; a window snapshot is not an application backup.
 
 The shared Settings UI snapshot normally restores the **same surviving** main window. With

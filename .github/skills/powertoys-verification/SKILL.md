@@ -55,6 +55,7 @@ specific checklist.
 | `scripts/pt-foreground-guard.ps1` | Exact-HWND guards plus explicit `Restore-PtForegroundAfterShell` for a test-opened Start/Search transition. Ordinary guards never dismiss UI automatically. |
 | `scripts/pt-desktop.ps1` | Native window discovery, `Wait-PtCondition`, `Wait-PtWindow`, bounded/recorded `Invoke-PtWinApp`, reusable UIA tree flattening, and `Save-PtPassiveScreenshot`. See [helper workflow](references/helper-workflow.md). |
 | `scripts/pt-uia.ps1` | Scoped control resolution and `Select-PtComboBoxItem`: exact type plus AutomationId/name, runtime-identity deduplication, supported-pattern selection and actual readback. Never chooses the first caption match. |
+| `scripts/pt-quick-accent.ps1` | Quick Accent held-letter gestures over shared input and owned character-dialog lifetime. File/UI/clipboard preservation stays in shared helpers; see [fixture integration](references/quick-accent-fixtures.md). |
 | `scripts/pt-ui-observation.ps1` | Read-only `Get-PtUiObservation`: typed actual properties, native LiveSetting, structured Missing/Ambiguous/Unsupported/Stale/ReadError failures; no placeholder/default fallback. See [UI observations](references/ui-observations.md). |
 | `scripts/pt-ui-snapshot.ps1` | Offline `Test-PtUiSnapshot`: determine whether a captured tree satisfies explicit structural landmarks, without treating absent virtualized/business rows as zero or requiring expected results as readiness. |
 | `scripts/pt-shortcut-recorder.ps1` | Common WinUI shortcut snapshot, safe readiness handshake, Save/Cancel and original-value restoration. Caller supplies the page/control/settings path; no module activation, Reset shortcut or JSON bypass. See [shortcut recorder](references/shortcut-recorder.md). |
@@ -107,7 +108,7 @@ the execution inputs. Record actual executable/package identity, version/hash, o
 release selection and matching documentation/help snapshots. Do not upgrade mid-run or
 treat an unavailable update check as confirmation that an old tool is current.
 
-For Color Picker, Workspaces, Shortcut Guide and Environment Variables Scenario A runs, use
+For Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent Scenario A runs, use
 `templates\verification-run.ps1` with the [required resource plan](references/session-safety.md#mandatory-wiring-for-aligned-module-runs),
 `CleanupPlan` and frozen inventory. Do not reuse an old run-local bootstrap that bypasses
 the template's ownership, Settings-baseline and cleanup checks. The generic manual bootstrap
@@ -122,7 +123,7 @@ variants and every specified validation-matrix row remain required.
 Every other supplied Scenario A checklist also has a matching frozen inventory. Load it
 with `Import-PtAssertionInventory`, retain its `Items` unchanged and record both inputs,
 including when using the generic manual bootstrap. The template enforces these definitions
-for all 13 modules; only the four aligned profiles above require its resource-plan adapter.
+for all 14 modules; only the five aligned profiles above require its resource-plan adapter.
 An inventory is a coverage contract, not proof of complete execution/restoration support.
 
 ```powershell

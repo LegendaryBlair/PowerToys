@@ -14,6 +14,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Peek | 1 | 18 | 18 |
 | PowerRename | 2 | 16 | 17 |
 | PowerToys Settings | 4 | 25 | 50 |
+| Quick Accent | 1 | 20 | 57 |
 | Shortcut Guide | 3 | 19 | 96 |
 | Workspaces | 2 | 38 | 72 |
 | ZoomIt | 1 | 39 | 39 |
@@ -30,6 +31,11 @@ list in Markdown. A child covering several required inputs passes only after **a
 inputs are observed. Keep individual parameter observations even when they share one child.
 `Sources` on new definitions retains original requirement aliases where supplied; it is
 provenance, not a substitute for observing the described behavior.
+
+Quick Accent retains all 20 candidate scenario IDs and 57 child IDs in the shared schema.
+Each conditional prerequisite is part of that child's Description, not an optional flag.
+The source hash binds the complete input/Unicode matrices; the shared template requires
+the original Items, ResourcePlan and CleanupPlan.
 
 Settings revision 4 groups Home/Quick Access sorting under `SET-DASHBOARD-SORT` and
 secondary-window return/lifetime under `SET-WHATS-NEW-ENTRY`. Their original children and
@@ -82,9 +88,9 @@ $items = $inventory.Items
 # Pass Items to the existing run/template; record both input files.
 ```
 
-The thin template rejects different run-local Items for all 13 Scenario A modules
+The thin template rejects different run-local Items for all 14 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
-Only Color Picker, Workspaces, Shortcut Guide and Environment Variables currently require
+Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify
 another profile's ownership/restoration implementation or silently impose that adapter on it.
 Change the mapping only through review: increment `Revision`, retain stable IDs where
