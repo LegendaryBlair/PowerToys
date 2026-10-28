@@ -8,8 +8,7 @@
 | Processes | Resident `KeyboardManagerEngine\PowerToys.KeyboardManagerEngine.exe`; on-demand `WinUI3Apps\PowerToys.KeyboardManagerEditorUI.exe`. Resolve paths from the installed Runner. |
 | UI | New editor: WinUI 3, class `WinUIDesktopWin32WindowClass`, unified list/dialog. Classic editor: separate Remap keys and Remap shortcuts windows. |
 | State root | `%LOCALAPPDATA%\Microsoft\PowerToys\Keyboard Manager`; module `settings.json`, active profile JSON, `editorSettings.json`, `editorTransaction.lock`. Startup can reconcile stores. |
-| Activation | Settings entry, current `properties.EditorShortcut`, or shared `NewKeyboardManager.Open` event. Current builds have no separate service-toggle shortcut. |
-| Applicability | Editor mode selects different controls/commit semantics. Type/hold-Enter/hold-Esc are classic-specific. Empty-field dropdowns and recording focus exit require a supporting build. |
+| Applicability | Type/hold-Enter/hold-Esc are classic-specific. Empty-field dropdowns and recording focus exit need a supporting build; current builds have no service-toggle shortcut. |
 
 Use the [checklist](../release-checklist/keyboard-manager.md) for expectations and its
 [inventory](../assertion-inventories/keyboard-manager.json) for independent conditions.
@@ -22,11 +21,11 @@ Establish ownership and input readiness using [Fixtures and restoration](#fixtur
 
 | Intent | Entry / destination |
 |---|---|
-| Settings | Snapshot existing main HWND before navigation. Select `KeyboardManagerNavItem`, then new-mode `KeyboardManagerLaunchEditorButton` -> **List**. Read current mode first. |
-| Physical binding | Read `properties.EditorShortcut`; inject its keys against a compatible owned foreground fixture -> **List**. Do not substitute an event. |
-| Downstream activation | `Invoke-PtSharedEvent -Name 'NewKeyboardManager.Open'`; independently observe the correct editor -> **List**. This does not cover Settings/Dashboard/CmdPal navigation. |
-| Classic | Settings classic mode exposes Remap keys and Remap shortcuts -> **Classic draft**. Restore original mode; switching is not recovery for a new-editor failure. |
-| Dashboard / CmdPal / Dock | Exercise the requested listing, command or owned pin. Declare indirectly activated extension processes and restore companions/pins under their shared contracts. |
+| Settings | Snapshot main HWND; select `KeyboardManagerNavItem`, then new-mode `KeyboardManagerLaunchEditorButton` -> **List**. |
+| Physical binding | Read `properties.EditorShortcut`; inject against a compatible owned foreground fixture -> **List**. No event substitution. |
+| Downstream activation | `Invoke-PtSharedEvent -Name 'NewKeyboardManager.Open'` -> observe **List**. Not proof of a binding/navigation route. |
+| Classic | Settings' Remap keys/Remap shortcuts -> **Classic draft**. Restore mode; switching cannot rescue a new-editor verdict. |
+| Dashboard / CmdPal / Dock | Exercise actual listing/command/pin. Track extension processes and restore owned pins/companions. |
 
 ## UI state-transition map
 
@@ -55,28 +54,27 @@ Observe structural arrival; a successful Invoke is not evidence that the next su
 
 ## Control locator and interaction index
 
-Use [typed scoped resolution](../helper-workflow.md#scoped-control-selection) and current supported
-patterns. XAML resource keys are not AutomationIds. Captions follow the target window's locale;
-source-informed conditional routes require live provider discovery before use.
+Use [typed scoped resolution](../helper-workflow.md#scoped-control-selection). Confirm patterns and
+target-local captions; resource keys are not AutomationIds. Conditional routes need live discovery.
 
 | Interaction | UI state & scope | Control locator | How to interact |
 |---|---|---|---|
 | Open editor | Settings module page, new mode, enabled | `AutomationId=KeyboardManagerLaunchEditorButton`, `Button` | Invoke; independently resolve resulting process/window. |
 | Add mapping | List | `AutomationId=NewRemappingBtn`, `Button` | Invoke once; wait for fields and dialog controls. |
-| Choose action | Mapping draft | `AutomationId=ActionTypeComboBox`, `ComboBox` | `Select-PtComboBoxItem` with actual localized item name; observe dependent controls. |
+| Choose action | Mapping draft | `ActionTypeComboBox`, `ComboBox` | `Select-PtComboBoxItem` with actual localized option; observe dependent fields. |
 | Pick trigger | Mapping draft, trigger field | `KeyButton`, `Button`, within `TriggerKeyToggleBtn` | Invoke unique dropdown. Multiple shortcut slots require identifying the requested slot. |
 | Pick target | Mapping draft, key/shortcut action | `KeyButton`, `Button`, within `ActionKeyToggleBtn` | Invoke unique dropdown; do not select a window-global repeated ID. |
-| Select key | Current picker for known field/slot | `KeyListView` descendant `ListItem`, exact displayed key name | Wait for option realization; supported ScrollItem then Invoke on that identity. Do not reopen an already-open picker. |
-| Search keys | Key picker | `KeySearchBox` group -> current `Edit` descendant | Discover inner ID, SetValue, observe filtered list; keyboard selection needs actual guarded keys and readback. |
-| Record field | Mapping draft, one field | `TriggerKeyToggleBtn` or `ActionKeyToggleBtn`, exposed as `Button` | Discover Toggle/Invoke pattern; enter recording, deliver physical keys, stop and observe unchecked state. This is not the Settings shortcut-recorder dialog. |
+| Select key | Picker for known field/slot | `KeyListView` -> `ListItem`, exact key name | Wait for realization; supported ScrollItem then Invoke. Do not reopen the picker. |
+| Search keys | Key picker | `KeySearchBox` -> current `Edit` | Discover inner ID, SetValue, observe filtering; keyboard selection needs guarded keys/readback. |
+| Record field | Mapping draft, one field | `TriggerKeyToggleBtn` / `ActionKeyToggleBtn`, `Button` | Discover Toggle/Invoke; record physical keys, stop, observe unchecked state. Not the Settings shortcut recorder. |
 | Save | Mapping draft | Dialog `PrimaryButton`, enabled `Button` | Invoke once; observe close versus validation; independently read both stores. |
 | Cancel | Mapping draft | Current dialog-scoped localized cancel/close `Button` | Resolve from current tree and Invoke; process closure does not simulate Cancel. |
-| Edit row | List, not Select mode | `RemappingsListView` -> unique owned `ListItem` | Identify by owned trigger/target and store identity, then Invoke. Accessible Name may be only a model type. |
+| Edit row | List, not Select mode | `RemappingsListView` -> owned `ListItem` | Identify by trigger/target and store identity, then Invoke; Name may be a model type. |
 | Toggle row | Unique owned mapping row | Descendant `MappingEnabledToggle`, `Button` with TogglePattern | Read current state; Toggle only when needed. Compare editor IsActive and engine entry separately. |
 | Delete row | Unique owned mapping row | Descendant `MappingMenuButton`, `Button`; current localized Delete `MenuItem` | Invoke menu, then Delete, then confirmation PrimaryButton. Cancel is independent. |
 | Filter / select | List | `SearchBox` group, `FilterButton`, `SelectionModeButton` | Discover scoped edit/popup descendants; SetValue or Invoke. Re-resolve rows after filtering. |
-| Drive text target | Owned focused input, compatible integrity | Owned Notepad `Document`, or shared fixture `FixtureInput` `Edit` | Prove ordinary physical-key delivery before remapping; inject source VK using shared input, never direct text/value writes. |
-| Close / reopen | Owned main HWND and registered sibling windows | Exact PID/start/path creation identity | Normal tracked close, observed exit, then case-declared entry again. Rediscovery does not confer ownership of borrowed windows. |
+| Drive text target | Owned focus, compatible integrity | Keyboard fixture `FixtureInput`, `Edit` | [Observer recipe](../owned-fixtures.md#keyboard-input-observer): explicit installed layout, ordinary-key control first, then shared source-VK input. |
+| Close / reopen | Owned main and registered siblings | Exact PID/start/path creation identity | Normal tracked close, observed exit, then declared entry. Never adopt borrowed windows. |
 
 ### Read-out notes
 
@@ -89,18 +87,15 @@ source-informed conditional routes require live provider discovery before use.
 - Editor UUID-keyed `ShortcutSettingsDictionary` entries contain `Shortcut`, `Profiles`, `IsActive`.
   `ProfileDictionary`, `ShortcutsByOperationType` and `ActiveProfile` are companion state.
   Disabled editor rows can legitimately be absent from active engine mappings.
-- Use `Read-PtSharedFileText` with explicit parse/schema errors, never empty fallback values.
-  Draft, editor persistence, engine persistence and actual output are distinct observations.
-  Export only owned synthetic rows, not original private text/paths.
-- Read actual TextPattern/ValuePattern content, not accessible labels. Input return counts
-  and matching stored VKs do not establish delivery.
+- Use `Read-PtSharedFileText`; preserve parse/schema failures. Export only owned synthetic rows.
+  Draft, both saved stores and actual TextPattern/ValuePattern output are separate evidence.
+  Labels, input return counts and stored VKs do not prove delivery.
 
 ### Observation rules
 
-At high DPI the editor can extend beyond the work area: measure physical geometry and make
-the owned window visible before capture. Clipped images can support a visible row, not full
-layout. Capture only synthetic content; exclude private Notepad tab titles without cropping
-away the property under test. Images remain candidates until separately accepted.
+Fit owned windows to measured physical work-area geometry before capture. Clipped images
+cannot establish full-layout correctness. Exclude private tabs/mappings without hiding the
+property tested; images remain candidates until accepted.
 
 ## Troubleshooting
 
@@ -109,7 +104,7 @@ away the property under test. Images remain candidates until separately accepted
 | New route absent | Check raw mode, module enablement and current Settings page; distinguish classic controls. | Different configuration is not missing installed functionality. |
 | Saved row but no runtime effect | Observe validation/native-service availability, both stores and actual input. | UI/editor persistence alone does not establish remapping. |
 | Option missing immediately after opening | Observe existing picker until its requested option is realized; scope field/slot. | No action replay or product verdict from a lookup race. |
-| Neither mapped nor ordinary key yields text | Check exact focus, tokens, key events, layout/composition without changing user input state; diagnose in an owned observer. | Require ordinary delivery before remap judgments; do not assume an IME/RDP cause. |
+| Neither mapped nor ordinary key yields text | Compare focused text/key events; PROCESSKEY is not the expected ordinary key. Use the owned observer's explicit installed layout. | Do not alter user IME state or claim IME/AltGr coverage. Establish ordinary delivery first. |
 | Directory snapshot hits live log | Use guarded existing-file preservation for declared existing stores; retain error. Absence still needs suitable bounded rollback. | Log capture failure does not authorize access bypass or log deletion. |
 | Fixture cleanup targets closed editor | Remove the fixture while its captured foreground owner lives, or create fixture before editor activation. | Original-run desktop restoration does not erase the failed fixture receipt. |
 | Captions differ from Settings | Discover target-local captions; prefer proven AutomationIds. | English Settings does not imply English editor UI. |
@@ -124,44 +119,42 @@ away the property under test. Images remain candidates until separately accepted
 | Settings snapshot | Before Settings navigation | Run baseline; HWND borrowed | Template Settings adapter | Original identity/page/expansion/scroll/placement/visibility |
 | `Get-PtFileSnapshot` stores | Before editor startup/mapping changes | Private original bytes/existence; exact case-owned rows | UI undo/delete, quiescent guarded rollback | Both stores and original settings byte/existence comparisons; runtime undo separately |
 | Owned editor activation | Launch/reopen | Declare exact executable before `Invoke-PtOwnedProcessActivation`; register new PID/start/path and sibling HWNDs | `Stop-PtOwnedProcess` with normal tracked close | Owned processes/windows absent; existing editor untouched |
-| `New-PtNotepadFixture` or `Show-PtDesktopFixture.ps1` | Keyboard output | Synthetic owned document or dedicated key observer; preserve borrowed Notepad tabs | Paired Notepad removal with owned-edit discard, or normal tracked process exit | Original tabs/selection/placement; owned resources absent; keys released |
+| [Keyboard input observer](../owned-fixtures.md#keyboard-input-observer) | Ordinary key output | Run-owned process/two windows/state directory; original thread and foreground-app layouts | Normal tracked main close; compare layout-restoration receipt; restore desktop | Balanced released keys, owned process/windows absent, original foreground layout unchanged |
+| `New-PtNotepadFixture` | App-specific/document cases | Owned document; borrowed tabs and captured foreground lifetime | Paired removal with explicit owned-edit discard before foreground owner exits | Original tabs/selection/placement; owned tab/file absent |
 | Clipboard session | Paste matrix | Supported private baseline and owned synthetic writes | Restore before owner/writer release | Original supported data restored without disclosure |
 | App/browser/Shell fixture | Conditional actions | Exact owned tab/window/process and starting state | Scoped normal close and original-state restoration | No owned survivors; unrelated resources unchanged |
 
 ### Helper boundaries
 
-Reuse [session safety](../session-safety.md), template and recorder. Explicitly set `DependsOn=@()`
-for independent steps; resume with the original persisted resource plan. These helpers do not
-preserve arbitrary IME composition.
+Use [session safety](../session-safety.md) and the shared recorder/template; independent cleanup
+steps have `DependsOn=@()`. Resume with the original persisted plan. IME composition is not preserved.
 
-Guarded file rollback requires existing original/expected files. For absence, directory rollback
-needs a small quiescent root with exact ownership; the whole module root contains live logs.
-Preserve transaction-lock existence and attributable `editorSettings.<token>.tmp` sidecars.
-A snapshot grants no ownership. Do not overwrite unrelated settings or restart Runner as cleanup.
+File guards require existing originals/expected files. Absence needs bounded quiescent directory
+rollback; the module root includes live logs. Preserve lock existence and attributable
+`editorSettings.<token>.tmp` sidecars. Snapshots grant no ownership; no blanket overwrite/restart.
 
 ### Restoration order
 
-1. Release owned input, cancel owned drafts, delete owned mappings through UI; observe ordinary
-   source-key behavior before claiming runtime restoration.
+1. Establish the keyboard observer before editor activation and prove ordinary-key delivery.
+   At cleanup, release input, cancel drafts, delete owned mappings through UI and observe
+   ordinary source-key behavior before claiming runtime restoration.
 2. Remove an owned Notepad fixture before its captured foreground owner exits. Put this in
    Ui phase before editor Quiesce, or create the fixture before editor activation.
 3. Capture final attributable store post-states, close owned editor writers normally, then
    guarded-restore declared files to the immutable original bytes/existence.
 4. Restore explicitly changed enablement/mode through UI and account for startup writes.
    The bounded mapping flow does not require Runner restart.
-5. Close remaining owned fixtures; restore borrowed Settings and physical desktop.
+5. Close the keyboard observer normally and compare its layout-restoration receipt, then restore
+   borrowed Settings/desktop and independently compare the original foreground application's layout.
 
 ### Restoration verification
 
-Freshly compare general/module settings, active profile, editor store and lock after the final
-writer/activation. Unrelated log growth is outside mapping-state equality. Check owned-resource
-absence and borrowed Settings/Notepad baseline state. Disk equality cannot replace runtime
-ordinary-input restoration. Retain conflicts, partial receipts and private recovery until resolved.
+After final writes, compare general/module settings, profile/editor/lock bytes and existence,
+owned-resource absence, borrowed UI and input-layout baselines. Log growth is outside mapping-state
+equality. Disk equality cannot replace runtime undo. Retain conflicts and private recovery.
 
 ## References
 
 - [Recorder and immutable evidence](../recording-workflow.md)
 - [Ownership, Settings and cleanup](../session-safety.md)
-- [Shared input, UIA and file mechanics](../helper-workflow.md)
-- [Owned Notepad fixtures](../owned-fixtures.md)
-- [Module lifecycle](../module-lifecycle.md)
+- [Input, UIA, files and lifecycle](../helper-workflow.md)

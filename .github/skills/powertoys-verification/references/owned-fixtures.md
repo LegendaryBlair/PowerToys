@@ -1,4 +1,4 @@
-# Owned Notepad and Explorer fixtures
+# Owned desktop fixtures
 
 Load `scripts/pt-owned-fixtures.ps1` or the standard helper bootstrap. These operations
 require an unlocked interactive desktop; keep input serial. Use a new local workspace,
@@ -110,3 +110,66 @@ an actual dirty document, and verifies refusal/retry for untracked folder conten
 Supply `-DiscardButtonName` when the observed Notepad discard label is not English.
 Different Notepad versions/providers and unexpected Explorer reuse require explicit
 evidence before extending these adapters; do not claim universal app/session restoration.
+
+## Keyboard input observer
+
+For ordinary key/remap observations that need a controlled text and key-event oracle,
+reuse `scripts\tests\Show-PtDesktopFixture.ps1`. It creates a dedicated WinForms input
+window plus a second same-process window. It does not configure PowerToys. Its
+`FixtureInput` Edit control exposes UIA text; `keys.jsonl` records actual KeyDown/KeyUp,
+and `text.txt` is written on KeyUp. These are owned synthetic data, not global input logs.
+
+The optional `-InputLanguage <culture>` selects exactly one **already installed** layout
+on the fixture thread after activation. Missing/ambiguous cultures fail before window
+creation; no layout is installed and the default behavior remains unchanged. This is
+for an ordinary-character oracle, not coverage of IME/AltGr behavior. `ImeMode=Disable`
+alone does not establish that physical letters will become document text under every
+input method: prove ordinary input before configuring a remap.
+
+Declare a Process resource for the resolved `pwsh` executable and a Quiesce cleanup step
+before launch. Use a new local state directory, retain the actual returned creation, and
+include the fixture script as a recorded input:
+
+```powershell
+$fixtureExe = (Get-Command pwsh).Source
+$fixtureScript = Join-Path $skill 'scripts\tests\Show-PtDesktopFixture.ps1'
+# $stateDirectory is a new absolute run-owned directory outside private user content.
+# $culture is the explicitly selected, uniquely installed culture, e.g. en-US.
+$creation = Start-PtOwnedProcess -FilePath $fixtureExe -ArgumentList @(
+    '-NoProfile', '-STA', '-File', "`"$fixtureScript`"",
+    '-StateDirectory', "`"$stateDirectory`"", '-InputLanguage', $culture)
+$ready = Wait-PtCondition -Description 'owned keyboard fixture ready' -TimeoutSeconds 20 -Probe {
+    if (Test-Path "$stateDirectory\ready.json") {
+        ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$stateDirectory\ready.json"))
+    }
+}
+if ($ready.processId -ne $creation.ProcessId) { throw 'Fixture launch identity mismatch.' }
+$main = Get-PtWindowIdentity -Hwnd $ready.hwnd
+foreach ($window in @(Get-PtNativeWindow -ProcessId $creation.ProcessId)) {
+    Register-PtCreatedWindow -Identity (Get-PtWindowIdentity $window.Hwnd) -Creation $creation
+}
+```
+
+Verify actual process integrity, exact foreground and `FixtureInput` keyboard focus.
+Use `Send-PtChord`/`Invoke-PtHeldKeys` and independently observe both UIA text and balanced
+key events. Never use SetValue, Unicode literal-text injection or posted character messages
+as evidence that a physical source key was remapped. Inspect current Caps/Shift state rather
+than silently changing it. Preserve all unsuccessful input observations.
+
+Close the actual main window normally with `Stop-PtOwnedProcess -Creation $creation`,
+whose `-RequestExit` callback receives the process identity and the caller's `-ArgumentList
+@($main)`; call `Close-PtTrackedWindow -Identity $main`. Register any additional native
+siblings before this process-wide closure. Do not terminate an arbitrary pwsh process or
+adopt another process started after the baseline.
+
+On normal exit, the fixture restores its original thread layout and writes
+`input-language-restored.json` (`original`, `actual`); compare both to
+`ready.originalInputLanguage`, not only to each other. Verify process/window absence and
+restore the run's original physical desktop. Independently compare the original foreground
+application's layout before/after using read-only `GetWindowThreadProcessId` and
+`GetKeyboardLayout`; desktop snapshots do not include input-layout or IME state.
+The fixture does not change an existing user application's composition mode.
+
+Run `scripts\tests\Test-PtKeyboardInputFixture.ps1 -InputLanguage en-US` where that single
+layout is already installed. It exercises inherited behavior, explicit physical text/key
+delivery, unavailable-layout rejection, normal exit and original-foreground layout checks.

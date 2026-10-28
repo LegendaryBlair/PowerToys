@@ -1,6 +1,13 @@
-param([Parameter(Mandatory)][string]$StateDirectory,[switch]$Churn,[switch]$Observation)
+param([Parameter(Mandatory)][string]$StateDirectory,[switch]$Churn,[switch]$Observation,[string]$InputLanguage)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$originalInputLanguage = [Windows.Forms.InputLanguage]::CurrentInputLanguage
+$selectedInputLanguage = $null
+if ($InputLanguage) {
+    $matches = @([Windows.Forms.InputLanguage]::InstalledInputLanguages | Where-Object { $_.Culture.Name -ceq $InputLanguage })
+    if ($matches.Count -ne 1) { throw 'InputLanguage must identify exactly one already installed keyboard layout.' }
+    $selectedInputLanguage = $matches[0]
+}
 [Windows.Forms.Application]::EnableVisualStyles()
 $form = [Windows.Forms.Form]::new()
 $form.Text = "PowerToys helper fixture $([IO.Path]::GetFileName($StateDirectory))"
@@ -80,15 +87,29 @@ if($Churn){
 $form.Add_Shown({
     $other.Show()
     $form.Activate()
+    if ($selectedInputLanguage) { [Windows.Forms.InputLanguage]::CurrentInputLanguage = $selectedInputLanguage }
     $edit.Focus()
     [pscustomobject]@{
         hwnd = $form.Handle.ToInt64(); otherHwnd = $other.Handle.ToInt64()
         processId = $PID; stopwatchFrequency = [Diagnostics.Stopwatch]::Frequency
+        originalInputLanguage = $originalInputLanguage.Handle.ToInt64()
+        inputLanguage = [Windows.Forms.InputLanguage]::CurrentInputLanguage.Handle.ToInt64()
+        inputCulture = [Windows.Forms.InputLanguage]::CurrentInputLanguage.Culture.Name
     } | ConvertTo-Json | Set-Content -LiteralPath "$StateDirectory\ready.json"
 })
 try { [Windows.Forms.Application]::Run($form) }
 finally {
-    $timer.Stop();$timer.Dispose()
-    foreach($window in $transients){$window.Dispose()}
-    $other.Dispose(); $menu.Dispose(); $form.Dispose()
+    try {
+        if ($selectedInputLanguage) {
+            [Windows.Forms.InputLanguage]::CurrentInputLanguage = $originalInputLanguage
+            [pscustomobject]@{
+                original = $originalInputLanguage.Handle.ToInt64()
+                actual = [Windows.Forms.InputLanguage]::CurrentInputLanguage.Handle.ToInt64()
+            } | ConvertTo-Json | Set-Content -LiteralPath "$StateDirectory\input-language-restored.json"
+        }
+    } finally {
+        $timer.Stop();$timer.Dispose()
+        foreach($window in $transients){$window.Dispose()}
+        $other.Dispose(); $menu.Dispose(); $form.Dispose()
+    }
 }
