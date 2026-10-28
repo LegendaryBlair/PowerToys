@@ -76,7 +76,7 @@ Check 'Aligned module entry paths reject absent wiring before creating a run' {
     Check 'Every supplied checklist rejects run-local regrouping before creating a run' {
         foreach($module in 'Advanced Paste','Color Picker','Crop And Lock','Environment Variables',
             'File Locksmith','Image Resizer','New+','Peek','PowerRename','PowerToys Settings',
-            'Shortcut Guide','Workspaces','ZoomIt','Quick Accent'){
+            'Shortcut Guide','Workspaces','ZoomIt','Quick Accent','Keyboard Manager'){
             $target=Join-Path $Workspace ('inventory-'+$module.Replace(' ',''))
             Reject {& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $target -Module $module `
                 -Bits 'Synthetic inventory rejection; no product execution' -Items @(@{Id='regrouped'}) `
@@ -87,7 +87,7 @@ Check 'Aligned module entry paths reject absent wiring before creating a run' {
     }
     Check 'Additional inventories do not silently require the aligned resource adapter' {
         foreach($module in 'Advanced Paste','Crop And Lock','File Locksmith','Image Resizer',
-            'NewPlus','Peek','PowerRename','Settings','ZoomIt'){
+            'NewPlus','Peek','PowerRename','Settings','ZoomIt','KeyboardManager'){
             $target=Join-Path $Workspace ('legacy-wiring-'+$module.Replace(' ',''))
             Reject {& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $target -Module $module `
                 -Bits 'Synthetic legacy wiring boundary' -Items @(@{Id='regrouped'}) `

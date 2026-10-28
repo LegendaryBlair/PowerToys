@@ -123,7 +123,7 @@ variants and every specified validation-matrix row remain required.
 Every other supplied Scenario A checklist also has a matching frozen inventory. Load it
 with `Import-PtAssertionInventory`, retain its `Items` unchanged and record both inputs,
 including when using the generic manual bootstrap. The template enforces these definitions
-for all 14 modules; only the five aligned profiles above require its resource-plan adapter.
+for all 15 modules; only the five aligned profiles above require its resource-plan adapter.
 An inventory is a coverage contract, not proof of complete execution/restoration support.
 
 ```powershell

@@ -10,6 +10,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Environment Variables | 3 | 29 | 135 |
 | File Locksmith | 2 | 10 | 10 |
 | Image Resizer | 1 | 12 | 18 |
+| Keyboard Manager | 1 | 24 | 135 |
 | New+ | 1 | 9 | 9 |
 | Peek | 1 | 18 | 18 |
 | PowerRename | 2 | 16 | 17 |
@@ -84,6 +85,11 @@ relative to the old run-local 120/103/115 child groupings. Historical archives r
 Compare old/new requirements by source text and actual observations, not child count or
 ordinal correspondence. No old verdict/evidence is copied into the new inventories.
 
+Keyboard Manager revision 1 retains the classic editor's Type/hold-Enter/hold-Esc
+conditions separately from the unified new editor. Its remapping matrices retain
+tap/hold and modifier-release-order requirements; additional app, elevation, locale,
+DSC and diagnostic conditions are not implied by a bounded ordinary-key run.
+
 ```powershell
 $inventory = Import-PtAssertionInventory `
     -InventoryPath "$skill\references\assertion-inventories\workspaces.json" `
@@ -92,7 +98,7 @@ $items = $inventory.Items
 # Pass Items to the existing run/template; record both input files.
 ```
 
-The thin template rejects different run-local Items for all 14 Scenario A modules
+The thin template rejects different run-local Items for all 15 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify

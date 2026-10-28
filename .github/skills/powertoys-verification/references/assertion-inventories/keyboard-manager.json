@@ -1,0 +1,262 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "368001A5E2DCAA7A5A6A392BBCC831636CE08DD888044DB90FF29D137C71E56E",
+  "Items": [
+    {
+      "Id": "KM-ENTRY",
+      "Assertions": [
+        { "Id": "KM-ENTRY.settings", "Description": "The Keyboard Manager Settings entry opens the configured usable editor." },
+        { "Id": "KM-ENTRY.shortcut", "Description": "With new editor selected and module enabled, the configured editor shortcut opens it through actual keyboard input." },
+        { "Id": "KM-ENTRY.dashboard", "Description": "With new editor selected and module enabled, Dashboard lists its configured editor shortcut." },
+        { "Id": "KM-ENTRY.cmdpal", "Description": "With the installed PowerToys Command Palette integration, its open-editor command opens the new editor." },
+        { "Id": "KM-ENTRY.pin", "Description": "With Dock integration available and owned pin restoration, pin and relaunch the new editor command from the Dock." },
+        { "Id": "KM-ENTRY.clear-restore", "Description": "Clearing the editor shortcut stops its old binding from opening the editor; restoring it restores activation. The removed separate service-toggle shortcut is not required." }
+      ]
+    },
+    {
+      "Id": "KM-EDITOR-MODES",
+      "Assertions": [
+        { "Id": "KM-EDITOR-MODES.switch", "Description": "Settings switches between new editor and both classic remap windows without losing mappings." },
+        { "Id": "KM-EDITOR-MODES.preference", "Description": "Reopening retains the explicitly selected editor preference and original preference is restored." },
+        { "Id": "KM-EDITOR-MODES.missing", "Description": "In an authorized isolated clean/migration fixture, absent useNewEditor selects the new editor." },
+        { "Id": "KM-EDITOR-MODES.explicit-false", "Description": "In an authorized isolated migration fixture, explicitly false useNewEditor remains classic." }
+      ]
+    },
+    {
+      "Id": "KM-DRAFT",
+      "Assertions": [
+        { "Id": "KM-DRAFT.classic-rows", "Description": "Classic Remap keys adds and removes rows through its corresponding buttons." },
+        { "Id": "KM-DRAFT.classic-invalid", "Description": "Classic OK with blank rows shows the invalid-mappings warning." },
+        { "Id": "KM-DRAFT.classic-keys-save", "Description": "Classic Remap keys OK saves valid owned mappings and reopening loads them." },
+        { "Id": "KM-DRAFT.classic-shortcuts-save", "Description": "Classic Remap shortcuts OK saves valid owned mappings and reopening loads them." },
+        { "Id": "KM-DRAFT.new-save", "Description": "Saving a valid owned key mapping in the new editor shows the list entry and corresponding persisted engine and editor entries." },
+        { "Id": "KM-DRAFT.new-reopen", "Description": "Closing and reopening the owned new editor retains the saved owned mapping in the list and both stores." },
+        { "Id": "KM-DRAFT.new-cancel", "Description": "Canceling an unsaved add and an unsaved edit leaves the original stored mappings unchanged." },
+        { "Id": "KM-DRAFT.new-invalid", "Description": "An empty new-editor mapping draft cannot commit an invalid mapping." }
+      ]
+    },
+    {
+      "Id": "KM-RECORDING",
+      "Assertions": [
+        { "Id": "KM-RECORDING.classic-key-source", "Description": "Using Type only, classic Remap keys source accepts keys rather than shortcuts." },
+        { "Id": "KM-RECORDING.classic-shortcut-source", "Description": "Using Type only, classic Remap shortcuts source accepts shortcuts rather than standalone keys." },
+        { "Id": "KM-RECORDING.classic-targets", "Description": "Using Type only in each classic window, its target accepts both keys and shortcuts." },
+        { "Id": "KM-RECORDING.hold-enter", "Description": "In each classic Type dialog, holding Enter accepts the recorded input." },
+        { "Id": "KM-RECORDING.hold-escape", "Description": "In each classic Type dialog, holding Escape cancels without committing the draft." },
+        { "Id": "KM-RECORDING.new-fields", "Description": "New editor trigger and action fields record their requested keys/shortcuts." },
+        { "Id": "KM-RECORDING.order", "Description": "New-editor recorded modifiers display Win, Ctrl, Alt, Shift, action regardless of press order." },
+        { "Id": "KM-RECORDING.foreground", "Description": "On builds with editor-scoped recording, owned text typed in another foreground process is not recorded." },
+        { "Id": "KM-RECORDING.tab", "Description": "On builds with recording focus exit, lone Tab ends recording, retains captured keys, unchecks recording and moves focus forward." },
+        { "Id": "KM-RECORDING.shift-tab", "Description": "On builds with recording focus exit, Shift+Tab ends recording, retains captured keys, unchecks recording and moves focus backward." },
+        { "Id": "KM-RECORDING.empty-stop", "Description": "Stopping new-editor recording without capturing keys restores the previous keys; lone Tab remains selectable through the dropdown." }
+      ]
+    },
+    {
+      "Id": "KM-DROPDOWNS",
+      "Assertions": [
+        { "Id": "KM-DROPDOWNS.key-key", "Description": "Dropdowns create key-to-key mappings using mouse selection and, independently, keyboard navigation." },
+        { "Id": "KM-DROPDOWNS.key-shortcut", "Description": "Dropdowns create key-to-shortcut mappings using mouse selection and, independently, keyboard navigation." },
+        { "Id": "KM-DROPDOWNS.shortcut-key", "Description": "Dropdowns create shortcut-to-key mappings using mouse selection and, independently, keyboard navigation." },
+        { "Id": "KM-DROPDOWNS.shortcut-shortcut", "Description": "Dropdowns create shortcut-to-shortcut mappings using mouse selection and, independently, keyboard navigation." },
+        { "Id": "KM-DROPDOWNS.empty-slots", "Description": "On builds with empty-slot pickers, both empty fields offer Select key; a media key is selectable without pressing it and a selected modifier adds a slot for building a shortcut." },
+        { "Id": "KM-DROPDOWNS.search", "Description": "Key search is case-insensitive, Enter selects a match, no matches show an explicit state and reopening clears search." },
+        { "Id": "KM-DROPDOWNS.revert", "Description": "Invalid selection reverts without breaking later dropdown updates; placeholder/None is never persisted as a key." }
+      ]
+    },
+    {
+      "Id": "KM-VALIDATION",
+      "Assertions": [
+        { "Id": "KM-VALIDATION.add-duplicate", "Description": "Adding a duplicate mapping is rejected without changing the saved original." },
+        { "Id": "KM-VALIDATION.edit-conflict", "Description": "Editing an owned entry into another entry's identity/conflict is rejected without changing the saved original." },
+        { "Id": "KM-VALIDATION.conditions", "Description": "Always and Alone entries for the same key are treated as distinct identities." },
+        { "Id": "KM-VALIDATION.modifier-sides", "Description": "Distinct left/right modifier mappings are allowed; conflicting generic-versus-specific variants are rejected." },
+        { "Id": "KM-VALIDATION.disable", "Description": "Disable actions enforce valid nonempty triggers and duplicate/modifier-conflict rules." },
+        { "Id": "KM-VALIDATION.win-l", "Description": "Dropdown-created Win+L and Win+Ctrl+L sources and targets are rejected without physically injecting a workstation-lock gesture." }
+      ]
+    },
+    {
+      "Id": "KM-KEY-KEY",
+      "Assertions": [
+        { "Id": "KM-KEY-KEY.a-b-tap", "Description": "With an owned A to B mapping and ordinary text fixture, press/release A produces B instead of A and subsequent input is not left modified." },
+        { "Id": "KM-KEY-KEY.a-b-hold", "Description": "Holding/repeating A with A to B produces repeated target input without A leakage or stuck input after release." },
+        { "Id": "KM-KEY-KEY.ctrl-a-tap", "Description": "Ctrl to A press/release produces A; exercise applicable modifier/action release orders and verify ordinary input afterward." },
+        { "Id": "KM-KEY-KEY.ctrl-a-hold", "Description": "Ctrl to A held/repeated input produces the target without residual Ctrl, including applicable release orders." },
+        { "Id": "KM-KEY-KEY.a-ctrl-tap", "Description": "A to Ctrl press/release provides target Ctrl behavior in an owned observer, with applicable release orders and no stuck modifier." },
+        { "Id": "KM-KEY-KEY.a-ctrl-hold", "Description": "A to Ctrl held input participates in the target modifier combination and releases correctly in both orders." },
+        { "Id": "KM-KEY-KEY.win-b-tap", "Description": "Win to B press/release produces B without accidentally opening Start or leaving a modifier held." },
+        { "Id": "KM-KEY-KEY.win-b-hold", "Description": "Win to B held/repeated input produces the target without source Start leakage, including applicable release orders." },
+        { "Id": "KM-KEY-KEY.b-win-tap", "Description": "B to Win press/release produces intended target-Win behavior without an additional accidental Start activation; observe target key state." },
+        { "Id": "KM-KEY-KEY.b-win-hold", "Description": "B to Win held input participates in intended Win combinations, with both release orders and no accidental additional Start activation." },
+        { "Id": "KM-KEY-KEY.a-disable-tap", "Description": "A to Disable suppresses a press/release A in an owned text/key observer and normal input afterward works." },
+        { "Id": "KM-KEY-KEY.a-disable-hold", "Description": "A to Disable suppresses held/repeated A input and leaves no stuck state." },
+        { "Id": "KM-KEY-KEY.win-disable-tap", "Description": "Win to Disable suppresses press/release without opening Start or leaving a modifier held." },
+        { "Id": "KM-KEY-KEY.win-disable-hold", "Description": "Win to Disable suppresses held/repeated input without Start leakage or stuck modifiers; exercise applicable release orders." }
+      ]
+    },
+    {
+      "Id": "KM-KEY-SHORTCUT",
+      "Assertions": [
+        { "Id": "KM-KEY-SHORTCUT.a-paste-tap", "Description": "A to Ctrl+V press/release pastes protected synthetic text instead of A, with no residual modifiers." },
+        { "Id": "KM-KEY-SHORTCUT.a-paste-hold", "Description": "A to Ctrl+V held/repeated input performs target paste behavior and releases target modifiers correctly." },
+        { "Id": "KM-KEY-SHORTCUT.b-win-a-tap", "Description": "B to Win+A press/release invokes Quick Settings rather than B, with owned shell-surface cleanup." },
+        { "Id": "KM-KEY-SHORTCUT.b-win-a-hold", "Description": "B to Win+A held/repeated input routes to the target, releases modifiers correctly and does not leak B." }
+      ]
+    },
+    {
+      "Id": "KM-SHORTCUT-SHORTCUT",
+      "Assertions": [
+        { "Id": "KM-SHORTCUT-SHORTCUT.ctrl-a-paste-tap", "Description": "Ctrl+A to Ctrl+V taps paste synthetic text instead of Select all; exercise modifier-first and action-first release orders." },
+        { "Id": "KM-SHORTCUT-SHORTCUT.ctrl-a-paste-hold", "Description": "Ctrl+A to Ctrl+V held/repeated input and both release orders preserve target behavior without stuck modifiers." },
+        { "Id": "KM-SHORTCUT-SHORTCUT.win-a-paste-tap", "Description": "Win+A to Ctrl+V taps paste synthetic text instead of Quick Settings; both release orders leave ordinary input working." },
+        { "Id": "KM-SHORTCUT-SHORTCUT.win-a-paste-hold", "Description": "Win+A to Ctrl+V held/repeated input and both release orders preserve target paste behavior without shell leakage." },
+        { "Id": "KM-SHORTCUT-SHORTCUT.ctrl-v-win-a-tap", "Description": "Ctrl+V to Win+A taps open the intended Windows surface rather than paste; test both release orders." },
+        { "Id": "KM-SHORTCUT-SHORTCUT.ctrl-v-win-a-hold", "Description": "Ctrl+V to Win+A held/repeated input and both release orders preserve target behavior without stuck modifiers." },
+        { "Id": "KM-SHORTCUT-SHORTCUT.win-a-win-f-tap", "Description": "With Feedback Hub installed and owned activation/closure, Win+A to Win+F taps open the intended target instead of Quick Settings, with both release orders." },
+        { "Id": "KM-SHORTCUT-SHORTCUT.win-a-win-f-hold", "Description": "With Feedback Hub and owned lifecycle available, Win+A to Win+F held/repeated input and both release orders route correctly and restore ordinary input." }
+      ]
+    },
+    {
+      "Id": "KM-SHORTCUT-KEY",
+      "Assertions": [
+        { "Id": "KM-SHORTCUT-KEY.ctrl-a-b-tap", "Description": "Ctrl+A to B taps produce B rather than Select all, with both modifier/action release orders." },
+        { "Id": "KM-SHORTCUT-KEY.ctrl-a-b-hold", "Description": "Ctrl+A to B held/repeated input produces the target and both release orders leave no stuck modifiers." },
+        { "Id": "KM-SHORTCUT-KEY.ctrl-a-win-tap", "Description": "Ctrl+A to Win taps produce target-Win behavior in an owned key/Start observer, with both release orders and no extra source action." },
+        { "Id": "KM-SHORTCUT-KEY.ctrl-a-win-hold", "Description": "Ctrl+A to Win held input and both release orders produce intended target combinations without stuck modifiers." },
+        { "Id": "KM-SHORTCUT-KEY.win-a-b-tap", "Description": "Win+A to B taps produce B rather than Quick Settings, with both release orders." },
+        { "Id": "KM-SHORTCUT-KEY.win-a-b-hold", "Description": "Win+A to B held/repeated input and both release orders preserve target behavior without shell leakage or stuck modifiers." }
+      ]
+    },
+    {
+      "Id": "KM-APP-SCOPE",
+      "Assertions": [
+        { "Id": "KM-APP-SCOPE.edge", "Description": "With an owned Edge fixture targeted as msedge, applicable shortcut matrix rows work only in that foreground app, including tap/hold/release-order conditions." },
+        { "Id": "KM-APP-SCOPE.code", "Description": "With an owned VS Code fixture targeted as code, applicable shortcut matrix rows work only in that foreground app, including tap/hold/release-order conditions." },
+        { "Id": "KM-APP-SCOPE.terminal-user", "Description": "With owned non-admin cmd in Windows Terminal targeted as windowsterminal, applicable shortcut matrix rows work only in that foreground app, including tap/hold/release orders." },
+        { "Id": "KM-APP-SCOPE.terminal-admin", "Description": "Requires authorized elevated PowerToys and elevated cmd in Windows Terminal: applicable app-specific shortcut matrix rows work with tap/hold/release-order coverage; unrelated apps remain unaffected." },
+        { "Id": "KM-APP-SCOPE.alt-tab", "Description": "An app-specific Alt+Tab target in owned fixtures changes focus without stuck modifiers or subsequent remaps going to the wrong application." },
+        { "Id": "KM-APP-SCOPE.alt-f4", "Description": "An app-specific Alt+F4 target closes only an owned window and leaves subsequent input/remap routing correct." }
+      ]
+    },
+    {
+      "Id": "KM-MODIFIER-CHAIN",
+      "Assertions": [
+        { "Id": "KM-MODIFIER-CHAIN.ctrl", "Description": "Hold Ctrl across D then E with Ctrl+D to Ctrl+A and Ctrl+E to Ctrl+V: select all then paste synthetic text; after release ordinary typing works." },
+        { "Id": "KM-MODIFIER-CHAIN.win", "Description": "Hold Win across D then E with Win+D to Ctrl+A and Win+E to Ctrl+V: select all then paste synthetic text without source shell actions; ordinary input works after release." }
+      ]
+    },
+    {
+      "Id": "KM-ENABLEMENT",
+      "Assertions": [
+        { "Id": "KM-ENABLEMENT.module", "Description": "Settings module disable/re-enable stops/resumes mapping behavior without losing saved rows; restore original enabled state." },
+        { "Id": "KM-ENABLEMENT.remap", "Description": "An owned key/shortcut remap row stops/resumes when toggled off/on; deleting it while disabled remains absent after reopen, preserving other entries." },
+        { "Id": "KM-ENABLEMENT.text", "Description": "An owned text row stops/resumes when toggled off/on; deleting it while disabled remains absent after reopen, preserving other entries." },
+        { "Id": "KM-ENABLEMENT.program", "Description": "An owned program row stops/resumes when toggled off/on; deleting it while disabled remains absent after reopen, preserving other entries and launched-process ownership." },
+        { "Id": "KM-ENABLEMENT.url", "Description": "An owned URL row stops/resumes when toggled off/on; deleting it while disabled remains absent after reopen, preserving other entries and browser state." },
+        { "Id": "KM-ENABLEMENT.delete-key", "Description": "Deleting an enabled owned key mapping removes it from both stores and immediately restores ordinary source-key input without changing other entries." }
+      ]
+    },
+    {
+      "Id": "KM-TEXT",
+      "Assertions": [
+        { "Id": "KM-TEXT.key", "Description": "A saved/reopened key-to-text mapping inserts exact synthetic single-line text." },
+        { "Id": "KM-TEXT.shortcut", "Description": "A saved/reopened shortcut-to-text mapping inserts exact synthetic single-line text." },
+        { "Id": "KM-TEXT.multiline", "Description": "Multiline replacement preserves requested line breaks in an owned editor and does not submit an owned chat-style fixture." },
+        { "Id": "KM-TEXT.whitespace", "Description": "Whitespace-only text is accepted, persisted and inserted exactly rather than rejected as empty." },
+        { "Id": "KM-TEXT.consecutive", "Description": "Consecutive activations insert each requested replacement without drops, duplicates or engine crash." },
+        { "Id": "KM-TEXT.alt", "Description": "Single-key text replacement still inserts while Alt is held, without unintended menu activation or stuck Alt afterward." },
+        { "Id": "KM-TEXT.win", "Description": "Single-key text replacement while Win is held inserts text without accidental Start activation or stuck Win afterward." },
+        { "Id": "KM-TEXT.ctrl", "Description": "Single-key text replacement while Ctrl is held inserts text and does not leave released Ctrl stuck." },
+        { "Id": "KM-TEXT.shift", "Description": "Single-key text replacement while Shift is held inserts text and does not leave released Shift stuck." }
+      ]
+    },
+    {
+      "Id": "KM-PROGRAM",
+      "Assertions": [
+        { "Id": "KM-PROGRAM.normal", "Description": "A saved Run program mapping launches an owned harmless executable with requested arguments and actual ordinary process context." },
+        { "Id": "KM-PROGRAM.shell-targets", "Description": "With installed handlers and owned resources, .lnk, app execution alias and associated-file mappings each launch their intended targets." },
+        { "Id": "KM-PROGRAM.directories", "Description": "An executable uses its containing directory for blank Start in, honors explicit valid Start in and rejects an invalid configured directory." },
+        { "Id": "KM-PROGRAM.normal-from-admin", "Description": "Requires authorized elevated PowerToys: Normal visible executable and supported Shell targets launch non-elevated, verified on actual target tokens." },
+        { "Id": "KM-PROGRAM.browse-admin", "Description": "Requires authorized elevated editor: both program-file and Start in folder pickers open, support selection and support cancellation." },
+        { "Id": "KM-PROGRAM.elevated", "Description": "Requires authorized elevation: explicitly Elevated mappings retain their intended elevated launch behavior and owned-process cleanup." },
+        { "Id": "KM-PROGRAM.different-user", "Description": "Requires an authorized alternative account and credential-entry path: Different user retains its selected account context without disclosing credentials." },
+        { "Id": "KM-PROGRAM.hidden", "Description": "With an owned harmless process and explicit hidden-lifetime observer, Hidden launches preserve intended hidden-window behavior." }
+      ]
+    },
+    {
+      "Id": "KM-URI",
+      "Assertions": [
+        { "Id": "KM-URI.launch", "Description": "A saved/reopened URL mapping opens the approved synthetic URL in its configured handler, with owned tab/window cleanup." },
+        { "Id": "KM-URI.invalid", "Description": "Empty/invalid URL input cannot commit a valid URL mapping or replace the original saved entry." }
+      ]
+    },
+    {
+      "Id": "KM-ALONE",
+      "Assertions": [
+        { "Id": "KM-ALONE.persistence", "Description": "On a supporting build, single-key to key/shortcut Alone condition and list badge survive save/reopen." },
+        { "Id": "KM-ALONE.solo", "Description": "Solo release fires its target once, including after a long hold; no timeout-based cancellation is assumed." },
+        { "Id": "KM-ALONE.keyboard", "Description": "Combining a held Alone source with another key preserves original modifier combination and suppresses the solo action." },
+        { "Id": "KM-ALONE.mouse-button", "Description": "With an owned mouse-capable fixture, combining a held Alone source with a button preserves the modifier-click and suppresses the solo action." },
+        { "Id": "KM-ALONE.wheel", "Description": "With an owned wheel observer, combining a held Alone source with wheel input preserves the modified wheel action and suppresses the solo action." },
+        { "Id": "KM-ALONE.mouse-move", "Description": "Mouse movement alone while the Alone source is held does not cancel its release-triggered solo action." },
+        { "Id": "KM-ALONE.gating", "Description": "The condition control is unavailable for unsupported text/program/URL actions; left/right sources and an Always sibling retain distinct entries." }
+      ]
+    },
+    {
+      "Id": "KM-FILTER",
+      "Assertions": [
+        { "Id": "KM-FILTER.text", "Description": "Case-insensitive substring search matches owned key names, replacement text, URL, program path and target app." },
+        { "Id": "KM-FILTER.modifiers", "Description": "Win/Ctrl/Alt/Shift filters use trigger modifiers and multiple selected modifiers combine with OR." },
+        { "Id": "KM-FILTER.apps", "Description": "All apps, Global only and a named app produce the corresponding owned rows." },
+        { "Id": "KM-FILTER.combined", "Description": "Text, modifier and app categories combine with AND." },
+        { "Id": "KM-FILTER.empty-clear", "Description": "No matches exposes Clear filters, differs from an empty configuration, and clearing restores all owned rows." },
+        { "Id": "KM-FILTER.nonpersistent", "Description": "Filtering does not mutate persisted mappings or become persisted configuration." }
+      ]
+    },
+    {
+      "Id": "KM-BULK",
+      "Assertions": [
+        { "Id": "KM-BULK.selection-cancel", "Description": "Select mode counts selected visible rows across sections; canceling selection preserves all rows." },
+        { "Id": "KM-BULK.confirmation-cancel", "Description": "Canceling the bulk delete confirmation preserves every saved row." },
+        { "Id": "KM-BULK.delete", "Description": "Confirming deletes only selected visible rows from UI and both stores, preserving hidden and unselected rows." },
+        { "Id": "KM-BULK.reopen", "Description": "Reopening retains the bulk deletion and surviving entries before owned-fixture restoration." }
+      ]
+    },
+    {
+      "Id": "KM-ALTGR",
+      "Assertions": [
+        { "Id": "KM-ALTGR.ctrl-release", "Description": "With an installed AltGr layout, press/release AltGr outside a remap then use LCtrl+Y to Backspace; subsequent typing proves Ctrl is not stuck." },
+        { "Id": "KM-ALTGR.shortcut", "Description": "An AltGr-based shortcut still works with the installed layout and owned observer." },
+        { "Id": "KM-ALTGR.character", "Description": "Ordinary AltGr character input, such as German AltGr+Q, remains correct; restore original layout/composition state." }
+      ]
+    },
+    {
+      "Id": "KM-MODIFIER-OUTPUT",
+      "Assertions": [
+        { "Id": "KM-MODIFIER-OUTPUT.tap", "Description": "Left Alt to Backspace tap deletes one character in known owned text, not an unintended Alt+Backspace/whole-word action." },
+        { "Id": "KM-MODIFIER-OUTPUT.hold", "Description": "Left Alt to Backspace held input repeats intended deletion and leaves no Alt/menu state after release; message-level evidence distinguishes unintended system-key delivery where available." }
+      ]
+    },
+    {
+      "Id": "KM-APPEARANCE",
+      "Assertions": [
+        { "Id": "KM-APPEARANCE.localization", "Description": "In a provisioned non-English Windows-language fixture, applicable classic/new editor controls, dialogs and tooltips localize; restore original language." },
+        { "Id": "KM-APPEARANCE.theme", "Description": "An authorized live light/dark theme switch updates the new editor title bar without corrupting mappings; restore the original theme." }
+      ]
+    },
+    {
+      "Id": "KM-DSC",
+      "Assertions": [
+        { "Id": "KM-DSC.read", "Description": "In an authorized isolated DSC v3 fixture, KeyboardManagerProfile get/test/export/schema/manifest expose the declared profile resource and friendly layout-invariant key names." },
+        { "Id": "KM-DSC.replace", "Description": "Authorized isolated set replaces the whole profile containing key, Disable, text, chord, app-specific and exact-match entries; test becomes true and entries round-trip." },
+        { "Id": "KM-DSC.reload", "Description": "Authorized isolated deployment reloads the running engine without restarting PowerToys and editor/engine stores agree." }
+      ]
+    },
+    {
+      "Id": "KM-TELEMETRY",
+      "Assertions": [
+        { "Id": "KM-TELEMETRY.events", "Description": "Only with diagnostic consent and supported normal-restart preservation, enable collection/viewing, restart, exercise Keyboard Manager and observe corresponding XML events in Diagnostic data viewer; restore original diagnostic state." }
+      ]
+    }
+  ]
+}
