@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference='Stop'
 $skill=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-foreach($name in 'pt-desktop','pt-uia','pt-ui-observation','pt-sendinput-chord','pt-foreground-guard','pt-state-snapshot','pt-verification-report'){
+foreach($name in 'pt-desktop','pt-uia','pt-ui-observation','pt-sendinput-chord','pt-foreground-guard','pt-state-snapshot','pt-input-layout','pt-verification-report'){
     . "$skill\scripts\$name.ps1"
 }
 Add-Type -AssemblyName System.Windows.Forms
@@ -29,6 +29,9 @@ $exe=(Get-Command pwsh).Source
 $results=[Collections.Generic.List[object]]::new()
 $desktop=Get-PtDesktopSnapshot
 $foregroundLayout=[PtFixtureLayoutProbe]::Layout($desktop.foreground.hwnd)
+$layoutSnapshot=Get-PtKeyboardLayoutSnapshot -Target $desktop.foreground
+Write-PtReportText "$Workspace\desktop-baseline.json" (ConvertTo-Json $desktop -Depth 10)
+Write-PtReportText "$Workspace\layout-baseline.json" (ConvertTo-Json $layoutSnapshot -Depth 8)
 $creation=$null
 $main=$null
 $run=New-PtVerificationRun -Workspace "$Workspace\run" -Module 'Keyboard input fixture acceptance' `
@@ -37,7 +40,15 @@ $run=New-PtVerificationRun -Workspace "$Workspace\run" -Module 'Keyboard input f
     -Inputs @(Get-PtVerificationInputs -Skill $skill -Inputs @(@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath},@{Name='fixture.ps1';Role='Other';Path=$fixtureScript}))
 $plan=@{Schema='PtRunResources.v1';Resources=@(@{Id='fixture';Kind='Process';Ownership='Owned';FilePath=$exe;RestoreStep='exit'})}
 $session=New-PtResourceSession -Run $run -ResourcePlan $plan
-$session.ResourcePlan=$plan;Save-PtResourceSession $session
+$session.ResourcePlan=$plan;$session.Desktop=$desktop;Save-PtResourceSession $session
+function Register-CurrentFixtureWindows {
+    param($OwnedCreation)
+    foreach($window in @(Get-PtNativeWindow -ProcessId $OwnedCreation.ProcessId)){
+        $identity=Get-PtWindowIdentity $window.Hwnd
+        $known=@((Get-PtActiveResourceSession).Windows|Where-Object {$_.Identity.hwnd -eq $identity.hwnd})
+        if(-not $known.Count){Register-PtCreatedWindow -Identity $identity -Creation $OwnedCreation|Out-Null}
+    }
+}
 try{
     $invalid="$Workspace\invalid"
     [IO.Directory]::CreateDirectory($invalid)|Out-Null
@@ -85,7 +96,26 @@ try{
             }
             Require (@($events|Where-Object {$_.key -eq 67 -and $_.down}).Count -eq 1) 'Physical key-down was not delivered.'
             Require ((Get-PtUiObservation -Target $main -AutomationId FixtureInput -ControlType Edit -Property Text).Value -ceq $expected) 'Ordinary physical input did not produce the expected text.'
+            $alternate=@([Windows.Forms.InputLanguage]::InstalledInputLanguages|Where-Object {$_.Handle.ToInt64() -ne $selected[0].Handle.ToInt64()})
+            if($alternate.Count){
+                $ownedLayout=Get-PtKeyboardLayoutSnapshot -Target $main
+                $alternateLayout=$alternate[0].Handle.ToInt64()
+                [PtInputLayout]::Request($main.hwnd,$alternateLayout)
+                Wait-PtCondition -Description 'owned alternate-layout fixture' -TimeoutSeconds 5 -Probe {
+                    [PtInputLayout]::Read($main.hwnd) -eq $alternateLayout
+                }|Out-Null
+                $conflict=$false
+                try{Restore-PtKeyboardLayoutSnapshot -Snapshot $ownedLayout -ExpectedLayout @($ownedLayout.Layout)|Out-Null}
+                catch{$conflict=$_.Exception.Message -match 'conflict'}
+                Require ($conflict -and [PtInputLayout]::Read($main.hwnd) -eq $alternateLayout) 'Owned layout conflict caused an unauthorized change.'
+                $changed=Restore-PtKeyboardLayoutSnapshot -Snapshot $ownedLayout -ExpectedLayout @($alternateLayout)
+                Require ($changed.Changed -and $changed.Before -eq $alternateLayout -and $changed.After -eq $ownedLayout.Layout) 'Actual cross-layout restoration was not exercised.'
+                $results.Add(@{Name='Actual alternate-layout restoration and conflict refusal on an owned target';Status='PASS';Receipt=$changed})
+            }else{
+                $results.Add(@{Name='Actual alternate-layout restoration';Status='NOT-OBSERVED';Reason='No second installed layout; no installation attempted'})
+            }
         }
+        Register-CurrentFixtureWindows $creation
         Stop-PtOwnedProcess -Creation $creation -RequestExit {param($identity,$window) Close-PtTrackedWindow -Identity $window} -ArgumentList @($main)|Out-Null
         if($mode -eq 'explicit'){
             $restored=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$state\input-language-restored.json"))
@@ -93,15 +123,34 @@ try{
         }
         $creation=$null;$main=$null
         Restore-PtDesktopSnapshot $desktop|Out-Null
+        $stale=$layoutSnapshot|ConvertTo-Json -Depth 8|ConvertFrom-Json
+        $stale.Target.processStartTicks--
+        $rejected=$false
+        try{Restore-PtKeyboardLayoutSnapshot -Snapshot $stale -ExpectedLayout @($selected[0].Handle.ToInt64())|Out-Null}
+        catch{$rejected=$_.Exception.Message -match 'identity changed'}
+        Require $rejected 'Stale target identity was not rejected.'
+        if([PtFixtureLayoutProbe]::Layout($desktop.foreground.hwnd) -ne $foregroundLayout){
+            $beforeConflict=[PtFixtureLayoutProbe]::Layout($desktop.foreground.hwnd)
+            $rejected=$false
+            try{Restore-PtKeyboardLayoutSnapshot -Snapshot $layoutSnapshot -ExpectedLayout @($foregroundLayout)|Out-Null}
+            catch{$rejected=$_.Exception.Message -match 'conflict'}
+            Require ($rejected -and [PtFixtureLayoutProbe]::Layout($desktop.foreground.hwnd) -eq $beforeConflict) 'Unexpected layout was not preserved on conflict.'
+            $results.Add(@{Name="$mode post-layout conflict refusal";Status='PASS'})
+        }
+        $restoration=Restore-PtKeyboardLayoutSnapshot -Snapshot $layoutSnapshot -ExpectedLayout @($selected[0].Handle.ToInt64())
         Require ([PtFixtureLayoutProbe]::Layout($desktop.foreground.hwnd) -eq $foregroundLayout) 'Original foreground application layout changed.'
-        $results.Add(@{Name="$mode layout, owned lifetime and original foreground layout";Status='PASS'})
+        $again=Restore-PtKeyboardLayoutSnapshot -Snapshot $layoutSnapshot -ExpectedLayout @($selected[0].Handle.ToInt64())
+        Require (-not $again.Changed) 'Already-restored layout unnecessarily received another request.'
+        $results.Add(@{Name="$mode layout, owned lifetime and original foreground layout";Status='PASS';Restoration=$restoration;StaleTargetRejected=$true;RepeatedRestoreChanged=$again.Changed})
     }
 }finally{
     if($creation -and (Get-PtResourceProcessIdentity $creation.ProcessId)){
         if(-not $main){throw 'Fixture startup did not establish a safe close identity.'}
+        Register-CurrentFixtureWindows $creation
         Stop-PtOwnedProcess -Creation $creation -RequestExit {param($identity,$window) Close-PtTrackedWindow -Identity $window} -ArgumentList @($main)|Out-Null
     }
     Restore-PtDesktopSnapshot $desktop|Out-Null
+    Restore-PtKeyboardLayoutSnapshot -Snapshot $layoutSnapshot -ExpectedLayout @($selected[0].Handle.ToInt64())|Out-Null
     $attempt=Start-PtVerificationAttempt -Run $run -Context Cleanup -Kind Normal -Name 'Final fixture absence'
     try{Complete-PtResourceSession -Attempt $attempt|Out-Null}
     finally{Stop-PtVerificationAttempt -Attempt $attempt -Reason 'Owned fixture lifetimes checked'}

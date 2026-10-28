@@ -170,6 +170,26 @@ application's layout before/after using read-only `GetWindowThreadProcessId` and
 `GetKeyboardLayout`; desktop snapshots do not include input-layout or IME state.
 The fixture does not change an existing user application's composition mode.
 
+Selecting a layout in an owned fixture can nevertheless affect another application's
+thread when Windows applies a shared input-method choice. The fixture's own exit receipt
+therefore does **not** certify the original foreground application.
+Capture that exact HWND/PID/start identity before any fixture activation with
+`Get-PtKeyboardLayoutSnapshot -Target $originalForeground` from `pt-input-layout.ps1`.
+After all fixture exits and Settings/desktop restoration, call
+`Restore-PtKeyboardLayoutSnapshot -Snapshot $originalLayout -ExpectedLayout @($ownedLayoutHandle)`.
+The original target must be foreground for a change; the helper sends one normal layout
+request only if its current layout equals the declared test-owned post-state. An unchanged
+original is a no-op; unknown layouts, stale identities, held modifiers and uninstalled
+originals are refused. No language is installed and IME composition/conversion is not restored.
+
+Record a fresh layout/desktop comparison **after** the last Settings/resource-completion
+observation and before sealing. For modules using the generic recorder lifecycle, keep this
+in the final Normal Cleanup attempt after `Complete-PtResourceSession`; that adapter can
+temporarily surface Settings. Do not put restoration into the reporting-only callback or
+seal a PASS before a later independent layout check.
+
 Run `scripts\tests\Test-PtKeyboardInputFixture.ps1 -InputLanguage en-US` where that single
 layout is already installed. It exercises inherited behavior, explicit physical text/key
 delivery, unavailable-layout rejection, normal exit and original-foreground layout checks.
+With a second installed layout it also exercises an actual layout transition and guarded
+restoration on a test-owned window, including conflict refusal and idempotence.

@@ -90,6 +90,9 @@ target-local captions; resource keys are not AutomationIds. Conditional routes n
 - Use `Read-PtSharedFileText`; preserve parse/schema failures. Export only owned synthetic rows.
   Draft, both saved stores and actual TextPattern/ValuePattern output are separate evidence.
   Labels, input return counts and stored VKs do not prove delivery.
+- For modifier-first versus action-first release matrices, use `Invoke-PtHeldKeys -Keys`
+  with an explicit `-ReleaseOrder` permutation; omitted order releases in reverse.
+  The helper releases only accepted key-downs even after failure. Record each order separately.
 
 ### Observation rules
 
@@ -109,6 +112,7 @@ property tested; images remain candidates until accepted.
 | Fixture cleanup targets closed editor | Remove the fixture while its captured foreground owner lives, or create fixture before editor activation. | Original-run desktop restoration does not erase the failed fixture receipt. |
 | Captions differ from Settings | Discover target-local captions; prefer proven AutomationIds. | English Settings does not imply English editor UI. |
 | Unexpected file delta | Retain original and last attributable post-state; stop dependent writes. | Do not refresh ExpectedState to bless external changes or overwrite defaults. |
+| Fixture restored its own layout but terminal changed | Compare the separately captured original foreground layout after final window activation; use the shared guarded layout restore. | A fixture-thread receipt is not a cross-application restoration guarantee. Unknown changes remain conflicts. |
 
 ## Fixtures and restoration
 
@@ -119,7 +123,7 @@ property tested; images remain candidates until accepted.
 | Settings snapshot | Before Settings navigation | Run baseline; HWND borrowed | Template Settings adapter | Original identity/page/expansion/scroll/placement/visibility |
 | `Get-PtFileSnapshot` stores | Before editor startup/mapping changes | Private original bytes/existence; exact case-owned rows | UI undo/delete, quiescent guarded rollback | Both stores and original settings byte/existence comparisons; runtime undo separately |
 | Owned editor activation | Launch/reopen | Declare exact executable before `Invoke-PtOwnedProcessActivation`; register new PID/start/path and sibling HWNDs | `Stop-PtOwnedProcess` with normal tracked close | Owned processes/windows absent; existing editor untouched |
-| [Keyboard input observer](../owned-fixtures.md#keyboard-input-observer) | Ordinary key output | Run-owned process/two windows/state directory; original thread and foreground-app layouts | Normal tracked main close; compare layout-restoration receipt; restore desktop | Balanced released keys, owned process/windows absent, original foreground layout unchanged |
+| [Keyboard input observer](../owned-fixtures.md#keyboard-input-observer) | Ordinary key output | Run-owned process/windows; separately capture original foreground with `Get-PtKeyboardLayoutSnapshot` | Normal exit, then guarded `Restore-PtKeyboardLayoutSnapshot` after desktop restoration | Released keys, owned resources absent, original foreground layout freshly matches |
 | `New-PtNotepadFixture` | App-specific/document cases | Owned document; borrowed tabs and captured foreground lifetime | Paired removal with explicit owned-edit discard before foreground owner exits | Original tabs/selection/placement; owned tab/file absent |
 | Clipboard session | Paste matrix | Supported private baseline and owned synthetic writes | Restore before owner/writer release | Original supported data restored without disclosure |
 | App/browser/Shell fixture | Conditional actions | Exact owned tab/window/process and starting state | Scoped normal close and original-state restoration | No owned survivors; unrelated resources unchanged |
@@ -144,8 +148,11 @@ rollback; the module root includes live logs. Preserve lock existence and attrib
    guarded-restore declared files to the immutable original bytes/existence.
 4. Restore explicitly changed enablement/mode through UI and account for startup writes.
    The bounded mapping flow does not require Runner restart.
-5. Close the keyboard observer normally and compare its layout-restoration receipt, then restore
-   borrowed Settings/desktop and independently compare the original foreground application's layout.
+5. After owned fixture exit, restore borrowed Settings/desktop and complete resource observations.
+   Then restore the original foreground layout with `Restore-PtKeyboardLayoutSnapshot` against
+   the declared owned post-layout and compare desktop/layout again before sealing the report.
+   Use the supported generic recorder lifecycle if template ordering cannot put this last;
+   never perform cleanup in the reporting-only callback or after final export.
 
 ### Restoration verification
 

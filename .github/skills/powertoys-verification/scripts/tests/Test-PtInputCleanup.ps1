@@ -10,9 +10,11 @@ public static class PtChord {
     public static bool FailUp;
     public static ushort FailDown;
     public static List<ushort> Releases = new List<ushort>();
+    public static List<ushort> Presses = new List<ushort>();
     public static short GetAsyncKeyState(int key) { return 0; }
     public static uint Key(ushort key, bool up) {
         if (up) { Releases.Add(key); return FailUp ? 0u : 1u; }
+        Presses.Add(key);
         return key == FailDown ? 0u : 1u;
     }
 }
@@ -36,7 +38,26 @@ try {
 if (-not $caught -or $caught.Exception.Message -notmatch 'key-down 16 failed' -or
     ([PtChord]::Releases -join ',') -ne '17') { throw 'Partial injection did not release exactly the accepted keys.' }
 [PtChord]::FailDown = 0
+[PtChord]::Releases.Clear()
+Invoke-PtHeldKeys -Keys @(0x11,0x41) -ReleaseOrder @(0x11,0x41) -KeyDownDelayMilliseconds 0 -Action {}
+if (([PtChord]::Releases -join ',') -ne '17,65') { throw 'Modifier-first release order was not honored.' }
+[PtChord]::Releases.Clear()
+[PtChord]::FailDown = 0x41
+$caught = $null
+try {
+    Invoke-PtHeldKeys -Keys @(0x11,0x41) -ReleaseOrder @(0x11,0x41) -KeyDownDelayMilliseconds 0 -Action { throw 'Must not run' }
+} catch { $caught = $_ }
+if (-not $caught -or ([PtChord]::Releases -join ',') -ne '17') { throw 'Explicit release order did not preserve partial-injection cleanup.' }
+[PtChord]::FailDown = 0
+foreach ($order in @(@(0x11,0x11),@(0x11),@(0x11,0x12))) {
+    $pressCount = [PtChord]::Presses.Count
+    $caught = $null
+    try { Invoke-PtHeldKeys -Keys @(0x11,0x41) -ReleaseOrder $order -KeyDownDelayMilliseconds 0 -Action {} }
+    catch { $caught = $_ }
+    if (-not $caught -or $caught.Exception.Message -notmatch 'every pressed key exactly once' -or
+        [PtChord]::Presses.Count -ne $pressCount) { throw 'Invalid release order reached native input.' }
+}
 function Start-Sleep { throw 'Default activation must not add artificial dwell.' }
 $sent = Send-PtChord -Mods @(0x5B,0x10) -Key 0xBF
 if ($sent -ne 6) { throw 'Default chord input count changed.' }
-'PASS: original error preservation, release-all on failure, and partial injection cleanup (fake native boundary).'
+'PASS: error preservation, default/explicit release order, invalid-order refusal and partial injection cleanup (fake native boundary).'
