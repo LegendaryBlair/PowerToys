@@ -93,6 +93,9 @@ target-local captions; resource keys are not AutomationIds. Conditional routes n
 - For modifier-first versus action-first release matrices, use `Invoke-PtHeldKeys -Keys`
   with an explicit `-ReleaseOrder` permutation; omitted order releases in reverse.
   The helper releases only accepted key-downs even after failure. Record each order separately.
+- Distinguish actual Ctrl+V remaps from text replacement. Builds using `Helpers::SendTextInput`
+  emit Unicode input and Shift+Enter directly; text-only cases need no clipboard read/write.
+  Clipboard-based builds and actual paste actions still require complete preservation.
 
 ### Observation rules
 

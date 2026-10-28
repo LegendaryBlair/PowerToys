@@ -10,7 +10,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Environment Variables | 3 | 29 | 135 |
 | File Locksmith | 2 | 10 | 10 |
 | Image Resizer | 1 | 12 | 18 |
-| Keyboard Manager | 1 | 24 | 135 |
+| Keyboard Manager | 2 | 24 | 135 |
 | New+ | 1 | 9 | 9 |
 | Peek | 1 | 18 | 18 |
 | PowerRename | 2 | 16 | 17 |
@@ -85,10 +85,13 @@ relative to the old run-local 120/103/115 child groupings. Historical archives r
 Compare old/new requirements by source text and actual observations, not child count or
 ordinal correspondence. No old verdict/evidence is copied into the new inventories.
 
-Keyboard Manager revision 1 retains the classic editor's Type/hold-Enter/hold-Esc
+Keyboard Manager retains the classic editor's Type/hold-Enter/hold-Esc
 conditions separately from the unified new editor. Its remapping matrices retain
 tap/hold and modifier-release-order requirements; additional app, elevation, locale,
 DSC and diagnostic conditions are not implied by a bounded ordinary-key run.
+Revision 2 preserves all 135 IDs/descriptions and removes an unnecessary clipboard-backup
+prerequisite only for builds independently established to insert text directly.
+Actual paste and clipboard-based text paths still require complete preservation.
 
 ```powershell
 $inventory = Import-PtAssertionInventory `
