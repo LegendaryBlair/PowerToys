@@ -14,7 +14,7 @@ $expectedInventories=[ordered]@{
     'advanced-paste'=@(29,32); 'color-picker'=@(17,25); 'crop-and-lock'=@(13,14)
     'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(12,18)
     'new-plus'=@(9,9); 'peek'=@(18,18); 'power-rename'=@(16,17); 'settings'=@(25,50)
-    'shortcut-guide'=@(19,96); 'workspaces'=@(38,72); 'zoomit'=@(39,39); 'quick-accent'=@(20,57)
+    'shortcut-guide'=@(19,96); 'workspaces'=@(38,72); 'zoomit'=@(39,39); 'quick-accent'=@(18,57)
 }
 $checklists=@(Get-ChildItem "$skill\references\release-checklist" -Filter '*.md' |
     Where-Object Name -NE 'index.md' | ForEach-Object BaseName)
@@ -94,13 +94,23 @@ $mergeCases=@(
     @{Module='image-resizer';Case='IR-UNITS';Children=@('IR-CENTIMETERS.behavior','IR-INCHES.behavior','IR-PERCENT.behavior','IR-PIXELS.behavior')},
     @{Module='power-rename';Case='PR-REGEX';Children=@('PR-REGEX-MATCH.behavior','PR-REGEX-BACKREFERENCE.behavior')},
     @{Module='settings';Case='SET-DASHBOARD-SORT';Children=@('SET-DASHBOARD-SORT.behavior','SET-QUICK-ACCESS-SORT.behavior')},
-    @{Module='settings';Case='SET-WHATS-NEW-ENTRY';Children=@('SET-WHATS-NEW-ENTRY.behavior','SET-SECONDARY-LIFETIME.behavior')}
+    @{Module='settings';Case='SET-WHATS-NEW-ENTRY';Children=@('SET-WHATS-NEW-ENTRY.behavior','SET-SECONDARY-LIFETIME.behavior')},
+    @{Module='quick-accent';Case='QA-ARROWS';Children=@('QA-ARROWS-LEFT','QA-ARROWS-RIGHT','QA-SPACE-FORWARD','QA-SPACE-BACKWARD')
+        PreviousScenarioIds=@('QA-ARROWS','QA-SPACE')},
+    @{Module='quick-accent';Case='QA-DESCRIPTIONS';Children=@('QA-DESCRIPTIONS-OFF','QA-DESCRIPTIONS-ON','QA-OVERFLOW-OFF','QA-OVERFLOW-ON')
+        PreviousScenarioIds=@('QA-DESCRIPTIONS','QA-OVERFLOW')}
 )
 foreach($case in $mergeCases){
     $inventory=Import-PtAssertionInventory "$skill\references\assertion-inventories\$($case.Module).json" `
         "$skill\references\release-checklist\$($case.Module).md"
     $item=@($inventory.Items|Where-Object Id -CEQ $case.Case)
     Require ($item.Count -eq 1 -and @(Compare-Object $case.Children @($item[0].Assertions.Id)).Count -eq 0) "Merged case lost an independent observation: $($case.Case)"
+    if($case.PreviousScenarioIds){
+        $manifest=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$skill\references\assertion-inventories\$($case.Module).json"))
+        $merged=@($manifest.Items|Where-Object Id -CEQ $case.Case)[0]
+        Require (@(Compare-Object $case.PreviousScenarioIds @($merged.PreviousScenarioIds)).Count -eq 0) "Merged scenario mapping is incomplete: $($case.Case)"
+        Require (@($inventory.Items|Where-Object {$_.Id -in $case.PreviousScenarioIds -and $_.Id -cne $case.Case}).Count -eq 0) "Merged source scenario remains duplicated: $($case.Case)"
+    }
 }
 $results+=@(@{Name='Merged workflows retain original independent observations';Status='PASS'})
 $settings=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$skill\references\assertion-inventories\settings.json"))

@@ -18,7 +18,7 @@ Declare `ResourcePlan` and real `CleanupPlan` steps before mutation, using
 [session safety](session-safety.md). The template records both inventory inputs, captures
 declared Settings windows and rejects run-local regrouping. Conditional requirements remain
 in the child descriptions; missing fixtures affect those children, not independent observations.
-Keep all 20 scenarios and 57 children in a full Scenario A run.
+Keep all 18 scenarios and 57 children in a full Scenario A run.
 
 Declare only resources actually needed:
 
@@ -124,6 +124,28 @@ Restore pointer while an owned ordinary interaction window remains available, be
 closure can reactivate an elevated app. Then close owned text fixtures, restore original foreground
 and perform read-only final comparisons. No test gesture follows final usage rollback.
 
+### Verify the fixture's effective state
+
+After saving a character-set draft, read the actual `selected_lang` value before testing
+mappings. A successful `SelectionItemPattern` operation or an enumeration of realized
+selected rows does not prove that the dialog's checkbox-backed draft changed. If that path
+leaves the saved value unchanged, use a fresh, scoped physical checkbox/row click and
+observe the result. Clear the global Select all checkbox, verify that empty Save is
+disabled, then search and select the intended sets. In particular, do not score a
+single-language regression probe while the saved selection is still `ALL`.
+
+The QuickAccent directory can contain active `ModuleInterface\Logs` files that the bounded
+directory snapshot cannot open. Do not stop Runner, omit files from an invented snapshot,
+or overwrite logs to bypass this refusal. An originally absent usage file with sorting
+off can instead remain untouched during a narrowly scoped run: preserve the existing
+settings file, restore through UI, and compare exact settings bytes and usage absence.
+This route does not cover an existing usage history or an unexplained new usage file.
+
+If the lifecycle helper reports visible UI after the toolbar disappears, separately record
+the HWND's DWM cloak state. A cloaked resident host is not proof of an active gesture.
+Retain the helper refusal as infrastructure evidence; do not close the resident host or
+replace the guarded lifecycle operation with a direct toggle.
+
 ## Clipboard copy
 
 Use the [shared clipboard keeper](clipboard-guard.md), not a module-specific guard:
@@ -137,22 +159,3 @@ history preservation require an authorized isolated fixture or a child-specific 
 Restore before closing the guide/Settings provider. On failure retain the keeper and recovery
 receipt, do not clear clipboard, rebaseline or replay the copy. Browsing/filtering/hover remain
 independently executable.
-
-## Module source contracts
-
-Paths are repository-relative; use the tested build's corresponding source inputs.
-
-- `src\modules\poweraccent\PowerAccentModuleInterface\dllmain.cpp`: `launch_process`, `enable`, `disable`.
-- `src\modules\poweraccent\PowerAccentKeyboardService\KeyboardListener.cpp`: `OnKeyDown`, `OnKeyUp`,
-  `ForegroundEventProc`, `ForceReset` define activation, cancellation and ownership.
-- `src\modules\poweraccent\PowerAccent.Core\PowerAccent.cs`: `GetCharacters`, `ProcessNextChar`,
-  `SendInputAndHideToolbar`; `PowerAccent.Core\Tools\CharactersUsageInfo.cs`: `Clear`, `Save`
-  (beneath the same module root) define ordering and usage side effects.
-- `src\settings-ui\Settings.UI.Library\PowerAccentProperties.cs`: serialized fields.
-- `src\settings-ui\Settings.UI\SettingsXAML\Views\PowerAccentPage.xaml.cs`:
-  `CharacterSetsSearchBox_TextChanged`, `SelectAllCharacterSetsCheckBox_Click`,
-  `CharacterSetsDialog_PrimaryButtonClick` define draft selection and filtering.
-- `src\settings-ui\Settings.UI\ViewModels\PowerAccentReferenceGuideViewModel.cs`:
-  `UpdateFilteredGroups`, `BuildGroups` define guide set-level filtering/order.
-- `src\settings-ui\Settings.UI\SettingsXAML\Views\PowerAccentReferenceGuideWindow.xaml.cs`:
-  `CharacterButton_Click` copies underlying text, not the dotted-circle display aid.
