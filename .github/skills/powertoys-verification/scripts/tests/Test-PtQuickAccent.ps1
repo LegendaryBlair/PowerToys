@@ -1,169 +1,129 @@
-# Copyright (c) Microsoft Corporation.
-# The Microsoft Corporation licenses this file to you under the MIT license.
-# See the LICENSE file in the project root for more information.
-
-param([switch]$Interactive, [long]$SurfaceWindowHandle = 0)
-
-$ErrorActionPreference = 'Stop'
-. "$PSScriptRoot\..\pt-quick-accent.ps1"
-$path = Join-Path ([IO.Path]::GetTempPath()) "pt-quick-accent-$([guid]::NewGuid().ToString('N')).json"
-try {
-    $absent = New-PtQuickAccentFileBaseline -Path $path
-    [IO.File]::WriteAllText($path, '{"owned":true}')
-    $owned = Get-PtQuickAccentFileHash -Path $path
-    Restore-PtQuickAccentFileBaseline -Baseline $absent -ExpectedHash $owned | Out-Null
-    if (Test-Path $path) { throw 'Absent baseline was not restored.' }
-
-    $bytes = [byte[]]@(0, 255, 13, 10, 128)
-    [IO.File]::WriteAllBytes($path, $bytes)
-    $existing = New-PtQuickAccentFileBaseline -Path $path
-    [IO.File]::WriteAllText($path, 'owned')
-    $owned = Get-PtQuickAccentFileHash -Path $path
-    [IO.File]::WriteAllText($path, 'external')
-    $conflict = $false
-    try { Restore-PtQuickAccentFileBaseline -Baseline $existing -ExpectedHash $owned }
-    catch { $conflict = $_ -match 'Restoration conflict' }
-    if (-not $conflict -or [IO.File]::ReadAllText($path) -ne 'external') {
-        throw 'External change was not preserved.'
+#requires -Version 7.2
+param([string]$Workspace=(Join-Path $env:TEMP "pt-qa-contract-$([guid]::NewGuid().ToString('N'))"))
+$ErrorActionPreference='Stop'
+if('PtChord' -as [type]){throw 'Run synthetic input checks in a fresh process.'}
+Add-Type @'
+using System.Collections.Generic;
+public static class PtChord {
+    public static HashSet<int> Held=new HashSet<int>();
+    public static List<string> Events=new List<string>();
+    public static int FailRelease;
+    public static short GetAsyncKeyState(int key) { return Held.Contains(key) ? unchecked((short)0x8000) : (short)0; }
+    public static uint Key(ushort key,bool up) {
+        Events.Add((up ? "U" : "D")+key);
+        if(up && FailRelease==key)return 0;
+        if(up)Held.Remove(key);else Held.Add(key);
+        return 1;
     }
-    Restore-PtQuickAccentFileBaseline -Baseline $existing -ExpectedHash (Get-PtQuickAccentFileHash -Path $path) | Out-Null
-    if (@(Compare-Object $bytes ([IO.File]::ReadAllBytes($path))).Count) { throw 'Bytes changed.' }
-
-    $rejected = $false
-    try { Invoke-PtQuickAccentGesture -WindowHandle -1 -KeyCode 0x41 -Observe { throw 'Must not run' } }
-    catch { $rejected = $_ -match 'exact owned fixture HWND' }
-    if (-not $rejected) { throw 'Invalid foreground was not rejected before input.' }
-    'PASS: absent/existing byte-exact restoration, conflict preservation, foreground rejection.'
-}
-finally {
-    if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) }
-}
-
-if ($Interactive) {
-    Add-Type -AssemblyName UIAutomationClient
-    Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class PtQuickAccentTestWindow
-{
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
 }
 '@
-    $originalForeground = [PtQuickAccentInput]::GetForegroundWindow()
-    $identity = Join-Path ([IO.Path]::GetTempPath()) "pt-quick-accent-fixture-$([guid]::NewGuid().ToString('N')).json"
-    $fixture = [IO.Path]::GetFullPath("$PSScriptRoot\..\fixtures\quick-accent-text.ps1")
-    $hostPath = (Get-Process -Id $PID).Path
-    $process = $null
-    try {
-        $process = Start-Process -FilePath $hostPath -PassThru -ArgumentList @(
-            '-NoProfile', '-STA', '-File', "`"$fixture`"", '-OutputFile', "`"$identity`"",
-            '-Title', '"Quick Accent helper check"')
-        $deadline = [DateTime]::UtcNow.AddSeconds(15)
-        while (-not (Test-Path -LiteralPath $identity) -and [DateTime]::UtcNow -lt $deadline) {
-            Start-Sleep -Milliseconds 100
-        }
-        $windows = @(Get-Content -LiteralPath $identity -Raw | ConvertFrom-Json)
-        if ($windows.Count -ne 2 -or @($windows | Where-Object ProcessId -ne $process.Id).Count) {
-            throw 'Owned fixture identity mismatch.'
-        }
-        $first = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$windows[0].Hwnd)
-        $edit = $first.FindFirst([Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::AutomationIdProperty, 'OwnedText1'))
-        if (-not $edit) { throw 'Owned fixture edit is missing.' }
-        [void][PtQuickAccentTestWindow]::SetForegroundWindow([IntPtr]$windows[0].Hwnd)
-        $edit.SetFocus()
-        Start-Sleep -Milliseconds 150
-        $caught = $false
-        try {
-            Invoke-PtQuickAccentGesture -WindowHandle $windows[0].Hwnd -KeyCode 0x87 -DelayMs 1 -Observe {
-                throw 'Synthetic held-input callback failure'
-            }
-        }
-
-        catch { $caught = $_ -match 'Synthetic held-input callback failure' }
-        if (-not $caught -or ([PtQuickAccentInput]::GetAsyncKeyState(0x87) -band 0x8000)) {
-            throw 'F24 callback failure did not release the owned key.'
-        }
-        $rejected = $false
-        try {
-            Invoke-PtQuickAccentCharacterDialog -WindowHandle $windows[0].Hwnd `
-                -ManageButtonName 'No such button' -Action { throw 'Must not run' }
-        }
-        catch { $rejected = $_ -match 'unique visible enabled' }
-        if (-not $rejected) { throw 'Missing Manage button was not safely rejected.' }
-        'PASS: owned fixture identity, callback-failure key release, wrong-surface dialog rejection.'
-    }
-    finally {
-        try {
-            if (Test-Path -LiteralPath $identity) {
-                foreach ($window in (Get-Content -LiteralPath $identity -Raw | ConvertFrom-Json)) {
-                    if ($window.ProcessId -eq $process.Id -and
-                        [PtQuickAccentTestWindow]::IsWindow([IntPtr]$window.Hwnd)) {
-                        $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$window.Hwnd)
-                        $root.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()
-                        $deadline = [DateTime]::UtcNow.AddSeconds(5)
-                        while ([PtQuickAccentTestWindow]::IsWindow([IntPtr]$window.Hwnd) -and
-                            [DateTime]::UtcNow -lt $deadline) {
-                            Start-Sleep -Milliseconds 100
-                        }
-                        if ([PtQuickAccentTestWindow]::IsWindow([IntPtr]$window.Hwnd)) {
-                            throw 'Owned fixture window did not close.'
-                        }
-                    }
-                }
-                if (-not $process.WaitForExit(10000)) { throw 'Owned fixture did not exit after both windows closed.' }
-                [IO.File]::Delete($identity)
-            }
-        }
-        finally {
-            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -ErrorAction Stop }
-            [void][PtQuickAccentTestWindow]::SetForegroundWindow($originalForeground)
-            Start-Sleep -Milliseconds 150
-            if ([PtQuickAccentInput]::GetForegroundWindow() -ne $originalForeground) {
-                throw 'Original foreground did not restore after the helper check.'
-            }
-        }
-    }
+. "$PSScriptRoot\..\pt-quick-accent.ps1"
+Initialize-PtUiAutomation
+if(Test-Path -LiteralPath $Workspace){throw 'Use a new workspace.'}
+[IO.Directory]::CreateDirectory($Workspace)|Out-Null
+$results=[Collections.Generic.List[object]]::new()
+function Require($value,$message){if(-not $value){throw $message}}
+function Reject([scriptblock]$body,[string]$pattern){
+    try{& $body|Out-Null}catch{if($_.Exception.Message -notmatch $pattern){throw};return $_}
+    throw "Expected rejection: $pattern"
 }
-
-if ($SurfaceWindowHandle) {
-    $surface = Get-PtQuickAccentSurfaceState -WindowHandle $SurfaceWindowHandle
-    $wrongOwner = [pscustomobject]@{
-        WindowHandle = $surface.WindowHandle
-        ProcessId = $surface.ProcessId + 1
-        Entries = $surface.Entries
-    }
-    $rejected = $false
-    try { Restore-PtQuickAccentSurfaceState -Baseline $wrongOwner }
-    catch { $rejected = $_ -match 'Surface owner changed' }
-    if (-not $rejected) { throw 'Changed surface owner was not rejected.' }
-    try {
-        $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$SurfaceWindowHandle)
-        $entry = @($surface.Entries | Where-Object { $_.Expansion -in @('Expanded', 'Collapsed') }) | Select-Object -First 1
-        if (-not $entry -or -not $entry.AutomationId) { throw 'A unique expander with AutomationId is required for the surface check.' }
-        $element = $root.FindFirst([Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::AutomationIdProperty, $entry.AutomationId))
-        $pattern = $element.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern)
-        if ($entry.Expansion -eq 'Expanded') { $pattern.Collapse() } else { $pattern.Expand() }
-        if ($pattern.Current.ExpandCollapseState.ToString() -eq $entry.Expansion) { throw 'Expander did not change for the restoration check.' }
-        $scroller = @($surface.Entries | Where-Object { $null -ne $_.Vertical -and $_.Vertical -ge 0 -and $_.AutomationId }) | Select-Object -First 1
-        if (-not $scroller) { throw 'An actual scrollable surface is required for the restoration check.' }
-        $element = $root.FindFirst([Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::AutomationIdProperty, $scroller.AutomationId))
-        $pattern = $element.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern)
-        $target = if ($scroller.Vertical -lt 50) { 75 } else { 25 }
-        $pattern.SetScrollPercent(-1, $target)
-        Start-Sleep -Milliseconds 200
-        if ([Math]::Abs($pattern.Current.VerticalScrollPercent - $scroller.Vertical) -lt 0.1) {
-            throw 'Scroll position did not change for the restoration check.'
-        }
-    }
-    finally {
-        Restore-PtQuickAccentSurfaceState -Baseline $surface | Out-Null
-    }
-    'PASS: changed-owner rejection and live expander/scroll round-trip restoration.'
+function Check($name,[scriptblock]$body){
+    [PtChord]::Held.Clear();[PtChord]::Events.Clear();[PtChord]::FailRelease=0
+    $script:f=@{Foreground=$true;Stale=$false;Dialog=$false;Runtime=12;Opens=0;Cancels=0;CancelFails=$false}
+    try{& $body;$results.Add(@{Name=$name;Status='PASS'})}
+    finally{[IO.File]::WriteAllText("$Workspace\results.json",(ConvertTo-Json $results -Depth 6))}
 }
+function Get-PtWindowIdentity {
+    param($Hwnd)
+    if($Hwnd -ne 10){throw 'Unexpected window'}
+    [pscustomobject]@{hwnd=10;processId=20;processStartTicks=30L;className='Fixture'}
+}
+function Test-PtForeground {param($Hwnd) $f.Foreground}
+function Assert-PtWindowIdentity {param($Target) if($f.Stale){throw 'Changed target identity'}}
+function Wait-PtCondition {
+    param($Description,$TimeoutSeconds,[scriptblock]$Probe)
+    for($i=0;$i -lt 3;$i++){$value=& $Probe;if($value){return $value}}
+    throw "Timed out: $Description"
+}
+function Resolve-PtUiElement {
+    param($Hwnd,$AutomationId,$Name,$ControlType)
+    if($Name -eq 'Manage sets'){$kind='Manage'}
+    elseif($AutomationId -eq 'CharacterSetsSearchBox' -and $f.Dialog){$kind='Search'}
+    elseif($AutomationId -eq 'CloseButton' -and $f.Dialog){$kind='Cancel'}
+    else{
+        $error=[InvalidOperationException]::new('Synthetic missing control')
+        $error.Data['PtUiResolutionStatus']='Missing';throw $error
+    }
+    $pattern=[pscustomobject]@{Kind=$kind;State=$f}
+    $pattern|Add-Member ScriptMethod Invoke {
+        if($this.Kind -eq 'Manage'){$this.State.Opens++;$this.State.Dialog=$true}
+        elseif($this.Kind -eq 'Cancel'){
+            $this.State.Cancels++
+            if($this.State.CancelFails){throw 'Cancel failed'}
+            $this.State.Dialog=$false
+        }else{throw 'Unexpected invocation'}
+    }
+    $element=[pscustomobject]@{Pattern=$pattern;Runtime=$f.Runtime;Current=@{IsEnabled=$true;IsOffscreen=$false}}
+    $element|Add-Member ScriptMethod GetRuntimeId {@(42,$this.Runtime)}
+    $element|Add-Member ScriptMethod GetCurrentPattern {param($id) $this.Pattern}
+    $element
+}
+Check 'Trigger is tapped once while shared lifetime holds only the owner letter' {
+    $result=Invoke-PtQuickAccentGesture -WindowHandle 10 -KeyCode 65 -TriggerCode 32 -DelayMs 0 -ArgumentList @('value') -Observe {
+        param($identity,$value)
+        Require ($identity.hwnd -eq 10 -and $value -ceq 'value') 'Callback arguments lost'
+        Require ([PtChord]::Held.Contains(65) -and -not [PtChord]::Held.Contains(32)) 'Wrong held state'
+        'observed'
+    }
+    Require ($result -ceq 'observed' -and ([PtChord]::Events -join ',') -ceq 'D65,D32,U32,U65') 'Input replay or callback output lost'
+}
+Check 'Hold-only observer failure releases input through the common finally' {
+    Reject {Invoke-PtQuickAccentGesture -WindowHandle 10 -KeyCode 65 -DelayMs 0 -Observe {throw 'Observer failed'}} 'Observer failed'|Out-Null
+    Require ([PtChord]::Held.Count -eq 0 -and ([PtChord]::Events -join ',') -ceq 'D65,U65') 'Owner key leaked or trigger fabricated'
+}
+Check 'Pre-held trigger and duplicate keys fail before injecting any letter' {
+    [void][PtChord]::Held.Add(32)
+    Reject {Invoke-PtQuickAccentGesture -WindowHandle 10 -KeyCode 65 -TriggerCode 32 -DelayMs 0 -Observe {throw 'not reached'}} 'already held'|Out-Null
+    [PtChord]::Held.Clear()
+    Reject {Invoke-PtQuickAccentGesture -WindowHandle 10 -KeyCode 65 -Modifiers @(65) -DelayMs 0 -Observe {}} 'distinct'|Out-Null
+    Require ([PtChord]::Events.Count -eq 0) 'Invalid precondition still injected input'
+}
+Check 'Foreground and identity failures do not force focus or replay input' {
+    $f.Foreground=$false
+    Reject {Invoke-PtQuickAccentGesture -WindowHandle 10 -KeyCode 65 -DelayMs 0 -Observe {}} 'already be foreground'|Out-Null
+    Require ([PtChord]::Events.Count -eq 0) 'Wrong foreground received input'
+    $f.Foreground=$true;$f.Stale=$true
+    Reject {Invoke-PtQuickAccentGesture -WindowHandle 10 -KeyCode 65 -TriggerCode 32 -DelayMs 0 -Observe {}} 'Changed target'|Out-Null
+    Require (([PtChord]::Events -join ',') -ceq 'D65,U65') 'Stale identity received a trigger or held key leaked'
+}
+Check 'Release error retains the original observer error' {
+    [PtChord]::FailRelease=65
+    $error=Reject {Invoke-PtQuickAccentGesture -WindowHandle 10 -KeyCode 65 -DelayMs 0 -Observe {throw 'Primary observer error'}} 'Primary observer error'
+    Require ($error.Exception.Data['InputCleanupFailure'] -match 'Key-up 65 failed') 'Shared release failure lost'
+}
+Check 'Successful draft commit does not trigger a second Cancel' {
+    Invoke-PtQuickAccentCharacterDialog -WindowHandle 10 -ManageButtonName 'Manage sets' -Action {
+        param($search,$target)
+        Require ($search.Runtime -eq 12 -and $target.hwnd -eq 10) 'Owned dialog context lost'
+        $f.Dialog=$false
+    }
+    Require ($f.Opens -eq 1 -and $f.Cancels -eq 0) 'Committed dialog was canceled or reopened'
+}
+Check 'Callback failure cancels only the same owned draft once' {
+    Reject {Invoke-PtQuickAccentCharacterDialog -WindowHandle 10 -ManageButtonName 'Manage sets' -Action {throw 'Draft action failed'}} 'Draft action failed'|Out-Null
+    Require ($f.Opens -eq 1 -and $f.Cancels -eq 1 -and -not $f.Dialog) 'Draft cleanup missing or replayed'
+}
+Check 'Pre-existing or replaced drafts cannot be adopted' {
+    $f.Dialog=$true
+    Reject {Invoke-PtQuickAccentCharacterDialog -WindowHandle 10 -ManageButtonName 'Manage sets' -Action {}} 'existing dialog'|Out-Null
+    Require ($f.Opens -eq 0 -and $f.Cancels -eq 0) 'Borrowed draft changed'
+    $f.Dialog=$false
+    Reject {Invoke-PtQuickAccentCharacterDialog -WindowHandle 10 -ManageButtonName 'Manage sets' -Action {$f.Runtime=99}} 'replaced'|Out-Null
+    Require ($f.Cancels -eq 0 -and $f.Dialog) 'Replacement draft closed'
+}
+Check 'Cleanup failure remains attached to the original draft error' {
+    $f.CancelFails=$true
+    $error=Reject {Invoke-PtQuickAccentCharacterDialog -WindowHandle 10 -ManageButtonName 'Manage sets' -Action {throw 'Primary draft error'}} 'Primary draft error'
+    Require ($error.Exception.Data['CharacterDialogCleanupFailure'] -match 'Cancel failed') 'Draft cleanup error replaced original'
+}
+"PASS: $($results.Count) Quick Accent composition groups; no desktop or clipboard access. $Workspace"

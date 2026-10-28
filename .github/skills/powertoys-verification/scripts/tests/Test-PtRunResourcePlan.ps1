@@ -64,8 +64,8 @@ Check 'Companion restart opt-in requires a borrowed HWND and exact executable sc
     $resource.AllowRunnerRestart='yes'
     Reject {Assert-PtRunResourcePlan $restartPlan $steps} 'must be Boolean'
 }
-Check 'All four actual module entry paths reject absent wiring before creating a run' {
-    foreach($module in 'Color Picker','Workspaces','Shortcut Guide','Environment Variables'){
+Check 'Aligned module entry paths reject absent wiring before creating a run' {
+    foreach($module in 'Color Picker','Workspaces','Shortcut Guide','Environment Variables','Quick Accent'){
         $target=Join-Path $Workspace $module.Replace(' ','')
         Reject {& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $target -Module $module `
             -Bits 'Synthetic wiring rejection; no product execution' -Items @(@{Id='unused'}) `
@@ -76,7 +76,7 @@ Check 'All four actual module entry paths reject absent wiring before creating a
     Check 'Every supplied checklist rejects run-local regrouping before creating a run' {
         foreach($module in 'Advanced Paste','Color Picker','Crop And Lock','Environment Variables',
             'File Locksmith','Image Resizer','New+','Peek','PowerRename','PowerToys Settings',
-            'Shortcut Guide','Workspaces','ZoomIt'){
+            'Shortcut Guide','Workspaces','ZoomIt','Quick Accent'){
             $target=Join-Path $Workspace ('inventory-'+$module.Replace(' ',''))
             Reject {& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $target -Module $module `
                 -Bits 'Synthetic inventory rejection; no product execution' -Items @(@{Id='regrouped'}) `

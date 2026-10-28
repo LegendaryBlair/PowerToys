@@ -40,9 +40,9 @@ $inventoryKey=switch($Module.Replace(' ','').ToLowerInvariant()){
     'new+'{'new-plus'} 'newplus'{'new-plus'} 'peek'{'peek'} 'powerrename'{'power-rename'}
     'settings'{'settings'} 'powertoyssettings'{'settings'} 'zoomit'{'zoomit'}
     'colorpicker'{'color-picker'} 'workspaces'{'workspaces'} 'shortcutguide'{'shortcut-guide'}
-    'environmentvariables'{'environment-variables'}
+    'environmentvariables'{'environment-variables'} 'quickaccent'{'quick-accent'}
 }
-$profileKey=if($inventoryKey -in 'color-picker','workspaces','shortcut-guide','environment-variables'){$inventoryKey}
+$profileKey=if($inventoryKey -in 'color-picker','workspaces','shortcut-guide','environment-variables','quick-accent'){$inventoryKey}
 if($Scenario -eq 'A' -and $profileKey -and (-not $ResourcePlan -or $Cleanup)){
     throw 'Aligned module runs require ResourcePlan and CleanupPlan; legacy Cleanup cannot substitute for resource wiring.'
 }
