@@ -16,15 +16,13 @@
 - Capture only owned text, the Quick Accent toolbar and its Settings surfaces. Keep screenshots as candidates, not accepted visual baselines. See the [fixture guide](../quick-accent-fixtures.md) for input, preservation and cleanup.
 - Establish that the installed build supports the required toolbar, press-and-hold and reference-guide controls. Keep build/source applicability evidence in the run inputs, not inferred from a version prefix.
 
-## Quick Accent (20 items)
+## Quick Accent (18 items)
 
 ### Activation and text entry
 
-- [ ] **Arrow activation and insertion** [ID: QA-ARROWS] [ADMIN: NO]
+- [ ] **Trigger-key activation, navigation, and insertion** [ID: QA-ARROWS] [ADMIN: NO]
   Enable Quick Accent, select **Left, Right or Space** and French with frequency sorting off, and hold `a` in the owned Notepad document. Activate separately with Left and Right; the toolbar appears without taking text focus. Cycle in both directions, including wrapping, and release `a`. Exactly the selected accented letter replaces the base letter, and the toolbar disappears.
-
-- [ ] **Space navigation** [ID: QA-SPACE] [ADMIN: NO]
-  Enable Quick Accent, select **Left, Right or Space** and French with frequency sorting off, then hold `a` and activate with Space. Navigate forward with Space and backward with Shift+Space, including both wrap boundaries. Release the letter; insert the selected character exactly once and leave no held Shift state.
+  With the same settings, start a fresh held-`a` gesture and activate with Space. Navigate forward with Space and backward with Shift+Space, including both wrap boundaries. Release the letter; insert the selected character exactly once and leave no held Shift state. Record Left, Right, Space-forward and Shift+Space-backward observations independently; one trigger path does not substitute for another.
 
 - [ ] **Enablement and activation choices** [ID: QA-MODES] [ADMIN: NO]
   Disable Quick Accent and verify ordinary letters/triggers no longer produce its toolbar or accented insertion. Re-enable and check Arrows only, Space only, and Either: each permitted trigger opens the toolbar, each disallowed trigger behaves normally. Revisit Settings and verify the selected mode persists.
@@ -72,11 +70,9 @@
 - [ ] **Every toolbar position** [ID: QA-POSITIONS] [ADMIN: NO]
   Exercise Top center, Bottom center, Left, Right, Top right corner, Top left corner, Bottom right corner, Bottom left corner and Center. Each toolbar must appear at the chosen location within the active monitor's work area without clipping. Record geometry/DPI. Repeat on a second monitor with different DPI if available; keep that condition separate from the ordinary nine-position matrix.
 
-- [ ] **Descriptions and short-list sizing** [ID: QA-DESCRIPTIONS] [ADMIN: NO]
+- [ ] **Descriptions, list sizing, and selection visibility** [ID: QA-DESCRIPTIONS] [ADMIN: NO]
   Toggle Unicode descriptions off and on for a short list. All character cells, including the last selection, remain fully visible without unnecessary horizontal scrolling. With descriptions on, select a single-code-point accent and the Special `C` entry U+00B0 U+0043; the code-point/name description must correspond to the selected text and remain readable.
-
-- [ ] **Overflow and selection visibility** [ID: QA-OVERFLOW] [ADMIN: NO]
-  Use All available and a key whose list is wider than the current work area. Navigate to the last item and back to the first, with descriptions both off and on. The horizontal scrollbar appears only for overflow; the selected item scrolls into view and its highlight is actually painted at each boundary. Verify insertion of the final selected character. A selected UIA flag alone is not proof of a visible highlight.
+  Then use All available and a key whose list is wider than the current work area. Navigate to the last item and back to the first, with descriptions both off and on. The horizontal scrollbar appears only for overflow; the selected item scrolls into view and its highlight is actually painted at each boundary. Verify insertion of the final selected character. A selected UIA flag alone is not proof of a visible highlight. Retain independent observations for short and overflowing lists with descriptions off and on; neither list-size condition replaces the other.
 
 - [ ] **First frame and theme** [ID: QA-RENDER] [ADMIN: NO]
   Record activation of different short and overflowing lists, dismiss, then reactivate. The first visible toolbar must show the current list rather than blank/stale contents or a clipped intermediate layout. Check ordinary light/dark appearance where a reversible supported theme control is available. Record frame cadence; a settled screenshot cannot establish first-frame behavior. An additional RTL/fractional-DPI condition requires that actual environment.

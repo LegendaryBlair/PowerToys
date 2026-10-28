@@ -14,7 +14,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Peek | 1 | 18 | 18 |
 | PowerRename | 2 | 16 | 17 |
 | PowerToys Settings | 4 | 25 | 50 |
-| Quick Accent | 1 | 20 | 57 |
+| Quick Accent | 2 | 18 | 57 |
 | Shortcut Guide | 3 | 19 | 96 |
 | Workspaces | 2 | 38 | 72 |
 | ZoomIt | 1 | 39 | 39 |
@@ -32,7 +32,11 @@ inputs are observed. Keep individual parameter observations even when they share
 `Sources` on new definitions retains original requirement aliases where supplied; it is
 provenance, not a substitute for observing the described behavior.
 
-Quick Accent retains all 20 candidate scenario IDs and 57 child IDs in the shared schema.
+Quick Accent revision 2 groups arrow/Space activation under `QA-ARROWS` and short-list
+descriptions/overflow visibility under `QA-DESCRIPTIONS`, with 18 scenarios and all 57
+original child IDs and descriptions retained. `PreviousScenarioIds` records both mappings.
+Trigger paths and description-off/on observations for each list size remain independent.
+Historical reports are unchanged.
 Each conditional prerequisite is part of that child's Description, not an optional flag.
 The source hash binds the complete input/Unicode matrices; the shared template requires
 the original Items, ResourcePlan and CleanupPlan.

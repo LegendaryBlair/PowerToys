@@ -17,7 +17,7 @@ One file per module; a verification run loads only its module's file.
 | Peek | 18 / 18 | `peek.md` |
 | PowerRename | 16 / 17 | `power-rename.md` |
 | PowerToys Settings | 25 / 50 | `settings.md` |
-| Quick Accent | 20 / 57 | `quick-accent.md` |
+| Quick Accent | 18 / 57 | `quick-accent.md` |
 | Shortcut Guide | 19 / 96 | `shortcut-guide.md` |
 | Workspaces | 38 / 72 | `workspaces.md` |
 | ZoomIt | 39 / 39 | `zoomit.md` |

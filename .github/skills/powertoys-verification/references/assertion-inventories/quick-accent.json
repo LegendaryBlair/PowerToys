@@ -1,10 +1,14 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 1,
-  "SourceSha256": "3BD2549ED6C679730EAEE04E0D17A5137EC4803BF3DF5BDDBC26823B4CE75D59",
+  "Revision": 2,
+  "SourceSha256": "EED560086B40841E01B1512EACEEC180D989F58E8F1CE94F397FAA10525E8363",
   "Items": [
     {
       "Id": "QA-ARROWS",
+      "PreviousScenarioIds": [
+        "QA-ARROWS",
+        "QA-SPACE"
+      ],
       "Assertions": [
         {
           "Id": "QA-ARROWS-LEFT",
@@ -13,12 +17,7 @@
         {
           "Id": "QA-ARROWS-RIGHT",
           "Description": "Right activation shows the non-activating toolbar; bidirectional navigation wraps; release inserts exactly the selected accent."
-        }
-      ]
-    },
-    {
-      "Id": "QA-SPACE",
-      "Assertions": [
+        },
         {
           "Id": "QA-SPACE-FORWARD",
           "Description": "Space activates and advances, wrapping last to first."
@@ -224,6 +223,10 @@
     },
     {
       "Id": "QA-DESCRIPTIONS",
+      "PreviousScenarioIds": [
+        "QA-DESCRIPTIONS",
+        "QA-OVERFLOW"
+      ],
       "Assertions": [
         {
           "Id": "QA-DESCRIPTIONS-OFF",
@@ -232,12 +235,7 @@
         {
           "Id": "QA-DESCRIPTIONS-ON",
           "Description": "Single-code-point and U+00B0 U+0043 descriptions correspond to selection; short-list cells remain visible."
-        }
-      ]
-    },
-    {
-      "Id": "QA-OVERFLOW",
-      "Assertions": [
+        },
         {
           "Id": "QA-OVERFLOW-OFF",
           "Description": "With descriptions off, scrollbar appears for overflow only; both edge selections scroll into view with painted highlights and selected insertion."

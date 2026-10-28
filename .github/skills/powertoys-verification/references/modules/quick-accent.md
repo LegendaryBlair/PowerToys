@@ -134,8 +134,3 @@ composes held input and draft lifetime; preservation and recording remain shared
 
 Compare settings/usage bytes/existence, enabled/runtime state, unrelated General fields,
 supported UI, desktop and owned absence. Keep the original baseline, conflicts and normal logs.
-
-## Source citations
-
-See [module source contracts](../quick-accent-fixtures.md#module-source-contracts) for the
-input, usage, character-dialog, filtering and copy implementations.
