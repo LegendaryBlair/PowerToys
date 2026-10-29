@@ -86,6 +86,14 @@ restore its logical lifetime and visibility without restarting Runner or closing
 Declare this lifecycle obligation as an `Other` resource with explicit Action/Verify;
 do not falsely promise same-HWND preservation across an intentional module transition.
 
+Predeclare the owned focus window, Welcome secondary and standalone surface when selected,
+each as a `Window` resource with explicit ownership and cleanup. In a borrowed-module run,
+the standalone surface can have the exact GUI `FilePath` on its Window resource: continue
+using `Start-PtOwnedProcess` and its exact launch/exit receipt, while the separate logical
+lifecycle obligation accounts for the final Runner-started replacement. Do not add a
+blanket same-executable Process scope that would misclassify that expected replacement.
+Do not append predictable resources after input checkpoints or rewrite an old plan.
+
 Use `Get-PtModuleLifecycleSnapshot` for the selected page and a runtime-resolved Resident
 profile. Power Display enablement opens a warning: the generic `Set-PtModuleEnabled`
 toggle-and-wait operation does not supply the dialog decision. For this case record the
@@ -97,8 +105,14 @@ a borrowed singleton. Hide only the run-opened flyout before a lifecycle transit
 
 Non-hardware Settings checks can use the running borrowed session: shortcut Save/Cancel,
 tray/identify visibility, custom-name mapping drafts/CRUD, module entry paths and theme.
-Use the shared shortcut recorder and a declared owned desktop fixture for input/focus;
-restore exact original bindings and fixture lifetime. Custom mappings may use a manually
+Use the shared shortcut recorder and `New-PtExplorerFixture -Workspace $workspace` for
+ordinary input/focus; declare its `Window` resource with `Ownership=Owned` and pair it
+with `Remove-PtExplorerFixture -Fixture $fixture`. No text/event logger or deliberate
+English layout is needed to observe Power Display activation and focus dismissal.
+Do not declare generic `pwsh.exe` as the fixture's Process scope: that would also retain
+unrelated pre-existing controllers and later reporter processes. The Explorer adapter
+tracks only its new exact-folder HWND, not ownership of the shared Explorer process.
+Restore exact original bindings and fixture lifetime. Custom mappings may use a manually
 entered value and an owned name without inventing a monitor, but their downstream naming
 effect still requires a real matching capability. Do not seed profiles or monitor JSON
 to make disabled hardware-dependent controls available.
@@ -116,6 +130,42 @@ only after its `Prepare`/logical-window/affected-file obligations are concretely
 Otherwise retain that exact prerequisite and continue module-local checks. No UAC,
 policy editing, installation, physical disconnection, crash injection or unsafe monitor
 input/power change is implied by a request to maximize safe coverage.
+
+### Committing Settings choices
+
+For `Mouse wheel increment` and `Tray icon mouse wheel mode`, preserve both the original
+selected label and typed persisted value. Resolve the exact named ComboBox, expand it,
+and find the exact desired ListItem under that owner. A substring query for `1` also
+matches `10` and `15`; duplicate provider representations must be deduplicated by actual
+UIA runtime identity with `Select-PtUniqueUiElement`.
+
+Match the live option bounds to its exact-name winapp search result, require a complete
+query and one distinct selector, then use a normal scoped `click`. Verify both
+`Get-PtComboBoxSelection` and the corresponding `properties.mouse_wheel_increment` or
+`properties.mouse_wheel_control_mode` before continuing. Keep a selection-only failure:
+Select-then-Collapse can show a new label without committing the installed control.
+Restore through the same committed path, rejecting intervening values outside the
+original and explicitly requested states. This exercises configuration, not wheel
+delivery or hardware clamping.
+
+### Resolving owned mapping cards
+
+Expand/scroll the exact `Custom name mappings` Group. Its `Add mapping` Text belongs to
+the actual Button ancestor. After Invoke, wait for the required enabled Edit controls
+and read back their values; modal existence alone is insufficient.
+
+For an existing owned mapping, construct its current header from the actual saved value
+and owned name: `('0x{0:X2} {1} {2}' -f $value, [char]0x2192, $ownedName)`.
+Find that exact Text, then walk to the bounded Group containing exactly two action
+Buttons. Do not target the Group's accessible Name after a rename; virtualization can
+leave it stale. Prefer the unique action Name/HelpText. If both actions are unnamed,
+corroborate the current nonoverlapping left Edit/right Delete geometry with scoped pixels
+before choosing; ambiguity stops input.
+
+Editing retains the code/value/scope unless explicitly changed. Save/Cancel on the editor
+are distinct from the deletion dialog's Yes/No. After either closes, observe disappearance
+before resolving another row. Confirm actual persisted owned data after each commit;
+do not capture unrelated names or infer that a manual mapping changed absent hardware.
 
 ### Launch-owned standalone instance
 
@@ -153,9 +203,20 @@ plan instead of rebuilding a semantically similar hashtable with different prope
    attributable post-state. Retain all launch/exit errors and unexpected recovery markers.
 4. Perform conflict-guarded byte/existence rollback for declared data paths. Restore
    original enablement/lifetime if the chosen scope changed it, accounting for restart writes.
-5. Restore borrowed Settings and the original desktop. Compare again after the last writer
-   or restart: data bytes/existence, enabled state, owned-process absence, borrowed identities,
-   native placement and pointer. Report unowned logs and any conflicts separately.
+5. In the cleanup plan, load each registered original Settings snapshot from
+   `(Get-PtActiveResourceSession).Settings` with `ConvertFrom-PtReportJson`, restore it with
+   `Restore-PtSettingsUiSnapshot`, then restore the original desktop. For a normal visible
+   original Settings window, the template later checks the same state without refocusing.
+   Require that no-op condition; hidden/minimized originals need separate preservation work.
+6. After these last UI/foreground writes, call `Restore-PtKeyboardLayoutSnapshot -Snapshot
+   $originalLayout -ExpectedLayout $knownOwnedLayouts` and independently read back the original
+   again. Capture the original before the first fixture and the owned layouts when actually
+   observed; never accept an unexplained current layout as an expected value. Do not use the
+   reporting-only callback to mutate state.
+7. Compare after the last writer/restart: data bytes/existence, enabled state, owned-process
+   absence, borrowed identities, native placement, pointer and layout. Report unowned logs
+   and conflicts separately. A departed generic script host cannot be recreated or erased
+   from a frozen scope to turn a historical resource failure into success.
 
 Keep the original baseline across retries. A template success, cleanup callback or settings
 hash alone cannot certify hardware, process, clipboard and desktop restoration together.

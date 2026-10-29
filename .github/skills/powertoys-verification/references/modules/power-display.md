@@ -5,7 +5,7 @@
 | Key | Value |
 |---|---|
 | Module/source | `PowerDisplay` / **Power Display**; `src\modules\powerdisplay` |
-| GUI | `<install>\WinUI3Apps\PowerToys.PowerDisplay.exe`, WinUI 3; rediscover PID/start/HWND |
+| GUI | `<install>\WinUI3Apps\PowerToys.PowerDisplay.exe`, WinUI 3; multiple same-class hidden hosts can coexist. Resolve the content host, not the first HWND |
 | CLI | GUI directory's `PowerToys.PowerDisplay.Cli.exe`; shim `<install>\bin\PowerToys.PowerDisplay.CLI.exe` |
 | Data root | `%LOCALAPPDATA%\Microsoft\PowerToys\PowerDisplay`; startup writes settings/profiles/monitor state |
 | Recovery markers | `discovery.lock`, `crash_detected.flag`; preserve existing markers, stop ordinary launch |
@@ -14,8 +14,9 @@
 | Lifetime | Runner-resident or standalone; Escape/deactivation/window Close hide, not exit |
 
 The [checklist](../release-checklist/power-display.md) owns expectations.
-Standalone empty-state/refresh/dismissal/tray/CLI mechanics have live observation support.
-Settings/profile/hardware guidance remains source-grounded, not fully live-confirmed.
+Entry paths, warning-aware enablement, shortcuts, visibility, mapping CRUD, OOBE and
+read-only CLI have live observation support. Hardware and saved-monitor-profile guidance
+remains conditional; configuration readback does not establish its downstream effect.
 
 ## Entry paths
 
@@ -24,7 +25,7 @@ Check recovery markers and startup flags: launch itself can probe/restore hardwa
 
 | Intent | Route |
 |---|---|
-| Settings | Snapshot before navigation; Power Display switch/warning or launch button. |
+| Settings | Snapshot before navigation; realize/select `PowerDisplayNavItem`, then use the module switch/warning or **Open Power Display** button. |
 | Quick Access | Actual module entry with Runner active, not direct launch. |
 | Shortcut | Compatible foreground, current chord, observed visibility change. |
 | Tray | Exact Power Display Button in taskbar/overflow; click and verify foreground. |
@@ -56,36 +57,48 @@ Settings can coexist independently. `Visible flyout` includes settled empty/moni
 | Settings page | Add/edit profile or custom mapping | Editor draft | Modal named fields and Save/Cancel |
 | Editor draft | Save valid draft | Settings page | Dialog closes, owning list available |
 | Editor draft | Cancel | Settings page | Dialog closes without committing draft |
+| Settings page | More > Delete on an owned mapping | Delete confirmation | Modal Yes/No buttons |
+| Delete confirmation | Yes | Settings page | Dialog closes, mapping list available |
+| Delete confirmation | No | Settings page | Dialog closes, mapping list available |
+| Settings page | Welcome footer; no pre-existing secondary | Welcome window | New same-process HWND with module navigation |
+| Welcome window | Select Power Display | Welcome window | Module content and Open Power Display button |
 
 ## Control locator and interaction index
 
 Use recorded `Invoke-PtWinApp` inspect/search and `Get-PtUiElements`; reject incomplete or
 ambiguous matches. Re-resolve after transitions. XAML `x:Uid` is not an AutomationId.
-For source-named Settings controls below, confirm the exposed ID/type/pattern before acting.
+Names below are English observations; resolve localized counterparts in other locales.
+Source-named hardware/profile controls still require exposed ID/type/pattern confirmation.
 
 | Interaction | UI state & scope | Control locator | How to interact |
 |---|---|---|---|
-| Open refresh menu | Flyout footer | Button with refresh/chevron glyph beside `SettingsBtn` | Inspect pixels/tree. Empty-state UI exposes one unnamed non-Settings Button: require uniqueness, then Invoke. |
-| Refresh monitors | Open refresh menu | MenuItem, `AutomationId=RefreshButton` | Unique search within flyout HWND; Invoke once, observe scanning then settled content. |
-| Identify monitors | Refresh menu; hardware | MenuItem, source `IdentifyButton` | Confirm pattern, Invoke, observe overlays. |
-| Dismiss flyout | Exact foreground host | Current native HWND | `Assert-PtForegroundOrAbort`, then `Send-PtChord -Hwnd $hwnd -Key 0x1B`; observe hidden/resident state. |
-| Open from tray | Taskbar/owned overflow | Button, Name `Power Display` | `Find-PtRunnerTrayControl`; scoped `click`, then foreground check. |
-| Open tray menu | Visible tray icon | Freshly resolved Button | Check container foreground/target; scoped `click --right`; resolve new module-owned `#32768` HWND. |
-| Exit module | Owned native tray menu | MenuItem, localized Name `Exit` | Verify Invoke support; register siblings; use `Stop-PtOwnedProcess` callback. Rediscover numeric menu IDs. |
-| Open Settings | Flyout footer | Button, `AutomationId=SettingsBtn` | Declare Settings/Runner side effects before Invoke. |
-| Change options | Settings labeled card | Card-local switch/CheckBox/ComboBox | Confirm patterns; Toggle or `Select-PtComboBoxItem`. Protected changes require Enable/Cancel. |
-| Record shortcut | Settings activation card | Current shortcut edit button | [Shared recorder](../shortcut-recorder.md) with actual targets; Save/Cancel separately. |
-| Change monitor controls | Expanded Settings monitor | Exact identity's CheckBox | Toggle; handle confirmation. Hide is not disconnect. |
-| Set monitor level | Correct flyout monitor card | Local brightness/contrast/volume Slider | Use required mouse/touch/wheel/arrows; wait for settled commit. RangeValue cannot prove physical input. |
-| Choose discrete value | Enabled monitor feature | Local Button, popup ListItem | Open/Select; independent hardware read and physical recovery. |
-| Link/exclude | Eligible monitor cards | Source names `LinkLevelsToggle`, `IndividualDisplaysToggle`; local exclude ToggleButton | Confirm exposed patterns; Toggle linking, expand cards, act on the exact monitor. |
-| Apply profile | Settings row/flyout picker | Owned ID/display name in `ProfilesList` / `ProfilesListView` | Settings Apply invokes; flyout selection commits immediately. Keep private rows out of captures. |
-| Edit profile | Owned row's More menu | Edit MenuItem; modal `ProfileNameTextBox` Edit | Invoke, inspect fields/capabilities, edit; Save commits, Cancel discards. Preserve unavailable saved fields. |
-| Delete profile | Owned Settings row | More > Delete; dialog | Invoke, confirm/cancel; target stable ID. |
-| Reorder profile | Owned Settings row | More > Move up/down; current drag row | Menu commits order; drag needs ordinary Settings. Elevated drag absence does not remove menu actions. |
-| Edit mapping | Settings custom-name dialog | Source names `VcpCodeComboBox`, `ValueComboBox`, `CustomValueTextBox`, `CustomNameTextBox`, `ApplyToAllToggle`, `MonitorComboBox` | Confirm types/patterns; select code/value/scope, enter name; Save/Cancel. Delete has confirmation. |
-| Copy capabilities | Exact Settings monitor | VCP-details/copy Buttons | Invoke inside complete clipboard guard; not diagnostics copy. |
-| Read CLI | Installed executable | Native path/current help, no UI locator | Separate stdout/stderr/exit; parse typed JSON and expose only sanitized/owned data. |
+| Open refresh menu | Empty flyout footer | Unique unnamed Button beside `SettingsBtn` | Corroborate glyph/tree, then Invoke; never first-match selection. |
+| Refresh | Open menu | MenuItem ID `RefreshButton` | Invoke once; observe scanning then settled content. |
+| Identify | Refresh menu; hardware | MenuItem ID `IdentifyButton` | Invoke; separately observe overlays. |
+| Dismiss | Actual foreground flyout | Exact HWND | Guard, then `Send-PtChord -Hwnd $hwnd -Key 0x1B`; check hidden/resident state. |
+| Open from tray | Taskbar/owned overflow | Button Name `Power Display` | `Find-PtRunnerTrayControl`, physical Click, foreground check. |
+| Open tray menu | Visible icon, flyout not covering it | Fresh Button | Guarded right-click; resolve module-owned `#32768` menu. |
+| Exit | Owned native menu | MenuItem Name `Exit` | Supported Invoke inside `Stop-PtOwnedProcess`; register siblings first. |
+| Open Settings | Flyout footer | Button ID `SettingsBtn` | Declare ownership/side effects before Invoke. |
+| Enable/disable | Selected module page | Button Name `Enable Power Display`, TogglePattern | Snapshot; toggle; explicitly answer `PrimaryButton` Enable / `CloseButton` Cancel; wait lifecycle. |
+| Change visibility | Settings flyout options | CheckBox Names `Show system tray icon`, `Show profile switcher button`, `Show identify monitors button` | Toggle; compare file/UI and actual tray/menu. Profiles add a saved-profile prerequisite. |
+| Choose wheel option | Settings flyout options | ComboBox Names `Mouse wheel increment`, `Tray icon mouse wheel mode` | [Committed-choice recipe](../power-display-fixtures.md#committing-settings-choices), not selection-only readback. |
+| Record shortcut | Activation card | Button ID `EditButton`, HelpText | [Recorder](../shortcut-recorder.md): `PowerDisplayNavItem`, segments `properties`, `activation_shortcut`; separately drive chords. |
+| Change monitor controls | Exact expanded monitor | Local CheckBox | Toggle, handle warning; hiding is not disconnecting. |
+| Set level | Exact monitor card | Brightness/contrast/volume Slider | Required physical input; settled commit and independent hardware read. |
+| Choose discrete value | Enabled monitor feature | Local Button > ListItem | Open/Select only with physical recovery and hardware readback. |
+| Link/exclude | Eligible monitor cards | `LinkLevelsToggle`, `IndividualDisplaysToggle`, local exclude ToggleButton | Confirm patterns; toggle/expand exact monitor. |
+| Apply profile | Exact owned row | `ProfilesList` / `ProfilesListView` | Settings Apply invokes; flyout Select commits immediately. |
+| Edit profile | Owned row More | Edit MenuItem; `ProfileNameTextBox` Edit | Save/Cancel distinctly; preserve unavailable saved fields. |
+| Delete profile | Owned row More | Delete MenuItem and dialog | Confirm/cancel exact stable ID. |
+| Reorder profile | Owned Settings row | Move up/down MenuItems or drag row | Menu commits; ordinary drag only. Elevated menu remains available. |
+| Open mapping | `Custom name mappings` Group | `Add mapping` Text's Button ancestor | Expand/scroll, Invoke, wait for enabled Edit fields. |
+| Fill mapping | Owned editor | `VcpCodeComboBox`, `ValueComboBox`, `CustomValueTextBox`, `CustomNameTextBox`, scope controls | Select/code/value/name; read actual Edit values; Save/Cancel. No monitor needed for manual-value CRUD. |
+| Edit/delete mapping | Exact owned current card | Header Text > bounded two-Button Group | [Card recipe](../power-display-fixtures.md#resolving-owned-mapping-cards); Delete uses Yes/No, not editor Save/Cancel. |
+| Copy capabilities | Exact Settings monitor | Details/copy Buttons | Complete clipboard guard; VCP list, not diagnostics. |
+| Read CLI | Installed executable | Native path/current help | Separate streams/exit; typed JSON, sanitized data. |
+| Open Welcome | Main footer > new secondary | `OOBENavItem`; ListItem `Power Display` | Select; wait for `Open Power Display` content; inspect shortcut pixels, not absent `HotkeyActivation` ID. |
+| Read Light Switch warning | Power Display disabled | InfoBar Text starting `Enable PowerDisplay module` | Resolve unique full caption and actual visibility; no profile-apply claim. |
 
 ### Read-out notes
 
@@ -102,6 +115,14 @@ For source-named Settings controls below, confirm the exposed ID/type/pattern be
   not independently prove physical discovery completeness or a DDC write.
 - Preserve null/unread values. Provider absence is exit 10; parse rejection exit 7.
   JSON errors use stderr; help/version remain text with `--json`.
+- `get` without a selector reads all monitors; missing-selector rejection applies to
+  `set`/`up`/`down`. Target resolution precedes range validation: an absent target may
+  return exit 1 even for an out-of-range value. Exit 2 needs a valid target.
+- An enabled Add profile button may produce no editor when discovery has no monitor rows.
+  Observe that prerequisite; never create fake monitor/profile JSON to unlock it.
+- PowerToys theme, effective Windows app theme and each rendered surface are separate.
+  Changing PowerToys to Dark can recolor Settings without making the flyout or mapping
+  dialog dark. Capture actual surfaces; a Windows-theme fixture needs its own preservation.
 
 ### Observation rules
 
@@ -117,6 +138,9 @@ popups; check foreground/geometry before and after. Images remain candidates unt
 | No monitor cards | Observe settled InfoBar/CLI; establish DDC/WMI prerequisites independently. | RDP/display surfaces are not controllable hardware; empty-path evidence is not brightness coverage. |
 | Foreground guard refuses Escape after tray Invoke | Preserve error; rediscover icon, physically click, verify exact foreground before keys. | No delivered key means no dismissal outcome; never disable the guard. |
 | Covered tray icon/disappearing menu | Refresh overflow ownership, foreground and live bounds before a scoped click. | Stale selectors are invalid targets; termination event cannot pass tray Exit. |
+| Native popup reports no interactive desktop | Check InputDesktop/foreground separately; actual MenuItem Invoke can work while foreground is zero. | Preserve physical refusal; no assumed disconnect or direct menu message. |
+| Stale tray entries after visibility change | Preserve counts; bounded product-only hover and fresh enumeration. | Stale duplicates alone do not establish a lifecycle defect. |
+| Choice/row and file disagree | Use committed-choice/current-card recipes and realized fields. | Selection or recycled Group.Name is not persistence/identity. |
 | Profile/feature unavailable | Check build, capability, exact row, protected option and policy. | No independent outcome for unreachable actions; never seed support in JSON. |
 | Partial rollback | Inspect owned-path equality and unowned log differences; retain conflicts. | User-state equality is not whole-directory equality. |
 
@@ -131,6 +155,7 @@ popups; check foreground/geometry before and after. Images remain candidates unt
 | Global/Light Switch snapshots | Enablement/migration | Private originals; attributable writes only | Semantic restore, guarded rollback | Original enablement/references/bytes |
 | Settings snapshot/dialogs | Settings | Borrowed navigation/placement; owned creations | Cancel drafts, shared restore/owned close | Original supported state/identity |
 | Desktop snapshot/overflow | Input/capture | Pre-input baseline, owned popup transition | Close owned popup, paired restore | Original foreground/placement/pointer |
+| `New-PtExplorerFixture` | Hotkeys/focus dismissal | Run-owned empty folder/window, exact receipt; no generic `pwsh` Process resource | `Remove-PtExplorerFixture`; restore final original input layout after UI/desktop | Owned window/folder absent; original UI, pointer and layout |
 | Hardware baseline | Hardware cases | Case-owned edits; independent values/recovery | Restore while controls live | Original hardware, not cached values |
 | Owned profiles/mappings; clipboard keeper | Editing/copy | Owned rows; complete private format backup | Restore order/references/formats before exit | Original semantics/bytes/hardware/formats |
 
@@ -140,13 +165,21 @@ Use [fixture recipes](../power-display-fixtures.md) and shared resource/cleanup 
 Guarded file rollback requires existing files; directory rollback supports absence.
 Neither restores hardware or owns a borrowed singleton. No fault/OSD rescue helper exists.
 Resume loads the original persisted resource plan, not a reordered reconstruction.
+Use the shared owned Explorer window when only ordinary foreground is needed. A generic
+`pwsh.exe` Process scope also captures controller/reporter lifetimes and cannot be narrowed
+after a run starts. Power Display hotkey/focus checks need no English-layout keyboard logger.
 
 ### Restoration order
 
 1. Restore hardware/UI semantics while controls live; cancel drafts and restore clipboard.
 2. Exit only owned writers; retain attributable post-state and unexpected recovery markers.
 3. Guarded-restore data bytes/existence; restore original enablement/lifetime, accounting for startup writes.
-4. Restore Settings/popups/desktop; compare after all final writes. Keep private recovery outside archives.
+4. Explicitly restore registered Settings snapshots and the original desktop in the cleanup
+   plan before its final keyboard-layout step. For an originally visible, normal Settings
+   main, the template's subsequent identical restoration is a checked no-op; verify that
+   prerequisite rather than assuming it for hidden/minimized windows.
+5. Guardedly restore the original thread layout from known owned post-layouts, then compare
+   after all final writes. Keep private recovery outside archives.
 
 ### Restoration verification
 
