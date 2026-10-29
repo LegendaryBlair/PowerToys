@@ -13,6 +13,7 @@ One file per module; a verification run loads only its module's file.
 | Environment Variables | 29 / 135 | `environment-variables.md` |
 | File Locksmith | 10 / 10 | `file-locksmith.md` |
 | Image Resizer | 12 / 18 | `image-resizer.md` |
+| Keyboard Manager | 24 / 135 | `keyboard-manager.md` |
 | New+ | 9 / 9 | `new-plus.md` |
 | Peek | 18 / 18 | `peek.md` |
 | PowerRename | 16 / 17 | `power-rename.md` |

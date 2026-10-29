@@ -86,16 +86,28 @@ function Invoke-PtHeldKeys {
     .NOTES
     The action may change foreground (for example Win+1). Guard the initial HWND, not the result.
     Already-held keys are rejected so cleanup never releases a key owned by the user/outer scope.
+    ReleaseOrder optionally supplies a permutation of Keys; default is reverse press order.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][ValidateCount(1,16)][uint16[]]$Keys,
         [Parameter(Mandatory)][scriptblock]$Action,
         [ValidateRange(0,1000)][int]$KeyDownDelayMilliseconds = 40,
-        [long]$Hwnd
+        [long]$Hwnd,
+        [ValidateCount(1,16)][uint16[]]$ReleaseOrder
     )
     if (@($Keys | Select-Object -Unique).Count -ne $Keys.Count -or @($Keys | Where-Object { $_ -lt 1 -or $_ -gt 254 }).Count) {
         throw 'Keys must be unique virtual-key codes in 1..254.'
+    }
+    if ($PSBoundParameters.ContainsKey('ReleaseOrder')) {
+        if ($ReleaseOrder.Count -ne $Keys.Count -or @($ReleaseOrder | Select-Object -Unique).Count -ne $Keys.Count -or
+            @($ReleaseOrder | Where-Object { $_ -notin $Keys }).Count) {
+            throw 'ReleaseOrder must contain every pressed key exactly once.'
+        }
+        $releaseKeys = @($ReleaseOrder)
+    } else {
+        $releaseKeys = @($Keys)
+        [array]::Reverse($releaseKeys)
     }
     foreach ($key in $Keys) {
         if (([PtChord]::GetAsyncKeyState($key) -band 0x8000) -ne 0) { throw "Key $key is already held; input aborted." }
@@ -117,8 +129,8 @@ function Invoke-PtHeldKeys {
         $originalError = $_
         throw
     } finally {
-        for ($i = $down.Count - 1; $i -ge 0; $i--) {
-            if ([PtChord]::Key($down[$i], $true) -ne 1) { $releaseErrors.Add("Key-up $($down[$i]) failed") }
+        foreach ($key in $releaseKeys) {
+            if ($down.Contains($key) -and [PtChord]::Key($key, $true) -ne 1) { $releaseErrors.Add("Key-up $key failed") }
         }
         if ($releaseErrors.Count) {
             $message = "Input cleanup failed: $($releaseErrors -join '; ')"
