@@ -1,7 +1,7 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 2,
-  "SourceSha256": "0D1E832F8D7309122E31070DDC221B4567BDDC6DAFC5F06D419E32963622E0B8",
+  "Revision": 3,
+  "SourceSha256": "1F85EE80C8F81A852ACC25FC0C7724A4EADD81994AB883DC81D302A25C464906",
   "Items": [
     {
       "Id": "KM-ENTRY",
@@ -130,10 +130,10 @@
     {
       "Id": "KM-APP-SCOPE",
       "Assertions": [
-        { "Id": "KM-APP-SCOPE.edge", "Description": "With an owned Edge fixture targeted as msedge, applicable shortcut matrix rows work only in that foreground app, including tap/hold/release-order conditions." },
-        { "Id": "KM-APP-SCOPE.code", "Description": "With an owned VS Code fixture targeted as code, applicable shortcut matrix rows work only in that foreground app, including tap/hold/release-order conditions." },
-        { "Id": "KM-APP-SCOPE.terminal-user", "Description": "With owned non-admin cmd in Windows Terminal targeted as windowsterminal, applicable shortcut matrix rows work only in that foreground app, including tap/hold/release orders." },
-        { "Id": "KM-APP-SCOPE.terminal-admin", "Description": "Requires authorized elevated PowerToys and elevated cmd in Windows Terminal: applicable app-specific shortcut matrix rows work with tap/hold/release-order coverage; unrelated apps remain unaffected." },
+        { "Id": "KM-APP-SCOPE.edge", "Description": "In an owned editable Edge page targeted as msedge, all seven KM-APP-SCOPE matrix rows (Ctrl+A to Ctrl+V, Win+A to Ctrl+V, Ctrl+V to Win+A, Win+A to Win+F, Ctrl+A to B, Ctrl+A to Win, Win+A to B) work only in that foreground app. Observe every tap/hold and both release orders, source suppression, ordinary input afterward and original source behavior in an unrelated owned app. Preserve individual blocked rows; no subset establishes this child's PASS." },
+        { "Id": "KM-APP-SCOPE.code", "Description": "In an owned VS Code document targeted as code, all seven KM-APP-SCOPE matrix rows (Ctrl+A to Ctrl+V, Win+A to Ctrl+V, Ctrl+V to Win+A, Win+A to Win+F, Ctrl+A to B, Ctrl+A to Win, Win+A to B) work only in that foreground app. Observe every tap/hold and both release orders, source suppression, ordinary input afterward and original source behavior in an unrelated owned app. Preserve individual blocked rows; no subset establishes this child's PASS." },
+        { "Id": "KM-APP-SCOPE.terminal-user", "Description": "In an owned non-admin cmd prompt hosted by Windows Terminal targeted as windowsterminal, all seven KM-APP-SCOPE matrix rows (Ctrl+A to Ctrl+V, Win+A to Ctrl+V, Ctrl+V to Win+A, Win+A to Win+F, Ctrl+A to B, Ctrl+A to Win, Win+A to B) work only in that foreground app. Observe every tap/hold and both release orders, source suppression, ordinary input afterward and original source behavior in an unrelated owned app, without submitting fixture text. Preserve individual blocked rows; no subset establishes this child's PASS." },
+        { "Id": "KM-APP-SCOPE.terminal-admin", "Description": "Requires authorized elevated PowerToys and elevated cmd in an owned Windows Terminal window targeted as windowsterminal. Run all seven KM-APP-SCOPE rows (Ctrl+A to Ctrl+V, Win+A to Ctrl+V, Ctrl+V to Win+A, Win+A to Win+F, Ctrl+A to B, Ctrl+A to Win, Win+A to B), every tap/hold and both release orders. Verify source suppression, ordinary input afterward and original behavior in an unrelated owned app; do not submit fixture text or infer PASS from the non-admin variant or a subset." },
         { "Id": "KM-APP-SCOPE.alt-tab", "Description": "An app-specific Alt+Tab target in owned fixtures changes focus without stuck modifiers or subsequent remaps going to the wrong application." },
         { "Id": "KM-APP-SCOPE.alt-f4", "Description": "An app-specific Alt+F4 target closes only an owned window and leaves subsequent input/remap routing correct." }
       ]
@@ -199,7 +199,7 @@
         { "Id": "KM-ALONE.mouse-button", "Description": "With an owned mouse-capable fixture, combining a held Alone source with a button preserves the modifier-click and suppresses the solo action." },
         { "Id": "KM-ALONE.wheel", "Description": "With an owned wheel observer, combining a held Alone source with wheel input preserves the modified wheel action and suppresses the solo action." },
         { "Id": "KM-ALONE.mouse-move", "Description": "Mouse movement alone while the Alone source is held does not cancel its release-triggered solo action." },
-        { "Id": "KM-ALONE.gating", "Description": "The condition control is unavailable for unsupported text/program/URL actions; left/right sources and an Always sibling retain distinct entries." }
+        { "Id": "KM-ALONE.gating", "Description": "Independently selecting each unsupported text, program and URL action exposes no usable Alone condition control. Same-key Always/Alone identity and Left/Right conflicts are covered only by KM-VALIDATION.conditions and KM-VALIDATION.modifier-sides." }
       ]
     },
     {
@@ -241,13 +241,13 @@
       "Id": "KM-APPEARANCE",
       "Assertions": [
         { "Id": "KM-APPEARANCE.localization", "Description": "In a provisioned non-English Windows-language fixture, applicable classic/new editor controls, dialogs and tooltips localize; restore original language." },
-        { "Id": "KM-APPEARANCE.theme", "Description": "An authorized live light/dark theme switch updates the new editor title bar without corrupting mappings; restore the original theme." }
+        { "Id": "KM-APPEARANCE.theme", "Description": "Changing Windows default app mode between Light and Dark through Personalization > Colors changes the open new editor's client theme; its active minimize, maximize/restore and close glyphs use visible dark-on-light or light-on-dark foreground with unchanged activation/hover conditions. Mapping state stays intact. Restore app mode, preserve Windows mode and unrelated personalization, and restore affected Settings windows. A PowerToys Settings-only theme change or caption-background measurement is insufficient." }
       ]
     },
     {
       "Id": "KM-DSC",
       "Assertions": [
-        { "Id": "KM-DSC.read", "Description": "In an authorized isolated DSC v3 fixture, KeyboardManagerProfile get/test/export/schema/manifest expose the declared profile resource and friendly layout-invariant key names." },
+        { "Id": "KM-DSC.read", "Description": "Direct installed PowerToys profile resource get/export/schema/manifest calls expose the KeyboardManagerProfile identity and schema; get/export content agrees and test of the just-read profile reports true. Both mapping stores remain unchanged and private entries are not exported. Standalone DSC v3 and a replacement fixture are not prerequisites for these reads; empty-profile reads do not prove friendly-key round trips or deployment." },
         { "Id": "KM-DSC.replace", "Description": "Authorized isolated set replaces the whole profile containing key, Disable, text, chord, app-specific and exact-match entries; test becomes true and entries round-trip." },
         { "Id": "KM-DSC.reload", "Description": "Authorized isolated deployment reloads the running engine without restarting PowerToys and editor/engine stores agree." }
       ]

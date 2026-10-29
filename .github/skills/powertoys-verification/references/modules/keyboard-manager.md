@@ -62,6 +62,13 @@ target-local captions; resource keys are not AutomationIds. Conditional routes n
 | Open editor | Settings module page, new mode, enabled | `AutomationId=KeyboardManagerLaunchEditorButton`, `Button` | Invoke; independently resolve resulting process/window. |
 | Add mapping | List | `AutomationId=NewRemappingBtn`, `Button` | Invoke once; wait for fields and dialog controls. |
 | Choose action | Mapping draft | `ActionTypeComboBox`, `ComboBox` | `Select-PtComboBoxItem` with actual localized option; observe dependent fields. |
+| Enter replacement text | Mapping draft, Text action | `TextContentBox`, `Edit` | SetValue and read the complete value; preserve logical line breaks. Save/reopen and physical activation are separate observations. |
+| Configure a program | Mapping draft, Run program action | `ProgramPathInput`, `ProgramArgsInput`, `StartInPathInput`, each `Edit` | SetValue separately, move focus before Save, then compare saved path/arguments/directory and the owned process's actual startup receipt. Blank Start in is intentional. |
+| Browse program / directory | Program draft | `ProgramPathSelectButton` / `StartInSelectButton`, `Button` | Invoke one picker; resolve its owned HWND and current file/folder selection controls. Select only an owned fixture or cancel, then read the originating field. Elevation is a separate prerequisite. |
+| Select launch context | Program draft | `ElevationComboBox`, `VisibilityComboBox`, `IfRunningComboBox`, each `ComboBox` | Enumerate target-local options and use `Select-PtComboBoxItem`; verify the actual selected option. Do not choose End task or affect an existing user process. |
+| Enter URL | Mapping draft, Open URL action | `UrlPathInput`, `Edit` | SetValue, move focus, read back; distinguish accepted Save from validation. Activation needs an owned handler tab and exact URL observer, not merely Shell dispatch. |
+| Select a condition | Single-key trigger, key/shortcut action | `ConditionComboBox`, `ComboBox` | Select the localized Always/Alone option with readback. After changing action category, rediscover visibility/enabled state; an offscreen retained node is not a usable condition control. |
+| Restrict target application | Shortcut-trigger draft | `AppSpecificCheckBox`, `CheckBox`; `AppNameTextBox`, `Edit` | Toggle On only if Off; SetValue to the actual process basename without `.exe`. Confirm targetApp in the saved app-specific entry before the checklist's full per-application matrix. |
 | Pick trigger | Mapping draft, trigger field | `KeyButton`, `Button`, within `TriggerKeyToggleBtn` | Invoke unique dropdown. Multiple shortcut slots require identifying the requested slot. |
 | Pick target | Mapping draft, key/shortcut action | `KeyButton`, `Button`, within `ActionKeyToggleBtn` | Invoke unique dropdown; do not select a window-global repeated ID. |
 | Select key | Picker for known field/slot | `KeyListView` -> `ListItem`, exact key name | Wait for realization; supported ScrollItem then Invoke. Do not reopen the picker. |
@@ -71,8 +78,10 @@ target-local captions; resource keys are not AutomationIds. Conditional routes n
 | Cancel | Mapping draft | Current dialog-scoped localized cancel/close `Button` | Resolve from current tree and Invoke; process closure does not simulate Cancel. |
 | Edit row | List, not Select mode | `RemappingsListView` -> owned `ListItem` | Identify by trigger/target and store identity, then Invoke; Name may be a model type. |
 | Toggle row | Unique owned mapping row | Descendant `MappingEnabledToggle`, `Button` with TogglePattern | Read current state; Toggle only when needed. Compare editor IsActive and engine entry separately. |
-| Delete row | Unique owned mapping row | Descendant `MappingMenuButton`, `Button`; current localized Delete `MenuItem` | Invoke menu, then Delete, then confirmation PrimaryButton. Cancel is independent. |
-| Filter / select | List | `SearchBox` group, `FilterButton`, `SelectionModeButton` | Discover scoped edit/popup descendants; SetValue or Invoke. Re-resolve rows after filtering. |
+| Delete row | Unique owned mapping row | Descendant `MappingMenuButton`, `Button`; current localized Delete `MenuItem` | Invoke menu once, wait for its scoped Delete MenuItem, then Invoke and confirm PrimaryButton. Do not replay menu Invoke while waiting; cancel is independent. |
+| Search / filter | List | `TextBox`, `Edit`, under `SearchBox`; `FilterButton`, `Button` | SetValue for search. Invoke FilterButton once; wait for `WinFilterToggle`/`CtrlFilterToggle`/`AltFilterToggle`/`ShiftFilterToggle` buttons, `AppFilterCombo` ComboBox and `ClearFiltersBtn` Button. Toggle/select with readback; re-resolve rows. |
+| Select visible rows | List, Select mode | `SelectionModeButton`, `Button`; owned `ListItem` under the appropriate category list | Invoke mode; scroll the identified owned row into view, then SelectionItem.AddToSelection. Read actual selected rows and `DeleteSelectedBtn` count; selection must not open an edit dialog. |
+| Delete selected rows | Select mode | `DeleteSelectedBtn`, `Button`; current confirmation PrimaryButton and localized cancel Button | Invoke once, wait for confirmation, then independently exercise cancel/confirm. Compare selected, hidden and unselected owned UUIDs in both stores; reentering mode is separate from canceling confirmation. |
 | Drive text target | Owned focus, compatible integrity | Keyboard fixture `FixtureInput`, `Edit` | [Observer recipe](../owned-fixtures.md#keyboard-input-observer): explicit installed layout, ordinary-key control first, then shared source-VK input. |
 | Close / reopen | Owned main and registered siblings | Exact PID/start/path creation identity | Normal tracked close, observed exit, then declared entry. Never adopt borrowed windows. |
 
@@ -87,6 +96,9 @@ target-local captions; resource keys are not AutomationIds. Conditional routes n
 - Editor UUID-keyed `ShortcutSettingsDictionary` entries contain `Shortcut`, `Profiles`, `IsActive`.
   `ProfileDictionary`, `ShortcutsByOperationType` and `ActiveProfile` are companion state.
   Disabled editor rows can legitimately be absent from active engine mappings.
+- Category lists are `RemappingsListView`, `TextListView`, `ProgramsListView`, `UrlsListView`
+  and `DisabledListView`. Match owned trigger/action text and its saved UUID, not ListItem.Name
+  (which can be a model type), row index or the first repeated menu button.
 - Use `Read-PtSharedFileText`; preserve parse/schema failures. Export only owned synthetic rows.
   Draft, both saved stores and actual TextPattern/ValuePattern output are separate evidence.
   Labels, input return counts and stored VKs do not prove delivery.
@@ -102,6 +114,20 @@ target-local captions; resource keys are not AutomationIds. Conditional routes n
 Fit owned windows to measured physical work-area geometry before capture. Clipped images
 cannot establish full-layout correctness. Exclude private tabs/mappings without hiding the
 property tested; images remain candidates until accepted.
+
+For theme coverage, use Windows Settings' `ms-settings:colors` page, not the PowerToys
+General theme selector. Capture its initial page/window and app/Windows mode first. If
+needed, choose Custom to expose the default app mode while retaining Windows mode.
+Confirm the editor client surface changed theme before judging caption glyphs. Capture the
+same active HWND with the pointer away from caption buttons; inspect glyph foreground and
+background together, not just a whole-title-bar brightness statistic.
+
+For direct DSC reads, resolve `PowerToys.DSC.exe` beside the installed Runner and inspect
+its actual help. Invoke `get`, `export`, `schema` and `manifest` with
+`--resource profile --module KeyboardManager`; supply the just-read JSON to `test` via
+`--input`. Keep raw get/export/test data private; record operation exits, resource/schema
+identity, content equality and desired-state Boolean. Compare both stores before/after.
+The isolated `set`/reload fixture and friendly-key round trip remain separate requirements.
 
 ## Troubleshooting
 
@@ -130,11 +156,16 @@ property tested; images remain candidates until accepted.
 | `New-PtNotepadFixture` | App-specific/document cases | Owned document; borrowed tabs and captured foreground lifetime | Paired removal with explicit owned-edit discard before foreground owner exits | Original tabs/selection/placement; owned tab/file absent |
 | Clipboard session | Paste matrix | Supported private baseline and owned synthetic writes | Restore before owner/writer release | Original supported data restored without disclosure |
 | App/browser/Shell fixture | Conditional actions | Exact owned tab/window/process and starting state | Scoped normal close and original-state restoration | No owned survivors; unrelated resources unchanged |
+| Windows app theme | Theme assertion only | Original app/Windows mode, affected personalization values, Windows Settings page/window and editor mapping state | Restore through Colors UI before closing owned Settings; then restore borrowed windows | Original personalization values/kinds/existence, editor theme/mappings and Settings state; no Settings-only theme substitution |
 
 ### Helper boundaries
 
 Use [session safety](../session-safety.md) and the shared recorder/template; independent cleanup
 steps have `DependsOn=@()`. Resume with the original persisted plan. IME composition is not preserved.
+
+Declare console/browser companion executable scopes before their first indirect activation,
+including hosts started by the keyboard observer. A late scope can otherwise capture an
+already-created test helper as borrowed and incorrectly require its survival after cleanup.
 
 File guards require existing originals/expected files. Absence needs bounded quiescent directory
 rollback; the module root includes live logs. Preserve lock existence and attributable
