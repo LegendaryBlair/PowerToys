@@ -16,6 +16,7 @@ One file per module; a verification run loads only its module's file.
 | Keyboard Manager | 24 / 135 | `keyboard-manager.md` |
 | New+ | 9 / 9 | `new-plus.md` |
 | Peek | 18 / 18 | `peek.md` |
+| Power Display | 33 / 138 | `power-display.md` |
 | PowerRename | 16 / 17 | `power-rename.md` |
 | PowerToys Settings | 25 / 50 | `settings.md` |
 | Quick Accent | 18 / 57 | `quick-accent.md` |

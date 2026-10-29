@@ -1,0 +1,211 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "03BBC98FE9C7F98EA48920BC5F9F5BD7ED12326238FB82871679B2E89EDEF596",
+  "Items": [
+    {"Id":"PD-ENABLE","Sources":["PR42642","PR47144","PR48111","PR48249"],"Assertions":[
+      {"Id":"PD-ENABLE.default","Description":"In a clean authorized installation, Power Display defaults to disabled."},
+      {"Id":"PD-ENABLE.cancel","Description":"Cancel the Settings enable warning; UI and saved enabled state remain disabled."},
+      {"Id":"PD-ENABLE.accept","Description":"Accept the Settings enable warning; saved enabled state and resident process become enabled."},
+      {"Id":"PD-ENABLE.disable","Description":"Disable through Settings; the resident process exits and saved state agrees; restore original enablement."}
+    ]},
+    {"Id":"PD-ENTRY","Sources":["PR42642","PR45355","PR46979"],"Assertions":[
+      {"Id":"PD-ENTRY.settings","Description":"With the enabled module ready, Settings launch opens the flyout."},
+      {"Id":"PD-ENTRY.quick-access","Description":"With the enabled module ready, the real Quick Access entry opens the flyout."},
+      {"Id":"PD-ENTRY.tray","Description":"With the enabled module ready and tray icon visible, clicking the actual tray icon opens the flyout."},
+      {"Id":"PD-ENTRY.shortcut","Description":"With compatible foreground integrity, the current configured shortcut opens the flyout."},
+      {"Id":"PD-ENTRY.standalone","Description":"With no existing module instance, launching the installed GUI without Runner arguments shows its standalone window."}
+    ]},
+    {"Id":"PD-SHORTCUT","Sources":["PR42642","PR46979"],"Assertions":[
+      {"Id":"PD-SHORTCUT.cancel","Description":"Cancel a shortcut draft without changing the saved original modifiers/key."},
+      {"Id":"PD-SHORTCUT.save","Description":"Save an unused valid binding; every modifier/key persists and the new binding toggles the flyout."},
+      {"Id":"PD-SHORTCUT.old","Description":"After saving the new binding, the old binding no longer activates Power Display."},
+      {"Id":"PD-SHORTCUT.restore","Description":"Restore the original binding through Settings and observe its actual activation."}
+    ]},
+    {"Id":"PD-DISMISS","Sources":["PR46489","PR48026"],"Assertions":[
+      {"Id":"PD-DISMISS.escape","Description":"Escape in the foreground flyout hides its window while the module process remains resident."},
+      {"Id":"PD-DISMISS.focus","Description":"Moving focus from the flyout to an owned ordinary window hides the flyout without terminating the module."},
+      {"Id":"PD-DISMISS.reopen","Description":"Reopen with the same tested trigger; the flyout is usable and no extra resident instance accumulates."}
+    ]},
+    {"Id":"PD-PRESENTATION","Sources":["PR42642","PR46489","PR47051","PR47097","PR47163"],"Assertions":[
+      {"Id":"PD-PRESENTATION.tray","Description":"Changing tray-icon visibility in Settings changes the actual tray entry and can be restored."},
+      {"Id":"PD-PRESENTATION.profiles","Description":"With saved profiles, profile-switcher visibility controls the flyout button; restore the original option."},
+      {"Id":"PD-PRESENTATION.identify-option","Description":"Identify-button visibility controls the refresh menu's identify entry and can be restored."},
+      {"Id":"PD-PRESENTATION.identify","Description":"With real monitors, identify overlays show each correct display number on its display and close afterward."},
+      {"Id":"PD-PRESENTATION.geometry","Description":"On two differently scaled displays including non-primary/negative coordinates, repeated flyout entry stays within the target work area without taskbar overlap or clipped controls."}
+    ]},
+    {"Id":"PD-DISCOVERY","Sources":["PR42642","PR47712","PR47875","PR47876"],"Assertions":[
+      {"Id":"PD-DISCOVERY.refresh","Description":"Invoke the real flyout refresh menu; observe discovery completing and current controls returning, not merely command acceptance."},
+      {"Id":"PD-DISCOVERY.empty","Description":"When no controllable monitor is present, settled discovery shows a no-monitors state without fabricated hardware controls."},
+      {"Id":"PD-DISCOVERY.hotplug","Description":"On an authorized hardware setup, unplug/reconnect triggers discovery after the configured delay and returns the current display set."},
+      {"Id":"PD-DISCOVERY.wake","Description":"On an authorized display-sleep setup, wake disables stale interaction during discovery and restores current monitor controls afterward."},
+      {"Id":"PD-DISCOVERY.identity","Description":"Across rediscovery/reordering, stable device/port identities preserve the correct physical monitor's preferences, including identical models."}
+    ]},
+    {"Id":"PD-INTERNAL","Sources":["PR47321","PR47740","PR48637"],"Assertions":[
+      {"Id":"PD-INTERNAL.wmi","Description":"A WMI-brightness-capable panel has localized Built-in Display identity, working brightness with independent readback, and no duplicate DDC controls."},
+      {"Id":"PD-INTERNAL.discrete-gpu","Description":"On a dual-GPU laptop with its internal panel driven by the discrete GPU, WMI capability still permits detection and brightness control."}
+    ]},
+    {"Id":"PD-PREFERENCES","Sources":["PR42642","PR45355","PR47712","PR50510"],"Assertions":[
+      {"Id":"PD-PREFERENCES.controls","Description":"Supported per-monitor control options change the flyout; unsupported feature options stay unavailable."},
+      {"Id":"PD-PREFERENCES.hidden","Description":"Hide/unhide a monitor through Settings; only that monitor's flyout visibility changes."},
+      {"Id":"PD-PREFERENCES.persist","Description":"Monitor preferences survive Settings reopening and rediscovery."},
+      {"Id":"PD-PREFERENCES.write-boundary","Description":"With file-write/event instrumentation, only seven user-editable monitor preferences cause save then IPC then module-event; runtime/derived notifications and disk reload do not write back."}
+    ]},
+    {"Id":"PD-GUARDED","Sources":["PR47303","PR48249"],"Assertions":[
+      {"Id":"PD-GUARDED.input-cancel","Description":"On a newly discovered compatible monitor input-source control defaults off; cancel enable and it stays off."},
+      {"Id":"PD-GUARDED.input-enable","Description":"Accept input-source enable; the option persists and supported control appears; restore the option without switching hardware."},
+      {"Id":"PD-GUARDED.color-cancel","Description":"On a newly discovered compatible monitor color-temperature control defaults off; cancel enable and it stays off."},
+      {"Id":"PD-GUARDED.color-enable","Description":"Accept color-temperature enable; the option persists and supported control appears; restore the option without changing hardware."},
+      {"Id":"PD-GUARDED.power-cancel","Description":"On a newly discovered compatible monitor power-state control defaults off; cancel enable and it stays off."},
+      {"Id":"PD-GUARDED.power-enable","Description":"Accept power-state enable; the option persists and supported control appears; restore the option without changing hardware."}
+    ]},
+    {"Id":"PD-LEVELS","Sources":["PR42642","PR47051"],"Assertions":[
+      {"Id":"PD-LEVELS.brightness","Description":"On supported hardware, a distinct safe brightness edit reaches only the intended monitor and independent hardware readback confirms change and restoration."},
+      {"Id":"PD-LEVELS.contrast","Description":"On supported hardware, a distinct safe contrast edit reaches only the intended monitor and independent hardware readback confirms change and restoration."},
+      {"Id":"PD-LEVELS.volume","Description":"On supported hardware, initial volume reflects the successful device read; a safe edit and restoration are confirmed by independent hardware readback without changing another monitor."}
+    ]},
+    {"Id":"PD-SLIDER-INPUT","Sources":["PR47756","PR49002","PR49446"],"Assertions":[
+      {"Id":"PD-SLIDER-INPUT.mouse","Description":"Mouse drag of each available brightness/contrast/volume slider reaches hardware after settling."},
+      {"Id":"PD-SLIDER-INPUT.keyboard","Description":"Keyboard arrows on each available brightness/contrast/volume slider reach hardware after settling."},
+      {"Id":"PD-SLIDER-INPUT.touch","Description":"With a touchscreen, both drag and tap-on-track on each available slider reach hardware after settling."},
+      {"Id":"PD-SLIDER-INPUT.wheel","Description":"For each available slider and increment 1,2,5,10,15,20,25, both wheel directions change hardware by that step without parent scrolling; safe instrumented boundaries clamp at 0/100 and tray-wheel Off does not disable sliders."}
+    ]},
+    {"Id":"PD-NATIVE-RANGE","Sources":["PR47679"],"Assertions":[
+      {"Id":"PD-NATIVE-RANGE.brightness","Description":"On an instrumented DDC fixture with non-100 brightness maximum, 0/50/100 percent map to the native range; UI/storage stay percentages and original hardware is restored."},
+      {"Id":"PD-NATIVE-RANGE.contrast","Description":"On an instrumented DDC fixture with non-100 contrast maximum, 0/50/100 percent map to the native range; UI/storage stay percentages and original hardware is restored."},
+      {"Id":"PD-NATIVE-RANGE.volume","Description":"On an instrumented DDC fixture with non-100 volume maximum, 0/50/100 percent map to the native range; UI/storage stay percentages and original hardware is restored."}
+    ]},
+    {"Id":"PD-DISCRETE","Sources":["PR42642","PR47008","PR48628","PR48632"],"Assertions":[
+      {"Id":"PD-DISCRETE.input","Description":"With an advertised safe input and physical recovery, select input source and independently verify the actual input, then restore it."},
+      {"Id":"PD-DISCRETE.color","Description":"With advertised color presets and physical recovery, select a preset and independently verify hardware, then restore it."},
+      {"Id":"PD-DISCRETE.power","Description":"With a secondary recoverable DDC-wake-capable monitor, standby changes hardware and selecting On wakes it; restore its original power state."},
+      {"Id":"PD-DISCRETE.orientation","Description":"On an authorized disposable secondary display, shipped CLI orientation 0/90/180/270 matches Windows display configuration and can be restored; no absent flyout rotation-button requirement."}
+    ]},
+    {"Id":"PD-LINKED","Sources":["PR48207"],"Assertions":[
+      {"Id":"PD-LINKED.seed","Description":"With at least two brightness-capable monitors, linking seeds the master from the linked monitor with lowest Windows display number."},
+      {"Id":"PD-LINKED.master","Description":"Master brightness changes all included monitors with independent hardware readback; individual cards remain expandable."},
+      {"Id":"PD-LINKED.exclusion","Description":"An excluded monitor does not follow the master and retains its working independent slider."},
+      {"Id":"PD-LINKED.persist","Description":"Linked mode and stable-ID exclusions survive reopen/restart; a newly connected monitor is included unless excluded."},
+      {"Id":"PD-LINKED.profile","Description":"Applying a per-monitor profile turns linking off before applying distinct per-monitor hardware values."}
+    ]},
+    {"Id":"PD-TRAY-WHEEL","Sources":["PR49002","PR49446"],"Assertions":[
+      {"Id":"PD-TRAY-WHEEL.off","Description":"With tray mode Off, wheel over the icon leaves brightness and ordinary wheel delivery unchanged."},
+      {"Id":"PD-TRAY-WHEEL.primary","Description":"Primary display mode adjusts only the eligible primary monitor without opening the flyout."},
+      {"Id":"PD-TRAY-WHEEL.all","Description":"All displays mode adjusts eligible visible brightness monitors and excludes hidden/unreadable targets without opening the flyout."},
+      {"Id":"PD-TRAY-WHEEL.increment","Description":"Tray wheel uses the configured increment and clamps at safe instrumented boundaries; restore mode and hardware."}
+    ]},
+    {"Id":"PD-PROFILES","Sources":["PR42642","PR49175","PR50509"],"Assertions":[
+      {"Id":"PD-PROFILES.create","Description":"With a controllable monitor, create an owned named profile and reopen its exact selected fields/values."},
+      {"Id":"PD-PROFILES.cancel","Description":"Cancel both a new-profile draft and an existing owned-profile edit without persistence changes."},
+      {"Id":"PD-PROFILES.rename","Description":"Rename an owned profile while retaining its stable ID and creation time."},
+      {"Id":"PD-PROFILES.duplicates","Description":"Two profiles with the same name retain distinct stable numeric IDs."},
+      {"Id":"PD-PROFILES.delete-cancel","Description":"Cancel deletion and retain the exact selected owned profile."},
+      {"Id":"PD-PROFILES.delete","Description":"Confirm deletion of one owned ID; unrelated profiles remain unchanged."},
+      {"Id":"PD-PROFILES.validation","Description":"An invalid empty name or empty selection cannot be saved as a new profile."}
+    ]},
+    {"Id":"PD-PROFILE-APPLY","Sources":["PR42642","PR47008","PR49175"],"Assertions":[
+      {"Id":"PD-PROFILE-APPLY.settings","Description":"Settings Apply for an owned profile changes its included monitor fields as verified on hardware."},
+      {"Id":"PD-PROFILE-APPLY.flyout","Description":"Selecting an owned profile from the flyout changes its included monitor fields as verified on hardware."},
+      {"Id":"PD-PROFILE-APPLY.omitted","Description":"Profile application preserves omitted fields and unrelated monitors, retaining distinct per-monitor values; restore pre-test hardware."}
+    ]},
+    {"Id":"PD-PROFILE-PRESERVE","Sources":["PR50509"],"Assertions":[
+      {"Id":"PD-PROFILE-PRESERVE.missing","Description":"Rename/save an owned profile with a missing monitor; retain its saved row, fields, ID and creation time."},
+      {"Id":"PD-PROFILE-PRESERVE.capability","Description":"Rename/save with temporarily unavailable capabilities or unsupported saved color presets; retain original included fields."},
+      {"Id":"PD-PROFILE-PRESERVE.remove","Description":"Explicitly deselect a preserved monitor or field; remove only that selection."},
+      {"Id":"PD-PROFILE-PRESERVE.refresh","Description":"Same-size capability name/value updates refresh the editor; cleared selections, restored support and selected color values stay consistent; newly chosen unsupported values cannot be saved."}
+    ]},
+    {"Id":"PD-PROFILE-ORDER","Sources":["PR50453"],"Assertions":[
+      {"Id":"PD-PROFILE-ORDER.menu","Description":"Move the middle of three owned profiles up/down via menu; persisted order changes without changing IDs, creation times or monitor settings."},
+      {"Id":"PD-PROFILE-ORDER.drag","Description":"In ordinary Settings, drag an owned profile to another position and verify order after reopening without changing profile identity/content."},
+      {"Id":"PD-PROFILE-ORDER.consumers","Description":"Flyout, CLI profiles and Light Switch pickers use the same persisted order; restore the original ordering."},
+      {"Id":"PD-PROFILE-ORDER.elevated","Description":"In an authorized elevated Settings session, dragging is disabled with guidance while Move up/down remains usable."}
+    ]},
+    {"Id":"PD-MAPPINGS","Sources":["PR45355"],"Assertions":[
+      {"Id":"PD-MAPPINGS.crud","Description":"Add, edit and delete owned input-source/color-preset mappings; exact code/value/name persists and deletion removes only the owned mapping."},
+      {"Id":"PD-MAPPINGS.cancel","Description":"Cancel new/edit mapping drafts without saving changes."},
+      {"Id":"PD-MAPPINGS.global","Description":"On matching hardware, a global mapping renames the advertised value across applicable monitors without changing its VCP value; deletion restores the normal label."},
+      {"Id":"PD-MAPPINGS.specific","Description":"On matching hardware, a monitor-specific mapping affects only its target identity and leaves other monitors' labels/values unchanged."}
+    ]},
+    {"Id":"PD-LIGHT-SWITCH","Sources":["PR42642","PR47190","PR49175"],"Assertions":[
+      {"Id":"PD-LIGHT-SWITCH.transitions","Description":"With authorized theme changes and two owned profiles, successive light/dark transitions apply the matching hardware values, including the second hotkey transition."},
+      {"Id":"PD-LIGHT-SWITCH.identity","Description":"Rename/reorder preserves stable profile associations; deleting an assigned owned profile clears its reference."},
+      {"Id":"PD-LIGHT-SWITCH.disabled","Description":"When Power Display is disabled, Light Switch configuration shows its warning rather than implying successful apply; restore theme/bindings/profiles/hardware."}
+    ]},
+    {"Id":"PD-STARTUP","Sources":["PR42642","PR47051","PR49577","PR49629"],"Assertions":[
+      {"Id":"PD-STARTUP.off","Description":"On recoverable hardware, startup with restoration off does not replay saved values."},
+      {"Id":"PD-STARTUP.on","Description":"On recoverable hardware, startup with restoration on restores saved supported values."},
+      {"Id":"PD-STARTUP.null-zero","Description":"With an isolated state fixture, null/unread saved values are not applied as zero, while a genuine saved zero remains valid."},
+      {"Id":"PD-STARTUP.placeholder","Description":"With an instrumented failed initial read and saved value equal to its displayed placeholder, restore still sends the hardware write."},
+      {"Id":"PD-STARTUP.final-save","Description":"A final edit survives cooperative exit/reopen in valid monitor-state storage; restore original startup behavior and hardware."}
+    ]},
+    {"Id":"PD-COMPATIBILITY","Sources":["PR47875","PR48249","PR49445","PR49579","PR49596"],"Assertions":[
+      {"Id":"PD-COMPATIBILITY.warning","Description":"Cancel compatibility warning without enabling; acceptance enables it and triggers rediscovery."},
+      {"Id":"PD-COMPATIBILITY.probe","Description":"On an instrumented empty/unparsable-capabilities monitor, compatibility mode recovers supported continuous controls without exposing unsupported brightness."},
+      {"Id":"PD-COMPATIBILITY.transient","Description":"On an instrumented transient failure, bounded retries recover and successful probe readings initialize UI rather than being replaced by failed rereads."},
+      {"Id":"PD-COMPATIBILITY.cache","Description":"A valid cached VCP reading supports later compatibility discovery for the same stable identity; never-successful or different-device data cannot fabricate support."}
+    ]},
+    {"Id":"PD-MIGRATION","Sources":["PR47712","PR47977","PR49175"],"Assertions":[
+      {"Id":"PD-MIGRATION.monitor-ids","Description":"In an isolated upgrade fixture, Settings/profiles/state legacy monitor IDs migrate only on exact EDID/display-number matches; ambiguous/unmatched entries do not attach to another monitor."},
+      {"Id":"PD-MIGRATION.profile-ids","Description":"In an isolated upgrade fixture, name-addressed profiles and Light Switch references migrate to stable numeric IDs without losing valid associations."},
+      {"Id":"PD-MIGRATION.retention","Description":"With an instrumented clock/discovery fixture, absent recent entries retain preferences, stale entries expire under the retention rule, and hidden entries remain."}
+    ]},
+    {"Id":"PD-RECOVERY","Sources":["PR47734","PR48051","PR48173","PR49580"],"Assertions":[
+      {"Id":"PD-RECOVERY.orphan","Description":"In an explicitly authorized disposable fault fixture, an orphan discovery marker auto-disables before DDC access and locks Settings; Ignore clears the warning without silently enabling."},
+      {"Id":"PD-RECOVERY.blacklist","Description":"An instrumented blacklisted monitor identity is excluded before capability access; do not attach known-bad hardware to provoke a crash."},
+      {"Id":"PD-RECOVERY.tray-exit","Description":"Normal tray Exit releases the exact owned module process, tray icon and CLI service."},
+      {"Id":"PD-RECOVERY.cooperative","Description":"With a controlled discovery-in-progress fixture, cooperative exit leaves no false crash marker and next launch does not auto-disable."}
+    ]},
+    {"Id":"PD-CLI-READ","Sources":["PR48631","PR48632","PR49175"],"Assertions":[
+      {"Id":"PD-CLI-READ.help","Description":"Installed CLI help/version reports usable command syntax and its actual version."},
+      {"Id":"PD-CLI-READ.list","Description":"CLI list returns identities/transports matching actual discovery, including an empty result when no controllable monitor exists."},
+      {"Id":"PD-CLI-READ.get","Description":"With real monitors, CLI get retains supported/unread distinctions rather than presenting a placeholder as a read."},
+      {"Id":"PD-CLI-READ.capabilities","Description":"With a capable monitor, CLI capabilities reports its advertised values."},
+      {"Id":"PD-CLI-READ.profiles","Description":"CLI profiles returns saved owned profile IDs and display order."},
+      {"Id":"PD-CLI-READ.selectors","Description":"With distinguishable monitors, number and stable-ID selectors resolve correctly; stable ID wins when both are supplied."},
+      {"Id":"PD-CLI-READ.shim","Description":"The installed native shim forwards arguments and the resulting CLI exit code."}
+    ]},
+    {"Id":"PD-CLI-WRITE","Sources":["PR48632","PR49002"],"Assertions":[
+      {"Id":"PD-CLI-WRITE.set","Description":"On recoverable hardware, CLI set reaches each supported continuous/discrete setting and orientation, independently observed on the intended target."},
+      {"Id":"PD-CLI-WRITE.adjust","Description":"CLI up/down uses explicit step or configured wheel increment, including zero-step no-op and clamping; observe actual hardware."},
+      {"Id":"PD-CLI-WRITE.batch","Description":"With multiple recoverable monitors, duplicate monitor-number selectors apply each target once and preserve per-target success/failure reporting."},
+      {"Id":"PD-CLI-WRITE.profile","Description":"CLI apply-profile uses the owned stable numeric ID and applies its hardware settings."},
+      {"Id":"PD-CLI-WRITE.power-guard","Description":"Without --confirm-power-off a standby/off request is rejected without hardware change; authorized confirmed action follows the physical recovery plan."}
+    ]},
+    {"Id":"PD-CLI-ERRORS","Sources":["PR48632"],"Assertions":[
+      {"Id":"PD-CLI-ERRORS.monitor","Description":"An unknown monitor request yields exit 1 without hardware writes."},
+      {"Id":"PD-CLI-ERRORS.range","Description":"A continuous value outside 0..100 yields exit 2 without hardware writes."},
+      {"Id":"PD-CLI-ERRORS.discrete","Description":"On an appropriate capability fixture, a discrete value not advertised yields exit 3 without hardware writes."},
+      {"Id":"PD-CLI-ERRORS.unsupported","Description":"On an appropriate monitor fixture, an unsupported feature yields exit 4 without hardware writes."},
+      {"Id":"PD-CLI-ERRORS.selector","Description":"A request requiring a monitor selector but missing it yields exit 6 without hardware writes."},
+      {"Id":"PD-CLI-ERRORS.arguments","Description":"Parse errors, negative step, malformed monitor-number lists and multiple setting options yield exit 7 without hardware writes; observe every matrix input."},
+      {"Id":"PD-CLI-ERRORS.hardware","Description":"On a controlled hardware fixture only, hardware failure yields exit 5 rather than fabricated success."},
+      {"Id":"PD-CLI-ERRORS.timeout","Description":"On a controlled IPC fixture only, request timeout yields exit 8 rather than fabricated success."},
+      {"Id":"PD-CLI-ERRORS.internal","Description":"On a controlled IPC fixture only, internal error yields exit 9 rather than fabricated success."},
+      {"Id":"PD-CLI-ERRORS.unavailable","Description":"With the provider absent, a CLI request reports ProviderUnavailable and exit 10 without starting the provider."}
+    ]},
+    {"Id":"PD-CLI-JSON","Sources":["PR50433"],"Assertions":[
+      {"Id":"PD-CLI-JSON.read","Description":"Default read output remains text; --json read results are compact JSON Lines on stdout."},
+      {"Id":"PD-CLI-JSON.write","Description":"For an authorized hardware mutation, --json result is compact JSON Lines on stdout with independently confirmed hardware behavior."},
+      {"Id":"PD-CLI-JSON.parse-error","Description":"Structured parse errors are JSON Lines on stderr with matching exit codes and no mixed human stdout."},
+      {"Id":"PD-CLI-JSON.ipc-error","Description":"Structured IPC errors are JSON Lines on stderr with matching exit codes and no mixed human stdout."},
+      {"Id":"PD-CLI-JSON.position","Description":"Global --json before/after a subcommand does not consume its argument; help/version keep documented human-readable behavior."}
+    ]},
+    {"Id":"PD-POLICY","Sources":["PR42642","PR46489","PR46979"],"Assertions":[
+      {"Id":"PD-POLICY.disabled","Description":"In an authorized policy fixture, forced-disabled prevents Settings enable and direct GUI activation."},
+      {"Id":"PD-POLICY.enabled","Description":"In an authorized policy fixture, forced-enabled produces policy-controlled Settings state."},
+      {"Id":"PD-POLICY.unconfigured","Description":"Returning to Not configured restores normal user control; restore exact original policy existence/kind and runtime state."}
+    ]},
+    {"Id":"PD-APPEARANCE","Sources":["PR42642","PR47033","PR47163","PR47321","PR47351"],"Assertions":[
+      {"Id":"PD-APPEARANCE.theme","Description":"With authorized theme changes, light/dark flyout, Settings and dialogs remain readable and unclipped."},
+      {"Id":"PD-APPEARANCE.locale","Description":"In another installed locale, UI/Built-in Display labels localize while Power Display and CLI syntax literals remain intact; restore original language/theme."},
+      {"Id":"PD-APPEARANCE.oobe","Description":"OOBE presents the correct module identity and current configured shortcut; restore original visible UI."}
+    ]},
+    {"Id":"PD-CAPABILITIES","Sources":["PR42642"],"Assertions":[
+      {"Id":"PD-CAPABILITIES.details","Description":"For an advertised VCP-capable monitor, Settings details match independently captured capability code names/values."},
+      {"Id":"PD-CAPABILITIES.copy","Description":"Copy the selected monitor's VCP list with a private complete clipboard guard; verify owned copied text and restore all original formats."}
+    ]},
+    {"Id":"PD-SETTINGS-LIVE","Sources":["PR42642","PR50510"],"Assertions":[
+      {"Id":"PD-SETTINGS-LIVE.option","Description":"Navigate away/return while the module runs, change an owned non-hardware option and observe usable controls, persistence and flyout update; restore it without duplicate runtime-notification saves."}
+    ]}
+  ]
+}

@@ -13,6 +13,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Keyboard Manager | 2 | 24 | 135 |
 | New+ | 1 | 9 | 9 |
 | Peek | 1 | 18 | 18 |
+| Power Display | 1 | 33 | 138 |
 | PowerRename | 2 | 16 | 17 |
 | PowerToys Settings | 4 | 25 | 50 |
 | Quick Accent | 2 | 18 | 57 |
@@ -101,7 +102,13 @@ $items = $inventory.Items
 # Pass Items to the existing run/template; record both input files.
 ```
 
-The thin template rejects different run-local Items for all 15 Scenario A modules
+Power Display revision 1 derives its 33 scenarios and 138 children from included merged
+PR claims, not a missing release-baseline section. Hardware, recovery, migration,
+policy and elevated conditions remain separate from bounded flyout/CLI discovery.
+The inventory does not include unshipped VCP restrictions, the reverted diagnostics-copy
+button or a proposed Command Palette integration. See the [fixture boundaries](../power-display-fixtures.md).
+
+The thin template rejects different run-local Items for all 16 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify

@@ -41,7 +41,7 @@ $inventoryKey=switch($Module.Replace(' ','').ToLowerInvariant()){
     'settings'{'settings'} 'powertoyssettings'{'settings'} 'zoomit'{'zoomit'}
     'colorpicker'{'color-picker'} 'workspaces'{'workspaces'} 'shortcutguide'{'shortcut-guide'}
     'environmentvariables'{'environment-variables'} 'quickaccent'{'quick-accent'}
-    'keyboardmanager'{'keyboard-manager'}
+    'keyboardmanager'{'keyboard-manager'} 'powerdisplay'{'power-display'}
 }
 $profileKey=if($inventoryKey -in 'color-picker','workspaces','shortcut-guide','environment-variables','quick-accent'){$inventoryKey}
 if($Scenario -eq 'A' -and $profileKey -and (-not $ResourcePlan -or $Cleanup)){
