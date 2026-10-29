@@ -21,6 +21,10 @@ or perform aggressive probes, establish the corresponding hardware baseline/reco
 first; do not silently disable the user's option. Existing Settings/profile data is
 private: local code may preserve it, but emit only metadata/hashes and owned-row results.
 
+Inspect the JSON value shape before testing these flags. Accept a scalar Boolean, or an
+explicit legacy object whose `value` is Boolean; reject missing/unexpected shapes rather
+than treating them as false. Current scalar fields do not require a `.value` suffix.
+
 For normal interactive checks, independently probe host, module and foreground-fixture
 integrity with `Test-PtAdmin`/`Test-ProcessElevated`. Verify exact HWND/path/session
 and current geometry with the [desktop/input helpers](helper-workflow.md).
@@ -90,6 +94,9 @@ Borrowed Settings requires its original snapshot before navigation; owned Settin
 an actual creation receipt. Use [Settings restoration](session-safety.md#borrow-settings-before-navigation)
 and do not close a pre-existing window. Capture the desktop before the first focus/input
 change; pair `Get-PtDesktopSnapshot` with `Restore-PtDesktopSnapshot` after other UI cleanup.
+Use that canonical execution snapshot for physical geometry, not coordinates from a
+DPI-unaware identity probe. On template Resume, reload the original persisted resource
+plan instead of rebuilding a semantically similar hashtable with different property order.
 
 ## Release and verify
 
