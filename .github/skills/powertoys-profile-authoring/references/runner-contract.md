@@ -5,9 +5,11 @@ the Author's private knowledge? This is not a claim of OS-level sandboxing or in
 
 ## 1. Prepare an execution worktree
 
-The Author works on a new branch based on refreshed upstream main. The minimal serial workflow uses that same
-clean worktree for the Runner, with **all Author edits paused until it returns**. A new session is mandatory;
-a new checkout on every iteration is not. Keep Author notes/raw runs outside this worktree.
+The Author works on a new branch based on the freshly fetched published verification WIP selected in
+[Step 0](../SKILL.md#0-start-from-the-published-verification-wip), not the old authoring branch or upstream main.
+The minimal serial workflow uses that same clean worktree for the Runner, with **all Author edits paused
+until it returns**. A new session is mandatory; a new checkout on every iteration is not. Keep Author
+notes/raw runs outside this worktree.
 
 Select one committed candidate and verify its clean state:
 
@@ -37,6 +39,7 @@ Record:
 |---|---|
 | Module, run/round ID | Scope and unique execution identity |
 | Candidate SHA and Runner worktree | Immutable repository revision and actual cwd |
+| Verification base | Published remote/ref and resolved base SHA; not inferred from the current branch name |
 | Verification skill canonical path | The intended `.github\skills\powertoys-verification\SKILL.md`, not merely its name |
 | Material manifest | Relative path + SHA256 for the skill, profile or explicit absence, checklist, helpers, fixtures and references/assets used |
 | Product identity | Scenario/BITS contract, actual executable paths/versions/hashes, relevant commit/tag inclusion |
@@ -45,6 +48,11 @@ Record:
 | Executable foundations | Versioned helpers/fixtures, private backup/restore plan, mechanical validation receipts and remaining runtime checks |
 | Artifact locations | Where to write run output and its final archive |
 | Effective runtime policy | Existing tool/path permissions, task-authorized scope, model choice if supplied and applicable limits |
+
+Product source/tag and verification base are independent. If the authoring skill is loaded from another
+worktree, that supplies guidance only: do not inherit its sibling execution skill, helpers or old templates.
+For rapid authoring, identify the bounded entry/operation/restoration scope explicitly; a complete inventory
+can contain unexecuted children without the run claiming full-module signoff.
 
 For the small verification skill, snapshot/hash its complete tree to avoid missing indirect references.
 If another skill/tool supplies an input, add that dependency rather than silently mixing versions.

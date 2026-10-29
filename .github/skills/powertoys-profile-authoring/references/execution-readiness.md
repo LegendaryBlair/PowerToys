@@ -31,9 +31,15 @@ observation. The profile must still conform to the format contract before a conf
 
 ### R0 versus confirmation
 
+- **Base check first:** use the published verification WIP and inspect existing module coverage.
+  Missing shared recorder/inventory APIs in an old checkout are a baseline-selection problem,
+  not a request to recreate the harness. Product-source freshness is checked independently.
 - **Before R0:** handle predictable cross-cutting requirements from the checklist: safe fixtures/data, cleanup,
   actual bits, desktop access and input integrity. A mature module profile is not required. Let R0 discover
   unknown controls/behavior through the generic engine; ordinary discovery must not become a new startup gate.
+- **Rapid expansion scope:** unless full verification was requested, start with entry, one core operation,
+  actual result and complete restoration. Retain the remaining inventory as unexecuted coverage; the bounded
+  run can establish an operating path, not full-module signoff.
 - **When R0 finds a gap:** continue independent safe assertions, return the affected IDs and evidence, and let
   the Author implement the missing reusable capability. Do not make the Runner rewrite tracked materials.
 - **Before R1 or a later confirmation:** address known, repairable blockers for the selected core scope.
@@ -132,6 +138,11 @@ A checked-in helper should have parameterized inputs, explicit errors and focuse
 mechanics it promises. Scratch scripts can teach the Author, but scripts tied to one run's HWND/PID/private
 paths are not reusable capability. Reuse existing CLI operations instead of writing redundant input machinery.
 
+Reuse shared held input, UIA resolution, capture, file/clipboard preservation, Settings snapshots and resource
+completion. Keep a module wrapper only for genuinely module-specific composition. Do not bypass a shared guard,
+invent a wider restoration tolerance, or duplicate the resource model to make a local case pass. A necessary
+common-layer change needs focused regression evidence and must stay within the authorized task.
+
 ## 5. Bind improvements to the observed gap
 
 Before the next confirmation, record a short change receipt:
@@ -166,7 +177,9 @@ Use these to review an authoring iteration; they are not claims that this workfl
 | Situation | Expected workflow response |
 |---|---|
 | Clipboard contains text/image; history is non-empty | Establish supported private backup + owned test data, or state the concrete unsatisfied condition; no blanket environment failure |
-| No backup/restore helper exists at main | Author implements/tests a minimal scoped capability; do not silently import a WIP harness |
+| Old checkout lacks the current common helpers | Correct the verification baseline before authoring; do not reproduce the missing framework |
+| Current shared helper lacks a required guarantee | Improve that shared mechanism minimally with focused regressions; no module-local duplicate or guard bypass |
+| Target already has a profile/checklist/inventory | Refine gaps and retain existing IDs instead of generating replacement coverage |
 | High-integrity fixture, medium-integrity Runner | Repair/validate the normal-user setup; do not conclude product hotkey failure |
 | Drag-reorder is disabled but a Move menu exists | Test the menu and put that recipe in the profile |
 | Settings value saved, but downstream action never observed | Preserve the partial observation; do not PASS the compound requirement |

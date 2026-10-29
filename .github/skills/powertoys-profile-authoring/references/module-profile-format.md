@@ -12,6 +12,8 @@ authoring/comparison scope; do not retrieve an excluded profile to fill gaps.
 Record this contract's path/hash with the Author's input record. Format compliance is an
 Author review gate, not proof of executable readiness, a fresh Runner confirmation or product
 correctness. It must not become a prerequisite for the authorized profile-absent R0 discovery.
+Aim for approximately 10 KB per profile, or 12 KB with a visual workflow. Remove duplicate
+generic mechanics and link their common owner; a separate fixture guide must not repeat the profile.
 
 ## 1. File, headings and order
 
@@ -181,7 +183,7 @@ Use exactly these three columns, in this order:
   alone must not predetermine FAIL/BLOCKED or authorize repeated mutation.
 - Link detailed interaction, read-out and restoration recipes to their owning sections.
   Put generic import/driver mechanics in shared helper documentation.
-- Retain durable conditions and source references, not historical HWNDs, DPI measurements,
+- Retain durable operating conditions, not historical HWNDs, DPI measurements,
   tool-version anecdotes or a copied troubleshooting transcript. Distinguish DIP sizing
   from physical screen-coordinate contracts; do not invent a universal scale correction.
 
@@ -241,10 +243,13 @@ The aligned source-only `## Source citations` and existing combined
 `## Source citations and visual references` forms are also accepted. Use only one final
 container; do not invent further aliases or move it between operating sections.
 
-Cite source by file plus symbol, normally repository-relative. Module-relative or skill-relative
-paths are also valid when their root is explicitly identified; avoid ambiguous bare filenames.
-A line is only a revision-specific hint. Use portable links to approved visual indexes/assets,
-not private archive paths.
+Source inspection establishes authoring facts; source citations are optional, not operating dependencies.
+Keep product-source versions, symbols and PR analysis in Author/run inputs by default. Do not add a
+product-source file index to a fixture guide merely to explain provenance, or require those files to
+exist in the older product tree accompanying a current verification harness.
+Fixture guidance must be understandable through resources, actual helper APIs, actions, observations
+and restoration alone. Omit an empty reference section or one that only links an unnecessary source index.
+Use portable links to approved visual indexes/assets, not private archive paths.
 Visual landmarks help recognize a state; they do not prove timing, persistence or exact
 pixels. Follow [visual-reference acceptance](visual-references.md) separately; absence of
 an accepted image does not itself prohibit collecting observations or testing a clear claim.
@@ -268,7 +273,8 @@ conforming or ready for confirmation until all applicable checks are satisfied:
 - [ ] Troubleshooting preserves original evidence and uses conditional interpretation, not canned verdicts.
 - [ ] Restoration inventories ownership/lifetimes and indirect writes, states actual helper limits,
       defines safe ordering and checks the original baseline after final writes/startup.
-- [ ] References, anchors and helper/recipe links resolve; no stale heading aliases remain.
+- [ ] Executable helper/fixture references, document links and anchors resolve; no stale heading aliases remain.
+      Product-source provenance is separate and is not mistaken for an execution dependency.
 - [ ] No unfilled scaffold, fabricated selectors/APIs, copied private/run-specific data or claimed
       live validation based only on source/format checks.
 - [ ] Changes to helpers or behavioral advice have the relevant mechanical/observation evidence;

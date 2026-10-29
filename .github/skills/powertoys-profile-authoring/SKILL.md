@@ -1,6 +1,6 @@
 ---
 name: powertoys-profile-authoring
-description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a new module profile, bootstrap coverage, or iterate from test results. Enforces Workspaces-style functional checklists and aligned module-profile section/table contracts. Starts a branch/worktree from upstream main; normalizes baseline and merged-PR claims; prepares safe fixtures and restoration helpers; fixes shared execution blockers; tests committed candidates in fresh Runner sessions without Author context; makes scoped local commits. Supports evidence-based verdicts and uncontaminated regeneration comparisons. Uses powertoys-verification, not a new multi-agent framework."
+description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a module profile, expand missing coverage, or iterate from test results. Starts an isolated worktree from the freshly fetched published verification WIP, checks existing coverage, and separates the harness baseline from product evidence. Enforces functional checklists and shared inventory/profile contracts; reuses common helpers; validates bounded user-flow/restoration scopes in fresh Runner sessions; makes scoped local commits. Profile authoring is not full-module signoff. Uses powertoys-verification, not a new multi-agent framework."
 license: Complete terms in LICENSE.txt
 ---
 
@@ -10,9 +10,11 @@ Use **one Author** to prepare, inspect results and improve materials sequentiall
 **fresh Runner session** with a neutral brief and an exact committed input revision. Do not require a permanent
 Engineer/Runner/Reviewer team or parallel agents on a shared desktop.
 
-This skill defines the authoring workflow. [powertoys-verification](../powertoys-verification/SKILL.md) remains
-the execution engine: controls, classification, evidence, restoration and per-run archive. Do not create an
-orchestration framework merely to follow this workflow.
+This skill defines the authoring workflow. `powertoys-verification` in the selected candidate worktree
+remains the execution engine: controls, classification, evidence, restoration and per-run archive.
+The directory hosting this authoring skill may be older; its sibling verification skill is not the
+execution baseline. Resolve that baseline in Step 0, not from the Author's current working directory.
+Do not create an orchestration framework merely to follow this workflow.
 
 ## When to use
 
@@ -44,6 +46,11 @@ Unavailable conditional cases do not stop independent eligible coverage.
 An unset convergence policy or absent new budget number does **not** block R0. Use existing runtime limits and
 explicit user ceilings; do not invent a new budget questionnaire or an unlimited continuation policy.
 
+For rapid coverage expansion, start with a bounded ordinary flow: entry, one representative operation,
+observable result and verified restoration. Retain the complete intended inventory and report unexecuted
+coverage explicitly. A request to author a profile is not a request for repeated full-module signoff;
+run the full checklist when that is the declared execution scope.
+
 ## Required reads
 
 1. Repository `AGENTS.md` and applicable instructions in the chosen worktree.
@@ -52,8 +59,9 @@ explicit user ceilings; do not invent a new budget questionnaire or an unlimited
    conventions and separate detailed assertion definitions. Read before checklist generation and each revision.
 4. [Module profile format](references/module-profile-format.md): the normative section order, exact table
    schemas, content boundaries and Author review gate. Read before profile generation and each revision.
-5. The chosen revision's verification [router](../powertoys-verification/references/scenarios/index.md),
-   matching scenario and [module catalog/guidance](../powertoys-verification/references/modules/README.md).
+5. After Step 0, read the candidate's `powertoys-verification\references\scenarios\index.md`,
+   matching scenario, `references\modules\README.md` and `references\assertion-inventories\README.md`.
+   Resolve all these under the candidate worktree, not the directory hosting this authoring skill.
 6. [Visual references](references/visual-references.md) before recording or promoting screenshots.
 7. [Stopping-policy brainstorm](references/stopping-policy.md) before authorizing repeated iterations.
 8. [Claims and verdicts](references/claims-and-verdicts.md) before finalizing the checklist or reviewing results.
@@ -61,20 +69,21 @@ explicit user ceilings; do not invent a new budget questionnaire or an unlimited
 
 The verification skill loaded from the current chat is **not evidence** that a later Runner loads the same
 version. Read and attest the actual Runner worktree files.
-An older base may still contain a two-column/Observe recipe template or `BLOCKED traps` heading.
-Use this skill's format contract for authoring rather than adopting that legacy schema; record its path/hash
-as an Author input. This does not authorize importing the originating worktree's helpers or changing the
-candidate execution engine's verdict vocabulary.
+Record this authoring skill's path/revision/hash separately from the candidate's execution inputs.
+If the proposed execution base lacks the current shared loader, recorder or template, correct the base
+selection before authoring; do not recreate those capabilities or copy an old verification tree into it.
+Keep this skill's format contract and the selected WIP guidance consistent; resolve a real conflict explicitly.
 
 ## Inputs and decisions
 
 | Input | Required information (discover/derive unless a user decision changes scope) |
 |---|---|
-| Module | Exact module key and filename slug; check for existing materials |
+| Module | Exact key/slug; existing profile/checklist/inventory/helper coverage and create-versus-refine decision |
 | Baseline | Checklist source, version/date, hash and original item references |
 | PR range | Explicit start/end tags or commits; merged PR claims, not unbounded history |
 | Product target | Installed artifact or authorized build/sideload; actual version/path/hash and inclusion proof |
-| Development base | Upstream remote's refreshed main SHA, author branch/worktree |
+| Verification base | Refreshed published verification-WIP remote/ref/full SHA, author branch/worktree |
+| Product evidence base | Tested artifact identity plus matching source tag/commit and relevant PR cutoff; independent of the verification base |
 | Checklist format | Loaded checklist-format contract path/hash; functional prose and matching assertion inventory |
 | Profile format | Loaded format-contract path/hash and applicability of its conditional sections |
 | Runner scope | Assertion IDs, environment, task-authorized fixture/state changes and artifact location |
@@ -90,9 +99,10 @@ Do not convert silence into an unlimited loop or an invented convergence thresho
 ## Workflow
 
 ```text
-fresh main-based author branch
-  -> checklist + input checkpoint
-  -> fresh Runner R0 (generic engine; no module profile required)
+fresh published-verification-WIP author branch
+  -> existing-coverage check: create missing material or refine existing material
+  -> checklist/inventory + input checkpoint
+  -> fresh Runner R0 (bounded entry/operation/restoration scope unless full scope was requested)
   -> initial evidence-derived profile + local commit
   -> evidence-driven improvements + local commit
   -> fresh Runner R1 on that commit
@@ -100,33 +110,56 @@ fresh main-based author branch
                       or human decision / accepted scope / explicit stop
 ```
 
-### 0. Start from main, not the current WIP branch
+### 0. Start from the published verification WIP
 
-Inspect current status/worktrees and identify the intended upstream remote. Preserve existing dirty trees.
-Fetch **main** without updating unrelated refs, record its full SHA, and create a new named author branch in a
-new worktree. Do not branch from a possibly stale local main or from the current feature branch.
+Inspect status, worktrees and remotes; preserve dirty trees and stashes. The default framework baseline is
+the freshly fetched `fork/wip/powertoys-verification-20260819`. Verify which remote owns the published branch;
+the remote may have another name. An explicit user-selected verification ref overrides this default.
+Do not use `origin/main`, the old profile-authoring branch or whichever feature branch happens to be checked out.
 
-Example shape (substitute inspected paths/remote/module; check names do not already exist):
+Example shape (substitute inspected remote, module and new paths; check every native exit code):
 
 ```powershell
-git fetch --no-tags origin main
-$base = git rev-parse origin/main
+$verificationRemote = 'fork'
+$verificationBranch = 'wip/powertoys-verification-20260819'
+git fetch --no-tags $verificationRemote $verificationBranch
+if ($LASTEXITCODE -ne 0) { throw 'Verification base fetch failed.' }
+$base = git rev-parse "$verificationRemote/$verificationBranch"
+if ($LASTEXITCODE -ne 0) { throw 'Verification base is unresolved.' }
 git worktree add -b "verification/profile-$module-$suffix" $authorWorktree $base
+if ($LASTEXITCODE -ne 0) { throw 'Author worktree creation failed.' }
+$verificationSkill = Join-Path $authorWorktree '.github\skills\powertoys-verification'
 ```
 
-Do not stash, clean, reset, move unrelated changes, import another branch's harness, or silently cherry-pick.
-Reuse the helpers actually present at this base. If a needed capability is absent, author/test a small scoped
-helper or report the gap; proposed/imported changes need explicit provenance and review.
+Verify that this tree contains the shared inventory loader, recorder, resource/cleanup adapters and
+`templates\verification-run.ps1`. Load their actual contracts. Do not stash, clean, reset, overwrite unrelated
+changes or silently import helpers from another worktree. The Author may use this authoring skill as a
+separately recorded guidance input; the Runner uses only the candidate's declared execution engine.
 
-Pin this base for the experiment. Updating main midway changes the comparison and requires a recorded new base,
-not an invisible refresh of a stability streak. Product build identity is a separate version axis.
+Before creating files, check the module catalog, profile, checklist, assertion inventory, helper scripts,
+specialist references and relevant stashed drafts read-only. Distinguish:
 
-**Output:** base SHA, author branch/worktree and initial clean status.
+| Existing material | Action |
+|---|---|
+| No module coverage | Create an evidence-derived profile/checklist on the shared baseline |
+| Existing profile/checklist/inventory | Refine confirmed gaps; retain stable IDs and useful operating knowledge |
+| Stashed or unmerged draft | Treat as a candidate, not accepted coverage; import only with explicit scope and provenance |
+| Requested from-scratch comparison | Follow the declared exclusion rules; do not delete/recover excluded material |
+
+Pin the verification base during this module's run. A later update is a new recorded candidate, not an
+invisible refresh. A current harness does not imply current product source: inspect the installed UI and its
+matching source/PR inputs separately. Source from a newer build cannot define the installed build's behavior.
+Keep that provenance in Author/run inputs, not as a required source-path list in reusable fixture instructions.
+
+**Output:** verification ref/SHA, author branch/worktree, initial status, create/refine decision and separate
+product-evidence identity. Start the next module from the then-current published WIP, not this module's branch.
 
 ### 1. Generate the checklist
 
-Start from the supplied **full-release base checklist**, not from a previously generated module profile.
-The default location for the supplied 0.96 baseline is:
+For refinement, start from the existing committed checklist/inventory and add or correct only supported gaps.
+Do not regenerate covered modules from a legacy release baseline or renumber unchanged assertions.
+For a new module, extract the supplied **full-release base checklist**, not expectations inferred from
+another module's profile. The default location for the supplied 0.96 baseline is:
 
 ```text
 %OneDrive%\PowerToys\WinappCLI-UIA\tests-checklist-template.md
@@ -137,7 +170,7 @@ This is an external input, not a repository file. If the location is unavailable
 than silently substituting another checklist. Keep the source unchanged and record its resolved path,
 declared baseline version, SHA256 and original line references in the run inputs.
 
-**Extract the requested module's checklist from that file before adding PR coverage:**
+**When using that external baseline, extract the requested module's complete section before adding PR coverage:**
 
 1. Locate the module heading and take its complete section, ending at the next heading of the same or higher
    level. Retain the original extract in the Author input records; preserve the requirements in every checkbox,
@@ -156,7 +189,7 @@ test/build-only changes.
 - Check release inclusion, including cherry-picks, superseded/reverted changes and preview tags.
   A milestone, merge date or common major/minor version is not proof that installed bits contain a change.
 - Give assertions stable IDs, explicit expectations, prerequisites and observation requirements; retain
-  source links in the Author/input mapping, with short per-case references only when useful.
+  source links in the Author/input mapping or supported inventory provenance, not runtime recipes.
   Mark unresolved expectations for human review rather than deriving truth from the current output.
 - Merge obvious shared setup/actions if useful, retaining **every assertion and distinct condition**. Execution
   experience can justify further grouping later. Fewer scenario rows is not reduced coverage or higher quality.
@@ -194,8 +227,11 @@ source/PR mapping retained in the Author/input records.
 
 Build the small [capability map](references/execution-readiness.md) for the selected scope: affected IDs,
 actual helper/fixture, state touched, validation receipt and remaining runtime conditions. This is **Author
-work, not a new user approval gate**. Reuse what main really provides; implement/test a minimal missing
-mechanism within the authorized scope instead of forwarding a repeated "needs ownership" instruction.
+work, not a new user approval gate**. Inspect and reuse the candidate's common input, UIA, capture, file,
+clipboard, Settings-state, lifecycle, resource and report APIs before adding any module helper.
+A module helper should compose module-specific operations, not implement parallel generic infrastructure.
+If a shared guarantee is genuinely missing, make a minimal change in that shared layer with focused regressions
+and explicit affected callers; keep it separate from product fixes and unrelated cleanup.
 
 Prepare predictable data/cleanup/input prerequisites before R0; leave unknown module controls for its discovery.
 Non-empty clipboard/history is not automatically untestable. Protect private payloads from model/evidence
@@ -206,6 +242,9 @@ Record actual host/Runner/module/foreground-fixture integrity, not merely IsAdmi
 hotkey checks must not accidentally target an elevated fixture. Measure DPI/geometry and use fresh observations.
 Do not infer delivery from a successful SendInput call or a previous log line.
 Checkpoint any added helper/fixture with focused mechanical checks before giving its revision to the Runner.
+Validate inventory import, exact counts/IDs, required parameters, links and cleanup contracts before the
+bounded real-user-flow check. Missing hardware or blocked observation remains scoped evidence, not proof
+that a profile is complete; offline contract tests do not establish live restoration.
 
 ### 2. Run the checklist in a fresh session
 
@@ -348,6 +387,13 @@ and return `needs-review` before starting further open-ended rounds. This pause 
 Stage explicit paths and inspect the index; never `git add .` across a shared/dirty tree. Commit only the module
 checklist/profile, justified helpers/tests, indexes and approved sanitized visual assets. Follow repository title,
 license and session-trailer rules. Do not amend or publish without authorization.
+
+Do not copy an old skill tree, raw report workspace or product-source refresh into a module-authoring commit.
+When integration/push is authorized, review the module-only diff and necessary shared changes against the
+current published verification WIP, resolve catalog/schema conflicts using its current contracts, and verify
+the resulting content and relevant regressions. Publish only the intended changes, not unrelated local-only
+history. Keep historical reports immutable and state unresolved live coverage. The next module starts only
+from the newly fetched published baseline; a permanently reused authoring branch is not the source of truth.
 
 Deliver:
 

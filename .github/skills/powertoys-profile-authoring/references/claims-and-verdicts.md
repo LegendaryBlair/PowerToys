@@ -104,7 +104,7 @@ dependencies separately. Show scenario and assertion/subcondition denominators w
 Compare overlapping semantics before comparing raw PASS percentages.
 
 Use the **archived tested input**, not merely the latest working profile. A profile edited after a run did not
-cause that run's outcome. Record both runtime and material differences: product hash, main base, helpers/fixtures,
+cause that run's outcome. Record both runtime and material differences: product hash, verification base, product-source revision, helpers/fixtures,
 privileges, desktop/DPI/locale, model/runtime, permitted evidence and any author assistance.
 
 Retain corrected classifications alongside their original observations. Improved honesty can reduce PASS count;
@@ -114,7 +114,7 @@ improved executable coverage requires completing previously missing trustworthy 
 
 Before a from-scratch comparison, agree and record the experiment inputs:
 
-- Start a new authoring branch/worktree from the chosen main base, with the same baseline source, PR cutoff,
+- Start a new authoring branch/worktree from the chosen published verification-WIP base, with the same baseline source, PR cutoff,
   installed artifact and comparison conditions where possible. Record any difference instead of assuming equivalence.
 - Keep old profiles/reports/commits as comparison evidence. Deleting a Markdown file does not remove chat
   context, sibling helpers, fixtures, screenshots or prior checklist decisions.

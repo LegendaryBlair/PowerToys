@@ -86,8 +86,8 @@ Pause with a specific decision packet when:
 - A new permission, destructive state change, build replacement or investment exceeds authorization.
 - Cleanup is uncertain, or another loop has no justified next experiment.
 
-Do not escalate routine implementable helper work merely because the current main branch lacks that helper.
-Implement/test the scoped fix under the existing authorization; ask only when the remedy actually changes
+Do not mistake an old authoring/main checkout for the current verification baseline. Correct that selection first.
+For a genuine gap in the current shared layer, implement/test the scoped fix under the existing authorization; ask only when the remedy actually changes
 semantics, authority, environment investment or another material decision.
 
 Include the affected IDs, versions, actual observations, diff, unknowns, recommendation and resume point.

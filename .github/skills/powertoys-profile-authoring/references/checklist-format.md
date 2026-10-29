@@ -74,8 +74,9 @@ Each checkbox should read as a concise user flow with explicit outcomes:
 ```
 
 Retain stable case IDs for report lookup, using the candidate engine's supported notation.
-Keep required recorder metadata, such as Clarity, in its supported inventory/input contract;
-do not repeat default labels in the prose unless the engine requires them.
+Keep recorder metadata in the shared engine's supported contract; do not invent a Clarity field that its
+loader does not consume. ADMIN describes elevation only, not hardware, locale or observer availability.
+Retain those environment prerequisites in the affected prose/child descriptions.
 Avoid a separate `Sources` paragraph and a long child-ID list under every checkbox.
 
 ## 3. Summarize safety, do not duplicate the profile
@@ -96,17 +97,22 @@ Follow the Workspaces split: readable case paragraphs in Markdown, explicit chil
 descriptions in a versioned assertion inventory. Do not print the full machine-oriented
 child list a second time in the checklist.
 
-Reuse the candidate engine's inventory schema/loader when available. The conventional
-location is `references\assertion-inventories\<module>.json` under that engine. If the base
-lacks an inventory loader, use its actual explicit-Items contract and prepare a minimal,
-reviewed adapter for the same checked-in definitions. Do not invent an available API,
-import a different WIP harness, or create another execution/reporting framework.
+Use the candidate WIP's `Import-PtAssertionInventory` and `PtAssertionInventory.v1` schema:
+`Schema`, `Revision`, LF-normalized `SourceSha256`, and explicit `Items` containing `Id`
+and `Assertions` with `Id`/`Description`. Put conditional prerequisites in Description;
+an extra `condition` or `expectation` field is not consumed by that contract.
+The location is `references\assertion-inventories\<module>.json`. A missing loader/recorder
+means the execution base must be corrected under Step 0, not that the Author should create
+another adapter or direct-JSON execution loop.
 
 The prose must still express every requirement; the inventory is a decomposition, not a
 place to hide additional tests. Preserve scenario/child IDs, distinct fixtures, prerequisites,
 observation surfaces, expected outcomes and case membership when only reformatting.
 Reorder the inventory consistently with the functional checklist. Update the supported
 revision/hash metadata and verify the before/after mapping; do not reinterpret old archives.
+For a new module, wire its key into the shared template's inventory lookup and the existing
+inventory regression suite; update catalogs/counts together. Preserve child IDs/expectations
+and record old scenario mappings for reviewed merges.
 
 For parameterized validation, keep one compact input/expectation table near its functional
 cases. Define fields/surfaces, boundary pairs and exceptions explicitly. A child may aggregate
