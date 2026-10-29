@@ -46,6 +46,7 @@ specific checklist.
 | File | Purpose |
 |---|---|
 | `scripts/pt-file-io.ps1` | Shared live-file reads that permit product read/write/delete; no automatic retries or default JSON. |
+| `scripts/pt-file-set-snapshot.ps1` | Bounded direct-child file snapshots and ownership-guarded restoration, including absence, without reading unrelated live logs; see [selected-file preservation](references/directory-snapshots.md#selected-file-preservation). |
 | `scripts/pt-environment-variables-state.ps1` | Module-specific private DPAPI journal, exact file/HKCU raw-kind restoration and owned-variable UI guards. Use the WIP recorder/ownership adapters with the [private fixture integration](references/environment-variables-fixtures.md#wip-run-integration). |
 | `scripts/pt-environment-variables-ui.ps1` | Scoped owned rows/menus, target-checked draft input/commit/cancel and private Applied/native full-value reads. Reuse these [UI adapters](references/environment-variables-fixtures.md#reusable-ui-adapters) instead of generating a new locator/reader per case; observations are not product verdicts. |
 | `scripts/pt-clipboard-guard.ps1` + `.cs` | Shared in-memory clipboard preservation and explicit restore-before-shutdown gate; STA required. See [clipboard guard](references/clipboard-guard.md). |

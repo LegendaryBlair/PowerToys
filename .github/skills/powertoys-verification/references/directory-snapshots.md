@@ -131,6 +131,52 @@ leave partial restoration and throw; retain the original snapshots and inspect t
 before retrying. Expected-state comparisons protect against pre-existing unexplained
 changes, not hostile concurrent namespace changes.
 
+## Selected-file preservation
+
+When unrelated siblings are live (for example a borrowed Runner's open module-interface
+log), use `scripts\pt-file-set-snapshot.ps1` rather than weakening whole-directory sharing
+checks or stopping that writer. It reuses this helper's path, link, cloud-file, hardlink
+and byte validation, but captures **only named direct-child files** in an existing root.
+
+```powershell
+. "$skill\scripts\pt-file-set-snapshot.ps1"
+$names = @('settings.json', 'profiles.json', 'monitor_state.json')
+$before = Get-PtFileSetSnapshot -Path $moduleRoot -FileNames $names -MaxBytes 1MB
+# Preserve $before privately before the selected user actions.
+# Quiesce the selected writers and capture only an attributable owned post-state.
+$expected = Get-PtFileSetSnapshot -Path $moduleRoot -FileNames $names -MaxBytes 1MB
+$receipt = Restore-PtFileSetSnapshot -Snapshot $before -ExpectedState $expected `
+    -OwnedFileNames $names -MaxBytes 1MB
+```
+
+`$moduleRoot` is the actual narrow module-data directory, not the install directory.
+Supply 1-64 explicit file names: no wildcard, nested path, duplicate/case-duplicate name
+or root creation/removal. `OwnedFileNames` must explicitly name a subset of the captured
+selection; use `@()` for compare-only. Root and ordered selection must remain identical.
+Original absence, existing bytes and deleted originals round-trip without pre-creating files.
+
+The JSON-round-trippable `PtFileSetSnapshot.v1` contains `Schema`, `FileNames` and
+`FileState` (validated byte/existence representation). Treat it as an opaque selected-file
+snapshot; do not extract `FileState` and present it to a whole-directory restore.
+Raw Base64 belongs only in private recovery storage.
+
+Conflicts are detected before any planned write, with a receipt in
+`Exception.Data['PtFileSetSnapshotReceipt']`. Each changed target is rechecked before
+writing/deleting, and original equality is checked afterward. A repeated completed restore
+does no writes. Unowned selected differences survive with `Status=Partial`; unrelated
+siblings are never read, written or claimed restored.
+
+Receipts report `Scope=SelectedFiles`, `OwnedFilesMatchBaseline`,
+`SelectedFilesMatchBaseline`, `Changes` and `UnownedDifferences`. They deliberately make
+**no whole-tree equality claim**. Selected writers still require quiescence. Like directory
+rollback, this is not a filesystem-atomic transaction: concurrent namespace changes or
+I/O failures can leave partial restoration. Root/parent lifetime, caches, temporary sidecars,
+metadata and any unselected files remain the caller's explicit obligations.
+
+Run `scripts\tests\Test-PtFileSetSnapshot.ps1` for locked-unrelated-log reproduction,
+existing/deleted/absent restoration, unowned preservation, idempotence, zero-write
+conflict rejection, malformed scope/data, byte bounds and selected hardlink refusal.
+
 ## Offline acceptance
 
 ```powershell

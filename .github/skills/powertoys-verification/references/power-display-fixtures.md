@@ -43,21 +43,23 @@ Capture before launch, not after discovery. `%LOCALAPPDATA%\Microsoft\PowerToys`
 | Hardware | Brightness/contrast/volume, input, color preset, power and orientation | Independently read exact originals and record a safe restore action before selecting the case. File rollback cannot restore a physical monitor. |
 | Diagnostics | Module logs and telemetry | Record run-created diagnostic effects separately; never delete pre-existing logs or claim whole-directory byte equality while retaining new logs. |
 
-For bounded quiescent module roots, use
-[`Get-PtDirectorySnapshot`](directory-snapshots.md) before activation and an attributed
-post-state after the exact owned writer exits. Pass the original snapshot, known
-`ExpectedState`, and explicit `OwnedRelativePaths` to `Restore-PtDirectorySnapshot`.
+For a module root containing an unrelated live Runner log, use
+[`Get-PtFileSetSnapshot`](directory-snapshots.md#selected-file-preservation) with the exact
+data file names before activation, then an attributed post-state after selected writers
+quiesce. Pass the original snapshot, known `ExpectedState` and explicit `OwnedFileNames`
+to `Restore-PtFileSetSnapshot`; unrelated log contents are not read.
 For an ordinary module-only run the candidate owned data paths are exactly
 `settings.json`, `profiles.json`, `monitor_state.json`; declare them before launch.
 Ownership covers only effects attributable to the selected run, not arbitrary concurrent
 edits. Include a known created temporary sidecar only after identifying its writer/path.
 Do not grant ownership to recovery markers, logs or every changed file.
 
-This helper supports originally absent files without pre-creating them. It captures the
-entire bounded root, so keep raw snapshots private and check size/reparse limits first.
-Its `Partial` result can legitimately retain unowned diagnostic logs: report that fact,
-check `OwnedPathsMatchBaseline` and independently compare all declared user-state files.
-Do not relabel `WholeTreeMatchesBaseline=false` as whole-tree restoration.
+This supports originally absent files without pre-creating them. Keep raw snapshots private
+and check size/reparse limits. Verify `OwnedFilesMatchBaseline` and
+`SelectedFilesMatchBaseline`; logs outside the selection are not part of that comparison.
+Use the existing whole-directory helper only when the whole root is actually quiescent,
+or when root/directory existence must be preserved. Do not suppress its sharing violation,
+stop a borrowed log writer or reinterpret selected-file equality as whole-tree restoration.
 An unexplained change is a conflict, not a reason to take a new expected snapshot.
 
 For an existing global or Light Switch file, `Get-PtFileSnapshot -Path` and
@@ -109,6 +111,12 @@ Use the shared shortcut recorder and `New-PtExplorerFixture -Workspace $workspac
 ordinary input/focus; declare its `Window` resource with `Ownership=Owned` and pair it
 with `Remove-PtExplorerFixture -Fixture $fixture`. No text/event logger or deliberate
 English layout is needed to observe Power Display activation and focus dismissal.
+Create this fixture as the first UI-producing preparation, from the run's stable original
+top-level foreground, before Settings navigation, modal input or module replacement.
+Explicitly foreground-check that original HWND first. The fixture independently captures
+its creation-time desktop: a transient WinUI `InputSiteWindowClass` captured after control
+interaction may no longer be activatable at removal. Do not overwrite that fixture
+baseline or mark it Closed when its restore guard fails.
 Do not declare generic `pwsh.exe` as the fixture's Process scope: that would also retain
 unrelated pre-existing controllers and later reporter processes. The Explorer adapter
 tracks only its new exact-folder HWND, not ownership of the shared Explorer process.
@@ -201,7 +209,7 @@ plan instead of rebuilding a semantically similar hashtable with different prope
    before releasing its owner if a copy case ran; use the [shared keeper](clipboard-guard.md).
 3. Exit only owned writers through their shipped shutdown action, then capture their
    attributable post-state. Retain all launch/exit errors and unexpected recovery markers.
-4. Perform conflict-guarded byte/existence rollback for declared data paths. Restore
+4. Perform selected-file or quiescent-directory guarded rollback for declared data paths. Restore
    original enablement/lifetime if the chosen scope changed it, accounting for restart writes.
 5. In the cleanup plan, load each registered original Settings snapshot from
    `(Get-PtActiveResourceSession).Settings` with `ConvertFrom-PtReportJson`, restore it with

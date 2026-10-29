@@ -115,6 +115,9 @@ Source-named hardware/profile controls still require exposed ID/type/pattern con
   not independently prove physical discovery completeness or a DDC write.
 - Preserve null/unread values. Provider absence is exit 10; parse rejection exit 7.
   JSON errors use stderr; help/version remain text with `--json`.
+- Check missing-value errors with the flag in both positions: `--json set --brightness`
+  versus `set --brightness --json`. A parser may consume the trailing flag as the missing
+  value and emit human text. Preserve exact streams; exit 7 alone cannot establish JSON format.
 - `get` without a selector reads all monitors; missing-selector rejection applies to
   `set`/`up`/`down`. Target resolution precedes range validation: an absent target may
   return exit 1 even for an out-of-range value. Exit 2 needs a valid target.
@@ -143,6 +146,8 @@ popups; check foreground/geometry before and after. Images remain candidates unt
 | Choice/row and file disagree | Use committed-choice/current-card recipes and realized fields. | Selection or recycled Group.Name is not persistence/identity. |
 | Profile/feature unavailable | Check build, capability, exact row, protected option and policy. | No independent outcome for unreachable actions; never seed support in JSON. |
 | Partial rollback | Inspect owned-path equality and unowned log differences; retain conflicts. | User-state equality is not whole-directory equality. |
+| Whole-root snapshot hits an open interface log | Use the exact selected-file adapter while its selected writers are quiescent. | Never stop the borrowed logger or silently skip a failed whole-root read. |
+| Explorer closes but fixture restoration fails | Inspect its immutable creation-time foreground; create future fixtures before transient WinUI control/modal interaction. | Gone window/folder does not prove the fixture's independent desktop restore; do not rewrite its receipt. |
 
 ## Fixtures and restoration
 
@@ -151,18 +156,19 @@ popups; check foreground/geometry before and after. Images remain candidates unt
 | Fixture / resource | When needed | Ownership & baseline | Cleanup / restore | Verification |
 |---|---|---|---|---|
 | `Start-PtOwnedProcess` | Standalone | Absent-instance launch, PID/start/path/siblings | Tracked tray Exit; event only as declared cleanup | Process/icon/service absent; original Runner state |
-| Directory snapshot | Launch/edit | Private bytes/existence; exact [paths](../power-display-fixtures.md#files-and-hardware) | Quiesce, guard post-state, rollback | Original data hashes/existence; separate logs |
+| Selected-file snapshot | Launch/edit with live siblings | Private bytes/existence; exact [paths](../power-display-fixtures.md#files-and-hardware) | Quiesce selected writers; `Restore-PtFileSetSnapshot` | Selected data hashes/existence; no whole-directory claim |
 | Global/Light Switch snapshots | Enablement/migration | Private originals; attributable writes only | Semantic restore, guarded rollback | Original enablement/references/bytes |
 | Settings snapshot/dialogs | Settings | Borrowed navigation/placement; owned creations | Cancel drafts, shared restore/owned close | Original supported state/identity |
 | Desktop snapshot/overflow | Input/capture | Pre-input baseline, owned popup transition | Close owned popup, paired restore | Original foreground/placement/pointer |
-| `New-PtExplorerFixture` | Hotkeys/focus dismissal | Run-owned empty folder/window, exact receipt; no generic `pwsh` Process resource | `Remove-PtExplorerFixture`; restore final original input layout after UI/desktop | Owned window/folder absent; original UI, pointer and layout |
+| `New-PtExplorerFixture` | Hotkeys/focus dismissal | Create from stable original foreground before UI transitions; no generic `pwsh` scope | `Remove-PtExplorerFixture`; final original layout after UI/desktop | Owned window/folder absent; both fixture and run desktop baselines |
 | Hardware baseline | Hardware cases | Case-owned edits; independent values/recovery | Restore while controls live | Original hardware, not cached values |
 | Owned profiles/mappings; clipboard keeper | Editing/copy | Owned rows; complete private format backup | Restore order/references/formats before exit | Original semantics/bytes/hardware/formats |
 
 ### Helper boundaries
 
 Use [fixture recipes](../power-display-fixtures.md) and shared resource/cleanup APIs.
-Guarded file rollback requires existing files; directory rollback supports absence.
+Guarded single-file rollback requires existing files; selected-file rollback supports absence
+without reading live sibling logs. Whole-directory rollback additionally preserves directories.
 Neither restores hardware or owns a borrowed singleton. No fault/OSD rescue helper exists.
 Resume loads the original persisted resource plan, not a reordered reconstruction.
 Use the shared owned Explorer window when only ordinary foreground is needed. A generic
