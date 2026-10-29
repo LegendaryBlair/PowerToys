@@ -74,6 +74,51 @@ conditions until the actual fixture exists. Do not write settings to simulate su
 
 ## Process and UI ownership
 
+### Borrowed Runner and Settings
+
+For a broader run, discover current lifetimes again: an earlier stopped baseline does not
+authorize stopping a Runner or module the user has since started. Declare the actual main
+Settings HWND as a `Settings` resource in the shared template before navigation. Preserve
+its page/expansion/scroll/placement and the original desktop; keep existing windows borrowed.
+Record the module's original enabled state, process identity and visible/hidden state
+separately. A module-only disable/enable case may replace the module process, but must
+restore its logical lifetime and visibility without restarting Runner or closing Settings.
+Declare this lifecycle obligation as an `Other` resource with explicit Action/Verify;
+do not falsely promise same-HWND preservation across an intentional module transition.
+
+Use `Get-PtModuleLifecycleSnapshot` for the selected page and a runtime-resolved Resident
+profile. Power Display enablement opens a warning: the generic `Set-PtModuleEnabled`
+toggle-and-wait operation does not supply the dialog decision. For this case record the
+actual Toggle, discover the owned warning, Invoke its Enable/Cancel button, then use
+`Wait-PtModuleLifecycle` to observe the resulting state. Restoration uses the same explicit
+warning-aware UI route when needed. Do not turn a wait on an unanswered warning into a
+product failure, bypass confirmation with JSON, or use an owned-process shutdown API on
+a borrowed singleton. Hide only the run-opened flyout before a lifecycle transition.
+
+Non-hardware Settings checks can use the running borrowed session: shortcut Save/Cancel,
+tray/identify visibility, custom-name mapping drafts/CRUD, module entry paths and theme.
+Use the shared shortcut recorder and a declared owned desktop fixture for input/focus;
+restore exact original bindings and fixture lifetime. Custom mappings may use a manually
+entered value and an owned name without inventing a monitor, but their downstream naming
+effect still requires a real matching capability. Do not seed profiles or monitor JSON
+to make disabled hardware-dependent controls available.
+
+Keep private module/global/Light Switch file baselines before the first edit. Restore
+semantic UI values first and compare original bytes/existence. If rollback is still needed,
+use the existing guarded helpers only while the corresponding writers are quiescent.
+Do not close borrowed Settings or stop unrelated utilities merely to force byte equality.
+Account for every final module startup and reread both UI/cache-visible values and files
+after it; a later write can invalidate an earlier restoration receipt.
+
+An application-language test needs a real full-Runner restart and preservation of all
+affected companions, not just this module. Use the shared `Restart-PtRunner` contract
+only after its `Prepare`/logical-window/affected-file obligations are concretely satisfied.
+Otherwise retain that exact prerequisite and continue module-local checks. No UAC,
+policy editing, installation, physical disconnection, crash injection or unsafe monitor
+input/power change is implied by a request to maximize safe coverage.
+
+### Launch-owned standalone instance
+
 Declare the exact installed GUI as an owned `Process` resource with a `Quiesce` restore
 step **before** its launch. When absent, use `Start-PtOwnedProcess -FilePath $guiPath`;
 keep the returned PID/start-time/path receipt. Register each created native sibling with
