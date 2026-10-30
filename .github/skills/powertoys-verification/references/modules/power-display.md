@@ -70,6 +70,12 @@ ambiguous matches. Re-resolve after transitions. XAML `x:Uid` is not an Automati
 Names below are English observations; resolve localized counterparts in other locales.
 Source-named hardware/profile controls still require exposed ID/type/pattern confirmation.
 
+Native `Get-PtNativeWindow` records expose `Rect.Left/Top/Right/Bottom`, not top-level
+`Width`/`Height`. Compute dimensions from those edges when filtering content hosts.
+Borrow an existing Settings main before navigation. If Settings must be opened, capture
+its actual brokered activation: launching `PowerToys.Settings.exe` without arguments can
+exit and ask Runner to create another PID. The initial launcher is not the Settings owner.
+
 | Interaction | UI state & scope | Control locator | How to interact |
 |---|---|---|---|
 | Open refresh menu | Empty flyout footer | Unique unnamed Button beside `SettingsBtn` | Corroborate glyph/tree, then Invoke; never first-match selection. |
@@ -140,6 +146,8 @@ popups; check foreground/geometry before and after. Images remain candidates unt
 | Enabled flag, no process | Check Runner, standalone scope and recovery markers. | Configuration is not readiness. |
 | No monitor cards | Observe settled InfoBar/CLI; establish DDC/WMI prerequisites independently. | RDP/display surfaces are not controllable hardware; empty-path evidence is not brightness coverage. |
 | Foreground guard refuses Escape after tray Invoke | Preserve error; rediscover icon, physically click, verify exact foreground before keys. | No delivered key means no dismissal outcome; never disable the guard. |
+| Medium worker cannot leave an elevated coordinator foreground | Prepare an owned ordinary foreground before launching the worker; verify its actual token, guarded activation and pointer round trip. Return to that ordinary baseline before coordinator cleanup. | Autopilot and CLI tool approvals do not change Windows foreground/UIPI rules; do not elevate the worker or weaken its guards. |
+| Visible Settings has no selected navigation item | Check adaptive navigation at the actual DPI. Preserve native placement before paired widening/maximization, capture the realized Settings state before navigation, and restore placement after Settings cleanup. | An unexposed collapsed rail is not proof that the Settings page or module is missing; keep the original placement obligation separate. |
 | Covered tray icon/disappearing menu | Refresh overflow ownership, foreground and live bounds before a scoped click. | Stale selectors are invalid targets; termination event cannot pass tray Exit. |
 | Native popup reports no interactive desktop | Check InputDesktop/foreground separately; actual MenuItem Invoke can work while foreground is zero. | Preserve physical refusal; no assumed disconnect or direct menu message. |
 | Stale tray entries after visibility change | Preserve counts; bounded product-only hover and fresh enumeration. | Stale duplicates alone do not establish a lifecycle defect. |
