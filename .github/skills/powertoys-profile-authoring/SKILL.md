@@ -1,6 +1,6 @@
 ---
 name: powertoys-profile-authoring
-description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a module profile, expand missing coverage, or iterate from test results. Starts an isolated worktree from the freshly fetched published verification WIP, checks existing coverage, and separates the harness baseline from product evidence. Learns from repository UI tests where available; enforces functional checklists and shared inventory/profile contracts; reuses common helpers; validates bounded user-flow/restoration scopes in fresh Runner sessions; makes scoped local commits. Profile authoring is not full-module signoff. Uses powertoys-verification, not a new multi-agent framework."
+description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a module profile, expand missing coverage, or iterate from test results. Starts an isolated worktree from the freshly fetched published verification WIP, checks existing coverage, and separates the harness baseline from product evidence. Learns from repository UI tests where available; reuses common helpers; requires bounded R0 discovery followed by full-inventory R1 in fresh Runner sessions, then exits by default. Applies approved diagnostic/repair limits; R2 needs explicit authorization and does not start R3 automatically. Makes scoped local commits. Profile authoring is not full-module signoff. Uses powertoys-verification, not a new multi-agent framework."
 license: Complete terms in LICENSE.txt
 ---
 
@@ -33,23 +33,28 @@ the user says no commits. Push, PR creation, publishing media and CI require sep
 
 ### First-run authorization
 
-An explicit request to execute this authoring workflow authorizes **R0 without another workflow approval**:
-launch a fresh Runner, verify its inputs, perform the selected module's ordinary reversible UI checks and
-scoped captures, restore owned state and archive results. Respect any narrower scope the user specified.
-Do not ask the user to approve the Runner/desktop again or supply CLI permission arguments merely to begin R0.
+An explicit request to execute this authoring workflow includes **bounded R0 discovery and full-inventory R1**:
+launch fresh Runners, verify their inputs, perform the selected module's ordinary reversible UI checks and
+scoped captures, restore owned state and archive results. Do not request another routine Runner/desktop
+approval or CLI permission arguments merely to begin. Respect a user-requested narrower task, but label it
+partial/scoped authoring rather than completion of the full workflow or R1.
 
 The Author prepares launch configuration from the task scope and effective runtime policy. This does not
 override real tool/path denials, grant elevation, authorize installation/destructive operations, or imply
 `--allow-all`. Surface an actual runtime approval request when necessary, with the operation and reason.
 Unavailable conditional cases do not stop independent eligible coverage.
 
-An unset convergence policy or absent new budget number does **not** block R0. Use existing runtime limits and
-explicit user ceilings; do not invent a new budget questionnaire or an unlimited continuation policy.
+An unset final acceptance policy does **not** block R0. Use the approved
+[diagnostic and repair limits](references/stopping-policy.md#diagnostic-and-repair-limits), existing runtime
+limits and explicit task overrides; do not require a new budget questionnaire or assume unlimited continuation.
 
-For rapid coverage expansion, start with a bounded ordinary flow: entry, one representative operation,
-observable result and verified restoration. Retain the complete intended inventory and report unexecuted
-coverage explicitly. A request to author a profile is not a request for repeated full-module signoff;
-run the full checklist when that is the declared execution scope.
+For rapid coverage expansion, R0 samples the distinct core input, observation and restoration mechanisms,
+not just module launch. Retain the complete inventory and identify unexecuted conditions. After Author repairs,
+R1 must address every item, assertion and required matrix condition and actually execute all safely available
+conditions; it is not another sample. Restore, archive and exit after R1 by default, even with unresolved findings.
+R2 requires explicit authorization and a fixed repair/regression scope; it ends without automatically starting R3.
+Use the [round completion contract](references/stopping-policy.md#required-round-coverage). Full assessment,
+actual execution, profile acceptance and product sign-off remain separate; no PASS/non-BLOCKED quota is implied.
 
 ## Required reads
 
@@ -63,7 +68,8 @@ run the full checklist when that is the declared execution scope.
    matching scenario, `references\modules\README.md` and `references\assertion-inventories\README.md`.
    Resolve all these under the candidate worktree, not the directory hosting this authoring skill.
 6. [Visual references](references/visual-references.md) before recording or promoting screenshots.
-7. [Stopping-policy brainstorm](references/stopping-policy.md) before authorizing repeated iterations.
+7. [Round completion and stopping conditions](references/stopping-policy.md): required R0/R1 scope and
+   optional acceptance/further-iteration policy.
 8. [Claims and verdicts](references/claims-and-verdicts.md) before finalizing the checklist or reviewing results.
 9. [Execution readiness](references/execution-readiness.md), including
    [UI-test discovery and conditional reuse](references/execution-readiness.md#learn-from-existing-ui-tests) before designing
@@ -89,14 +95,15 @@ Keep this skill's format contract and the selected WIP guidance consistent; reso
 | UI-test discovery | Reviewed tests/helpers and reuse limits when available; otherwise searched locations/revision or access limits and the source/live-discovery fallback |
 | Checklist format | Loaded checklist-format contract path/hash; functional prose and matching assertion inventory |
 | Profile format | Loaded format-contract path/hash and applicability of its conditional sections |
-| Runner scope | Assertion IDs, environment, task-authorized fixture/state changes and artifact location |
+| Runner scope | Round and inventory identity/counts; all IDs and matrix conditions for R1, explicit selections for R0/R2+; environment, authorized state changes and artifacts |
 | Visual scope | Core states and scoped capture plan; reference-promotion approval is separate from R0 execution |
-| Loop policy | Authorized work/budget and selected acceptance/stop rule; **unset unless chosen** |
+| Exit/repair policy | Default exit after R1; approved per-root/batch limits and task overrides; explicit authorization/scope for R2 or later work |
 | Regeneration/comparison | From-scratch or reuse; allowed prior materials, fixed baseline/build/helper conditions and fresh Author context where needed |
 
 Ask only about choices that materially change expectations, scope, permissions, visual authority or investment.
-Discover ordinary paths/control IDs and prepare Runner configuration yourself. If the stopping policy is unset,
-do the authorized initial sequence, including R0, before returning `needs-review` for further iteration.
+Discover ordinary paths/control IDs and prepare Runner configuration yourself. Complete the authorized initial
+sequence through full R1 assessment, then return `needs-review`; further work requires explicit authorization.
+If a genuine limit prevents it, report the round incomplete with exact remaining work, not a completed R1.
 Do not convert silence into an unlimited loop or an invented convergence threshold.
 
 ## Workflow
@@ -106,12 +113,15 @@ fresh published-verification-WIP author branch
   -> existing-coverage check: create missing material or refine existing material
   -> UI-test discovery: reuse relevant tests if present; otherwise source/live discovery
   -> checklist/inventory + input checkpoint
-  -> fresh Runner R0 (bounded entry/operation/restoration scope unless full scope was requested)
+  -> fresh Runner R0 (representative core mechanisms, actual observations and restoration)
   -> initial evidence-derived profile + local commit
-  -> evidence-driven improvements + local commit
-  -> fresh Runner R1 on that commit
-  -> Author review -> improve/commit -> fresh Runner R2 ...
-                      or human decision / accepted scope / explicit stop
+  -> bounded, prioritized improvements + local commit
+  -> fresh Runner R1 on that commit (full frozen inventory and all matrix conditions)
+  -> restore + archive + review -> EXIT by default
+
+only when explicitly authorized:
+  fixed repair scope/budget -> bounded repair + commit -> fresh Runner R2 (targeted regression)
+  -> restore + archive + report fixed/unresolved/incomplete -> EXIT (no automatic R3)
 ```
 
 ### 0. Start from the published verification WIP
@@ -239,9 +249,9 @@ source/PR mapping retained in the Author/input records.
 Where relevant UI tests exist, use their reviewed flows to select fixtures, input sequences, readiness signals
 and result observers. Otherwise derive these from target-product inspection and bounded live discovery.
 Use the candidate engine's ownership/restoration contracts in either case, not a second test harness.
-Build the small [capability map](references/execution-readiness.md) for the selected scope: affected IDs,
-actual helper/fixture, state touched, validation receipt and remaining runtime conditions. This is **Author
-work, not a new user approval gate**. Inspect and reuse the candidate's common input, UIA, capture, file,
+Build the small [capability map](references/execution-readiness.md) for the round's scope (the full inventory
+before R1): affected IDs, actual helper/fixture, state touched, validation receipt and remaining runtime
+conditions. This is **Author work, not a new user approval gate**. Inspect and reuse the candidate's common input, UIA, capture, file,
 clipboard, Settings-state, lifecycle, resource and report APIs before adding any module helper.
 A module helper should compose module-specific operations, not implement parallel generic infrastructure.
 If a shared guarantee is genuinely missing, make a minimal change in that shared layer with focused regressions
@@ -276,6 +286,8 @@ For a new-profile R0, explicitly declare `profile: absent`. The Runner uses the 
 discovers controls and writes execution artifacts; it must not invent a mature profile before trying the UI.
 For refinement/reuse, supply the existing committed profile as an explicit input instead. Do not delete it
 merely to fit the new-profile path or describe that run as from-scratch generation.
+State the round's coverage mode explicitly. A focused discovery/repair run cannot stand in for full R1;
+unavailable conditions remain in the frozen inventory with evidence, not silently filtered from the packet.
 
 Use an identity-only first turn. The Author **automatically** verifies its handshake and sends execution
 authorization in that same new Runner session; this is an input-consistency check, not a human approval gate.
@@ -289,7 +301,8 @@ The Runner may write recorded, run-local driving code. It may not hot-edit the t
 helpers, write product fixes, commit changes or launch another authoring loop. This task-level split overrides
 the execution skill's normal instruction to update profiles after a run: return discoveries/gaps to the Author.
 
-**Output:** archived run, actual session/input identities, observations, coverage and restoration status.
+**Output:** archived run, actual session/input identities, observations, round completion status,
+assessed versus executed coverage, remaining IDs/causes and restoration status.
 
 Do not stop at the input checkpoint with a generic "Runner approval unavailable" claim. If R0 cannot start,
 retain the actual denied operation/error or the verified missing runtime capability and identify what is needed;
@@ -348,13 +361,17 @@ Assign each friction to the correct layer:
 | Missing environment/capability | State affected coverage and required condition; continue independent work |
 | Candidate screenshot is wrong/uncertain | Keep as finding/candidate, not accepted visual reference |
 
-Cluster blockers by shared root capability and address the high-impact, repairable ones first.
+Cluster blockers by shared root capability and prioritize safety, trustworthy observations and high-impact
+shared/core repairs. Defer isolated low-value edge cases and cosmetic refinements. Apply the
+[diagnostic and repair limits](references/stopping-policy.md#diagnostic-and-repair-limits); "repairable" is
+not an instruction to keep working indefinitely or to block the rest of R1 on one minor issue.
 Use the [change receipt](references/execution-readiness.md#5-bind-improvements-to-the-observed-gap) to connect
 the evidence, implementation, checks and intended confirmation IDs. When helpers/fixtures are missing, adding
 warnings or stricter evidence gates alone is not completion of this improvement step.
 
 For every change retain: original problem/evidence, chosen layer, diff, affected assertion IDs, confirmation plan
-and completed helper checks. A static selector replacement or renamed failure category alone is not proof of improvement.
+and completed helper checks, including root-cause attempts/time and remaining batch allowance.
+A static selector replacement or renamed failure category alone is not proof of improvement.
 Reapply the checklist/profile format review gates to the corresponding revised materials and update
 candidate/contract hashes. Checklist reformatting must preserve assertion semantics and distinct conditions.
 Formatting changes alone do not resolve missing execution or restoration capability.
@@ -364,9 +381,11 @@ contradictions instead of automatically reverting expectations or expanding perm
 Make a second **local commit** for real improvements. If no separate improvement is justified after initial
 profile generation, record that fact and test the initial-profile commit; do not manufacture an empty commit.
 
-**Output:** candidate commit and a bounded confirmation selection, with baseline coverage still accounted for.
-Known external conditions or real decisions may remain deferred, but known repairable core gaps stay Author
-work. If a diagnostic rerun is needed before a repair, label it diagnosis rather than profile confirmation.
+**Output:** candidate commit and the full frozen inventory for R1; later rounds may select affected assertions
+and neighboring regressions only when authorized. Address known repairable gaps across R1's safely available
+conditions within the repair allowance, not only R0's sample. At a limit, retain the gap and continue independent
+safe coverage; do not dispatch the same broken path just to repeat its failure. Unresolved gaps remain Author
+work and prevent a ready/full-completion claim, but do not require an endless repair loop.
 
 ### 5. Start another fresh Runner on the candidate; repeat only as authorized
 
@@ -374,27 +393,32 @@ Start a new Runner session at the next committed candidate and repeat the full i
 The same clean worktree can be reused after the preceding run ends; the new Runner gets the new materials,
 not the Author's explanation of why they should now pass.
 
-Before calling this a confirmation, ensure its selected core paths have concrete mechanics and relevant
-validation, and its profile has a conforming format-review receipt; do not dispatch unchanged infrastructure
-merely to reproduce the same BLOCKED inventory. This profile gate does not apply to profile-absent R0.
-If not ready, continue the scoped Author repair or report a genuine limit. Do not add a human "approve R1"
-prompt as a substitute for doing that work.
+Before R1, prioritize known infrastructure gaps across the full safely available inventory and check profile
+format conformance within the repair allowance. Keep exhausted gaps explicit and continue safe independent
+cases; if none can run safely, stop with R1 incomplete. Do not repeatedly dispatch unchanged broken paths.
+This profile gate does not apply to profile-absent R0. No routine human "approve R1" prompt is needed.
+Before R2, require an explicit authorized repair list, regression selection and allowance, then perform one
+targeted confirmation on the committed candidate. Do not add unrelated fixes or retry the round until green.
 
-Select affected assertions plus justified neighboring regressions for fast iteration. Before accepting the
-complete declared scope, obtain a fresh-session confirmation of that scope on the final revision, not a union
-of unrelated old runs. A test-local correction retains both attempts; changing formal materials starts a new
-candidate/confirmation run.
+R1 covers the entire frozen checklist/inventory, including every required condition inside an assertion.
+Execute independent safely available conditions even when another condition fails or is blocked. Apply the
+[R1 completion gate](references/stopping-policy.md#r1-completion-gate), not merely a count of assigned verdicts.
+Only explicitly authorized later rounds use affected assertions plus neighboring regressions. A focused repair
+does not retroactively complete unfinished R1. Full final-revision confirmation, if needed for full-scope
+acceptance, is separately authorized work, not an automatic next round or a union of unrelated old runs.
+A test-local correction retains both attempts; changing formal materials starts a new candidate/run.
 
 After each run:
 
 1. Verify session, material/build identity, source integrity, coverage and restoration.
 2. Compare observations and explanations, not just PASS counts; review the tested snapshots and distinct
    subconditions, not later-edited profiles or different coverage denominators.
-3. Apply the explicitly chosen [stop/acceptance policy](references/stopping-policy.md).
-4. Either improve/commit and start a fresh Runner, ask for a concrete human decision, or stop with a truthful status.
+3. Check required round completion separately from the chosen [acceptance/further-iteration policy](references/stopping-policy.md).
+4. Restore/archive and exit at the round boundary; dispatch another round only under explicit authorization.
 
-If no convergence policy is selected, finish the authorized initial generation/improvement/confirmation sequence
-and return `needs-review` before starting further open-ended rounds. This pause is **not** profile acceptance.
+The [finite exit policy](references/stopping-policy.md#finite-exit-policy) governs R1 and authorized R2:
+PASS is not an exit prerequisite. Return confirmed repairs, unresolved findings, actual coverage and restoration.
+Report incomplete work honestly rather than continuing automatically or weakening the completion gate.
 
 ## Local commit and delivery discipline
 
@@ -415,6 +439,8 @@ Deliver:
 - Checklist/profile/helper paths and what the latest fresh run actually supports.
 - Checklist/profile format-contract identities and review receipts, separate from execution readiness.
 - Immutable report locations, per-assertion gaps and separate product findings.
+- Round coverage/completion, actual execution counts, unprocessed conditions and blocker causes; never just verdict totals.
+- Repair attempts/time, exhausted allowances and prioritized remaining work; no automatic continuation.
 - Visual candidates/accepted references with provenance and approval state.
 - Current workflow status and the selected stopping rule, or the unresolved decision.
 

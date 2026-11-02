@@ -63,7 +63,8 @@ the remaining operations without dropping checklist coverage.
    Check any product fixes or tool-version assumptions the test relies on against the selected target.
    Existing UI tests supply implementation knowledge, not a complete acceptance specification: retain the
    baseline/PR requirements and conditional matrices even when the automated suite covers only a subset.
-5. Confirm the adapted entry/operation/observation/restoration path in the authorized bounded run.
+5. Confirm the adapted entry/operation/observation/restoration path in its declared round: bounded R0 discovery,
+   full-inventory R1, or later targeted regression.
    Distinguish source implementation, an executed suite and repeatability evidence. Separate readiness polling
    from repeated gestures or process resets; retain available first-attempt outcomes, retries and cleanup
    failures. A green build or eventual test PASS is not proof of reliable first-attempt execution in this
@@ -75,19 +76,34 @@ or substituting direct window placement for the input path the checklist actuall
 
 ### R0 versus confirmation
 
+Use the [required round coverage and completion gate](stopping-policy.md#required-round-coverage);
+bounded discovery does not limit R1 to the same selection.
+
 - **Base check first:** use the published verification WIP and inspect existing module coverage.
   Missing shared recorder/inventory APIs in an old checkout are a baseline-selection problem,
   not a request to recreate the harness. Product-source freshness is checked independently.
 - **Before R0:** handle predictable cross-cutting requirements from the checklist: safe fixtures/data, cleanup,
   actual bits, desktop access and input integrity. A mature module profile is not required. Let R0 discover
   unknown controls/behavior through the generic engine; ordinary discovery must not become a new startup gate.
-- **Rapid expansion scope:** unless full verification was requested, start with entry, one core operation,
-  actual result and complete restoration. Retain the remaining inventory as unexecuted coverage; the bounded
-  run can establish an operating path, not full-module signoff.
+- **R0 scope and exit:** sample the distinct core input, observation and restoration mechanisms. Obtain real
+  operation/result evidence and verify restoration; opening the module alone is insufficient. Retain the full
+  inventory, record unexecuted conditions and known limits, and report partial discovery when core mechanics
+  remain unproven. Valid product FAIL evidence is useful; successful product behavior is not a prerequisite.
 - **When R0 finds a gap:** continue independent safe assertions, return the affected IDs and evidence, and let
-  the Author implement the missing reusable capability. Do not make the Runner rewrite tracked materials.
-- **Before R1 or a later confirmation:** address known, repairable blockers for the selected core scope.
-  Do not send the same incapable setup again and call repeated BLOCKED results "confirmation."
+  the Author prioritize repairs within the [approved limits](stopping-policy.md#diagnostic-and-repair-limits).
+  Do not make the Runner rewrite tracked materials or develop a new helper framework.
+- **Before R1:** review readiness across the entire frozen inventory, including conditional matrices outside
+  R0's sample. Address known fixture/helper/observer gaps within the repair allowance. Retain exhausted gaps
+  and continue safe independent cases, rather than making one small unresolved issue prevent all R1 coverage.
+  Do not send the same broken path again merely to repeat its BLOCKED result.
+- **R1 scope and exit:** process every assertion and matrix condition, actually execute all safely available
+  independent conditions, and verify restoration. Unprocessed work or unresolved infrastructure/specification
+  gaps means incomplete R1, not a completed full confirmation. Cite concrete evidence for external limits
+  and confirmed product dependencies; these remain assessed but unexecuted coverage.
+  Restore/archive and exit after the full pass by default, even if its completion gate was not satisfied.
+- **R2 scope and exit:** only when explicitly authorized, fix a selected issue batch within its allowance and
+  run one targeted confirmation with neighboring regressions. Restore/archive and exit with fixed, unresolved
+  or incomplete results; do not start R3 automatically or treat an all-green result as a prerequisite to stop.
 - A genuine external condition can remain deferred. Record it without deleting its assertion or silently
   declaring complete coverage. A specifically authorized diagnostic rerun can investigate a remaining gap,
   but is not proof that the profile is ready.
@@ -198,7 +214,9 @@ Layer: expectation / profile / helper / fixture / environment / report
 Concrete change and candidate commit:
 Profile format review: <profile/contract identities, conformance and remaining gaps>
 Mechanical checks completed:
-Fresh Runner confirmation scope:
+Repair batch/root IDs, approaches and diagnostic/repair time consumed:
+Remaining allowance, stop reason and deferred lower-value work:
+Fresh Runner round/scope: <R1: full frozen inventory; R2+: affected IDs and neighboring regressions>
 Remaining external conditions or decisions:
 ```
 
@@ -233,7 +251,12 @@ Use these to review an authoring iteration; they are not claims that this workfl
 | Drag-reorder is disabled but a Move menu exists | Test the menu and put that recipe in the profile |
 | Settings value saved, but downstream action never observed | Preserve the partial observation; do not PASS the compound requirement |
 | No accepted reference image exists | Capture candidate evidence; reference promotion and behavioral verification are separate |
-| R0 repeats one fixable blocker across many IDs | Fix that shared capability before R1 confirmation of those IDs |
-| Child operation is unreachable after a valid upstream product failure | Report one root finding and unobserved dependent coverage, not invented additional defects |
+| R0 repeats one fixable blocker across many IDs | Prioritize the shared repair within its allowance; retain remaining gaps and continue independent R1 conditions |
+| R1 selects only R0 failures or representative cases | Reject the reduced scope as full R1; retain the complete inventory and required matrices |
+| Every R1 row has a verdict but many conditions were never driven | Separate assessed from executed coverage and inspect blocker evidence; verdict assignment alone does not satisfy the completion gate |
+| A known fixture/observer defect leaves R1 cases blocked | Repair within the approved allowance or exit with incomplete authoring; do not relabel it as external or loop until green |
+| One minor point consumes the root/batch repair allowance | Stop that repair, preserve evidence and process other independent R1 conditions; no fresh allowance by renaming the issue |
+| R2 still reports a failure or blocked condition | Restore/archive and return the unresolved result; do not automatically modify again or dispatch R3 |
+| Child operation is unreachable after a valid upstream product failure | Retain the root finding and explicit unexecuted dependency; continue independent conditions without inventing extra product failures |
 | Profile has correct headings but mixes JSON paths with UI locators | Repair the contracted interaction/read-out separation before confirmation |
 | File helper cannot restore a required absent baseline | Implement/test suitable ownership-safe mechanics or keep the affected scope incomplete; do not fabricate a guard or pre-create the file to bypass the gap |

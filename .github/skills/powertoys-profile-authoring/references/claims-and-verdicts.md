@@ -103,6 +103,33 @@ Report total retained requirements, selected/eligible conditions, actual execute
 dependencies separately. Show scenario and assertion/subcondition denominators when grouping differs.
 Compare overlapping semantics before comparing raw PASS percentages.
 
+For R1, selection is the complete frozen inventory, not only eligible or previously failing cases. Include the
+following accounting in the existing report/Author review; do not create a new verdict schema or count a
+filled verdict row as proof of execution:
+
+| Measure | Required distinction |
+|---|---|
+| Total, assessed and unprocessed | Reconcile scenario/assertion IDs and required matrix conditions; a supported limitation is assessed, an untouched row is not |
+| Actually executed | Conditions with valid behavior observations, including real product FAILs; distinguish fully observed assertions from partial matrices |
+| Unexecuted by cause | External authority/hardware/safety limits, infrastructure/authoring gaps, specification decisions and confirmed product dependencies; retain IDs and evidence |
+| Execution coverage | Executed conditions divided by the full retained condition count, plus any separately labeled eligible-scope rate; never silently remove blocked conditions from the denominator |
+| Restoration and round status | Verified cleanup versus conflicts/unfinished recovery; R1 complete, full assessment with limits, or incomplete under the completion gate |
+
+Use the frozen inventory and its explicit matrix rows for these units; do not invent smaller assertions to
+inflate coverage. If an aggregate child's conditions are only partly observed, show that partial coverage
+rather than counting the entire child as executed. A valid product FAIL is useful execution evidence;
+checklist defects, driver errors, queued input and downstream unobserved dependencies are not.
+
+For example, 80 executed conditions and 20 evidenced hardware limits out of 100 means full assessment with
+80% actual execution, not "all 100 ran." If the other 20 lack a working observer, authoring remains incomplete
+instead of receiving the same external-limit exemption. Apply the
+[R1 completion gate](stopping-policy.md#r1-completion-gate) without manufacturing non-BLOCKED results.
+
+A diagnostic/repair budget or no-progress stop permits ending that work, not erasing its gaps or recategorizing
+them as external limitations. Report root/batch attempts and time, deferred work and the exit reason alongside
+the completion-gate outcome. Under the [finite exit policy](stopping-policy.md#finite-exit-policy), a finished
+R1/R2 session can still have incomplete coverage or unconfirmed repairs; neither forces another automatic round.
+
 Use the **archived tested input**, not merely the latest working profile. A profile edited after a run did not
 cause that run's outcome. Record both runtime and material differences: product hash, verification base, product-source revision, helpers/fixtures,
 privileges, desktop/DPI/locale, model/runtime, permitted evidence and any author assistance.

@@ -44,15 +44,21 @@ Record:
 | Material manifest | Relative path + SHA256 for the skill, profile or explicit absence, checklist, helpers, fixtures and references/assets used |
 | Product identity | Scenario/BITS contract, actual executable paths/versions/hashes, relevant commit/tag inclusion |
 | Environment/permissions | Host, Runner, module and foreground-fixture integrity; desktop/locale/DPI/display constraints; allowed state changes |
-| Scope | Core eligible assertions, additional conditional matrix, source-to-current mappings and any accepted visual references |
+| Scope | Round, full inventory identity/counts and matrix conditions; R1 selects all IDs, R0/R2+ record explicit selections; source mappings and visual references |
 | Executable foundations | Versioned helpers/fixtures, private backup/restore plan, mechanical validation receipts and remaining runtime checks |
+| Repair/exit policy | Approved root/batch limits and remaining counters; R1 exits by default, R2/later rounds require explicit authorization and selection |
 | Artifact locations | Where to write run output and its final archive |
 | Effective runtime policy | Existing tool/path permissions, task-authorized scope, model choice if supplied and applicable limits |
 
 Product source/tag and verification base are independent. If the authoring skill is loaded from another
 worktree, that supplies guidance only: do not inherit its sibling execution skill, helpers or old templates.
-For rapid authoring, identify the bounded entry/operation/restoration scope explicitly; a complete inventory
-can contain unexecuted children without the run claiming full-module signoff.
+Identify the [round coverage mode](stopping-policy.md#required-round-coverage) explicitly: R0 samples core
+mechanisms; R1 includes the full frozen inventory and every required matrix condition; R2+ may be targeted.
+Unavailable conditions stay in the inventory. Neither a bounded R0 nor a later subset counts as full R1.
+Before dispatching R1, compare its selection/counts with the frozen inventory and reject omitted IDs/conditions.
+Before dispatching R2 or later work, verify explicit task authorization and its fixed repair/regression scope;
+R1's remaining findings are not authorization. Transfer remaining budget counters neutrally, not Author
+hypotheses or private diagnosis transcripts.
 
 For the small verification skill, snapshot/hash its complete tree to avoid missing indirect references.
 If another skill/tool supplies an input, add that dependency rather than silently mixing versions.
@@ -77,7 +83,9 @@ Also check the Author's [executable foundations](execution-readiness.md). During
 observe existing processes and record planned fixture requirements; do not create a product state to fill a
 missing field. After authorization, verify the newly created fixture's actual identity/integrity before input.
 A discovered repairable gap returns to the Author rather than becoming a blanket environment failure.
-R0 still performs safe module discovery; R1 confirmation must not knowingly reuse an unresolved core prerequisite.
+R0 still performs safe discovery; prioritize known prerequisite gaps within the approved repair allowance.
+Do not repeatedly drive a known broken path. Keep unrepaired gaps explicit, continue independent R1 coverage,
+and report incomplete readiness without treating those gaps as external exemptions or commands to loop forever.
 
 In Copilot CLI, inspect available sources without running a test:
 
@@ -181,21 +189,25 @@ Fill this brief with concrete paths/IDs. Do not append "the Author fixed this; i
 Role: verification Runner, execution only.
 Phase: identity-only preflight; do not start product verification in this turn.
 Run/round: <id>
+Coverage mode: <R0 discovery / R1 full inventory / R2+ targeted regression>
 Module: <module>
 Working directory and candidate commit: <absolute path>, <sha>
 Input manifest: <manifest path and hash>
 Verification engine: <canonical SKILL.md path and hash>
-Checklist: <path and hash>; selected assertions: <ids>
+Checklist and inventory: <paths, hashes, revision, scenario/assertion counts>
+Selection: <ALL inventory IDs and required matrix conditions for R1; explicit IDs for R0/R2+>
 Module profile: <path and hash, or explicitly absent for initial discovery>
 Executable foundations: <versioned fixture/helper plan, preservation method, validation and runtime checks>
 Accepted visual references: <paths and provenance, or none>
 Product/BITS target: <identity to independently verify>
 Environment and authorized state changes: <scope from the user's workflow request and effective policy>
 Input integrity: <host/Runner/module identities and required foreground-fixture level; verify actual tokens>
-Coverage: <core eligible IDs and additional conditional matrix, retaining all source requirements>
+Coverage: <complete requirements, actual prerequisites and conditional matrix; never remove unavailable IDs>
 Privacy: <no private payload exposure; permitted local programmatic preservation and owned-data plan>
 Output workspace/archive: <paths>
-Resource/stop policy: <existing runtime limits, explicit user ceilings and bounded task scope>
+Resource/stop policy: <existing runtime limits, explicit user ceilings and declared round scope>
+Repair allowance: <root: 2 different approaches or 20 minutes; batch: 60 minutes; explicit overrides, batch/root IDs and remaining counters>
+Round exit: <R0: return discovery; R1: restore/archive/return; authorized R2: one targeted confirmation then return, no automatic R3>
 
 Return the actual session/cwd/revision/source-loading/BITS handshake and end the preflight turn.
 The Author checks this handshake automatically and sends the execution acknowledgment; do not request another
@@ -209,6 +221,13 @@ The engine's normal profile-maintenance instruction is assigned to the Author fo
 Run-local scripts are allowed, with source snapshots, exact calls, errors and cleanup evidence.
 Observe before judging. Preserve every required assertion and distinguish product, checklist, driver and
 environment problems. Continue independent eligible work when a conditional check is unavailable.
+For R1, process every inventory assertion and matrix condition and actually execute all safely available
+independent conditions. Do not stop after a sample, silently narrow scope or count assigned verdicts as execution.
+Give concrete evidence for unexecuted external conditions or product dependencies. Driver/observer failures
+remain infrastructure gaps. Prioritize traversing the inventory over deeply debugging one case: charge
+diagnostic corrections to the supplied allowance, record an exhausted/no-progress root and continue independent
+safe conditions. A local repair limit does not cancel the rest of R1. If a task-wide limit stops execution,
+archive remaining IDs and report R1 incomplete. Do not retry without a new hypothesis and discriminating observation.
 Non-empty clipboard/history is not itself a permission denial or inability: use the supplied tested local
 preservation plan without exposing its private payload. Do not improvise unsafe writes if that plan is missing.
 Before hotkey judgments, verify actual foreground ownership and compatible integrity; input acceptance alone
@@ -216,12 +235,16 @@ does not prove product delivery. Keep unsupported setup as a setup gap, not a pr
 Report normal and special conditions separately. Do not invent a defect in a dependent action that could not
 be reached. Missing accepted visual references does not forbid collecting valid candidate observations.
 Record and restore all owned mutations; stop dependent actions if restoration is uncertain.
-Return the archive and concrete observations/gaps, not an improved profile or expected PASS narrative.
+Reserve planned cleanup when a limit is reached; report unresolved recovery instead of attempting an unbounded
+repair experiment. At the R1 or authorized R2 exit boundary, restore/archive and return regardless of verdict
+colors; do not start another repair batch or round without explicit authorization.
+Return the archive, assessed/executed/unprocessed counts, blocker causes, restoration result and round
+completion status, not an improved profile or expected PASS narrative.
 ```
 
 The checklist necessarily supplies expected behavior; excluding the Author's context does not mean withholding
-the specification. Supply safe fixtures and known environment facts neutrally. For a targeted rerun, provide
-the selected assertions and current materials, not the preceding agent's answer key.
+the specification. Supply safe fixtures and known environment facts neutrally. For an explicitly authorized
+targeted rerun, provide the selected assertions and current materials, not the preceding agent's answer key.
 
 ## 5. Runner output and Author review
 
@@ -229,6 +252,9 @@ Require a durable result containing:
 
 - Actual session/dispatch identity, input provenance and BITS identity.
 - Per-assertion observations, verdicts or explicit unexecuted/dependent coverage.
+- Full inventory totals, assessed versus actually executed conditions, unprocessed IDs, blockers by cause
+  and partial matrix coverage; for R1, the [completion-gate outcome](stopping-policy.md#r1-completion-gate).
+- Root/batch diagnostic approaches and time consumed, remaining allowances, stop reasons and deferred work.
 - Actual eligibility/matrix conditions, helper/fixture gaps and measured input/environment prerequisites.
 - Exact commands, screenshots/recordings, original errors and run-local source.
 - Restoration receipts/conflicts, archive validation and post-run material hashes/diff.
@@ -237,7 +263,14 @@ Require a durable result containing:
 
 Reject stale/mismatched dispatch results and mutated input materials. Repeated identical delivery is not another
 confirmation run. Preserve invalid attempts as diagnostics, but do not count them toward convergence.
+Apply the [finite exit policy](stopping-policy.md#finite-exit-policy) independently of quality acceptance:
+an unmet gate does not authorize another round. Report unresolved findings and required authority/scope for
+follow-up instead of continuing until PASS.
 Review raw evidence before accepting a summary; fresh context reduces contamination, not all shared blind spots.
+For R1, reconcile every inventory ID and required matrix condition against execution evidence or an explicit
+supported limitation. A report that selected only a subset, merely filled rows with BLOCKED, or left unexplained
+NOT-OBSERVED conditions cannot establish completion. Apply the
+[coverage accounting rules](claims-and-verdicts.md#6-report-and-compare-like-for-like) without changing engine verdicts.
 The Author also checks the archived candidate profile against the recorded
 [format contract](module-profile-format.md#9-author-review-gate), not a later edited profile or older template.
 Keep format conformance, executable readiness and product findings separate. A profile-absent R0 has no
@@ -247,5 +280,6 @@ wording, incomplete conditions and comparison denominators. Keep a shared blocke
 so the Author can repair one capability rather than repeatedly documenting the same failure.
 
 If the Runner needs author coaching halfway through, either stop and record that gap, or label the continuation
-as **assisted diagnosis**. Do not count it as an unassisted fresh-session confirmation. Commit resulting material
-improvements and start another new session for the scored test.
+as **assisted diagnosis**. Do not count it as an unassisted fresh-session confirmation. Commit material changes
+before any authorized fresh-session confirmation; needing unassisted evidence does not itself authorize a
+further round.
