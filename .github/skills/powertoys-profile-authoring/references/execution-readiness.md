@@ -16,6 +16,7 @@ committed profile/helper/fixture. Send the Runner a neutral current plan, not th
 | Operation | Actual input path and observable effect; alternative supported routes |
 | State touched | Files, clipboard, history, windows, enabled state, processes, pins, temporary outputs |
 | Helper / fixture | Concrete implementation available at the candidate revision; no archived handles |
+| UI-test discovery | Reviewed test/helper and source revision when available, or searched locations/revision/access limits; reuse or fallback decision kept in Author records |
 | Validation | Test/probe receipt for the mechanism, including relevant failure/cleanup paths |
 | Runtime checks | What the Runner must independently confirm before using it |
 | Readiness | `ready`, `author-work`, `external-condition` or `spec-decision` |
@@ -28,6 +29,49 @@ not restore history, clipboard or user windows.
 Keep this execution-capability map separate from the [profile format review](module-profile-format.md#9-author-review-gate).
 Correct headings/table shapes do not make a missing operation ready; a source-based recipe is not a live
 observation. The profile must still conform to the format contract before a confirmation uses it.
+
+### Learn from existing UI tests
+
+Not every module has UI tests, and an existing suite may cover only some operations. Before designing profile
+recipes, adding input/observer helpers or declaring an operation unsupported, perform a bounded search and
+review relevant tests when available. Discovery is required; the existence of a suite is not.
+
+If none is found, record the searched locations/revision and continue from the baseline/PR requirements,
+target-product inspection, shared verification helpers and bounded live discovery. An unavailable source lookup
+is a different limitation, not proof that no tests exist. Neither case by itself makes module behavior BLOCKED
+or requires creating a UI-test project. For partial suites, reuse the covered flows and use this fallback for
+the remaining operations without dropping checklist coverage.
+
+1. Find the module's `*UITests*` projects, including sibling editor projects and `Tests` subdirectories.
+   Prefer current tests using `src\common\UITestAutomation.Next`, but inspect project references rather than
+   trusting the `.Next` suffix: some unsuffixed projects use it, while legacy suites use WinAppDriver/Appium.
+   If the candidate's product tree is older, also check current upstream read-only for newer or migrated suites.
+   Pin the inspected source SHA separately; do not merge newer product code into the verification baseline.
+   Distinguish no relevant test found from an unavailable lookup.
+2. Where relevant tests exist, follow their helper calls through setup, drive, readiness, result assertion and cleanup.
+   Identify which building blocks are winapp/UIA and which use native input, Win32 window queries or Shell APIs;
+   a winapp-based harness does not mean every action is a CLI command. Record useful fixtures, locators,
+   HWND/foreground/integrity/DPI guards, held-input ordering, waits, retries and observation limits in the
+   capability map. Keep source paths/symbols/revisions in Author inputs, not as required runtime fixture files.
+3. Reuse the operating technique through supported winapp commands and the candidate's shared verification
+   helpers. Do not copy a second generic input/recording framework or transplant C# wrappers as assumed APIs.
+   Translate isolated-CI assumptions into owned fixtures and verified restoration: process-name kills,
+   closing all Explorer windows, deleting user configuration, restoring defaults or assuming elevation are
+   not safe cleanup recipes on a shared desktop. Preserve declared regeneration/comparison exclusions.
+4. Match observations to the actual checklist claim and installed product. A UI test's cached value, zone
+   assignment or native property may prove less than a visible-output or timing assertion; inspect its limits.
+   Check any product fixes or tool-version assumptions the test relies on against the selected target.
+   Existing UI tests supply implementation knowledge, not a complete acceptance specification: retain the
+   baseline/PR requirements and conditional matrices even when the automated suite covers only a subset.
+5. Confirm the adapted entry/operation/observation/restoration path in the authorized bounded run.
+   Distinguish source implementation, an executed suite and repeatability evidence. Separate readiness polling
+   from repeated gestures or process resets; retain available first-attempt outcomes, retries and cleanup
+   failures. A green build or eventual test PASS is not proof of reliable first-attempt execution in this
+   environment. Do not import retry-until-green behavior or past PASS labels into a profile.
+
+For example, a window-drag test can teach controlled-window selection, grab-point ownership, mouse/modifier
+ordering and drop-result observation. Reuse those mechanics rather than declaring all dragging unsupported
+or substituting direct window placement for the input path the checklist actually requires.
 
 ### R0 versus confirmation
 
@@ -180,6 +224,11 @@ Use these to review an authoring iteration; they are not claims that this workfl
 | Old checkout lacks the current common helpers | Correct the verification baseline before authoring; do not reproduce the missing framework |
 | Current shared helper lacks a required guarantee | Improve that shared mechanism minimally with focused regressions; no module-local duplicate or guard bypass |
 | Target already has a profile/checklist/inventory | Refine gaps and retain existing IDs instead of generating replacement coverage |
+| No relevant module UI tests are found | Record searched locations/revision; continue source/shared-helper/live discovery without blocking authoring or requiring a new UI-test project |
+| Module UI tests already implement a difficult gesture | Trace the fixture/input/observer/cleanup chain and adapt it through shared verification helpers before adding another driver or declaring it unsupported |
+| Old product checkout lacks a newer UI-test suite | Inspect current upstream read-only and pin its source identity without changing the execution baseline |
+| Existing UI tests cover only part of the manual requirements | Reuse their operating knowledge without shrinking the full checklist/inventory |
+| A UI test is green after action retries or process resets | Keep retry/reset evidence separate; confirm the adapted flow rather than inheriting a reliability claim |
 | High-integrity fixture, medium-integrity Runner | Repair/validate the normal-user setup; do not conclude product hotkey failure |
 | Drag-reorder is disabled but a Move menu exists | Test the menu and put that recipe in the profile |
 | Settings value saved, but downstream action never observed | Preserve the partial observation; do not PASS the compound requirement |

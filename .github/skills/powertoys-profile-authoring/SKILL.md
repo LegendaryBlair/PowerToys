@@ -1,6 +1,6 @@
 ---
 name: powertoys-profile-authoring
-description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a module profile, expand missing coverage, or iterate from test results. Starts an isolated worktree from the freshly fetched published verification WIP, checks existing coverage, and separates the harness baseline from product evidence. Enforces functional checklists and shared inventory/profile contracts; reuses common helpers; validates bounded user-flow/restoration scopes in fresh Runner sessions; makes scoped local commits. Profile authoring is not full-module signoff. Uses powertoys-verification, not a new multi-agent framework."
+description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a module profile, expand missing coverage, or iterate from test results. Starts an isolated worktree from the freshly fetched published verification WIP, checks existing coverage, and separates the harness baseline from product evidence. Learns from repository UI tests where available; enforces functional checklists and shared inventory/profile contracts; reuses common helpers; validates bounded user-flow/restoration scopes in fresh Runner sessions; makes scoped local commits. Profile authoring is not full-module signoff. Uses powertoys-verification, not a new multi-agent framework."
 license: Complete terms in LICENSE.txt
 ---
 
@@ -65,7 +65,9 @@ run the full checklist when that is the declared execution scope.
 6. [Visual references](references/visual-references.md) before recording or promoting screenshots.
 7. [Stopping-policy brainstorm](references/stopping-policy.md) before authorizing repeated iterations.
 8. [Claims and verdicts](references/claims-and-verdicts.md) before finalizing the checklist or reviewing results.
-9. [Execution readiness](references/execution-readiness.md) before dispatch and when repairing a run's blockers.
+9. [Execution readiness](references/execution-readiness.md), including
+   [UI-test discovery and conditional reuse](references/execution-readiness.md#learn-from-existing-ui-tests) before designing
+   recipes/helpers; revisit before dispatch and when repairing a run's blockers.
 
 The verification skill loaded from the current chat is **not evidence** that a later Runner loads the same
 version. Read and attest the actual Runner worktree files.
@@ -84,6 +86,7 @@ Keep this skill's format contract and the selected WIP guidance consistent; reso
 | Product target | Installed artifact or authorized build/sideload; actual version/path/hash and inclusion proof |
 | Verification base | Refreshed published verification-WIP remote/ref/full SHA, author branch/worktree |
 | Product evidence base | Tested artifact identity plus matching source tag/commit and relevant PR cutoff; independent of the verification base |
+| UI-test discovery | Reviewed tests/helpers and reuse limits when available; otherwise searched locations/revision or access limits and the source/live-discovery fallback |
 | Checklist format | Loaded checklist-format contract path/hash; functional prose and matching assertion inventory |
 | Profile format | Loaded format-contract path/hash and applicability of its conditional sections |
 | Runner scope | Assertion IDs, environment, task-authorized fixture/state changes and artifact location |
@@ -101,6 +104,7 @@ Do not convert silence into an unlimited loop or an invented convergence thresho
 ```text
 fresh published-verification-WIP author branch
   -> existing-coverage check: create missing material or refine existing material
+  -> UI-test discovery: reuse relevant tests if present; otherwise source/live discovery
   -> checklist/inventory + input checkpoint
   -> fresh Runner R0 (bounded entry/operation/restoration scope unless full scope was requested)
   -> initial evidence-derived profile + local commit
@@ -151,8 +155,15 @@ invisible refresh. A current harness does not imply current product source: insp
 matching source/PR inputs separately. Source from a newer build cannot define the installed build's behavior.
 Keep that provenance in Author/run inputs, not as a required source-path list in reusable fixture instructions.
 
+Before designing module operations or declaring an automation path unsupported, perform bounded
+[UI-test discovery](references/execution-readiness.md#learn-from-existing-ui-tests). Not every module has UI tests:
+review relevant suites when available; otherwise record the search and continue with source inspection,
+shared helpers and bounded live discovery. Existing tests are neither a prerequisite for authoring nor a
+replacement for the full checklist or proof of current readiness.
+
 **Output:** verification ref/SHA, author branch/worktree, initial status, create/refine decision and separate
-product-evidence identity. Start the next module from the then-current published WIP, not this module's branch.
+product/UI-test evidence identities and reuse decisions. Start the next module from the then-current
+published WIP, not this module's branch.
 
 ### 1. Generate the checklist
 
@@ -225,6 +236,9 @@ source/PR mapping retained in the Author/input records.
 
 ### 1a. Prepare executable foundations
 
+Where relevant UI tests exist, use their reviewed flows to select fixtures, input sequences, readiness signals
+and result observers. Otherwise derive these from target-product inspection and bounded live discovery.
+Use the candidate engine's ownership/restoration contracts in either case, not a second test harness.
 Build the small [capability map](references/execution-readiness.md) for the selected scope: affected IDs,
 actual helper/fixture, state touched, validation receipt and remaining runtime conditions. This is **Author
 work, not a new user approval gate**. Inspect and reuse the candidate's common input, UIA, capture, file,
