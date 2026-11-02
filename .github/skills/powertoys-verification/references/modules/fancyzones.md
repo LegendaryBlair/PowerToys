@@ -2,7 +2,7 @@
 
 ## Module facts
 
-**Maturity:** source/UI-test-derived discovery draft, not live-confirmed or accepted.
+**Maturity:** initial discovery profile; entry paths observed, broader flows need confirmation.
 
 | Fact | Value |
 |---|---|
@@ -79,7 +79,7 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
 |---|---|---|---|
 | Navigate Settings | Borrowed rail | AutomationIds `WindowingAndLayoutsNavItem`, `FancyZonesNavItem` | Expand/select; verify page |
 | Set enablement | FancyZones page | AutomationId `EnableFancyZonesToggleSwitch`, TogglePattern | Resident [lifecycle adapter](../module-lifecycle.md) |
-| Launch editor | Enabled page | Button AutomationId `LaunchLayoutEditorButton` | Invoke; observe main landmarks |
+| Launch editor | Enabled page | Button AutomationId `LaunchLayoutEditorButton` | Physical CLI click; this Settings peer may lack InvokePattern. Observe main landmarks |
 | Edit shortcut | Unique setting row | Scoped ShortcutControl button | [Recorder](../shortcut-recorder.md): Save/Cancel/Reset, then physical binding |
 | Set options | Expanded setting row | Typed toggle/combo/edit/numeric peer in fresh tree | Supported Toggle/Select/SetValue; commit focus-dependent edits |
 | Select monitor | Editor main | AutomationId `Monitors`, actual monitor child | Click; read selection |
@@ -109,12 +109,36 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
   GDI can omit layered content. Check capture-induced focus changes and privacy.
 - CLI/Palette queries can write `editor-parameters.json`. Persistence is not runtime behavior.
 
+### Interaction recipes
+
+- On winapp 0.7.1, `--root` scopes search/read operations, not `invoke`. Resolve a unique
+  typed control through `Resolve-PtUiElement` (optionally `-WithinAutomationId`), then use
+  its actual UIA pattern, or search for the unique runtime selector before a CLI action.
+  New-layout PrimaryButton/SecondaryButton are exposed under the main HWND; the source
+  dialog name is not necessarily a realized UIA container.
+- Every coordinate click/drag needs its exact surface `-w` target. Native window bounds
+  are `Rect.Left/Top/Right/Bottom`, not `Left/Width`; compute size and hit-test the actual
+  owned geometry surface. Do not copy previous-run coordinates or monitor-size thresholds.
+- Pass callback data with `Invoke-PtVerificationCase -ArgumentList` and explicit callback
+  parameters. Do not close over `$kind`: the recorder's `Kind=Normal` can shadow that
+  variable and turn a grid/canvas control ID into `NormalLayoutRadioButton`.
+- Before normal editor/fixture exit, use `Register-PtCreatedProcessWindows -Creation`
+  to discover later siblings without duplicate registration. Cancel the owned geometry
+  draft on its separate toolbar first. An activation that fails before dispatch must
+  not be represented as a successful process creation.
+- For scoped capture, resolve an actual typed element and fresh unique selector first.
+  Never accept whole-editor fallback when the requested region was an owned dialog/control.
+  Keep rejected captures as private diagnostics, not accepted visual evidence.
+- Invoke recorded driver files with `pwsh -NoProfile -File` and explicit arguments.
+  Keep CLI identity probes simple; comma-separated argument expressions and call-operator
+  commands can require manual parser review. This does not authorize bypassing a denial.
+
 ## Troubleshooting
 
 | Symptom / condition | Diagnose / recover | Interpretation boundary |
 |---|---|---|
 | Trigger closes editor | Check existing lifetime before signaling | Toggle success is not launch/binding proof |
-| Main/Save controls missing | Distinguish main, preview, surface and toolbar HWNDs | Wrong-window lookup is not product failure |
+| Main/Save controls missing | Distinguish main, preview, surface and toolbar HWNDs; resolve fresh typed UIA peers | Wrong-window lookup or unsupported CLI options are not product failure |
 | Drag without zones | Check move loop, token/foreground, exclusions/options; use owned Explorer | Input acceptance is not delivery |
 | Saved but inactive layout | Compare definition, assignment and geometry before restart | Storage and runtime are separate |
 | Bare digit fails | Check version and legacy-review condition | Conflicting claims need resolution |
@@ -133,7 +157,7 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
 | Owned layouts/defaults/digits | Authoring/switching | Unique UUIDs; original assignments | UI semantics then guarded files | Additions absent; originals retained |
 | `New-PtExplorerFixture` | Drag/snap | Case-owned folder/HWND; process borrowed | `Remove-PtExplorerFixture` | HWND/folder gone; desktop restored |
 | `Show-PtDesktopFixture.ps1` | Input/multiple windows | `Start-PtOwnedProcess`; register siblings | Normal `Stop-PtOwnedProcess` | Process/windows absent; layout restored |
-| Editor/previews | Editor flows | Declared activation; existing editor borrowed | Settle drafts; owned normal close | Owned process/previews absent |
+| Editor/previews | Editor flows | Declared activation; existing editor borrowed | Cancel draft; register new siblings once; owned normal close | Owned process/previews absent |
 | Palette/provider/dock | Extension | Existing provider borrowed; test pin owned | Restore navigation/pin; owned normal exit | Original dock/identities; no survivor |
 | Isolated specialist fixture | Display/desktop/policy/upgrade | Authority and complete baseline | Fixture-specific recovery | Original topology/desktop/registry |
 

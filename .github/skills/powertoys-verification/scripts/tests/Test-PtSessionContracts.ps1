@@ -118,6 +118,44 @@ Check 'Receipt and immutable baseline edits fail before further mutation' {
     [IO.File]::AppendAllText($session.BaselinePath,' ')
     Reject {Register-PtBorrowedWindow (Get-PtWindowIdentity 10)} 'baseline was altered'
 }
+Check 'Owned sibling discovery is repeatable and registers later windows before cleanup' {
+    $run=Session
+    $creation=Start-PtOwnedProcess fixture.exe
+    Native 21 $creation.ProcessId|Out-Null
+    Native 22 $creation.ProcessId|Out-Null
+    Register-PtCreatedProcessWindows $creation|Out-Null
+    $again=Register-PtCreatedProcessWindows $creation
+    Require ($again.Registered -eq 0 -and $again.Existing -eq 2) 'Repeated discovery registered the same HWND twice'
+    Native 23 $creation.ProcessId|Out-Null
+    Register-PtCreatedProcessWindows $creation|Out-Null
+    Require (@((Get-PtActiveResourceSession).Windows).Count -eq 3) 'Later owned sibling was omitted or duplicated'
+    Assert-PtWindowRelease (Get-PtWindowIdentity 21)
+}
+Check 'Sibling discovery preserves mismatched and closed ownership records' {
+    $run=Session
+    $creation=Start-PtOwnedProcess fixture.exe
+    $identity=Native 21 $creation.ProcessId
+    Register-PtCreatedWindow $identity $creation|Out-Null
+    $session=Get-PtActiveResourceSession
+    $session.Windows[0].Creation='another-creation';Save-PtResourceSession $session
+    Native 22 $creation.ProcessId|Out-Null
+    Reject {Register-PtCreatedProcessWindows $creation} 'different or closed ownership'
+    Require ($session.Windows.Count -eq 1) 'Conflicting ownership allowed new registrations'
+    $session.Windows[0].Creation=$creation.Id;$session.Windows[0].Closed=$true
+    Save-PtResourceSession $session
+    Reject {Register-PtCreatedProcessWindows $creation} 'different or closed ownership'
+    Require $session.Windows[0].Closed 'A closed HWND record was silently reopened'
+}
+Check 'Sibling discovery rejects reused process identities and tolerates actual exit' {
+    $run=Session
+    $creation=Start-PtOwnedProcess fixture.exe
+    Native 21 $creation.ProcessId|Out-Null
+    $script:processes[$creation.ProcessId].StartTime=[datetime]'2026-02-01T00:00:00Z'
+    Reject {Register-PtCreatedProcessWindows $creation} 'Process identity changed'
+    Require ((Get-PtActiveResourceSession).Windows.Count -eq 0) 'Reused process acquired window ownership'
+    $script:processes.Remove($creation.ProcessId)
+    Require (Register-PtCreatedProcessWindows $creation).AlreadyExited 'Exited process was not recognized'
+}
 Check 'Clipboard owner/writer release is gated, restored guards clear it, resume retains unresolved data' {
     $run=Session;$guard=[pscustomobject]@{Restored=$false}
     Add-PtClipboardObligation $guard 10
