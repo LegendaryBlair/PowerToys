@@ -1,6 +1,6 @@
 # Power Display fixture boundaries
 
-Use the [shared template](../templates/verification-run.ps1), unchanged frozen
+Use the [shared template](../templates/verification-run.ps1), candidate's frozen
 [inventory](assertion-inventories/power-display.json), [resource session](session-safety.md)
 and [cleanup plan](session-safety.md#cleanup-dependencies). This guide supplies preparation,
 not a hardware simulator, lifecycle replacement or preassigned verdict.
@@ -29,6 +29,24 @@ For normal interactive checks, independently probe host, module and foreground-f
 integrity with `Test-PtAdmin`/`Test-ProcessElevated`. Verify exact HWND/path/session
 and current geometry with the [desktop/input helpers](helper-workflow.md).
 Remote display presence is not DDC/CI or WMI capability evidence.
+
+## Module data read-outs
+
+Module `settings.json` fields under `properties` include `activation_shortcut`,
+`monitor_refresh_delay`, `mouse_wheel_increment`, `mouse_wheel_control_mode`,
+`restore_settings_on_startup`, `max_compatibility_mode`, `show_system_tray_icon`,
+`show_profile_switcher`, `show_identify_monitors_button`, `linked_levels_active`,
+`excluded_from_sync_monitor_ids`, `monitors` and `custom_vcp_mappings`.
+Use actual typed shapes, not assumed `.value` wrappers.
+
+CLI `list --json` exposes `monitors`, including `[]`; "No monitors detected" in the
+flyout and "No monitors discovered." in CLI are equivalent empty-state captions.
+Neither establishes physical discovery completeness. `get` without a selector reads
+all monitors; selector-missing rejection applies to set/up/down. Target resolution
+precedes range validation, so an absent target can return exit 1 instead of range exit 2.
+Provider absence is exit 10, parse rejection exit 7; JSON errors belong on stderr.
+Keep exact streams for both missing-value flag positions in the checklist: an exit code
+alone does not establish structured output. Help/version remain human-readable.
 
 ## Files and hardware
 
@@ -74,9 +92,250 @@ it is not a universal independent DDC oracle. The shared harness has no automati
 OSD, safe input-switch rescue, fault injection or hardware rollback adapter. Defer those
 conditions until the actual fixture exists. Do not write settings to simulate support.
 
+## WMI brightness
+
+Load `scripts\pt-power-display.ps1` from this candidate. Its read-only
+`Get-PtPowerDisplayWmiBrightness -MonitorId $monitorId` queries `root\WMI`,
+`WmiMonitorBrightness`; it does not read the app's cache or change hardware.
+Resolve `$monitorId` privately from the actual CLI `list --json` WMI entry and the
+corresponding UI monitor. The helper maps the complete WMI instance, including its PnP
+UID, to the device-path identity. Same EDID/model is not enough. Missing, inactive,
+ambiguous or failed reads stop dependent hardware input; zero is a valid observation.
+
+1. Before module activation, capture all potentially affected hardware independently.
+   If the app is stopped, enumerate WMI privately and use
+   `ConvertTo-PtPowerDisplayMonitorId -InstanceName $instanceName` for each actual instance;
+   bind it to app discovery after launch. Do not select the first panel.
+2. Keep the returned baseline and advertised `Levels` privately. Choose a safe distinct
+   supported level, not a hard-coded initial value. Record linking/exclusions and restore
+   any changes to them; a linked or hidden individual slider is not an eligible target.
+3. In the exact monitor card, resolve the local Brightness Slider and current bounds.
+   For keyboard coverage, focus that slider and send an arrow through the shared guarded
+   input route. Mouse coverage uses the supported winapp drag syntax from the pinned
+   tool help. Release the gesture before observing the commit; RangeValuePattern writes
+   do not substitute for mouse, keyboard or touch input assertions.
+4. Sample the same WMI instance after the action, with timestamps and the actual UI value.
+   Preserve readings when the requested value is not reached, not just an expectation
+   timeout. Bound observation without repeating the gesture. A stable old value remains
+   an actual observation, not an instruction to keep trying until success.
+5. Restore the original level through the supported UI while the control is available;
+   independently reread the same instance. If this path fails, stop further mutations
+   and retain the recovery record; this helper provides no hardware-write rescue.
+
+Inside a recorded step, assign private results rather than emitting them. Here `$skill`
+is the candidate engine, `$monitorId` the privately resolved identity, and `$panelAlias`
+an owned report label:
+
+```powershell
+. "$skill\scripts\pt-power-display.ps1"
+$hardwareOriginal = Get-PtPowerDisplayWmiBrightness -MonitorId $monitorId
+# Persist hardwareOriginal privately before the first hardware-affecting action.
+$hardwareAfter = Get-PtPowerDisplayWmiBrightness -MonitorId $monitorId `
+    -ExpectedInstanceName $hardwareOriginal.InstanceName
+[pscustomobject]@{
+    Panel = $panelAlias
+    Before = $hardwareOriginal.Brightness
+    After = $hardwareAfter.Brightness
+    ObservedUtc = $hardwareAfter.ObservedUtc
+}
+```
+
+The two reads bracket an explicitly recorded action; the snippet itself performs none.
+Keep monitor IDs/instance names out of command transcripts and shared detail objects.
+DDC contrast/volume/native-range checks need a different independent oracle, including
+the feature's native range and quantization. WMI percent readings cannot certify them.
+
+## Flyout footer and hidden owner
+
+Resolve the visible content HWND with `SettingsBtn`, not the first same-class WinUI host.
+The refresh opener is the ordinary Button immediately left of `SettingsBtn` in the
+right-side footer. Corroborate current tree, nonoverlapping physical bounds and refresh
+glyph/tooltip. Exclude the `LinkLevelsToggle` ToggleButton and left-side `ProfilesButton`.
+The empty-flyout shortcut of finding a unique unnamed Button is not valid window-wide
+once other controls exist. Invoke only after the scoped candidate is unique, then confirm
+the popup contains `RefreshButton` before invoking Refresh once.
+
+Discovery can finish while focus loss has hidden the main window. Check process identity,
+native visibility and settled CLI discovery separately. If resident, reopen through the
+chosen ordinary entry route and resolve current controls; do not restart or refresh again.
+After selecting a profile, similarly observe picker closure and actual parent visibility
+instead of assuming the parent remains visible. Passive capture must not refocus it.
+
+## Owned monitor profiles
+
+Prepare file/hardware baselines, a real discovered monitor and collision-checked owned
+names. Expand the Settings Profiles section. Resolve the Add profile Button from its
+actual Text/Button relationship; an enabled button alone does not establish editor
+availability. Wait for the owned modal, enabled `ProfileNameTextBox` Edit and its monitor
+rows. A missing monitor list is not permission to synthesize profiles.json.
+
+For a new draft, set the name through the exposed Edit ValuePattern, read it back, and
+select the exact monitor ToggleSwitch. Within that monitor's field card, toggle the
+Brightness inclusion CheckBox and set its enabled Slider; monitor selection, field
+inclusion and numeric value are separate controls. Resolve other supported fields within
+their own cards rather than choosing a window-wide Slider. Inspect Save enablement after
+the edits. Save uses the owned dialog's `PrimaryButton`; Cancel uses `CloseButton`.
+Wait for dialog closure, then read the file through `Read-PtSharedFileText`.
+
+The persisted shape is `profiles[]`, with `id`, `name`, `createdDate`, `lastModified` and
+`monitorSettings[]` (`monitorId`, nullable brightness/contrast/volume/colorTemperature).
+Display order is **array order**, not an `order` property. Capture pre/post IDs around one
+UI creation; attribute only its new positive ID to the run. Preserve `nextId` as part of
+the private file baseline, not a counter to reset during product testing.
+
+Use the read-only selector on a fresh parsed file, with `$ownedIds` from those creation
+receipts, `$profileId` the requested owned ID and `$profilesPath` the installed data path:
+
+```powershell
+$profileFile = ConvertFrom-PtReportJson (Read-PtSharedFileText -Path $profilesPath)
+$ownedProfile = Get-PtPowerDisplayOwnedProfile -Profiles @($profileFile.profiles) `
+    -Id $profileId -OwnedIds $ownedIds
+$displayName = '{0} (#{1})' -f $ownedProfile.name, $ownedProfile.id
+```
+
+Resolve that full current display label inside `ProfilesList`, corroborating
+`ProfileApplyButton`/`ProfileMoreButton` HelpText on the same row. The formatter above is
+for the observed positive-ID label; inspect the current localized label before input.
+Do not locate by bare name or array index. After rename/reorder, discard the previous
+UIA element/selector and read the row again.
+
+| Operation | Drive and commit | Independent read-out |
+|---|---|---|
+| Edit/rename | Owned row More > Edit; confirm prefilled editor; Save or Cancel | Same `id`/`createdDate`; compare all selected fields, not just the visible name |
+| New/edit Cancel | Change an owned draft, then editor Cancel | Original file existence/content and no committed draft; retain unrelated concurrent writes as conflicts |
+| Duplicate names | Create a second owned row with the same name | Distinct positive IDs and two full display labels |
+| Delete | Owned row More > Delete; confirm dialog identifies that full label | Profile dialog uses Delete/Cancel, not mapping Yes/No; cancellation preserves it, confirmation removes only that ID |
+| Settings apply | Invoke `ProfileApplyButton` in the owned row | Independent included-field hardware read, plus omitted/unrelated targets where available |
+| Flyout apply | `ProfilesButton` > `ProfilesListView`; select exact full label | Selection applies immediately; no second Save. Observe popup/host separately from physical effect |
+
+Empty-name/no-included-field validation uses the editor's actual disabled Save state;
+do not force Invoke on a disabled button. Included-field success on one WMI panel does
+not cover omitted supported fields, unrelated monitors or preserved unavailable contents.
+
+## Profile order and consumers
+
+Create three owned profiles through the preceding recipe. Record the full original array
+order privately and compare each owned profile's ID, creation time and monitor contents.
+Resolve the middle owned row More > Move up/Move down; verify enabled menu state, invoke
+once, then wait for persisted array order. There is no separate Save action.
+
+For ordinary-process drag, use the same row's realized drag-handle bounds and an observed
+destination inside `ProfilesList`. Check the pinned winapp drag command before input;
+do not invent flags or use menu movement as drag evidence. Reopen the page and re-read
+both ordered IDs and unchanged contents. Keep the elevated menu/disabled-drag condition
+separate; do not elevate Settings to obtain an ordinary-input result.
+
+Read consumer order independently from the flyout, CLI `profiles`, and both Light Switch
+pickers. Disabled companion pickers leave their rows unobserved, not implied by the other
+consumers. Restore original associations before deleting owned profiles and restore the
+relative order of all original rows, not just the owned subset.
+
+## Conditional integration recipes
+
+The following recipes define source-grounded preparation and observation, not completed
+live confirmation. Use them only when their original-state and recovery requirements can
+be met with the existing helpers. Otherwise retain the exact missing condition; do not
+add a module-local replacement for a missing shared capability.
+
+### Light Switch integration
+
+Preserve original companion enablement/process/window state, Settings navigation,
+`LightSwitch\settings.json`, its schedule, shortcut, profile enable flags/IDs, Windows
+app/system themes and Power Display hardware before enabling or configuring anything.
+An active schedule or other theme writer needs an authorized, reversible isolation plan.
+Do not stop unrelated utilities or claim a full companion baseline from one JSON snapshot.
+
+1. Create two owned profiles with independently attainable, distinct safe hardware values.
+   In Light Switch's Apply monitor settings expander, locate the dark/light CheckBoxes
+   and each adjacent ComboBox in its own card. The source property names are not
+   AutomationIds; inspect actual captions and supported patterns.
+2. Enable the two associations through UI and select the owned full display labels.
+   Confirm `properties.enableDarkModeProfile.value`, `enableLightModeProfile.value`,
+   `darkModeProfileId.value` and `lightModeProfileId.value` in the private file.
+   Legacy name properties are not the current identity oracle.
+3. Read the actual current theme and configured Light Switch shortcut. Drive two successive
+   physical shortcut transitions with compatible foreground/integrity; after each, read the
+   theme and exact panel hardware. A direct named event is only downstream diagnosis.
+4. Rename/reorder an associated owned ID, re-resolve both pickers, then repeat the relevant
+   transition. For deletion coverage, delete only an assigned owned ID and observe reference
+   clearing; never assign/delete a user's existing profile as the fixture.
+5. Restore associations and profile-enable flags before removing other owned profiles.
+   Restore schedule, shortcut, original companion lifetime and themes; then verify hardware
+   again because theme restoration itself can apply a profile. Restore original files only
+   through attributed, quiescent guarded rollback.
+
+### Differential startup restoration
+
+Preserve independent hardware originals before starting the module and include the actual
+module lifecycle and sidecar files in the resource plan. Select a safe supported field;
+configure the restore option through Settings, not JSON.
+
+1. Through Power Display set a safe value A, confirm it independently, and wait for the
+   same monitor's `monitor_state.json` entry to contain A. Exit through the actual tray
+   Exit route and confirm that process is gone and the saved value remains A.
+2. With the module stopped, set a distinct safe value B through Windows brightness UI
+   for a WMI panel, or the authorized physical OSD route for the selected DDC fixture.
+   Independently read B and confirm the stored A has not changed. Do not use the Power
+   Display CLI/UI for this step: it can update the very saved value being tested.
+3. Start through the declared entry route. Observe independent hardware over discovery
+   and settling, retaining timestamps. Evaluate the off/on conditions from the checklist;
+   do not use initial UI placeholders as the observation.
+4. Re-establish A and B independently for the other option. Keep the run-original baseline
+   separate from these case baselines, and finish by restoring the original option,
+   hardware, logical lifetime and guarded file state after all final startup writes.
+
+For final-save coverage, make the final edit and use tray Exit without deliberately
+waiting for a debounce save first; inspect storage after exit. A termination event or
+forced kill does not prove the normal shutdown flush. Null/zero and failed-initial-read
+conditions still need their isolated/instrumented fixtures; A-versus-B alone cannot cover them.
+
+### Theme surfaces
+
+Keep a table of PowerToys General theme, Windows app theme, Windows system theme and actual
+Settings/flyout/profile-editor/mapping-dialog presentation. Preserve the affected original
+values and windows before using their ordinary UI controls; no registry-write shortcut
+substitutes for the Settings operation.
+
+For each required light/dark surface, change the relevant theme source, observe existing
+and freshly opened owned surfaces, and record which source actually affected it. Keep
+PowerToys theme changes separate from Windows app-theme changes. A Settings recolor is
+not flyout/dialog coverage; source inference is not proof of rendered colors.
+If Light Switch is active, use its separately preserved fixture or defer the affected
+condition to avoid unintended profile/hardware changes. Cancel owned dialogs, restore
+both theme sources and re-observe original surfaces/hardware. Locale changes require the
+separate full-Runner/companion preservation contract; do not bundle them into this recipe.
+
+## Condition recording
+
+Use the compact matrices in the [checklist](release-checklist/power-display.md) as the fixed
+row definitions. Expand only their declared dimensions, with report-local monitor aliases.
+Record each row under its existing child ID using `Add-PtVerificationObservation -Attempt
+$attempt -AssertionId $assertionId -Actual $summary -Detail $row`; `$attempt` must belong to
+that child's current item and actual producing attempt.
+
+`$row` is a privacy-safe observation object with a matrix row key, dimensions, actual
+pre/action/post observations, observer, unmet prerequisites and evidence references. It is
+not an inventory schema extension or a second verdict engine. Keep preflight and cleanup
+observations in their proper contexts; never attach one item's action to another child.
+Review all declared conditions before the existing child judgment. Missing rows remain
+explicit; partial WMI coverage cannot pass a compound clamp, scroll or consumer requirement.
+Retain an upstream failure and unobserved dependent conditions separately.
+
 ## Process and UI ownership
 
 ### Borrowed Runner and Settings
+
+Native window geometry is `Rect.Left/Top/Right/Bottom`, not top-level Width/Height.
+Compute dimensions from those edges. If launching Settings, record actual brokered
+activation: the initial Settings launcher may exit and Runner create another PID.
+That launcher is not proof of ownership of the resulting Settings main.
+
+For adaptive navigation at the current DPI, preserve native placement before paired
+widening/maximization, capture the realized Settings snapshot before navigation, and
+restore placement after Settings cleanup. A collapsed/unexposed rail is not a missing page.
+When the coordinator is elevated, prepare an owned ordinary foreground before the Medium
+worker and verify token, guarded activation and pointer round trip. Do not elevate the
+worker, bypass guards or infer that CLI autopilot changes Windows foreground/UIPI rules.
 
 For a broader run, discover current lifetimes again: an earlier stopped baseline does not
 authorize stopping a Runner or module the user has since started. Declare the actual main
@@ -175,6 +434,42 @@ are distinct from the deletion dialog's Yes/No. After either closes, observe dis
 before resolving another row. Confirm actual persisted owned data after each commit;
 do not capture unrelated names or infer that a manual mapping changed absent hardware.
 
+### Module restoration receipts
+
+The module driver must persist its original receipts before the first UI/input operation,
+not only keep them in controller variables. Use a private, non-synced recovery directory
+outside the shareable run/archive. Keep its file identities/hashes and phase in the
+declared resource plan; do not put private snapshots in `Add-PtVerificationObservation`.
+
+For the original foreground layout, after loading the existing desktop/layout/report
+helpers, `$privateRecoveryRoot` is that already prepared private directory:
+
+```powershell
+$layoutPath = Join-Path $privateRecoveryRoot 'power-display-original-layout.json'
+if (Test-Path -LiteralPath $layoutPath) { throw 'Existing baseline: resume from it, do not recapture.' }
+$originalTarget = Get-PtWindowIdentity -Hwnd (Get-PtForegroundWindow).hwnd
+$originalLayout = Get-PtKeyboardLayoutSnapshot -Target $originalTarget
+Write-PtReportText -Path $layoutPath -Text (ConvertTo-Json $originalLayout -Depth 10)
+$savedLayout = ConvertFrom-PtReportJson ([IO.File]::ReadAllText($layoutPath))
+if ($savedLayout.Layout -ne $originalLayout.Layout -or
+    $savedLayout.Target.processStartTicks -ne $originalLayout.Target.processStartTicks) {
+    throw 'Original layout receipt did not round-trip.'
+}
+```
+
+Persist actually observed owned post-layouts separately when they occur. On continuation,
+verify receipt hashes and original identity, then load with `ConvertFrom-PtReportJson`;
+do not replace a missing original with the current layout. Outer coordinator, focus
+fixture and Runner baselines have distinct owners and must not overwrite one another.
+This is caller wiring, not a generic controller-recovery implementation; unknown IME
+state or a vanished target remains outside the shared thread-layout guarantee.
+
+Restore the shortcut through `Restore-PtShortcutSnapshot` while the page/editor is enabled,
+including its UI HelpText comparison. Verify its actual activation before returning the
+module to an originally disabled state. Do not schedule another shortcut UI restore after
+disable; later file comparison is read-only. If a changed binding can no longer be restored
+through an authorized live editor, retain that failure rather than bypassing shared checks.
+
 ### Launch-owned standalone instance
 
 Declare the exact installed GUI as an owned `Process` resource with a `Quiesce` restore
@@ -205,7 +500,8 @@ plan instead of rebuilding a semantically similar hashtable with different prope
 
 1. Finish/cancel owned drafts. Restore hardware through the same safe user-facing route
    while its controls are available; independently verify the original physical values.
-2. Restore UI options and profile/mapping semantics. Restore complete clipboard formats
+2. Restore profile associations/order, shortcut binding/UI and other option/mapping semantics
+   before disabling their controls. Restore complete clipboard formats
    before releasing its owner if a copy case ran; use the [shared keeper](clipboard-guard.md).
 3. Exit only owned writers through their shipped shutdown action, then capture their
    attributable post-state. Retain all launch/exit errors and unexpected recovery markers.
@@ -216,10 +512,10 @@ plan instead of rebuilding a semantically similar hashtable with different prope
    `Restore-PtSettingsUiSnapshot`, then restore the original desktop. For a normal visible
    original Settings window, the template later checks the same state without refocusing.
    Require that no-op condition; hidden/minimized originals need separate preservation work.
-6. After these last UI/foreground writes, call `Restore-PtKeyboardLayoutSnapshot -Snapshot
-   $originalLayout -ExpectedLayout $knownOwnedLayouts` and independently read back the original
-   again. Capture the original before the first fixture and the owned layouts when actually
-   observed; never accept an unexplained current layout as an expected value. Do not use the
+6. After these last UI/foreground writes, load the original from its private receipt and call
+   `Restore-PtKeyboardLayoutSnapshot -Snapshot $originalLayout -ExpectedLayout $knownOwnedLayouts`.
+   Independently read it back again. A lost original cannot be reconstructed at cleanup;
+   never accept an unexplained current layout as an owned expected value. Do not use the
    reporting-only callback to mutate state.
 7. Compare after the last writer/restart: data bytes/existence, enabled state, owned-process
    absence, borrowed identities, native placement, pointer and layout. Report unowned logs

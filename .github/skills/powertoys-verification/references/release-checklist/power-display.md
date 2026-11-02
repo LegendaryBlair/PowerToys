@@ -16,6 +16,9 @@
 - Real hardware readback is required for hardware effects; a slider, cached CLI value or
   saved JSON alone is insufficient. Keep DDC/CI, WMI, multi-monitor, mixed-DPI and touch
   conditions independently reportable.
+- Record every declared matrix row under its existing child assertion, with a local
+  monitor alias, actual observations and unmet prerequisites. Partial rows do not pass
+  the whole child; see [condition recording](../power-display-fixtures.md#condition-recording).
 - Input-source, color-temperature, power-state, rotation, hot-plug, sleep, crash recovery,
   policy and migration cases require an appropriate disposable setup and recovery authority.
   Never risk the only remote-control display, induce a crash, bypass a blacklist or seed
@@ -99,6 +102,16 @@
   increment preset (1, 2, 5, 10, 15, 20, 25) and verify both wheel directions, with clamping
   at 0 and 100 on a safe instrumented fixture. Tray-wheel Off must not disable slider input.
 
+  | Row key | Required dimensions / fixture | Observe |
+  |---|---|---|
+  | SI-MOUSE | Each available monitor/feature slider; safe drag | Settled independent hardware change |
+  | SI-KEY | Each available slider; keyboard arrows | Settled independent hardware change |
+  | SI-TOUCH | Each available slider on touch hardware; drag and track tap separately | Settled independent hardware change for each gesture |
+  | SI-STEP | Each available slider; each listed increment; up and down away from boundaries | Actual signed hardware change for that increment |
+  | SI-SCROLL | Wheel rows with a scrollable parent positioned away from its limits | Slider changes; parent scroll position does not, rather than a non-scrollable scene appearing unchanged |
+  | SI-CLAMP | Each available slider; lower/outward-down and upper/outward-up on a safe instrumented fixture | Hardware clamps at 0/100; missing safe extremes remain unobserved |
+  | SI-OFF | Tray-wheel Off; each available slider | Slider input still reaches hardware independently of tray mode |
+
 - [ ] **Non-100 native ranges** [ID: PD-NATIVE-RANGE] [ADMIN: NO]
   On an instrumented DDC fixture advertising a maximum other than 100, test brightness,
   contrast and volume independently at 0%, 50% and 100%. The raw write/read uses that
@@ -127,6 +140,14 @@
   primary monitor; All adjusts eligible visible brightness-capable monitors. Verify the
   configured increment and safe boundary clamping, exclusion of hidden/unreadable targets,
   and no flyout activation as feedback. Restore mode and all hardware values.
+
+  | Row key | Required dimensions / fixture | Observe |
+  |---|---|---|
+  | TW-OFF | Off; actual icon hover plus an established downstream wheel observer | Neither brightness nor ordinary wheel delivery is changed |
+  | TW-PRIMARY | Primary display; eligible primary and any non-target monitors | Only the intended primary changes; no flyout appears |
+  | TW-ALL | All displays; eligible and hidden/unreadable targets | Eligible visible targets change, excluded targets do not; no flyout appears |
+  | TW-STEP | Enabled mode; recorded configured increment and direction | Actual signed brightness change, not only saved configuration |
+  | TW-CLAMP | Enabled mode; safe instrumented lower/upper boundary | Outward input remains at the respective boundary |
 
 ### Profiles and integration
 
@@ -158,6 +179,15 @@
   pickers use the same order. In an authorized elevated Settings session, dragging is
   disabled with guidance while menu reordering remains available. Restore original order.
 
+  | Row key | Independently observed condition |
+  |---|---|
+  | PO-MENU | Middle owned row moves up and down, preserving identity/content |
+  | PO-DRAG | Ordinary-process drag persists after page reopen |
+  | PO-FLYOUT | Flyout picker ordered IDs match persisted array order |
+  | PO-CLI | CLI profiles ordered IDs match persisted array order |
+  | PO-LIGHT / PO-DARK | Each enabled Light Switch picker independently matches that order |
+  | PO-ELEVATED | Authorized elevated Settings disables drag with guidance but permits menu reorder |
+
 - [ ] **Custom VCP names** [ID: PD-MAPPINGS] [ADMIN: NO]
   Add, edit and delete owned input-source/color-preset name mappings; cancel drafts without
   saving. Verify the exact code/value/name persists. On matching hardware, global mappings
@@ -176,8 +206,11 @@
 ### Persistence, compatibility and recovery
 
 - [ ] **Startup restoration** [ID: PD-STARTUP] [ADMIN: NO]
-  On a recoverable hardware fixture, compare startup restoration off and on. Off must not
-  replay saved monitor values; on restores saved supported values. Null/unread settings
+  On a recoverable hardware fixture, establish saved value A different from independently
+  observed physical value B while the module is stopped, then compare startup restoration
+  off and on. Off retains B without replaying A; on restores saved supported A. Re-establish
+  the differential fixture for each condition. Equal starting values prove neither path.
+  Null/unread settings
   are not treated as zero, while a genuine saved zero is retained. With a failed initial
   read and a saved value equal to the displayed placeholder, restore still sends the write.
   Make a final edit and cooperatively exit/reopen: the last change survives in valid state
@@ -216,8 +249,20 @@
   Check list identities/transports against actual discovery, get's supported/unread
   distinctions, capability values against the advertised device, and profile IDs/order
   against saved owned profiles. Exercise selectors by display number and stable ID;
-  when both are supplied the stable ID takes precedence. The installed native shim
-  forwards arguments and the exit code to the same CLI.
+  when both are supplied the stable ID takes precedence without falling back from an
+  unknown ID to a valid number. One real monitor suffices for the selector matrix below.
+  The installed native shim forwards arguments and the exit code to the same CLI.
+
+  Use `get` with its actual `--monitor-number` / `--monitor-id` options. N and I refer to
+  one current monitor; X is a valid positive but undiscovered number, and J an absent
+  nonempty ID. Retain the identity mapping privately; no hardware write is needed.
+
+  | Row key | Selectors | Observe |
+  |---|---|---|
+  | CR-N | N only | The expected monitor |
+  | CR-I | I only | The same monitor |
+  | CR-ID-WINS | I and X | Success for I, despite X being absent |
+  | CR-NO-FALLBACK | J and N | Unknown-ID rejection; no fallback to N |
 
 - [ ] **CLI hardware and profile actions** [ID: PD-CLI-WRITE] [ADMIN: NO]
   On recoverable hardware, set each supported continuous/discrete setting and orientation,
@@ -225,7 +270,11 @@
   explicit step and the configured wheel increment, including zero-step no-op and clamping.
   Select multiple monitor numbers with duplicates and verify each target once; retain
   per-target successes/failures. Apply an owned profile by numeric ID. Standby/off requires
-  `--confirm-power-off`; omitting it must not change power state.
+  `--confirm-power-off`; omitting it must not change power state. Test this rejection
+  with a valid target and advertised blanking value: unsupported-feature or invalid-value
+  rejection is not the confirmation guard. Even this negative case needs physical recovery
+  if a product defect allows the write. Keep authorized confirmed standby/off actions in
+  the positive set matrix, with independent hardware observation and recovery.
 
 - [ ] **CLI errors** [ID: PD-CLI-ERRORS] [ADMIN: NO]
   Check the matrix below with safe invalid inputs and appropriate observer/IPC fixtures.
@@ -253,6 +302,17 @@
   a global presence flag before/after a subcommand without swallowing its argument.
   Help/version retain their documented human-readable behavior.
 
+  | Row key | Input / prerequisite | Observe |
+  |---|---|---|
+  | J-READ-POS | `--json list` and `list --json`, with provider ready | Structured stdout in both positions |
+  | J-ARG-POS | `--json apply-profile ID`, `apply-profile --json ID`, `apply-profile ID --json`; owned ID and authorized hardware fixture | The same numeric argument is retained; structured result and actual hardware effect |
+  | J-MISSING | `--json set --brightness` and `set --brightness --json` | Both reject missing value with exit 7 and JSON Lines stderr, not human error text |
+  | J-INVALID | `--json up --brightness --step -1` and `up --brightness --step -1 --json` | Parse rejection stays structured, with exit 7 and no hardware change |
+  | J-HELP | `--json --help` and `--json --version` | Documented human-readable help/version |
+
+  Keep J-MISSING/J-INVALID as parse-error observations and J-READ-POS/J-ARG-POS/J-HELP
+  as flag-position observations. A shared underlying defect is not an additional
+  independent failure of an unexecuted combination.
 ### Policy and appearance
 
 - [ ] **Group Policy** [ID: PD-POLICY] [ADMIN: COND]
@@ -266,7 +326,9 @@
   for readable controls and unclipped content. In another installed locale, user-facing
   labels and Built-in Display are localized while the Power Display product name and CLI
   command/option literals remain intact. Check OOBE identity and shortcut presentation
-  against current Settings. Restore the original theme/language and visible UI.
+  against current Settings. Record PowerToys theme, Windows app/system themes and each
+  actual surface separately; changing only PowerToys theme does not establish flyout or
+  dialog coverage. Restore the original theme/language and visible UI.
 
 - [ ] **VCP capability details** [ID: PD-CAPABILITIES] [ADMIN: NO]
   With a monitor advertising VCP capabilities, open its Settings details and compare code

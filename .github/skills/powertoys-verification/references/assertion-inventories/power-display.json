@@ -1,7 +1,7 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 1,
-  "SourceSha256": "03BBC98FE9C7F98EA48920BC5F9F5BD7ED12326238FB82871679B2E89EDEF596",
+  "Revision": 2,
+  "SourceSha256": "05468FD6F7EB042A1A6B690F9335658EC67F54C1C5D08B6833A0BCDD8E3B2D57",
   "Items": [
     {"Id":"PD-ENABLE","Sources":["PR42642","PR47144","PR48111","PR48249"],"Assertions":[
       {"Id":"PD-ENABLE.default","Description":"In a clean authorized installation, Power Display defaults to disabled."},
@@ -132,8 +132,8 @@
       {"Id":"PD-LIGHT-SWITCH.disabled","Description":"When Power Display is disabled, Light Switch configuration shows its warning rather than implying successful apply; restore theme/bindings/profiles/hardware."}
     ]},
     {"Id":"PD-STARTUP","Sources":["PR42642","PR47051","PR49577","PR49629"],"Assertions":[
-      {"Id":"PD-STARTUP.off","Description":"On recoverable hardware, startup with restoration off does not replay saved values."},
-      {"Id":"PD-STARTUP.on","Description":"On recoverable hardware, startup with restoration on restores saved supported values."},
+      {"Id":"PD-STARTUP.off","Description":"On recoverable hardware with saved A different from independently observed physical B before launch, startup with restoration off retains B without replaying A."},
+      {"Id":"PD-STARTUP.on","Description":"On recoverable hardware with saved A different from independently observed physical B before launch, startup with restoration on restores saved supported A; re-establish the differential fixture independently."},
       {"Id":"PD-STARTUP.null-zero","Description":"With an isolated state fixture, null/unread saved values are not applied as zero, while a genuine saved zero remains valid."},
       {"Id":"PD-STARTUP.placeholder","Description":"With an instrumented failed initial read and saved value equal to its displayed placeholder, restore still sends the hardware write."},
       {"Id":"PD-STARTUP.final-save","Description":"A final edit survives cooperative exit/reopen in valid monitor-state storage; restore original startup behavior and hardware."}
@@ -161,15 +161,15 @@
       {"Id":"PD-CLI-READ.get","Description":"With real monitors, CLI get retains supported/unread distinctions rather than presenting a placeholder as a read."},
       {"Id":"PD-CLI-READ.capabilities","Description":"With a capable monitor, CLI capabilities reports its advertised values."},
       {"Id":"PD-CLI-READ.profiles","Description":"CLI profiles returns saved owned profile IDs and display order."},
-      {"Id":"PD-CLI-READ.selectors","Description":"With distinguishable monitors, number and stable-ID selectors resolve correctly; stable ID wins when both are supplied."},
+      {"Id":"PD-CLI-READ.selectors","Description":"With at least one real monitor, number and stable-ID selectors resolve correctly; a valid ID wins over an undiscovered positive number, and an unknown ID with a valid number is rejected without number fallback (CR-N/CR-I/CR-ID-WINS/CR-NO-FALLBACK)."},
       {"Id":"PD-CLI-READ.shim","Description":"The installed native shim forwards arguments and the resulting CLI exit code."}
     ]},
     {"Id":"PD-CLI-WRITE","Sources":["PR48632","PR49002"],"Assertions":[
-      {"Id":"PD-CLI-WRITE.set","Description":"On recoverable hardware, CLI set reaches each supported continuous/discrete setting and orientation, independently observed on the intended target."},
+      {"Id":"PD-CLI-WRITE.set","Description":"On recoverable hardware, CLI set reaches each supported continuous/discrete setting and orientation, independently observed on the intended target; authorized confirmed standby/off actions require --confirm-power-off and the physical recovery plan."},
       {"Id":"PD-CLI-WRITE.adjust","Description":"CLI up/down uses explicit step or configured wheel increment, including zero-step no-op and clamping; observe actual hardware."},
       {"Id":"PD-CLI-WRITE.batch","Description":"With multiple recoverable monitors, duplicate monitor-number selectors apply each target once and preserve per-target success/failure reporting."},
       {"Id":"PD-CLI-WRITE.profile","Description":"CLI apply-profile uses the owned stable numeric ID and applies its hardware settings."},
-      {"Id":"PD-CLI-WRITE.power-guard","Description":"Without --confirm-power-off a standby/off request is rejected without hardware change; authorized confirmed action follows the physical recovery plan."}
+      {"Id":"PD-CLI-WRITE.power-guard","Description":"With a valid power-capable target, advertised standby/off value and physical recovery plan, omission of --confirm-power-off reaches the confirmation guard and is rejected without hardware change; unsupported-feature/invalid-value rejection is not guard evidence."}
     ]},
     {"Id":"PD-CLI-ERRORS","Sources":["PR48632"],"Assertions":[
       {"Id":"PD-CLI-ERRORS.monitor","Description":"An unknown monitor request yields exit 1 without hardware writes."},
@@ -186,9 +186,9 @@
     {"Id":"PD-CLI-JSON","Sources":["PR50433"],"Assertions":[
       {"Id":"PD-CLI-JSON.read","Description":"Default read output remains text; --json read results are compact JSON Lines on stdout."},
       {"Id":"PD-CLI-JSON.write","Description":"For an authorized hardware mutation, --json result is compact JSON Lines on stdout with independently confirmed hardware behavior."},
-      {"Id":"PD-CLI-JSON.parse-error","Description":"Structured parse errors are JSON Lines on stderr with matching exit codes and no mixed human stdout."},
+      {"Id":"PD-CLI-JSON.parse-error","Description":"Missing-value and invalid-step parse errors in J-MISSING/J-INVALID are JSON Lines on stderr with matching exit 7 and no mixed human stdout, with --json in both declared positions."},
       {"Id":"PD-CLI-JSON.ipc-error","Description":"Structured IPC errors are JSON Lines on stderr with matching exit codes and no mixed human stdout."},
-      {"Id":"PD-CLI-JSON.position","Description":"Global --json before/after a subcommand does not consume its argument; help/version keep documented human-readable behavior."}
+      {"Id":"PD-CLI-JSON.position","Description":"Global --json before/after a subcommand and before/after its owned profile ID does not consume that argument (J-READ-POS/J-ARG-POS); help/version keep documented human-readable behavior (J-HELP)."}
     ]},
     {"Id":"PD-POLICY","Sources":["PR42642","PR46489","PR46979"],"Assertions":[
       {"Id":"PD-POLICY.disabled","Description":"In an authorized policy fixture, forced-disabled prevents Settings enable and direct GUI activation."},

@@ -38,7 +38,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 | Crop And Lock | `crop-and-lock.md` | ✅ written 2026-08-19 (mode events, selector lifecycle, shortcut persistence, crop creation, and real-drag constraints) |
 | Quick Accent | `quick-accent.md` | Held-letter input, character-set drafts, toolbar/guide observation and usage-history preservation |
 | Keyboard Manager | `keyboard-manager.md` | New/classic editor operating map and dual-store restoration; ordinary input fixture readiness is required before remapping claims |
-| Power Display | `power-display.md` | Settings/entry/shortcut/mapping/OOBE/CLI operating knowledge and owned-focus restoration; real monitor/profile and specialist matrices remain conditional |
+| Power Display | `power-display.md` | Settings/entry and WMI/owned-profile recipes, identity-safe read adapters and module condition tables; Light Switch/startup/theme recipes still require fresh live confirmation and specialist fixtures remain conditional |
 | (other modules to be added as we encounter sign-off needs) | — | — |
 
 ## For Explorer-context-menu modules: read the canonical flow doc first

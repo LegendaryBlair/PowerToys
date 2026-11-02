@@ -14,9 +14,9 @@
 | Lifetime | Runner-resident or standalone; Escape/deactivation/window Close hide, not exit |
 
 The [checklist](../release-checklist/power-display.md) owns expectations.
-Entry paths, warning-aware enablement, shortcuts, visibility, mapping CRUD, OOBE and
-read-only CLI have live observation support. Hardware and saved-monitor-profile guidance
-remains conditional; configuration readback does not establish its downstream effect.
+Entry, Settings, WMI brightness and owned-profile operations have observation-backed
+recipes below. DDC/native-range, touch, multi-monitor and fault conditions still require
+their own fixtures. UI, persisted data and independent hardware observations are distinct.
 
 ## Entry paths
 
@@ -44,11 +44,13 @@ Settings can coexist independently. `Visible flyout` includes settled empty/moni
 | Resident | Tray click/current shortcut/toggle route | Visible flyout | Visible uncloaked host, content and footer |
 | Visible flyout | Open refresh chevron | Refresh menu | MenuItems within the flyout popup |
 | Refresh menu | Invoke Refresh | Scanning | `ScanningMonitorsTextBlock`/ProgressBar |
+| Scanning | Discovery completes after the host lost activation | Resident | Same process; hidden host, settled discovery readable through CLI |
 | Scanning | Discovery finishes with no available controls | Empty flyout | `NoMonitorsInfoBar`, footer buttons |
 | Scanning | Discovery finishes with available monitors | Monitor flyout | Monitor cards and applicable controls |
 | Visible flyout | Escape, deactivation or window Close | Resident | Host hidden, same process still present |
 | Visible flyout | Open saved-profile switcher | Profile picker | Profile ListView in popup |
-| Profile picker | Select a profile | Visible flyout | Picker closes; host remains available |
+| Profile picker | Select a profile; host stays visible | Visible flyout | Picker closes; re-resolved visible content host |
+| Profile picker | Select a profile; host loses activation | Resident | Picker closes; same process, hidden host |
 | Resident | Right-click actual tray icon | Tray menu | Module-owned native `#32768` menu |
 | Tray menu | Invoke Exit | Exited | Exact process and native siblings disappear |
 | Settings page | Request protected enablement | Warning dialog | Modal warning with Enable/Cancel |
@@ -57,105 +59,87 @@ Settings can coexist independently. `Visible flyout` includes settled empty/moni
 | Settings page | Add/edit profile or custom mapping | Editor draft | Modal named fields and Save/Cancel |
 | Editor draft | Save valid draft | Settings page | Dialog closes, owning list available |
 | Editor draft | Cancel | Settings page | Dialog closes without committing draft |
-| Settings page | More > Delete on an owned mapping | Delete confirmation | Modal Yes/No buttons |
-| Delete confirmation | Yes | Settings page | Dialog closes, mapping list available |
-| Delete confirmation | No | Settings page | Dialog closes, mapping list available |
+| Settings page | More > Delete on an owned row | Delete confirmation | Mapping Yes/No or profile Delete/Cancel modal |
+| Delete confirmation | Confirm owned row | Settings page | Dialog closes, owning list available |
+| Delete confirmation | Cancel | Settings page | Dialog closes, owning list available |
 | Settings page | Welcome footer; no pre-existing secondary | Welcome window | New same-process HWND with module navigation |
 | Welcome window | Select Power Display | Welcome window | Module content and Open Power Display button |
 
 ## Control locator and interaction index
 
-Use recorded `Invoke-PtWinApp` inspect/search and `Get-PtUiElements`; reject incomplete or
-ambiguous matches. Re-resolve after transitions. XAML `x:Uid` is not an AutomationId.
-Names below are English observations; resolve localized counterparts in other locales.
-Source-named hardware/profile controls still require exposed ID/type/pattern confirmation.
-
-Native `Get-PtNativeWindow` records expose `Rect.Left/Top/Right/Bottom`, not top-level
-`Width`/`Height`. Compute dimensions from those edges when filtering content hosts.
-Borrow an existing Settings main before navigation. If Settings must be opened, capture
-its actual brokered activation: launching `PowerToys.Settings.exe` without arguments can
-exit and ask Runner to create another PID. The initial launcher is not the Settings owner.
+Use recorded inspect/search and `Get-PtUiElements`; reject incomplete/ambiguous matches.
+Re-resolve after transitions. Confirm runtime IDs/types/patterns; `x:Uid` is not an ID.
+Names below are English observations. See [Settings readiness](../power-display-fixtures.md#borrowed-runner-and-settings)
+for native geometry, brokered ownership, foreground integrity and adaptive navigation.
 
 | Interaction | UI state & scope | Control locator | How to interact |
 |---|---|---|---|
-| Open refresh menu | Empty flyout footer | Unique unnamed Button beside `SettingsBtn` | Corroborate glyph/tree, then Invoke; never first-match selection. |
-| Refresh | Open menu | MenuItem ID `RefreshButton` | Invoke once; observe scanning then settled content. |
+| Open refresh menu | Settled host, right footer | Button left of `SettingsBtn`; not Link/Profile controls | [Footer recipe](../power-display-fixtures.md#flyout-footer-and-hidden-owner), scoped Invoke. |
+| Refresh | Open menu | MenuItem ID `RefreshButton` | Invoke once; observe settled discovery. Reopen a hidden resident host without repeating Refresh. |
 | Identify | Refresh menu; hardware | MenuItem ID `IdentifyButton` | Invoke; separately observe overlays. |
 | Dismiss | Actual foreground flyout | Exact HWND | Guard, then `Send-PtChord -Hwnd $hwnd -Key 0x1B`; check hidden/resident state. |
 | Open from tray | Taskbar/owned overflow | Button Name `Power Display` | `Find-PtRunnerTrayControl`, physical Click, foreground check. |
 | Open tray menu | Visible icon, flyout not covering it | Fresh Button | Guarded right-click; resolve module-owned `#32768` menu. |
 | Exit | Owned native menu | MenuItem Name `Exit` | Supported Invoke inside `Stop-PtOwnedProcess`; register siblings first. |
 | Open Settings | Flyout footer | Button ID `SettingsBtn` | Declare ownership/side effects before Invoke. |
-| Enable/disable | Selected module page | Button Name `Enable Power Display`, TogglePattern | Snapshot; toggle; explicitly answer `PrimaryButton` Enable / `CloseButton` Cancel; wait lifecycle. |
+| Enable/disable | Selected module page | `Enable Power Display` Button, TogglePattern | Toggle; answer warning Enable/Cancel; wait lifecycle. |
 | Change visibility | Settings flyout options | CheckBox Names `Show system tray icon`, `Show profile switcher button`, `Show identify monitors button` | Toggle; compare file/UI and actual tray/menu. Profiles add a saved-profile prerequisite. |
 | Choose wheel option | Settings flyout options | ComboBox Names `Mouse wheel increment`, `Tray icon mouse wheel mode` | [Committed-choice recipe](../power-display-fixtures.md#committing-settings-choices), not selection-only readback. |
 | Record shortcut | Activation card | Button ID `EditButton`, HelpText | [Recorder](../shortcut-recorder.md): `PowerDisplayNavItem`, segments `properties`, `activation_shortcut`; separately drive chords. |
 | Change monitor controls | Exact expanded monitor | Local CheckBox | Toggle, handle warning; hiding is not disconnecting. |
-| Set level | Exact monitor card | Brightness/contrast/volume Slider | Required physical input; settled commit and independent hardware read. |
+| Set level | Exact monitor card; linking accounted for | Local feature Slider | [WMI recipe](../power-display-fixtures.md#wmi-brightness); physical input and independent read. |
 | Choose discrete value | Enabled monitor feature | Local Button > ListItem | Open/Select only with physical recovery and hardware readback. |
 | Link/exclude | Eligible monitor cards | `LinkLevelsToggle`, `IndividualDisplaysToggle`, local exclude ToggleButton | Confirm patterns; toggle/expand exact monitor. |
-| Apply profile | Exact owned row | `ProfilesList` / `ProfilesListView` | Settings Apply invokes; flyout Select commits immediately. |
-| Edit profile | Owned row More | Edit MenuItem; `ProfileNameTextBox` Edit | Save/Cancel distinctly; preserve unavailable saved fields. |
-| Delete profile | Owned row More | Delete MenuItem and dialog | Confirm/cancel exact stable ID. |
-| Reorder profile | Owned Settings row | Move up/down MenuItems or drag row | Menu commits; ordinary drag only. Elevated menu remains available. |
+| Create profile | Settings Profiles; real monitors | Add profile Button; `ProfileNameTextBox` Edit | [Editor recipe](../power-display-fixtures.md#owned-monitor-profiles), Save/Cancel. |
+| Apply profile | Exact owned ID | Settings row `ProfileApplyButton`; popup `ProfilesListView` ListItem | Invoke Apply or Select the exact popup item; no extra Save. Independently read hardware. |
+| Edit profile | Owned row More | Edit MenuItem; name Edit | Editor recipe; Save/Cancel; re-resolve by ID. |
+| Delete profile | Owned row More | Delete MenuItem; profile Delete/Cancel modal | Confirm caption/selected ID; do not reuse mapping Yes/No locators. |
+| Reorder profile | `ProfilesList`, owned row by current display name/ID | Move up/down MenuItems or row drag handle | [Ordering recipe](../power-display-fixtures.md#profile-order-and-consumers); menus commit immediately, drag uses live bounds. |
 | Open mapping | `Custom name mappings` Group | `Add mapping` Text's Button ancestor | Expand/scroll, Invoke, wait for enabled Edit fields. |
-| Fill mapping | Owned editor | `VcpCodeComboBox`, `ValueComboBox`, `CustomValueTextBox`, `CustomNameTextBox`, scope controls | Select/code/value/name; read actual Edit values; Save/Cancel. No monitor needed for manual-value CRUD. |
+| Fill mapping | Owned editor | `VcpCodeComboBox`, `ValueComboBox`, `CustomValueTextBox`, `CustomNameTextBox` | Select/fill/read back; Save/Cancel. Manual values need no monitor. |
 | Edit/delete mapping | Exact owned current card | Header Text > bounded two-Button Group | [Card recipe](../power-display-fixtures.md#resolving-owned-mapping-cards); Delete uses Yes/No, not editor Save/Cancel. |
 | Copy capabilities | Exact Settings monitor | Details/copy Buttons | Complete clipboard guard; VCP list, not diagnostics. |
 | Read CLI | Installed executable | Native path/current help | Separate streams/exit; typed JSON, sanitized data. |
-| Open Welcome | Main footer > new secondary | `OOBENavItem`; ListItem `Power Display` | Select; wait for `Open Power Display` content; inspect shortcut pixels, not absent `HotkeyActivation` ID. |
+| Open Welcome | Footer > owned secondary | `OOBENavItem`; `Power Display` ListItem | Select; wait for Open button; inspect shortcut pixels, not an assumed `HotkeyActivation` ID. |
 | Read Light Switch warning | Power Display disabled | InfoBar Text starting `Enable PowerDisplay module` | Resolve unique full caption and actual visibility; no profile-apply claim. |
+| Associate Light Switch | Prepared companion | Light/dark ComboBoxes and CheckBoxes | [Integration recipe](../power-display-fixtures.md#light-switch-integration), owned IDs/actual shortcut. |
+| Compare startup restore | Prepared hardware/lifecycle | Startup restore CheckBox; entry/Exit | [Differential recipe](../power-display-fixtures.md#differential-startup-restoration), saved A versus physical B. |
+| Observe themes | Prepared theme fixture | General / Windows Personalization | [Surface recipe](../power-display-fixtures.md#theme-surfaces), each actual surface. |
 
 ### Read-out notes
 
-- Data under `properties`: `activation_shortcut`, `monitor_refresh_delay`, `mouse_wheel_increment`,
-  `mouse_wheel_control_mode`, `restore_settings_on_startup`, `max_compatibility_mode`,
-  `show_system_tray_icon`, `show_profile_switcher`, `show_identify_monitors_button`,
-  `linked_levels_active`, `excluded_from_sync_monitor_ids`, `monitors`, `custom_vcp_mappings`.
-- Use `Read-PtSharedFileText`, strict JSON and actual types: scalar Booleans need no `.value`.
-  An explicit legacy wrapper must have Boolean `value`; missing/other types are errors.
-- `profiles.json`: stable `id`, display `order`, selected fields; `monitor_state.json`:
-  runtime/read cache. IDs are not positions. Draft, persistence and hardware are distinct.
-- CLI `list --json` exposes `monitors`, including `[]`. Flyout "No monitors detected" and
-  CLI "No monitors discovered." are equivalent, not identical captions. Agreement does
-  not independently prove physical discovery completeness or a DDC write.
-- Preserve null/unread values. Provider absence is exit 10; parse rejection exit 7.
-  JSON errors use stderr; help/version remain text with `--json`.
-- Check missing-value errors with the flag in both positions: `--json set --brightness`
-  versus `set --brightness --json`. A parser may consume the trailing flag as the missing
-  value and emit human text. Preserve exact streams; exit 7 alone cannot establish JSON format.
-- `get` without a selector reads all monitors; missing-selector rejection applies to
-  `set`/`up`/`down`. Target resolution precedes range validation: an absent target may
-  return exit 1 even for an out-of-range value. Exit 2 needs a valid target.
-- An enabled Add profile button may produce no editor when discovery has no monitor rows.
-  Observe that prerequisite; never create fake monitor/profile JSON to unlock it.
-- PowerToys theme, effective Windows app theme and each rendered surface are separate.
-  Changing PowerToys to Dark can recolor Settings without making the flyout or mapping
-  dialog dark. Capture actual surfaces; a Windows-theme fixture needs its own preservation.
+- Read live files with `Read-PtSharedFileText` and strict JSON; [field shapes](../power-display-fixtures.md#module-data-read-outs)
+  are data paths, not UI selectors. Null/unread is not zero.
+- Profiles use positive `id`, `createdDate`, `monitorSettings` and **array order**,
+  not a per-profile `order` property. The owned-ID helper never selects by name/position.
+- WMI reads use complete canonical monitor identity, not EDID/model alone. Keep IDs
+  private and project only owned aliases, numeric values and timestamps into evidence.
+- [CLI matrices](../release-checklist/power-display.md#command-line) distinguish parse,
+  target, capability and confirmation-guard failures; retain stdout/stderr/exit separately.
+- Configuration, cached CLI state, pixels and independent hardware are separate observations.
+  Theme sources and each actual surface also require separate read-outs.
 
 ### Observation rules
 
 Poll structural readiness separately from expected results. Missing a fast scanning state
-is not proof of failure. [Passive scoped capture](../helper-workflow.md) avoids refocusing
-popups; check foreground/geometry before and after. Images remain candidates until accepted.
+is not proof of failure. Use the [condition recording recipe](../power-display-fixtures.md#condition-recording)
+to retain each matrix row without adding inventory fields or auto-generating verdicts.
+[Passive scoped capture](../helper-workflow.md) avoids refocusing popups; check
+foreground/geometry before and after. Images remain candidates until accepted.
 
 ## Troubleshooting
 
 | Symptom / condition | Diagnose / recover | Interpretation boundary |
 |---|---|---|
-| Enabled flag, no process | Check Runner, standalone scope and recovery markers. | Configuration is not readiness. |
-| No monitor cards | Observe settled InfoBar/CLI; establish DDC/WMI prerequisites independently. | RDP/display surfaces are not controllable hardware; empty-path evidence is not brightness coverage. |
-| Foreground guard refuses Escape after tray Invoke | Preserve error; rediscover icon, physically click, verify exact foreground before keys. | No delivered key means no dismissal outcome; never disable the guard. |
-| Medium worker cannot leave an elevated coordinator foreground | Prepare an owned ordinary foreground before launching the worker; verify its actual token, guarded activation and pointer round trip. Return to that ordinary baseline before coordinator cleanup. | Autopilot and CLI tool approvals do not change Windows foreground/UIPI rules; do not elevate the worker or weaken its guards. |
-| Visible Settings has no selected navigation item | Check adaptive navigation at the actual DPI. Preserve native placement before paired widening/maximization, capture the realized Settings state before navigation, and restore placement after Settings cleanup. | An unexposed collapsed rail is not proof that the Settings page or module is missing; keep the original placement obligation separate. |
-| Covered tray icon/disappearing menu | Refresh overflow ownership, foreground and live bounds before a scoped click. | Stale selectors are invalid targets; termination event cannot pass tray Exit. |
-| Native popup reports no interactive desktop | Check InputDesktop/foreground separately; actual MenuItem Invoke can work while foreground is zero. | Preserve physical refusal; no assumed disconnect or direct menu message. |
-| Stale tray entries after visibility change | Preserve counts; bounded product-only hover and fresh enumeration. | Stale duplicates alone do not establish a lifecycle defect. |
-| Choice/row and file disagree | Use committed-choice/current-card recipes and realized fields. | Selection or recycled Group.Name is not persistence/identity. |
-| Profile/feature unavailable | Check build, capability, exact row, protected option and policy. | No independent outcome for unreachable actions; never seed support in JSON. |
-| Partial rollback | Inspect owned-path equality and unowned log differences; retain conflicts. | User-state equality is not whole-directory equality. |
-| Whole-root snapshot hits an open interface log | Use the exact selected-file adapter while its selected writers are quiescent. | Never stop the borrowed logger or silently skip a failed whole-root read. |
-| Explorer closes but fixture restoration fails | Inspect its immutable creation-time foreground; create future fixtures before transient WinUI control/modal interaction. | Gone window/folder does not prove the fixture's independent desktop restore; do not rewrite its receipt. |
+| No process/monitor/editor | Check entry scope, recovery markers and actual capability. Add profile needs monitor rows. | Enabled state is not readiness; never seed support in JSON. |
+| Input guard or navigation fails | Use [Settings readiness](../power-display-fixtures.md#borrowed-runner-and-settings) and fresh physical bounds. | No forced activation/elevation or assumed RDP cause. |
+| Tray popup has zero foreground | Preserve physical refusal; inspect native owned MenuItem separately. | Invoke may work, but is not physical input proof. |
+| Stale tray entries | Retain counts, bounded product-only hover, re-enumerate. | Stale duplicates alone do not prove a lifecycle defect. |
+| UI/file/hardware disagree | Keep all readings; use committed choices and exact target/observer. | Accepted input/cache values are not hardware success; do not repeat until favorable. |
+| Refresh/picker hides parent | Same-process visibility check, ordinary reopen, fresh controls. | Hidden is not exited or failed discovery. |
+| Duplicate/stale row name | Resolve current owned numeric ID/full label and row HelpText. | Bare name, ordinal or recycled Group.Name is not identity. |
+| Disabled shortcut editor at cleanup | Restore/verify before disable; no redundant late UI restore. | JSON equality alone does not certify UI restoration. |
+| Snapshot/restore fails | [Selected paths](../power-display-fixtures.md#files-and-hardware), attributed writers and original receipts. | No live-log shutdown, conflict overwrite or retrospective PASS. |
 
 ## Fixtures and restoration
 
@@ -163,37 +147,31 @@ popups; check foreground/geometry before and after. Images remain candidates unt
 
 | Fixture / resource | When needed | Ownership & baseline | Cleanup / restore | Verification |
 |---|---|---|---|---|
-| `Start-PtOwnedProcess` | Standalone | Absent-instance launch, PID/start/path/siblings | Tracked tray Exit; event only as declared cleanup | Process/icon/service absent; original Runner state |
-| Selected-file snapshot | Launch/edit with live siblings | Private bytes/existence; exact [paths](../power-display-fixtures.md#files-and-hardware) | Quiesce selected writers; `Restore-PtFileSetSnapshot` | Selected data hashes/existence; no whole-directory claim |
-| Global/Light Switch snapshots | Enablement/migration | Private originals; attributable writes only | Semantic restore, guarded rollback | Original enablement/references/bytes |
-| Settings snapshot/dialogs | Settings | Borrowed navigation/placement; owned creations | Cancel drafts, shared restore/owned close | Original supported state/identity |
-| Desktop snapshot/overflow | Input/capture | Pre-input baseline, owned popup transition | Close owned popup, paired restore | Original foreground/placement/pointer |
-| `New-PtExplorerFixture` | Hotkeys/focus dismissal | Create from stable original foreground before UI transitions; no generic `pwsh` scope | `Remove-PtExplorerFixture`; final original layout after UI/desktop | Owned window/folder absent; both fixture and run desktop baselines |
-| Hardware baseline | Hardware cases | Case-owned edits; independent values/recovery | Restore while controls live | Original hardware, not cached values |
-| Owned profiles/mappings; clipboard keeper | Editing/copy | Owned rows; complete private format backup | Restore order/references/formats before exit | Original semantics/bytes/hardware/formats |
+| Owned process | Standalone | Exact launch/sibling receipt | Tracked tray Exit | Exact process/icon/service gone |
+| Selected files/global state | Launch/edit | [Private originals](../power-display-fixtures.md#files-and-hardware), existence and owned effects | Quiescent guarded rollback | Original bytes/existence/enablement |
+| Settings/desktop | Any UI | Borrowed snapshots before navigation/input | Existing paired restore; close only owned windows | Original identity/page/placement/pointer |
+| Owned Explorer | Focus/hotkeys | Stable creation-time foreground before WinUI interaction | `Remove-PtExplorerFixture` | Both creation/run desktop baselines; owned folder/window absent |
+| Hardware | Hardware cases | [Independent pre-startup values](../power-display-fixtures.md#wmi-brightness) | Restore while controls live | Same instance's original readings |
+| Profiles/mappings | CRUD/application | Owned IDs, original order/references | Associations before owned-row deletion; guarded file restore | Original semantics/bytes/hardware |
+| Light Switch/theme | Integration | [Companion baseline](../power-display-fixtures.md#light-switch-integration) | Restore bindings/schedule/IDs/themes/lifetime | Original state and final hardware |
+| Layout receipt | Input | [Persisted original](../power-display-fixtures.md#module-restoration-receipts) | Guarded restore after desktop | Same target/numeric layout; no IME claim |
+| Clipboard keeper | Capability copy | Complete original formats | Shared keeper before release | Every original format |
 
 ### Helper boundaries
 
-Use [fixture recipes](../power-display-fixtures.md) and shared resource/cleanup APIs.
-Guarded single-file rollback requires existing files; selected-file rollback supports absence
-without reading live sibling logs. Whole-directory rollback additionally preserves directories.
-Neither restores hardware or owns a borrowed singleton. No fault/OSD rescue helper exists.
-Resume loads the original persisted resource plan, not a reordered reconstruction.
-Use the shared owned Explorer window when only ordinary foreground is needed. A generic
-`pwsh.exe` Process scope also captures controller/reporter lifetimes and cannot be narrowed
-after a run starts. Power Display hotkey/focus checks need no English-layout keyboard logger.
+Use the [fixture guide](../power-display-fixtures.md) and unchanged shared resource APIs.
+The module adapter only reads WMI/selects owned IDs; it neither writes hardware nor owns
+resources. File rollback cannot restore physical values. No fault/OSD rescue is supplied.
 
 ### Restoration order
 
-1. Restore hardware/UI semantics while controls live; cancel drafts and restore clipboard.
-2. Exit only owned writers; retain attributable post-state and unexpected recovery markers.
-3. Guarded-restore data bytes/existence; restore original enablement/lifetime, accounting for startup writes.
-4. Explicitly restore registered Settings snapshots and the original desktop in the cleanup
-   plan before its final keyboard-layout step. For an originally visible, normal Settings
-   main, the template's subsequent identical restoration is a checked no-op; verify that
-   prerequisite rather than assuming it for hidden/minimized windows.
-5. Guardedly restore the original thread layout from known owned post-layouts, then compare
-   after all final writes. Keep private recovery outside archives.
+1. Restore hardware, associations/order, shortcut/UI and options while controls are enabled;
+   cancel drafts and restore clipboard.
+2. Quiesce authorized writers, retain attributed post-state, guardedly restore files and
+   original lifetime/enablement; account for final startup/theme writes.
+3. Explicitly restore registered Settings and desktop, then the persisted original layout
+   from known owned post-layouts. Require the template's later Settings restore to be a
+   checked no-op. Follow [release order](../power-display-fixtures.md#release-and-verify).
 
 ### Restoration verification
 
