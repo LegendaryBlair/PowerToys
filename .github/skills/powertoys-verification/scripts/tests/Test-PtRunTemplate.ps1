@@ -5,6 +5,7 @@ $skill=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . "$skill\scripts\pt-verification-report.ps1"
 . "$skill\scripts\pt-session-safety.ps1"
 . "$skill\scripts\pt-state-snapshot.ps1"
+. "$skill\scripts\pt-assertion-inventory.ps1"
 [IO.Directory]::CreateDirectory($Workspace)|Out-Null
 $global:PtTemplateFixtureState=@{Path="$Workspace\fixture.txt";Baseline=$null;Expected=$null
     CleanupRan=0;IndependentCleanupRan=0;FailRestore=$false;FailCase=$false;ForeignWrite=$false}
@@ -119,6 +120,18 @@ ClearSession
 
 foreach($removed in 'SharedStateProbe','DesktopKey','PreviousHandoffPath','PreviousHandoffHash','BatchId'){
     Require (-not (Get-Command "$skill\templates\verification-run.ps1").Parameters.ContainsKey($removed)) "Removed template parameter still exposed: $removed"
+}
+foreach($moduleName in 'FancyZones','FZ'){
+    $inventory=Import-PtAssertionInventory "$skill\references\assertion-inventories\fancyzones.json" `
+        "$skill\references\release-checklist\fancyzones.md"
+    $changed=$common.Clone()
+    $changed.Module=$moduleName
+    $changed.Scenario='A'
+    $changed.Items=$inventory.Items
+    $changed.Items[0].Assertions[0].Description+=' Changed outside the frozen inventory.'
+    $rejectedWorkspace=Join-Path $Workspace "rejected-$moduleName"
+    Reject {& "$skill\templates\verification-run.ps1" @changed -Workspace $rejectedWorkspace} 'frozen module inventory Items'|Out-Null
+    Require (-not (Test-Path -LiteralPath $rejectedWorkspace)) "Changed $moduleName inventory reached run creation"
 }
 Require (-not (Test-Path "$skill\scripts\pt-run-handoff.ps1")) 'Removed helper is still shipped'
 Require (@(Get-ChildItem $Workspace -Recurse -File -Filter '*handoff*').Count -eq 0) 'Run emitted cross-run artifacts'

@@ -8,6 +8,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Color Picker | 2 | 17 | 25 |
 | Crop And Lock | 1 | 13 | 14 |
 | Environment Variables | 3 | 29 | 135 |
+| FancyZones | 1 | 42 | 171 |
 | File Locksmith | 2 | 10 | 10 |
 | Image Resizer | 1 | 12 | 18 |
 | Keyboard Manager | 2 | 24 | 135 |
@@ -113,7 +114,14 @@ Confirmed power-off writes remain in `PD-CLI-WRITE.set`; `power-guard` separatel
 the confirmation rejection. JSON placement and malformed-input rows are distinguished.
 These source-aligned clarifications apply only to new inputs; historical results are unchanged.
 
-The thin template rejects different run-local Items for all 16 Scenario A modules
+FancyZones retains both editor and runtime requirements, including the repeated spanning-off/on
+conditions in 73 children. Children with direction, locale, layout-type or input matrices require
+each described condition, not one representative observation. Legacy bare-digit quick switching,
+index-boundary wording and separate-monitor assertions under a combined work area retain explicit
+specification/applicability questions rather than silently changing the baseline. Its inventory
+does not certify those questions resolved or the full conditional scope executable.
+
+The thin template rejects different run-local Items for all 17 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify
