@@ -108,6 +108,11 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
 - PID/class establishes overlay identity, not appearance. Use scoped pixels and timed frames;
   GDI can omit layered content. Check capture-induced focus changes and privacy.
 - CLI/Palette queries can write `editor-parameters.json`. Persistence is not runtime behavior.
+- Editor entry can also write `applied-layouts.json`; it is not a parameters-only operation.
+  Spanning rebuilds the editor input from separate monitor records to one combined work area.
+  Its DPI field is unused (`0`); monitor dimensions are physical, while work-area dimensions
+  use DPI-unaware coordinates. Do not compare this model to the previous separate-monitor
+  array after merely ignoring the spanning/selection flags.
 - Normal editor close serializes assignments, custom layouts, digits, templates and defaults,
   even after canceling a draft. Do not equate Cancel with byte-identical files. Preserve the
   original selection, compare just before close, then attribute any close-time writes before
@@ -185,6 +190,16 @@ Use the [resource session](../session-safety.md), [owned fixtures](../owned-fixt
 and [selected-file contract](../directory-snapshots.md#selected-file-preservation).
 Snapshots grant no ownership. Lifecycle does not restore files/caches/drafts. File-set
 rollback supports absence but requires an existing root and quiescent writers.
+
+Use `Invoke-PtFancyZonesFileAction` from `scripts\pt-fancyzones-state.ps1` around a recorded
+editor open/close or spanning change. Supply `-ExpectedState ([ref]$expected)`, `-Operation`,
+`-ExpectedJson` (complete planned JSON per affected file), `-Action` and explicit
+`-ArgumentList`. Derive the plan before input from requested settings/layout changes and a
+fresh work-area model; never copy the post-action output as its own expectation.
+Persist `$expected` privately in `finally`, including on errors. Confirmed files advance
+independently, while an unconfirmed file retains its old rollback expectation and stops
+dependent mutations. This helper does not discover the native model, prove exclusive
+writers, or authorize overwriting an existing conflict. These remain live adapter duties.
 
 Every cleanup step declares `DependsOn`, using `@()` when independent. To resume an
 interrupted controller in the same runspace, use the original plan and `-Resume -ResumeRun $run`;
