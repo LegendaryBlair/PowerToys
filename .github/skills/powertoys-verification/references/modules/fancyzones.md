@@ -169,7 +169,7 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
 
 | Fixture / resource | When needed | Ownership & baseline | Cleanup / restore | Verification |
 |---|---|---|---|---|
-| Eight files; `Get-PtFileSetSnapshot` | Host/editor/CLI | Run-owned writes; private original bytes/existence | Quiesce; guarded `Restore-PtFileSetSnapshot` | Exact bytes/existence after final startup |
+| Selected files; `Get-PtFileSetSnapshot` | Host/editor/CLI | Run-owned writes; private original bytes/existence | Quiesce; guarded `Restore-PtFileSetSnapshot` | Exact bytes/existence after final startup |
 | General files/Settings; shared snapshots | Navigation/options | Original enabled value, bytes and UI state | Restore options/page/scroll/placement | Fresh baseline comparison |
 | Owned layouts/defaults/digits | Authoring/switching | Unique UUIDs; original assignments | UI semantics then guarded files | Additions absent; originals retained |
 | `New-PtExplorerFixture` | Drag/snap | Case-owned folder/HWND; process borrowed | `Remove-PtExplorerFixture` | HWND/folder gone; desktop restored |
@@ -183,6 +183,8 @@ Capture these direct children: `settings.json`, `applied-layouts.json`, `custom-
 `default-layouts.json`, `layout-hotkeys.json`, `layout-templates.json`, `app-zone-history.json`
 and `editor-parameters.json`. Inspect additional sidecars before mutation; unrelated logs
 are outside this selected-file claim.
+Include `last-used-virtual-desktop.json` before host activation or desktop changes: the
+native module can rewrite it independently of the editor.
 
 ### Helper boundaries
 
@@ -191,15 +193,32 @@ and [selected-file contract](../directory-snapshots.md#selected-file-preservatio
 Snapshots grant no ownership. Lifecycle does not restore files/caches/drafts. File-set
 rollback supports absence but requires an existing root and quiescent writers.
 
-Use `Invoke-PtFancyZonesFileAction` from `scripts\pt-fancyzones-state.ps1` around a recorded
-editor open/close or spanning change. Supply `-ExpectedState ([ref]$expected)`, `-Operation`,
-`-ExpectedJson` (complete planned JSON per affected file), `-Action` and explicit
-`-ArgumentList`. Derive the plan before input from requested settings/layout changes and a
-fresh work-area model; never copy the post-action output as its own expectation.
-Persist `$expected` privately in `finally`, including on errors. Confirmed files advance
-independently, while an unconfirmed file retains its old rollback expectation and stops
-dependent mutations. This helper does not discover the native model, prove exclusive
-writers, or authorize overwriting an existing conflict. These remain live adapter duties.
+The `pt-fancyzones-displays.ps1` adapter reads physical and DPI-unaware rectangles, native
+monitor identities and the current virtual desktop without changing them. Use
+`New-PtFancyZonesEditorParameters` to construct the current separate/combined input model.
+Retain WMI failures; an empty serial fallback needs comparison with the actual host.
+
+Use `pt-fancyzones-driver.ps1` inside shared recorded attempts. Create a
+`New-PtFancyZonesDriverContext` with this run's selected-file snapshot, exact owned host
+creation, preserved Settings identity, installed editor path and private recovery directory.
+`Open/Close-PtFancyZonesEditor` track both entry and close writes.
+`Set-PtFancyZonesBoolean` resolves the actual supported toggle under a specific container.
+For spanning it waits for the host's generated editor-input reply, not just Settings
+persistence. This cache query is not an activation/hotkey or layout-update substitute.
+
+`Invoke-PtFancyZonesDriverAction` freezes an explicit record scope before input and privately
+persists confirmed recovery state even on errors. Add layout UUIDs, fixture executable paths,
+digits and default orientations only from the current run's creation/ownership receipts.
+The underlying `Invoke-PtFancyZonesScopedAction` preserves unowned records while allowing an
+incorrect result inside an owned record to remain observable and restorable as a product
+finding. Native assignment serialization uses first-wins identity matching; editor
+serialization uses monitor numbers and last matching records. The layout-plan helper models
+these separately. Neither normalization nor a snapshot grants write authority.
+
+Use `Invoke-PtFancyZonesFileAction` with predeclared complete `-ExpectedJson` only when exact
+deterministic outputs are appropriate. Do not require a product to produce the desired
+business result merely to retain rollback evidence. Existing pre-action/restore conflicts
+remain conflicts; never refresh an expected snapshot from arbitrary current files.
 
 Every cleanup step declares `DependsOn`, using `@()` when independent. To resume an
 interrupted controller in the same runspace, use the original plan and `-Resume -ResumeRun $run`;
