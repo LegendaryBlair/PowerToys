@@ -108,6 +108,10 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
 - PID/class establishes overlay identity, not appearance. Use scoped pixels and timed frames;
   GDI can omit layered content. Check capture-induced focus changes and privacy.
 - CLI/Palette queries can write `editor-parameters.json`. Persistence is not runtime behavior.
+- Normal editor close serializes assignments, custom layouts, digits, templates and defaults,
+  even after canceling a draft. Do not equate Cancel with byte-identical files. Preserve the
+  original selection, compare just before close, then attribute any close-time writes before
+  guarded rollback after writer exit; unknown concurrent changes remain conflicts.
 
 ### Interaction recipes
 
@@ -129,6 +133,14 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
 - For scoped capture, resolve an actual typed element and fresh unique selector first.
   Never accept whole-editor fallback when the requested region was an owned dialog/control.
   Keep rejected captures as private diagnostics, not accepted visual evidence.
+- For composed overlays, use `Save-PtOwnedScreenshot` with recorded owned target identities
+  and a known-opaque owned background covering the entire requested physical region.
+  Arrange only owned windows so targets are above that background; do not close or hide
+  borrowed Shell surfaces. The helper checks native z-order/ownership before and after
+  capture and publishes only stable pixels from private staging. It never exempts
+  `XamlExplorerHostIslandWindow` or another class. A rejected scene requires a safe
+  arrangement, not a whitelist. Use `-Region` for a contained owned-content crop and
+  inspect actual pixels; ownership alone does not make private layout names publishable.
 - Invoke recorded driver files with `pwsh -NoProfile -File` and explicit arguments.
   Keep CLI identity probes simple; comma-separated argument expressions and call-operator
   commands can require manual parser review. This does not authorize bypassing a denial.
@@ -159,6 +171,7 @@ Check runtime patterns/parents; `x:Uid` is not AutomationId. Re-resolve recreate
 | `Show-PtDesktopFixture.ps1` | Input/multiple windows | `Start-PtOwnedProcess`; register siblings | Normal `Stop-PtOwnedProcess` | Process/windows absent; layout restored |
 | Editor/previews | Editor flows | Declared activation; existing editor borrowed | Cancel draft; register new siblings once; owned normal close | Owned process/previews absent |
 | Palette/provider/dock | Extension | Existing provider borrowed; test pin owned | Restore navigation/pin; owned normal exit | Original dock/identities; no survivor |
+| Opaque capture background | Composed screenshot | Dedicated owned fixture paints its whole client area opaquely; target HWNDs and any overlapping siblings registered | Normal fixture exit; restore foreground/pointer | Exact process/windows absent; no rejected pixels published |
 | Isolated specialist fixture | Display/desktop/policy/upgrade | Authority and complete baseline | Fixture-specific recovery | Original topology/desktop/registry |
 
 Capture these direct children: `settings.json`, `applied-layouts.json`, `custom-layouts.json`,
@@ -172,6 +185,18 @@ Use the [resource session](../session-safety.md), [owned fixtures](../owned-fixt
 and [selected-file contract](../directory-snapshots.md#selected-file-preservation).
 Snapshots grant no ownership. Lifecycle does not restore files/caches/drafts. File-set
 rollback supports absence but requires an existing root and quiescent writers.
+
+Every cleanup step declares `DependsOn`, using `@()` when independent. To resume an
+interrupted controller in the same runspace, use the original plan and `-Resume -ResumeRun $run`;
+the template retains the same recorder cursor and validated active resource session.
+Do not reopen a second recorder handle while callbacks still hold the old one.
+Declare helper process scopes before first activation, including headless/indirect companions.
+Final process-query errors remain BLOCKED but must not suppress comparisons of other resources.
+
+Quick Access is a separate borrowed UI owner, not part of a Settings-window snapshot.
+Before touching it, establish its actual original UI/shortcut state and a paired restoration
+adapter. Otherwise defer that entry path. A later baseline or successful new helper acceptance
+cannot certify missing historical Quick Access state or overwrite the sealed R1 restoration gap.
 
 Drag/wheel/rotation/desktop/Palette compositions are not live-certified. Missing adapters
 are Author work. Never transplant CI seeding, process-name kills or close-all-window cleanup.

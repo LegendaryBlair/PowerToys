@@ -25,9 +25,11 @@ param(
     [long[]]$SettingsHwnd=@(),
     [object[]]$Retrospective,
     [switch]$NoFriction,
-    [switch]$Resume
+    [switch]$Resume,
+    $ResumeRun
 )
 $ErrorActionPreference = 'Stop'
+if($ResumeRun -and -not $Resume){throw 'ResumeRun requires Resume.'}
 if (($NoFriction -and $Retrospective.Count) -or (-not $NoFriction -and -not $Retrospective.Count)) {
     throw 'Supply actual retrospective rows or an explicit NoFriction choice.'
 }
@@ -69,7 +71,12 @@ if($Scenario -eq 'A' -and $inventoryKey){
     }
 }
 if ($Resume) {
-    $run = Open-PtVerificationRun -Workspace $Workspace
+    if($ResumeRun){
+        if($ResumeRun.Workspace -ine [IO.Path]::GetFullPath($Workspace).TrimEnd('\')){
+            throw 'ResumeRun must belong to this workspace.'
+        }
+        $run=$ResumeRun
+    }else{$run = Open-PtVerificationRun -Workspace $Workspace}
     Assert-PtReportOpen $run
     $state = Get-PtReportState $run
     if (@($state.Attempts | Where-Object { -not $_.Complete }).Count -or @($state.Steps | Where-Object Status -eq 'INCOMPLETE').Count) {

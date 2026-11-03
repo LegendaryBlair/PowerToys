@@ -83,7 +83,9 @@ $failed=Get-PtReportState (Open-PtVerificationRun "$Workspace\failed-cleanup")
 Require (@($failed.Restoration|Where-Object {$_.Data.Verdict -eq 'BLOCKED'}).Count -gt 0) 'Resource failure was not recorded'
 $baselinePath="$Workspace\failed-cleanup\original-file.json"
 $baselineHash=Get-PtReportHash ([IO.File]::ReadAllBytes($baselinePath))
-ClearSession
+$activeSession=Get-PtActiveResourceSession
+$resumeRun=Open-PtVerificationRun "$Workspace\failed-cleanup"
+$resumeSequence=$resumeRun.Sequence
 
 $resumeOptions=$common.Clone()
 $resumeOptions.Cases={param($run)}
@@ -92,7 +94,9 @@ $wrong.ResourcePlan=ConvertFrom-PtReportJson (ConvertTo-Json $common.ResourcePla
 $wrong.ResourcePlan.Resources[0].Id='different-resource'
 Reject {& "$skill\templates\verification-run.ps1" @wrong -Workspace "$Workspace\failed-cleanup" -Resume} 'original resource plan'|Out-Null
 $global:PtTemplateFixtureState.FailRestore=$false
-& "$skill\templates\verification-run.ps1" @resumeOptions -Workspace "$Workspace\failed-cleanup" -Resume|Out-Null
+& "$skill\templates\verification-run.ps1" @resumeOptions -Workspace "$Workspace\failed-cleanup" -Resume -ResumeRun $resumeRun|Out-Null
+Require ($resumeRun.Sequence -gt $resumeSequence -and $resumeRun.IsCompleted) 'Template did not advance the supplied recorder handle'
+Require ($activeSession.BaselineHash -ceq (Get-PtReportHash ([IO.File]::ReadAllBytes("$Workspace\failed-cleanup\resource-baseline.json")))) 'Active-session resume changed the resource baseline'
 Require ([IO.File]::ReadAllText($global:PtTemplateFixtureState.Path) -ceq 'second-original') 'Resume adopted the dirty state as its baseline'
 Require ($baselineHash -ceq (Get-PtReportHash ([IO.File]::ReadAllBytes($baselinePath)))) 'Original local snapshot was overwritten'
 Test-PtVerificationArchive -Workspace "$Workspace\failed-cleanup"|Out-Null

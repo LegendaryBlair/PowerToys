@@ -5,6 +5,11 @@ engine, scheduler or OS sandbox. Use it in the **same runspace** as UI driving. 
 not capture the desktop. `New-PtResourceSession -Run` captures pre-existing native windows
 and process IDs; `Open-PtResourceSession -Run` resumes its original receipt, not a new baseline.
 The thin run template opens this layer before Preflight and completes it during Cleanup.
+Direct bootstrap retains the supplied `-ResourcePlan`; do not recreate or force-add its member after activation.
+Opening the same validated active resource session is idempotent and preserves its in-memory
+guards; a different run still refuses activation. For same-runspace template continuation,
+`-Resume -ResumeRun $run` reuses the caller's current recorder handle. Stale handles remain
+errors: do not reopen another writer while callbacks retain the original one.
 
 ## Mandatory wiring for aligned module runs
 
@@ -73,6 +78,9 @@ of that exact declared executable which lack a creation record. Such a gap block
 it does not authorize adopting or killing them. Existing singleton processes remain borrowed.
 Do not claim whole-run restoration from a subset of file/window receipts, or delete private
 recovery material while an owned helper still has an unresolved cleanup obligation.
+Final completion records process-candidate identity failures per candidate and continues
+independent resource comparisons. The affected row and overall restoration remain BLOCKED;
+this is not permission to adopt, close or certify an inaccessible process.
 
 ```powershell
 @{Id='companion-provider';Kind='Process';Ownership='Owned'

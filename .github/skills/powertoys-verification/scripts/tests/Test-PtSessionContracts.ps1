@@ -31,6 +31,7 @@ function Get-Process {
 }
 function Get-PtResourceProcessIdentity {
     param([int]$ProcessId)
+    if($ProcessId -eq $script:deniedProcess){throw 'Synthetic process identity access denied'}
     $process=$script:processes[$ProcessId]
     if($process){[pscustomobject]@{processId=$ProcessId;processStartTicks=$process.StartTime.ToUniversalTime().Ticks
         path=$process.Path;sessionId=1}}
@@ -63,7 +64,8 @@ function Session {
         -Items @(@{Id='I1';Description='Contract';Admin='NO';Clarity='CLEAR';UserVisible=$false;Assertions=@(@{Id='a';Description='Synthetic behavior'})}) `
         -Inputs @(Get-PtVerificationInputs -Skill (Split-Path $helpers -Parent) -Inputs @(@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath}))
     $session=New-PtResourceSession $run -ResourcePlan $ResourcePlan
-    $session.ResourcePlan=$ResourcePlan;Save-PtResourceSession $session
+    Require ((ConvertTo-Json $session.ResourcePlan -Depth 20 -Compress) -ceq
+        (ConvertTo-Json $ResourcePlan -Depth 20 -Compress)) 'Direct bootstrap discarded the supplied resource plan'
     $run
 }
 Check 'Borrowed and pre-existing windows cannot become owned or be closed' {
@@ -85,6 +87,38 @@ Check 'Additional process scopes retain the original baseline and seal pre-activ
     Reject {Add-PtResourceProcessScope -Id duplicate -FilePath $path -RestoreStep helper-exit} 'already declared'
     [IO.File]::AppendAllText($scope.Path,' ')
     Reject {Assert-PtResourceSession $session} 'snapshot changed'
+}
+Check 'Same-session resume retains live guards and refuses a different run' {
+    $run=Session
+    $session=Get-PtActiveResourceSession
+    $guard=[pscustomobject]@{Restored=$false}
+    Add-PtClipboardObligation $guard 10
+    $resumed=Open-PtResourceSession $run
+    Require ([object]::ReferenceEquals($session,$resumed)) 'Resume replaced the active session'
+    $guard.Restored=$true
+    Assert-PtProcessRelease @(10)
+    $other=[pscustomobject]@{Id='different';Workspace=$run.Workspace}
+    Reject {Open-PtResourceSession $other} 'different resource session'
+}
+Check 'Candidate identity errors retain blocked evidence and do not omit other resources' {
+    $path=[IO.Path]::GetFullPath('probe.exe')
+    $plan=@{Schema='PtRunResources.v1';Resources=@(@{Id='probe';Kind='Process';Ownership='Owned';FilePath=$path;RestoreStep='exit'})}
+    $run=Session $plan
+    $script:processes[98]=[pscustomobject]@{Id=98;StartTime=[datetime]'2026-01-01T00:00:00Z';Path=$path;ProcessName='probe'}
+    $script:processes[99]=[pscustomobject]@{Id=99;StartTime=[datetime]'2026-01-01T00:00:00Z';Path=$path;ProcessName='probe'}
+    $script:deniedProcess=98
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Candidate probe failure' -Kind Normal
+    try{
+        Reject {Get-PtResourceProcessCandidates $path} 'access denied'
+        Reject {Complete-PtResourceSession $attempt} 'unresolved ownership'
+        $state=Get-PtReportState $run
+        $rows=Get-Content (Join-Path $run.Workspace $state.CurrentRestoration[0].Data.Evidence[0].Path) -Raw|ConvertFrom-Json
+        Require (@($rows|Where-Object {$_.Resource -eq 'process-probe-98' -and $_.Status -eq 'BLOCKED' -and $_.Reason -match 'access denied'}).Count -eq 1) 'Probe failure lost its receipt'
+        Require (@($rows|Where-Object {$_.Resource -eq 'process-probe-99' -and $_.Status -eq 'BLOCKED'}).Count -eq 1) 'Independent candidate was omitted'
+    }finally{
+        $script:deniedProcess=0
+        Stop-PtVerificationAttempt $attempt -Reason 'Failures remain blocked, independent candidates assessed'
+    }
 }
 Check 'An attempted helper activation cannot acquire a replacement scope' {
     $run=Session -ResourcePlan @{Schema='PtRunResources.v1';Resources=@()}
@@ -293,6 +327,8 @@ Check 'Cleanup enforces order, requires Boolean comparison and continues indepen
         @{Id='false-success';Phase='Verify';DependsOn=@();Action={};Verify={'true'}}
     )
     try{
+        Reject {Assert-PtCleanupPlan @(@{Id='missing';Phase='Files';Action={};Verify={$true}})} 'explicit DependsOn'
+        Reject {Assert-PtCleanupPlan @(@{Id='null';Phase='Files';DependsOn=$null;Action={};Verify={$true}})} 'explicit DependsOn'
         Reject {Invoke-PtCleanupPlan $attempt $steps} 'Cleanup incomplete'
         Require (($script:ran -join ',') -ceq 'files') 'Dependent action ran or independent action skipped'
         Reject {Invoke-PtCleanupPlan $attempt @($steps[2],$steps[0])} 'safe order'

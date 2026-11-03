@@ -38,6 +38,21 @@ public static class PtDesktop {
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll", SetLastError=true)] static extern bool GetWindowRect(IntPtr h, out RECT rect);
+    [DllImport("user32.dll", SetLastError=true)] static extern bool GetClientRect(IntPtr h, out RECT rect);
+    [DllImport("user32.dll", SetLastError=true)] static extern bool ClientToScreen(IntPtr h, ref POINT point);
+    [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW", SetLastError=true)] static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
+    [DllImport("user32.dll", EntryPoint="GetWindowLongW", SetLastError=true)] static extern int GetWindowLong(IntPtr h, int index);
+    public static long ExtendedStyle(IntPtr h) {
+        return IntPtr.Size == 8 ? GetWindowLongPtr(h,-20).ToInt64() : GetWindowLong(h,-20);
+    }
+    public static RECT ClientBounds(IntPtr h) {
+        IntPtr previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try {
+            RECT rect; POINT origin=new POINT();
+            if(!GetClientRect(h,out rect) || !ClientToScreen(h,ref origin)) throw new Win32Exception();
+            return new RECT { Left=origin.X, Top=origin.Y, Right=origin.X+rect.Right, Bottom=origin.Y+rect.Bottom };
+        } finally { if(previous!=IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
+    }
     [DllImport("user32.dll", SetLastError=true)] static extern bool GetWindowPlacement(IntPtr h, ref PLACEMENT p);
     [DllImport("user32.dll", SetLastError=true)] static extern bool SetWindowPlacement(IntPtr h, ref PLACEMENT p);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
@@ -327,16 +342,31 @@ function Save-PtPassiveScreenshot {
     afterward. Empty/invalid scope fails; omitted scope retains virtual-desktop capture.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Path, [scriptblock]$Observe, [object[]]$WindowIdentity)
+    param([Parameter(Mandatory)][string]$Path, [scriptblock]$Observe, [object[]]$WindowIdentity, $Region)
     $scoped = $PSBoundParameters.ContainsKey('WindowIdentity')
     if ($scoped -and -not $WindowIdentity.Count) { throw 'An explicit capture scope cannot be empty.' }
+    if($Region -and -not $scoped){throw 'A capture Region requires explicit window identities.'}
     Add-Type -AssemblyName System.Drawing, System.Windows.Forms
     $before = [ordered]@{ foreground = [PtDesktop]::GetForegroundWindow().ToInt64(); observation = $(if ($Observe) { & $Observe }) }
     if ($scoped) { $before.scope = Get-PtCaptureWindowBounds -WindowIdentity $WindowIdentity }
+    if($Region){
+        foreach($key in 'Left','Top','Width','Height'){
+            if($Region.$key -isnot [int]){throw 'Capture Region requires integer physical coordinates.'}
+        }
+        $scope=$before.scope
+        if($Region.Width -le 0 -or $Region.Height -le 0 -or $Region.Left -lt $scope.Left -or $Region.Top -lt $scope.Top -or
+            ([long]$Region.Left+$Region.Width) -gt ([long]$scope.Left+$scope.Width) -or
+            ([long]$Region.Top+$Region.Height) -gt ([long]$scope.Top+$scope.Height)){
+            throw 'Capture Region must be contained in the explicit window scope.'
+        }
+        $before.region=$Region
+    }
     if (-not $before.foreground) { throw 'No interactive foreground desktop; capture aborted.' }
     $dpi = [PtDesktop]::SetThreadDpiAwarenessContext([IntPtr](-4))
     try {
-        $bounds = if ($scoped) {
+        $bounds = if($Region){
+            [Drawing.Rectangle]::new($Region.Left,$Region.Top,$Region.Width,$Region.Height)
+        } elseif ($scoped) {
             [Drawing.Rectangle]::new($before.scope.Left, $before.scope.Top, $before.scope.Width, $before.scope.Height)
         } else { [Windows.Forms.SystemInformation]::VirtualScreen }
         $bitmap = [Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
@@ -355,6 +385,7 @@ function Save-PtPassiveScreenshot {
         try { $after.scope = Get-PtCaptureWindowBounds -WindowIdentity $WindowIdentity }
         catch { $scopeError = $_; $after.scopeError = $_.Exception.Message }
     }
+    if($Region){$after.region=$Region}
     $state = [ordered]@{ before = $before; after = $after; path = [IO.Path]::GetFullPath($Path) }
     $sidecar = [IO.File]::Open("$Path.state.json", [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
     try {
