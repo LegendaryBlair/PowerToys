@@ -184,6 +184,7 @@ public static class FancyZonesSurface
                         break;
                     case "show":
                         Forms[id].Show();
+                        Forms[id].BringToFront();
                         Forms[id].Activate();
                         break;
                     case "hide":

@@ -29,6 +29,12 @@ $inputs=@(
     @{Name='fancyzones-profile.md';Role='Profile';Path="$skill\references\modules\fancyzones.md"},
     @{Name='surface.exe';Role='Other';Path=$FixturePath}
 )
+$repository=Split-Path (Split-Path (Split-Path $skill -Parent) -Parent) -Parent
+$editorSource=Join-Path $repository 'src\modules\fancyzones\editor\FancyZonesEditor'
+$inputs+=@(@{Name='editor-opaque-client.xaml';Role='Other';Path="$editorSource\MainWindow.xaml"})
+foreach($theme in 'Dark','Light','HighContrast1','HighContrast2','HighContrastBlack','HighContrastWhite'){
+    $inputs+=@(@{Name="editor-theme-$theme.xaml";Role='Other';Path="$editorSource\Themes\$theme.xaml"})
+}
 $run=New-PtVerificationRun -Workspace $Workspace -Module FancyZones -Bits 'Installed 0.102.3001.0; one explicitly selected case' `
     -Scenario A -Items $selected -Inputs @(Get-PtVerificationInputs -Skill $skill -Inputs $inputs)
 $private=Join-Path ([IO.Path]::GetDirectoryName($run.Workspace)) ([IO.Path]::GetFileName($run.Workspace)+'-private')
@@ -110,6 +116,7 @@ function Set-CaseSpan([bool]$Value) {
 function Surface-Command([string]$Command) {
     $path=Join-Path $FzCase.SurfaceState 'command.txt'
     if(Test-Path $path){throw 'Previous fixture command is pending.'}
+    [IO.File]::Delete((Join-Path $FzCase.SurfaceState 'response.json'))
     $staging=$path+'.'+[guid]::NewGuid().ToString('N')
     [IO.File]::WriteAllText($staging,$Command)
     [IO.File]::Move($staging,$path)
@@ -123,8 +130,39 @@ function Surface-Command([string]$Command) {
     if(-not $result.Success){throw "Fixture rejected operation: $($result.Error)"}
     $result
 }
+function Start-CaseSurface {
+    [IO.Directory]::CreateDirectory($FzCase.SurfaceState)|Out-Null
+    $FzCase.Surface=Start-PtOwnedProcess -FilePath $FixturePath -ArgumentList @($FzCase.SurfaceState) -Lifetime Run
+    $FzCase.SurfaceReady=Wait-PtCondition -Description 'owned test windows ready' -TimeoutSeconds 10 -Probe {
+        if(Test-Path "$($FzCase.SurfaceState)\ready.json"){
+            ConvertFrom-PtReportJson (Read-PtSharedFileText "$($FzCase.SurfaceState)\ready.json")
+        }
+    }
+    if($FzCase.SurfaceReady.Pid -ne $FzCase.Surface.ProcessId){throw 'Fixture ready PID does not match launch.'}
+    Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
+    $FzCase.Driver.ApplicationPaths=@($FixturePath)
+    Surface-Command "hide|$($FzCase.SurfaceReady.Child)"|Out-Null
+    Surface-Command "hide|$($FzCase.SurfaceReady.Second)"|Out-Null
+}
+function Capture-CaseRegion($Attempt,[string]$Name,$Target,$Region) {
+    Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
+    Register-PtCreatedProcessWindows $FzCase.Host|Out-Null
+    if($FzCase.Driver.EditorCreation){Register-PtCreatedProcessWindows $FzCase.Driver.EditorCreation|Out-Null}
+    # MainWindow's themed client uses FF-alpha brushes; the authored surface paints opaque controls.
+    $editorTarget=$FzCase.Driver.Editor -and $Target.hwnd -eq $FzCase.Driver.Editor.hwnd
+    if(-not $editorTarget -and $Target.processId -ne $FzCase.Surface.ProcessId){
+        throw 'Only the source-verified opaque editor client or authored fixture client can be the backdrop.'
+    }
+    $background=$Target
+    Assert-PtForegroundOrAbort -Hwnd $Target.hwnd
+    $path=New-PtVerificationArtifactPath -Attempt $Attempt -Name "$Name.png"
+    Save-PtOwnedScreenshot -Path $path -WindowIdentity @($Target,$background) -OpaqueBackgroundIdentity $background -Region $Region|Out-Null
+    Add-PtVerificationArtifact -Attempt $Attempt -Path "$path.state.json" -Kind Evidence -Description 'Before/after owned capture scene'|Out-Null
+    Add-PtVerificationArtifact -Attempt $Attempt -Path $path -Kind Screenshot -Description 'Owned composed region, paired with full native work-area geometry; not an accepted reference'
+}
 function Observe-Span($Attempt,[bool]$Enabled) {
     Set-CaseSpan $Enabled
+    foreach($background in $FzCase.SurfaceReady.Backgrounds){Surface-Command "show|$background"|Out-Null}
     $editor=Open-PtFancyZonesEditor $FzCase.Driver
     $model=Get-PtFancyZonesDisplayModel
     $actual=Get-PtFancyZonesSnapshotJson $FzCase.Driver.ExpectedModule 'editor-parameters.json'
@@ -152,17 +190,32 @@ function Observe-Span($Attempt,[bool]$Enabled) {
         $actual.monitors.Count -eq $predicted.monitors.Count -and $sameGeometry -and
         @($matches|Where-Object Count -NE 1).Count -eq 0
     $label=if($Enabled){'on'}else{'off'}
+    Initialize-PtUiAutomation
+    $editorRoot=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]$editor.hwnd)
+    $selectors=@($editorRoot.FindAll([Windows.Automation.TreeScope]::Descendants,
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty,'Monitors')))
+    if($selectors.Count -gt 1){throw 'Ambiguous monitor selector.'}
+    $selectorVisible=$selectors.Count -eq 1 -and -not $selectors[0].Current.IsOffscreen
+    if($selectorVisible){
+        $bounds=$selectors[0].Current.BoundingRectangle
+        $region=[pscustomobject]@{Left=[int]$bounds.Left;Top=[int]$bounds.Top;Width=[int]$bounds.Width;Height=[int]$bounds.Height}
+    }else{
+        $button=Resolve-PtUiElement -Hwnd $editor.hwnd -AutomationId NewLayoutButton -ControlType Button
+        $bounds=$button.Current.BoundingRectangle
+        $region=[pscustomobject]@{Left=[int]$bounds.Left;Top=[int]$bounds.Top;Width=[int]$bounds.Width;Height=[int]$bounds.Height}
+    }
+    $images=@(Capture-CaseRegion $Attempt "span-$label-editor-selector" $editor $region)
     $evidence=Case-Proof $Attempt "span-$label" @{
         Spanning=$Enabled;PhysicalMonitorCount=$model.Monitors.Count
         ActualModelCount=$actual.monitors.Count;ExpectedModelCount=$predicted.monitors.Count
         GeometryMatches=$sameGeometry;ExpectedGeometry=$expectedGeometry;ActualGeometry=$actualGeometry
-        OwnedEditorWindows=$matches;Passed=$passed
+        OwnedEditorWindows=$matches;MonitorSelectorVisible=$selectorVisible;Passed=$passed
     }
     $FzCase.Conditions.Add([pscustomobject]@{Id="FZ-SPAN.$label";Passed=$passed;Evidence=$evidence})
     $sequence=Add-PtVerificationObservation -Attempt $Attempt -AssertionId "FZ-SPAN.$label" `
-        -Actual "Spanning ${label}: host model count $($actual.monitors.Count), measured editor work-area geometry matches=$passed." -Evidence @($evidence)
+        -Actual "Spanning ${label}: host model count $($actual.monitors.Count), measured editor work-area geometry matches=$passed." -Evidence (@($evidence)+$images)
     Add-PtVerificationAssertion -Attempt $Attempt -AssertionId "FZ-SPAN.$label" -ObservationSequence $sequence `
-        -Verdict $(if($passed){'PASS'}else{'FAIL'}) -Category product -Reason 'Current native display geometry compared with actual host input and owned editor overlay bounds.' -Evidence @($evidence)
+        -Verdict $(if($passed){'PASS'}else{'FAIL'}) -Category product -Reason 'Current native display geometry compared with actual host input and owned editor overlay bounds.' -Evidence (@($evidence)+$images)
     Close-PtFancyZonesEditor $FzCase.Driver
 }
 function Cleanup-CaseStep($Attempt,[string]$Name,[scriptblock]$Action) {
@@ -190,6 +243,8 @@ function Prepare-ChildLayout([bool]$Spanning) {
 function Observe-Child($Attempt,[bool]$Spanning,[bool]$Enabled) {
     Set-PtFancyZonesBoolean -Context $FzCase.Driver -ContainerId FancyZonesAllowChildWindowSnap `
         -SettingKey fancyzones_allowChildWindowSnap -Value $Enabled|Out-Null
+    foreach($background in $FzCase.SurfaceReady.Backgrounds){Surface-Command "show|$background"|Out-Null}
+    Surface-Command "show|$($FzCase.SurfaceReady.Target)"|Out-Null
     $created=Surface-Command create-child
     Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
     $child=Get-PtWindowIdentity $created.Hwnd
@@ -221,11 +276,14 @@ function Observe-Child($Attempt,[bool]$Spanning,[bool]$Enabled) {
         $mode=if($Spanning){'on'}else{'off'}
         $branch=if($Enabled){'enabled'}else{'disabled'}
         $label="child-$branch-$mode"
+        $frame=$after.Native.Frame
+        $region=[pscustomobject]@{Left=[int]($frame.Left+40);Top=[int]($frame.Top+80);Width=240;Height=120}
+        $image=Capture-CaseRegion $Attempt $label $child $region
         $evidence=Case-Proof $Attempt $label @{
             Spanning=$Spanning;ChildSnapping=$Enabled;Before=$before.Native;After=$after.Native
             ChildClass=$child.className;VisibleOwner=$true;DeliveredKeys=$delivery;Passed=$passed
         }
-        $FzCase.Conditions.Add([pscustomobject]@{Id="FZ-CHILD.$branch";Mode=$mode;Passed=$passed;Evidence=$evidence})
+        $FzCase.Conditions.Add([pscustomobject]@{Id="FZ-CHILD.$branch";Mode=$mode;Passed=$passed;Evidence=@($evidence,$image)})
     } finally {
         $scope=New-PtFancyZonesDriverScope $FzCase.Driver
         Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($child.hwnd) -Action {
@@ -284,6 +342,8 @@ try {
     if($Case -ceq 'Span') {
         Invoke-PtVerificationCase -Run $run -ItemId $itemId -Name 'Spanning off and on' -Command 'Toggle actual Settings, observe host model and editor geometry, close normally' -Action {
             param($attempt)
+            Start-CaseSurface
+            Surface-Command "hide|$($FzCase.SurfaceReady.Target)"|Out-Null
             Observe-Span $attempt $false
             Observe-Span $attempt $true
         }|Out-Null
@@ -295,17 +355,7 @@ try {
                 -SettingKey fancyzones_appLastZone_moveWindows -Value $false|Out-Null
             Set-PtFancyZonesBoolean -Context $FzCase.Driver -ContainerId FancyZonesOverrideSnapHotkeys `
                 -SettingKey fancyzones_overrideSnapHotkeys -Value $true|Out-Null
-            [IO.Directory]::CreateDirectory($FzCase.SurfaceState)|Out-Null
-            $FzCase.Surface=Start-PtOwnedProcess -FilePath $FixturePath -ArgumentList @($FzCase.SurfaceState) -Lifetime Run
-            $FzCase.SurfaceReady=Wait-PtCondition -Description 'owned test windows ready' -TimeoutSeconds 10 -Probe {
-                if(Test-Path "$($FzCase.SurfaceState)\ready.json"){
-                    ConvertFrom-PtReportJson (Read-PtSharedFileText "$($FzCase.SurfaceState)\ready.json")
-                }
-            }
-            if($FzCase.SurfaceReady.Pid -ne $FzCase.Surface.ProcessId){throw 'Fixture ready PID does not match launch.'}
-            Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
-            $FzCase.Driver.ApplicationPaths=@($FixturePath)
-            Surface-Command "hide|$($FzCase.SurfaceReady.Child)"|Out-Null
+            Start-CaseSurface
             foreach($mode in $false,$true){
                 Prepare-ChildLayout $mode
                 Observe-Child $attempt $mode $true

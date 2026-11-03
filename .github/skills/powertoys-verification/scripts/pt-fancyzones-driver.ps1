@@ -299,6 +299,17 @@ function Set-PtFancyZonesBoolean {
         $toggle = @(foreach ($element in $controls) {
             $pattern = $null
             if ($element.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern,[ref]$pattern)) {
+                $ancestor = $element
+                $nestedCard = $false
+                while ($ancestor -and -not [Windows.Automation.Automation]::Compare($ancestor, $container)) {
+                    if ($ancestor.Current.ControlType -eq [Windows.Automation.ControlType]::Group -and
+                        $ancestor.Current.AutomationId) {
+                        $nestedCard = $true
+                        break
+                    }
+                    $ancestor = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($ancestor)
+                }
+                if ($nestedCard) { continue }
                 [pscustomobject]@{Element=$element;Pattern=$pattern}
             }
         })

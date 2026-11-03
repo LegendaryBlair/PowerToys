@@ -213,6 +213,9 @@ The bounded desktop recipe `scripts\tests\Test-PtFancyZonesCaseDesktop.ps1` sele
 compiled from the committed `FancyZonesSurface.cs`. It requires an initially disabled host,
 an existing Settings window and two compatible monitors, and records original-state cleanup.
 This focused recipe is not a replacement for the remaining module inventory.
+Its client-only captures use the editor's source-pinned opaque theme brushes or the authored
+WinForms fixture as the known backdrop, with the same native occlusion guards. It does not
+make translucent zone-overlay windows opaque or exempt borrowed Settings from privacy checks.
 
 `Invoke-PtFancyZonesDriverAction` freezes an explicit record scope before input and privately
 persists confirmed recovery state even on errors. Add layout UUIDs, fixture executable paths,
