@@ -1,17 +1,41 @@
 #requires -Version 7.2
 param(
-    [Parameter(Mandatory)][ValidateSet('Span','Child')][string]$Case,
+    [Parameter(Mandatory)][ValidateSet('Span','Child','FZ-ASSIGN','FZ-DRAG','FZ-DRAG-DISPLAY',
+        'FZ-HISTORY','FZ-ELEVATION','FZ-PINNED','FZ-DISPLAY','FZ-RELAYOUT','FZ-ACTIVE-MONITOR',
+        'FZ-CYCLE','FZ-INDEX','FZ-POSITION','FZ-QUICK','FZ-LAYOUT','FZ-RESET','FZ-ROTATION')][string]$Case,
     [Parameter(Mandatory)][string]$Workspace,
-    [Parameter(Mandatory)][string]$FixturePath
+    [Parameter(Mandatory)][string]$FixturePath,
+    [string]$CaseScript,
+    [string]$ConditionScope,
+    [switch]$ObservationOnly,
+    [string]$StopFile
 )
 $ErrorActionPreference='Stop'
+if($StopFile -and (Test-Path -LiteralPath $StopFile)){throw 'Stop requested before starting a new case.'}
 $skill=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 foreach($file in Get-ChildItem "$skill\scripts" -Filter '*.ps1' -File) {
     if($file.Name -cne 'pt-session-diagnose.ps1'){. $file.FullName}
 }
-$itemId=if($Case -ceq 'Span'){'FZ-SPAN'}else{'FZ-CHILD'}
+$itemId=switch -CaseSensitive ($Case){'Span'{'FZ-SPAN'} 'Child'{'FZ-CHILD'} default{$Case}}
 $inventory=Import-PtAssertionInventory "$skill\references\assertion-inventories\fancyzones.json" "$skill\references\release-checklist\fancyzones.md"
 $selected=@($inventory.Items|Where-Object Id -CEQ $itemId)
+$frozen=@()
+if($Case -cnotin @('Span','Child')){
+    if(-not $CaseScript -or -not $ConditionScope){throw 'An explicit case script and frozen condition scope are required.'}
+    $scopeDocument=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($ConditionScope))
+    $frozen=@($scopeDocument.Conditions|Where-Object ScenarioId -CEQ $itemId)
+    if(-not $frozen.Count -or @($frozen.ConditionId|Sort-Object -Unique).Count -ne $frozen.Count){
+        throw 'Selected condition catalogue is empty or duplicated.'
+    }
+    foreach($condition in $frozen){
+        $assertion=@($selected.Assertions|Where-Object Id -CEQ $condition.ChildId)
+        if($assertion.Count -ne 1 -or $condition.Expected -cne $assertion[0].Description){throw 'Condition differs from the frozen inventory.'}
+    }
+    if(@(Compare-Object @($selected.Assertions.Id) @($frozen.ChildId|Sort-Object -Unique)).Count){throw 'Required child conditions are missing.'}
+    $parseErrors=$null
+    [Management.Automation.Language.Parser]::ParseFile([IO.Path]::GetFullPath($CaseScript),[ref]$null,[ref]$parseErrors)|Out-Null
+    if($parseErrors.Count){throw 'Case script has parse errors; do not begin product mutations.'}
+}
 $settingsPath=Join-Path $env:LOCALAPPDATA 'PowerToys\WinUI3Apps\PowerToys.Settings.exe'
 $hostPath=Join-Path $env:LOCALAPPDATA 'PowerToys\PowerToys.FancyZones.exe'
 $editorPath=Join-Path $env:LOCALAPPDATA 'PowerToys\PowerToys.FancyZonesEditor.exe'
@@ -29,6 +53,8 @@ $inputs=@(
     @{Name='fancyzones-profile.md';Role='Profile';Path="$skill\references\modules\fancyzones.md"},
     @{Name='surface.exe';Role='Other';Path=$FixturePath}
 )
+if($CaseScript){$inputs+=@(@{Name='case-operation.ps1';Role='Other';Path=$CaseScript})}
+if($ConditionScope){$inputs+=@(@{Name='condition-scope.json';Role='Other';Path=$ConditionScope})}
 $repository=Split-Path (Split-Path (Split-Path $skill -Parent) -Parent) -Parent
 $editorSource=Join-Path $repository 'src\modules\fancyzones\editor\FancyZonesEditor'
 $inputs+=@(@{Name='editor-opaque-client.xaml';Role='Other';Path="$editorSource\MainWindow.xaml"})
@@ -46,6 +72,15 @@ $global:FzCase=@{
     SettingsSnapshot=$null;Desktop=$null;Keyboard=$null;Lifecycle=$null;Host=$null
     Driver=$null;Surface=$null;SurfaceReady=$null;SurfaceState="$private\surface"
     Conditions=[Collections.Generic.List[object]]::new();Cleanup=[Collections.Generic.List[object]]::new()
+    Frozen=$frozen;Ledger=@{}
+    StopFile=$StopFile
+}
+foreach($condition in $frozen){
+    $FzCase.Ledger[$condition.ConditionId]=[pscustomobject]@{
+        Id=$condition.ConditionId;ChildId=$condition.ChildId;Mode=$condition.Spanning;Variant=$condition.Variant
+        Expected=$condition.Expected;Verdict='NOT-OBSERVED';Category='not-observed';Passed=$false;Executed=$false
+        Actual='Not executed.';Evidence=@();ObservationSequence=$null;AttemptId=$null
+    }
 }
 $plan=@{Schema='PtRunResources.v1';Resources=@(
     @{Id='host';Kind='Process';Ownership='Owned';FilePath=$hostPath;RestoreStep='host'},
@@ -107,6 +142,55 @@ function Case-Proof($Attempt,[string]$Name,$Value,[string]$Kind='Evidence') {
     $path=New-PtVerificationArtifactPath -Attempt $Attempt -Name "$Name.json"
     Write-PtReportText $path ($Value|ConvertTo-Json -Depth 18)
     Add-PtVerificationArtifact -Attempt $Attempt -Path $path -Kind $Kind -Description $Name
+}
+function Record-CaseCondition {
+    param(
+        [Parameter(Mandatory)]$Attempt,
+        [Parameter(Mandatory)][string]$ConditionId,
+        [Parameter(Mandatory)][ValidateSet('PASS','FAIL','BLOCKED','NOT-OBSERVED')][string]$Verdict,
+        [Parameter(Mandatory)][string]$Category,
+        [Parameter(Mandatory)][string]$Actual,
+        [Parameter(Mandatory)][bool]$Executed,
+        [object[]]$Evidence=@(),
+        $Detail
+    )
+    if($FzCase.StopFile -and (Test-Path -LiteralPath $FzCase.StopFile)){
+        throw 'Stop requested; leave the remaining conditions unobserved and restore this case.'
+    }
+    $row=$FzCase.Ledger[$ConditionId]
+    if(-not $row -or $Attempt.ItemId -cne $itemId){throw 'Condition does not belong to this selected case.'}
+    Assert-PtVerificationVerdictCategory $Verdict $Category
+    if($Verdict -ceq 'PASS' -and -not $Executed){throw 'An unexecuted condition cannot PASS.'}
+    if($PSBoundParameters.ContainsKey('Detail')){
+        $Evidence+=@(Case-Proof $Attempt ('condition-'+[guid]::NewGuid().ToString('N')) $Detail)
+    }
+    if($Verdict -ceq 'PASS' -and -not $Evidence.Count){throw 'PASS requires actual producing evidence.'}
+    if($row.Verdict -cne 'NOT-OBSERVED'){
+        if(-not $row.PSObject.Properties['History']){$row|Add-Member NoteProperty History @()}
+        $row.History+=@([pscustomobject]@{Verdict=$row.Verdict;Actual=$row.Actual;Evidence=$row.Evidence;AttemptId=$row.AttemptId})
+    }
+    $row.Verdict=$Verdict;$row.Category=$Category;$row.Actual=$Actual;$row.Executed=$Executed
+    $row.Passed=$Verdict -ceq 'PASS';$row.Evidence=$Evidence;$row.AttemptId=$Attempt.Id
+    $row.ObservationSequence=Add-PtVerificationObservation -Attempt $Attempt -AssertionId $row.ChildId -Actual "$ConditionId | $Actual" -Evidence $Evidence
+    [IO.File]::WriteAllText((Join-Path $FzCase.Run.Workspace 'conditions-current.json'),
+        (@($FzCase.Ledger.Values)|Sort-Object Id|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
+}
+function Complete-CaseConditions($Attempt) {
+    foreach($assertion in $selected.Assertions){
+        $rows=@($FzCase.Ledger.Values|Where-Object ChildId -CEQ $assertion.Id)
+        $failed=@($rows|Where-Object Verdict -CEQ 'FAIL')
+        $blocked=@($rows|Where-Object Verdict -CEQ 'BLOCKED')
+        $missing=@($rows|Where-Object Verdict -CEQ 'NOT-OBSERVED')
+        $verdict=if($failed.Count){'FAIL'}elseif($blocked.Count -or $missing.Count){'BLOCKED'}else{'PASS'}
+        $category=if($failed.Count){$failed[0].Category}elseif($missing.Count){'BLK-INCOMPLETE'}elseif($blocked.Count){$blocked[0].Category}else{'recorded product observation'}
+        $reason="$($rows.Count) conditions: $(@($rows|Where-Object Verdict -CEQ 'PASS').Count) pass, $($failed.Count) fail, $($blocked.Count) blocked, $($missing.Count) unobserved."
+        $currentEvidence=@($rows|Where-Object AttemptId -CEQ $Attempt.Id|ForEach-Object {$_.Evidence})
+        $detail=Case-Proof $Attempt ('child-'+$assertion.Id) $rows
+        $currentEvidence+=@($detail)
+        $sequence=Add-PtVerificationObservation -Attempt $Attempt -AssertionId $assertion.Id -Actual $reason -Evidence $currentEvidence
+        Add-PtVerificationAssertion -Attempt $Attempt -AssertionId $assertion.Id -ObservationSequence $sequence `
+            -Verdict $verdict -Category $category -Reason $reason -Evidence $currentEvidence
+    }
 }
 function Set-CaseSpan([bool]$Value) {
     if($FzCase.Driver.EditorCreation){Close-PtFancyZonesEditor $FzCase.Driver}
@@ -310,6 +394,10 @@ try {
         Save-Private 'module-original.json' $FzCase.OriginalModule
         Save-Private 'general-original.json' $FzCase.OriginalGeneral
         $FzCase.SettingsSnapshot=Get-PtSettingsUiSnapshot -Hwnd $FzCase.Settings.hwnd -Workspace $FzCase.Private
+        if($ObservationOnly){
+            Case-Proof $attempt 'observation-only-preflight' @{SelectedCase=$itemId;ModuleActivated=$false;PrivateBaselineCaptured=$true}|Out-Null
+            return
+        }
         Show-PtSettingsForObservation $FzCase.Settings.hwnd
         $nav=Resolve-PtUiElement -Hwnd $FzCase.Settings.hwnd -AutomationId FancyZonesNavItem -ControlType ListItem
         $nav.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
@@ -336,6 +424,7 @@ try {
         } finally {$FzCase.ExpectedModule=$expected;Save-Private 'module-expected.json' $expected}
         $FzCase.Driver=New-PtFancyZonesDriverContext -ExpectedState $FzCase.ExpectedModule -HostCreation $FzCase.Host `
             -Settings $FzCase.Settings -EditorPath $editorPath -PrivateRecoveryDirectory $FzCase.Private
+        $FzCase.Driver.StopFile=$StopFile
         Case-Proof $attempt 'preflight' @{MonitorCount=$model.Monitors.Count;Dpi=@($model.Monitors.Dpi)
             Host=$FzCase.Host.ProcessId;OriginalEnabled=$false;FullInventory=42;SelectedCase=$itemId}|Out-Null
     }|Out-Null
@@ -347,7 +436,7 @@ try {
             Observe-Span $attempt $false
             Observe-Span $attempt $true
         }|Out-Null
-    } else {
+    } elseif($Case -ceq 'Child') {
         Invoke-PtVerificationCase -Run $run -ItemId $itemId -Name 'Child snapping in both modes' `
             -Command 'Apply a template via UI and exercise real keyboard snapping on same-class owned child windows' -Action {
             param($attempt)
@@ -371,6 +460,17 @@ try {
                     -Verdict $(if($passed){'PASS'}else{'FAIL'}) -Category product -Reason 'Real input, exact owned parent/child identities and actual zone assignment in both modes.' -Evidence $evidence
             }
         }|Out-Null
+    } else {
+        Invoke-PtVerificationCase -Run $run -ItemId $itemId -Name 'Execute frozen selected conditions' `
+            -Command "Execute the source-recorded finite operation script for $itemId" -Action {
+                param($attempt)
+                try {
+                    Invoke-PtVerificationStep -Attempt $attempt -Name 'Selected case operations' `
+                        -Command "Run $itemId actions and observations" -ScriptFile $CaseScript -ArgumentList @($attempt)|Out-Null
+                } finally {
+                    Complete-CaseConditions $attempt
+                }
+            }|Out-Null
     }
     Complete-PtVerificationItem -Run $run -ItemId $itemId -Reason 'All selected case conditions have producing observations and explicit judgments.'
 } catch {$failure=$_}
@@ -429,7 +529,7 @@ $export=Complete-PtVerificationRun -Run $run -Retrospective $retrospective
 $integrity=Test-PtVerificationArchive -Workspace $run.Workspace
 $state=Get-PtReportState $run
 $summary=[ordered]@{Case=$itemId;RunId=$run.Id;Workspace=$run.Workspace;ArchiveValid=$integrity.Valid
-    Verdict=$state.Items[0].Verdict;Signoff=$state.Signoff;Conditions=@($FzCase.Conditions)
+    Verdict=$state.Items[0].Verdict;Signoff=$state.Signoff;Conditions=$(if($frozen.Count){@($FzCase.Ledger.Values|Sort-Object Id)}else{@($FzCase.Conditions)})
     Cleanup=@($FzCase.Cleanup);Error=$(if($failure){$failure.Exception.Message}else{$null})}
 $summary|ConvertTo-Json -Depth 15|Set-Content (Join-Path $run.Workspace 'case-summary.json')
 $summary|ConvertTo-Json -Depth 6

@@ -11,11 +11,11 @@ if((Test-Path $module) -or (Test-Path $recovery)) { throw 'Do not reuse a fixtur
 [IO.Directory]::CreateDirectory($recovery)|Out-Null
 $names=@('settings.json','applied-layouts.json','custom-layouts.json','default-layouts.json',
     'layout-hotkeys.json','layout-templates.json','app-zone-history.json','editor-parameters.json','last-used-virtual-desktop.json')
-$script:driverTest=[pscustomobject]@{Visible=$false;Activations=0;Closes=0;Refreshes=0}
+$script:driverTest=[pscustomobject]@{Visible=$false;Activations=0;Closes=0;Refreshes=0;Phase='Task1'}
 $hostCreation=[pscustomobject]@{Id='host';State='Started';ProcessId=42;ProcessStartTicks=80L;ImagePath=(Join-Path $Workspace 'host.exe')}
 function Get-PtActiveResourceSession { [pscustomobject]@{Processes=@($hostCreation)} }
 function Get-PtResourceProcessIdentity { param($ProcessId) [pscustomobject]@{processStartTicks=80L;path=$hostCreation.ImagePath} }
-function Get-PtActiveVerificationAttempt { [pscustomobject]@{Id='synthetic'} }
+function Get-PtActiveVerificationAttempt { [pscustomobject]@{Id='synthetic';Phase=$script:driverTest.Phase} }
 function Assert-PtWindowIdentity { param($Identity) }
 function Assert-PtForegroundOrAbort { param($Hwnd) }
 function Register-PtCreatedProcessWindows { param($Creation) }
@@ -91,6 +91,18 @@ try {
     Require $result.SelectedFilesMatchBaseline 'The integrated entry/close path could not restore its files.'
     Require (($baseline|ConvertTo-Json -Depth 10 -Compress) -ceq $baselineText) 'The original was replaced by a later snapshot.'
     $context.ExpectedModule=$baseline
+    $context.StopFile=Join-Path $recovery 'stop.fixture'
+    [IO.File]::WriteAllText($context.StopFile,'stop')
+    $stopped=$false
+    try {
+        Invoke-PtFancyZonesDriverAction -Context $context -Scope @{} -Action {throw 'Stop marker was ignored.'}|Out-Null
+    }catch{$stopped=$_.Exception.Message -match '^Stop requested'}
+    Require $stopped 'The stop marker did not prevent new product input.'
+    $script:driverTest.Phase='Cleanup'
+    Invoke-PtFancyZonesDriverAction -Context $context -Scope @{} -Action {}|Out-Null
+    $script:driverTest.Phase='Task1'
+    [IO.File]::Delete($context.StopFile)
+    $context.StopFile=$null
     [IO.File]::WriteAllText("$module\applied-layouts.json",'{"external":"change"}')
     $blocked=$false
     try { Open-PtFancyZonesEditor $context|Out-Null } catch {
@@ -102,6 +114,7 @@ try {
 } finally {
     foreach($name in $names) { [IO.File]::Delete((Join-Path $module $name)) }
     [IO.File]::Delete((Join-Path $recovery 'driver-expected-module.json'))
+    [IO.File]::Delete((Join-Path $recovery 'stop.fixture'))
     [IO.Directory]::Delete($module,$false)
     [IO.Directory]::Delete($recovery,$false)
 }

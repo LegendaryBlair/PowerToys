@@ -208,14 +208,21 @@ persistence. This cache query is not an activation/hotkey or layout-update subst
 `Select-PtFancyZonesMonitor` takes a native monitor number and maps it through the current
 host input to the editor's one-based display labels; native display 882 is not UI label 882.
 
-The bounded desktop recipe `scripts\tests\Test-PtFancyZonesCaseDesktop.ps1` selects only
-`-Case Span` or `-Case Child`. Supply a new `-Workspace` and an absolute `-FixturePath`
+The bounded desktop recipe `scripts\tests\Test-PtFancyZonesCaseDesktop.ps1` has built-in
+`-Case Span` and `-Case Child` flows. For another explicitly selected scenario ID, also
+supply its source-recorded `-CaseScript` and frozen `-ConditionScope`; missing conditions
+remain unobserved, not implicitly passed. Supply a new `-Workspace` and absolute `-FixturePath`
 compiled from the committed `FancyZonesSurface.cs`. It requires an initially disabled host,
 an existing Settings window and two compatible monitors, and records original-state cleanup.
 This focused recipe is not a replacement for the remaining module inventory.
 Its client-only captures use the editor's source-pinned opaque theme brushes or the authored
 WinForms fixture as the known backdrop, with the same native occlusion guards. It does not
 make translucent zone-overlay windows opaque or exempt borrowed Settings from privacy checks.
+`pt-fancyzones-case-flows.ps1` composes actual caption-hit-checked dragging, owned modal-loop
+events, typed settings, native-number monitor selection, template duplication and key input.
+Use `Record-CaseCondition` inside the producing attempt; the fixed recipe aggregates unchanged
+child IDs before closing that attempt. `-ObservationOnly` skips activation for prerequisite-only
+assessments, not as a shortcut around safely executable conditions.
 
 `Invoke-PtFancyZonesDriverAction` freezes an explicit record scope before input and privately
 persists confirmed recovery state even on errors. Add layout UUIDs, fixture executable paths,

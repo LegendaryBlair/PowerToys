@@ -108,6 +108,7 @@ function New-PtFancyZonesDriverContext {
         ModuleRoot=$copy.FileState.Path; ExpectedModule=$copy; ExpectedSnapshotPath=$path
         HostCreation=$HostCreation; Settings=$Settings; EditorPath=$EditorPath
         EditorCreation=$null; Editor=$null; InMutation=$false
+        StopFile=$null
         LayoutIds=@(); ApplicationPaths=@(); HotkeyDigits=@(); DefaultOrientations=@(); TemplateTypes=@()
     }
 }
@@ -139,6 +140,9 @@ function Invoke-PtFancyZonesDriverAction {
     )
     $attempt = Get-PtActiveVerificationAttempt
     if (-not $attempt) { throw 'Drive FancyZones inside a recorded verification attempt.' }
+    if ($Context.StopFile -and [IO.File]::Exists($Context.StopFile) -and $attempt.Phase -cne 'Cleanup') {
+        throw 'Stop requested; no further product action dispatched. Original-state cleanup remains enabled.'
+    }
     if ($Context.InMutation) { throw 'Do not nest FancyZones mutation scopes.' }
     $expected = $Context.ExpectedModule
     $Context.InMutation = $true
