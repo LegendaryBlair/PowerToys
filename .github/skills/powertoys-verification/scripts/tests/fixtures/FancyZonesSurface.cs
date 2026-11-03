@@ -195,7 +195,8 @@ public static class FancyZonesSurface
                         break;
                     case "create":
                     case "create-default":
-                        Form created = Create("new-" + (++serial), new Rectangle(200, 200, 650, 430), false, null, parts[0] == "create-default");
+                    case "create-child":
+                        Form created = Create("new-" + (++serial), new Rectangle(200, 200, 650, 430), false, parts[0] == "create-child" ? main : null, parts[0] == "create-default");
                         id = created.Handle.ToInt64();
                         break;
                     case "close":

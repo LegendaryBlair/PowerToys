@@ -251,13 +251,15 @@ function Invoke-PtFancyZonesElementClick {
 function Select-PtFancyZonesMonitor {
     param([Parameter(Mandatory)]$Context, [Parameter(Mandatory)][int]$MonitorNumber)
     $hwnd = (Open-PtFancyZonesEditor $Context).hwnd
+    $parameters = Get-PtFancyZonesSnapshotJson $Context.ExpectedModule 'editor-parameters.json'
+    $ordinal = Get-PtFancyZonesMonitorOrdinal -EditorParameters $parameters -MonitorNumber $MonitorNumber
     $list = Resolve-PtUiElement -Hwnd $hwnd -AutomationId Monitors -ControlType List
     $items = @($list.FindAll([Windows.Automation.TreeScope]::Descendants,
         [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,
             [Windows.Automation.ControlType]::ListItem)))
     $matching = @($items | Where-Object {
         @($_.FindAll([Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,"$MonitorNumber"))).Count -gt 0
+            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,"$ordinal"))).Count -gt 0
     })
     $target = Select-PtUniqueUiElement -Elements $matching -Description "actual monitor $MonitorNumber"
     Invoke-PtFancyZonesElementClick -Hwnd $hwnd -Element $target
@@ -289,6 +291,10 @@ function Set-PtFancyZonesBoolean {
         $container = Select-PtUniqueUiElement -Description $containerId -Elements @(
             $root.FindAll([Windows.Automation.TreeScope]::Descendants,
                 [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty,$containerId)))
+        $scroll = $null
+        if ($container.TryGetCurrentPattern([Windows.Automation.ScrollItemPattern]::Pattern,[ref]$scroll)) {
+            $scroll.ScrollIntoView()
+        }
         $controls = @($container) + @($container.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition))
         $toggle = @(foreach ($element in $controls) {
             $pattern = $null
@@ -297,6 +303,7 @@ function Set-PtFancyZonesBoolean {
             }
         })
         if ($toggle.Count -ne 1) { throw "Expected one actual toggle under $containerId." }
+        if (-not $toggle[0].Element.Current.IsEnabled) { throw "The toggle under $containerId is disabled." }
         if (($toggle[0].Pattern.Current.ToggleState -eq 'On') -ne $requested) { $toggle[0].Pattern.Toggle() }
         Wait-PtCondition -Description 'FancyZones setting persistence' -TimeoutSeconds 8 -Probe {
             $json = ConvertFrom-PtReportJson (Read-PtSharedFileText (Join-Path $driver.ModuleRoot 'settings.json'))

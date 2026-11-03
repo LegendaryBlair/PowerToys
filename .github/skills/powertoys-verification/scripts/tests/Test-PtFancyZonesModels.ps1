@@ -20,6 +20,10 @@ Require ($separate.monitors.Count -eq 2 -and $span.monitors.Count -eq 1) 'Spanni
 Require ($span.monitors[0].'monitor-width' -eq 5120 -and $span.monitors[0].'work-area-width' -eq 3414) 'Physical and logical widths were conflated.'
 Require ($span.monitors[0].'left-coordinate' -eq -1707 -and $span.monitors[0].dpi -eq 0) 'Combined origin/DPI does not match the native input contract.'
 Require (-not $separate.monitors[0].'is-selected' -and $separate.monitors[1].'is-selected') 'Target monitor was not resolved by current identity.'
+$remote=ConvertFrom-Json ($separate|ConvertTo-Json -Depth 10)
+$remote.monitors[0].'monitor-number'=881
+$remote.monitors[1].'monitor-number'=882
+Require ((Get-PtFancyZonesMonitorOrdinal $remote 882) -eq 2) 'Native remote monitor number was confused with the UI ordinal.'
 $layouts = @(foreach ($number in 1,2) {
     [pscustomobject][ordered]@{
         device=(ConvertTo-PtFancyZonesDevice $separate.monitors[$number-1])

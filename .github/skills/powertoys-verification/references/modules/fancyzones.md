@@ -205,6 +205,14 @@ creation, preserved Settings identity, installed editor path and private recover
 `Set-PtFancyZonesBoolean` resolves the actual supported toggle under a specific container.
 For spanning it waits for the host's generated editor-input reply, not just Settings
 persistence. This cache query is not an activation/hotkey or layout-update substitute.
+`Select-PtFancyZonesMonitor` takes a native monitor number and maps it through the current
+host input to the editor's one-based display labels; native display 882 is not UI label 882.
+
+The bounded desktop recipe `scripts\tests\Test-PtFancyZonesCaseDesktop.ps1` selects only
+`-Case Span` or `-Case Child`. Supply a new `-Workspace` and an absolute `-FixturePath`
+compiled from the committed `FancyZonesSurface.cs`. It requires an initially disabled host,
+an existing Settings window and two compatible monitors, and records original-state cleanup.
+This focused recipe is not a replacement for the remaining module inventory.
 
 `Invoke-PtFancyZonesDriverAction` freezes an explicit record scope before input and privately
 persists confirmed recovery state even on errors. Add layout UUIDs, fixture executable paths,

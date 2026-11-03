@@ -1,6 +1,16 @@
 #requires -Version 7.2
 . "$PSScriptRoot\pt-fancyzones-state.ps1"
 
+function Get-PtFancyZonesMonitorOrdinal {
+    param([Parameter(Mandatory)]$EditorParameters,[Parameter(Mandatory)][int]$MonitorNumber)
+    if($EditorParameters.'span-zones-across-monitors'){throw 'Combined mode has no individual monitor selection.'}
+    $matches=@(for($i=0;$i -lt $EditorParameters.monitors.Count;$i++){
+        if($EditorParameters.monitors[$i].'monitor-number' -eq $MonitorNumber){$i+1}
+    })
+    if($matches.Count -ne 1){throw 'Native monitor number must map uniquely to the current editor input.'}
+    $matches[0]
+}
+
 function ConvertTo-PtFancyZonesDevice {
     param([Parameter(Mandatory)]$Monitor)
     [pscustomobject][ordered]@{
