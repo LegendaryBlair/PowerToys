@@ -118,6 +118,22 @@ function Assert-PtControlWindowScope {
     throw 'Control is not in the declared window subtree.'
 }
 
+function Get-PtControlViewportBounds {
+    param([Parameter(Mandatory)]$Element,[Parameter(Mandatory)]$WindowIdentity)
+    $root=[Windows.Automation.AutomationElement]::FromHandle([IntPtr][long]$WindowIdentity.hwnd)
+    $ancestor=[Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($Element)
+    for($depth=0;$ancestor -and $depth -lt 64;$depth++){
+        $scroll=$null
+        $isRoot=[Windows.Automation.Automation]::Compare($ancestor,$root)
+        if($isRoot -or $ancestor.TryGetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern,[ref]$scroll)){
+            $ancestor.Current.BoundingRectangle
+        }
+        if($isRoot){return}
+        $ancestor=[Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($ancestor)
+    }
+    throw 'Control viewport ancestry did not reach the declared window.'
+}
+
 function Get-PtControlCaptureState {
     param([Parameter(Mandatory)]$Element,[Parameter(Mandatory)]$WindowIdentity)
     Assert-PtWindowIdentity $WindowIdentity
@@ -127,6 +143,12 @@ function Get-PtControlCaptureState {
     if(-not $runtime.Count -or $current.ProcessId -ne $WindowIdentity.processId -or $current.IsOffscreen -or
         $bounds.Width -le 0 -or $bounds.Height -le 0){throw 'Control is unavailable, offscreen or belongs to another process.'}
     Assert-PtControlWindowScope -Element $Element -WindowIdentity $WindowIdentity
+    foreach($viewport in @(Get-PtControlViewportBounds -Element $Element -WindowIdentity $WindowIdentity)){
+        if($bounds.Left -lt $viewport.Left -or $bounds.Top -lt $viewport.Top -or
+            $bounds.Right -gt $viewport.Right -or $bounds.Bottom -gt $viewport.Bottom){
+            throw 'Control is clipped by an ancestor viewport; realize the complete control before capture.'
+        }
+    }
     $left=[Math]::Floor($bounds.Left);$top=[Math]::Floor($bounds.Top)
     $right=[Math]::Ceiling($bounds.Right);$bottom=[Math]::Ceiling($bounds.Bottom)
     [pscustomobject]@{RuntimeId=$runtime;AutomationId=$current.AutomationId;ControlType=$current.ControlType.ProgrammaticName

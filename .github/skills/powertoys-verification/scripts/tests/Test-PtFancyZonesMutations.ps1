@@ -92,6 +92,37 @@ try {
             }
     } 'Unattributed'|Out-Null
     $groups.Add('ScopeFrozenBeforeInput')
+
+    & {
+        $flows=[Management.Automation.Language.Parser]::ParseFile("$PSScriptRoot\..\pt-fancyzones-case-flows.ps1",[ref]$null,[ref]$null)
+        $definition=$flows.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Apply-PtFancyZonesCaseLayout'},$true)
+        . ([scriptblock]::Create($definition.Extent.Text))
+        $editorBefore=Json $beforeText
+        $duplicate=Json ($editorBefore.'applied-layouts'[0]|ConvertTo-Json -Depth 10)
+        $duplicate.device.'monitor-number'=99
+        $editorBefore.'applied-layouts'+=@($duplicate)
+        $editorAfter=Json ($editorBefore|ConvertTo-Json -Depth 15)
+        $editorAfter.'applied-layouts'[0].'applied-layout'.type='custom'
+        $editorAfter.'applied-layouts'[0].'applied-layout'.uuid='{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}'
+        $global:FzCase=@{Driver=[pscustomobject]@{SelectedMonitorNumber=1;ExpectedModule=$null}}
+        function Open-PtFancyZonesEditor {param($Context)}
+        function Get-PtFancyZonesSnapshotJson {
+            param($Snapshot,$FileName)
+            if($FileName -ceq 'editor-parameters.json'){
+                [pscustomobject]@{monitors=@([pscustomobject]@{monitor='A';'monitor-instance-id'='one';'monitor-number'=1
+                    'monitor-serial-number'='';'virtual-desktop'=[guid]::Empty.ToString('B')})}
+            }else{
+                [pscustomobject]@{'custom-layouts'=@([pscustomobject]@{name='owned';uuid='{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}'})}
+            }
+        }
+        function New-PtFancyZonesDriverScope {param($Context) [pscustomobject]@{WorkAreas=@($deviceA);NativeSerialization=$false}}
+        function Invoke-PtFancyZonesDriverAction {
+            param($Context,$Scope,$ArgumentList,$Action)
+            Require (Test-PtFancyZonesScopedFileChange applied-layouts.json $editorBefore $editorAfter $Scope) 'Editor application incorrectly required native first-wins serialization.'
+        }
+        try{Apply-PtFancyZonesCaseLayout -Name owned}finally{$global:FzCase=$null}
+    }
+    $groups.Add('EditorApplicationPreservesEquivalentHistoricalRecords')
 } finally {
     foreach($name in $names) { [IO.File]::Delete((Join-Path $root $name)) }
     [IO.Directory]::Delete($root,$false)

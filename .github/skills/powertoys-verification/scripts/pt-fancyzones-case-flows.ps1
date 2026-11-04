@@ -140,6 +140,27 @@ function Save-PtFancyZonesDefaultEvidence {
             Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and
                 $_.Current.AutomationId -cin @($selectedId,$unselectedId) -and -not $_.Current.IsOffscreen})
         $button=Select-PtUniqueUiElement -Elements $buttons -Description "actual $Orientation default state"
+        $ancestor=$button
+        while($ancestor){
+            $scroll=$null
+            if($ancestor.TryGetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern,[ref]$scroll) -and $scroll.Current.VerticallyScrollable){
+                $scroll.SetScrollPercent(-1,100)
+                break
+            }
+            $ancestor=[Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($ancestor)
+        }
+        $viewportReadiness=@{Signature=$null;Stable=0}
+        Wait-PtCondition -Description 'complete default control inside its viewport' -TimeoutSeconds 5 -Probe {
+            $bounds=$button.Current.BoundingRectangle
+            $clipped=@(Get-PtControlViewportBounds -Element $button -WindowIdentity $FzCase.Driver.Editor|
+                Where-Object {$bounds.Left -lt $_.Left -or $bounds.Top -lt $_.Top -or $bounds.Right -gt $_.Right -or $bounds.Bottom -gt $_.Bottom})
+            $signature="$($bounds.Left),$($bounds.Top),$($bounds.Right),$($bounds.Bottom)"
+            if(-not $button.Current.IsOffscreen -and $clipped.Count -eq 0){
+                if($signature -ceq $viewportReadiness.Signature){$viewportReadiness.Stable++}else{$viewportReadiness.Stable=1}
+            }else{$viewportReadiness.Stable=0}
+            $viewportReadiness.Signature=$signature
+            $viewportReadiness.Stable -ge 2
+        }|Out-Null
         $path=New-PtVerificationArtifactPath -Attempt $Attempt -Name "default-$Orientation.png"
         Save-PtOwnedControlScreenshot -Path $path -WindowIdentity $FzCase.Driver.Editor -Element $button `
             -OpaqueBackgroundIdentity $FzCase.Driver.Editor|Out-Null
@@ -201,7 +222,6 @@ function Apply-PtFancyZonesCaseLayout {
     if($layouts.Count -gt 1 -or ($layouts.Count -eq 0 -and -not $types.ContainsKey($Name))){throw 'Layout expectation is ambiguous or unsupported.'}
     $expectation=if($layouts.Count){@{Uuid=$layouts[0].uuid}}else{@{Type=$types[$Name]}}
     $scope=New-PtFancyZonesDriverScope $FzCase.Driver
-    $scope.NativeSerialization=$true
     Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($Name,$device,$expectation) -Action {
         param($name,$targetDevice,$expectedLayout)
         $card=Resolve-PtUiElement -Hwnd $FzCase.Driver.Editor.hwnd -Name $name -ControlType ListItem
@@ -234,7 +254,7 @@ function Copy-PtFancyZonesCaseTemplate {
     $newName="$Template ($($maximum+1))"
     Open-PtFancyZonesCaseLayoutProperties $Template
     $scope=New-PtFancyZonesDriverScope $FzCase.Driver
-    $scope.NewLayoutName=$newName;$scope.NewLayoutType='grid';$scope.NativeSerialization=$true
+    $scope.NewLayoutName=$newName;$scope.NewLayoutType='grid'
     Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($newName,@($before.'custom-layouts'.uuid)) -Action {
         param($expectedName,$originalIds)
         Invoke-PtFancyZonesCaseButton createFromTemplateLayoutButton

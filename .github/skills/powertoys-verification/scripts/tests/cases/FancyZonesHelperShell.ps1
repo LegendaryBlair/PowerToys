@@ -3,9 +3,9 @@ $ErrorActionPreference='Stop'
 Initialize-PtFancyZonesCaseWindows
 Show-PtFancyZonesCaseWindow $FzCase.Target
 $observed=[Collections.Generic.List[object]]::new()
-Invoke-PtFancyZonesCaseTaskView -Target $FzCase.Target -ArgumentList @($observed) -Action {
-    param($surface,$observations)
-    $observations.Add([pscustomobject]@{Surface=$surface;Foreground=(Get-PtForegroundWindow).Hwnd})
+Invoke-PtFancyZonesCaseTaskView -Target $FzCase.Target -ArgumentList @(@{Observations=$observed}) -Action {
+    param($surface,$receipt)
+    $receipt.Observations.Add([pscustomobject]@{Surface=$surface;Foreground=(Get-PtForegroundWindow).Hwnd})
 }
 $normal=$FzCase.TaskView.State -ceq 'Closed' -and
     (Test-PtTrackedWindowClosed $FzCase.TaskView.Surface -AllowHidden) -and

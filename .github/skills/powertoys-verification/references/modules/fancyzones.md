@@ -131,11 +131,13 @@ AutomationId. Re-resolve recreated peers, actual patterns and physical geometry.
 
 Coordinates require the exact surface `-w`, fresh `Rect.Left/Top/Right/Bottom` and a physical
 hit check. Validate the owned modal move, not just SendInput's return. Pass callback data
-through explicit `-ArgumentList` parameters; recorder variables can shadow captured names.
+through explicit `-ArgumentList` parameters; wrap collection payloads in a packet to prevent
+empty-list enumeration. Recorder variables can shadow captured names.
 On winapp 0.7.1, `--root` scopes search/read, not `invoke`; use the pinned tool's actual help.
 
 Use `Save-PtOwnedControlScreenshot` for controls: it rounds bounds outward and checks runtime
-identity/geometry before and after capture. Default evidence must show the actual default
+identity/geometry and ancestor viewport containment before and after capture. A partially
+scrolled control can report `IsOffscreen=false`; realize it fully first. Default evidence must show the actual default
 control, not New layout or Save/Cancel. The opaque editor client is source-verified; this is
 not permission to capture translucent overlays without an owned opaque backdrop.
 

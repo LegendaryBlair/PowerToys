@@ -22,6 +22,7 @@ function Get-PtActiveResourceSession {[pscustomobject]@{Windows=$script:records}
 function Assert-PtResourceSession {param($Session)}
 function Assert-PtWindowIdentity {param($Identity)}
 function Assert-PtControlWindowScope {param($Element,$WindowIdentity) if($script:wrongControlWindow){throw 'Control is not in the declared window subtree.'}}
+function Get-PtControlViewportBounds {param($Element,$WindowIdentity) $script:rect;if($script:viewport){$script:viewport}}
 function Test-PtWindowCloaked {param($Hwnd) $Hwnd -in $script:cloaked}
 function Get-PtNativeWindow {
     param([switch]$Visible)
@@ -92,6 +93,10 @@ $script:moveControl=$false
 $script:wrongControlWindow=$true
 Reject {Get-PtControlCaptureState $control $target} 'window subtree'
 $script:wrongControlWindow=$false
+$script:viewport=[pscustomobject]@{Left=0;Top=0;Right=500;Bottom=200}
+Reject {Save-PtOwnedControlScreenshot -Path "$Workspace\clipped-control.png" -WindowIdentity $target -Element $control -OpaqueBackgroundIdentity $background} 'clipped by an ancestor viewport'
+Require (-not(Test-Path "$Workspace\clipped-control.png")) 'A partially scrolled control was published as complete'
+$script:viewport=$null
 $control.Current.ProcessId=20
 Reject {Get-PtControlCaptureState $control $target} 'another process'
 $groups.Add('Complete actual control bounds, same-process identity and movement checks prevent stale/clipped crops')

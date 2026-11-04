@@ -61,6 +61,14 @@ foreach($class in 'MultitaskingViewFrame','XamlExplorerHostIslandWindow'){
     Require ($transition.State -ceq 'Closed' -and $f.Escapes -eq 1 -and $f.Foreground -eq 10) 'Task View did not close normally.'
 }
 Reset-Fixture
+$observations=[Collections.Generic.List[object]]::new()
+$transition=$null
+Invoke-PtTaskViewScope -TargetIdentity $target -Transition ([ref]$transition) -ArgumentList @(@{Observations=$observations}) -Action {
+    param($surface,$receipt)
+    $receipt.Observations.Add($surface)
+}
+Require ($observations.Count -eq 1 -and $observations[0].hwnd -eq 20 -and $transition.State -ceq 'Closed') 'Observer packet or normal cleanup was lost.'
+Reset-Fixture
 $f.EnumerationHidden=$true
 $transition=$null
 Invoke-PtTaskViewScope $target ([ref]$transition) {}
