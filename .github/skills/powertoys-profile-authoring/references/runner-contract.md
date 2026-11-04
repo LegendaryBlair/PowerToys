@@ -79,6 +79,20 @@ this routine handshake or R0 again: their explicit workflow-execution request su
 A mismatch stops the dispatch; a match proceeds under the effective runtime policy. Use runtime permission
 controls where available; a prompt is not a sandbox. This neutral acknowledgment contains no Author coaching.
 
+Keep preflight requests small and independently reviewable:
+
+1. Check cwd, candidate/clean state and actual instruction/skill sources.
+2. Hash the declared materials; report counts and mismatches rather than dumping the whole manifest.
+3. Observe process/session, token/desktop and product/tool identities in separate requests, reusing the
+   candidate's existing readers instead of inlining another set of native declarations.
+4. Assemble, write and read back the handshake separately from those probes.
+
+Shell variables do not persist across tool calls. Save successful observations as small metadata-only JSON
+records in the neutral handoff, with session/candidate identity and timestamps; assemble only matching records.
+Do not rerun every probe merely to serialize the receipt, echo expected values as observations, or generate one
+large command containing all declarations, discovery, hashes and output. Script source must remain available
+to normal permission review; moving a denied command into a file is not an approval workaround.
+
 Also check the Author's [executable foundations](execution-readiness.md). During identity-only preflight,
 observe existing processes and record planned fixture requirements; do not create a product state to fill a
 missing field. After authorization, verify the newly created fixture's actual identity/integrity before input.
@@ -123,8 +137,10 @@ If unavailable, use a fresh standalone CLI/SDK session or return `blocked: sessi
 
 ### Copilot CLI launch shape
 
-Check installed help before applying flags. In CLI 1.0.86, `-C`, `--session-id`, `--name` and `-p` are supported.
-Prompt mode leaves memory disabled by default; do not add `--enable-memory`.
+Check installed `copilot --help` before applying flags, including their allowed combinations. The example
+below uses `--trust-folder` only for a new prompt-mode session; it does not grant tool/path permissions.
+Do not combine it with `--session-id` or resume arguments. Let the runtime allocate the fresh session ID.
+Keep optional memory disabled; do not add `--enable-memory`.
 
 The Author constructs `$preflightPermissionArguments` and `$executionPermissionArguments` from the selected
 runtime's effective configuration and the already-authorized task. They are **not user-input fields or an
@@ -137,18 +153,28 @@ and actual runtime responses; do not conclude that approval is unavailable merel
 variables have not been populated. A genuine request for new authority must still be surfaced.
 
 ```powershell
-$sessionId = [guid]::NewGuid().ToString()
+$preflightLog = Join-Path $handoff 'preflight-output.jsonl'
+if (Test-Path -LiteralPath $preflightLog) { throw 'Use a fresh dispatch output path.' }
 $launch = @(
     '-C', $runnerWorktree,
-    '--session-id', $sessionId,
     '--name', "verify-$module-$round",
     '-p', $preflightBrief,
+    '--trust-folder',
     '--output-format', 'json',
-    '--no-remote', '--no-remote-export'
+    '--sync-session=off'
 ) + $preflightPermissionArguments
-& copilot @launch
+& copilot @launch > $preflightLog
+if ($LASTEXITCODE -ne 0) { throw "Runner preflight failed; retain $preflightLog and stderr." }
+$results = @(Get-Content -LiteralPath $preflightLog |
+    ForEach-Object { $_ | ConvertFrom-Json -ErrorAction Stop } |
+    Where-Object type -eq 'result')
+if ($results.Count -ne 1 -or -not $results[0].sessionId) { throw 'Missing or ambiguous runtime session ID.' }
+$sessionId = $results[0].sessionId
 ```
 
+The current JSONL result supplies `sessionId`; verify the installed schema if it differs. Check that this
+runtime ID belongs to the new dispatch and matches the independently observed handshake. Exit code zero or
+a result event alone does not mean preflight succeeded. Retain launch stderr with the dispatch diagnostics.
 After automatically validating the identity-only response, continue **only that newly created dispatch session**:
 
 ```powershell
@@ -157,13 +183,14 @@ $execute = @(
     '--resume', $sessionId,
     '-p', $executionAuthorization,
     '--output-format', 'json',
-    '--no-remote', '--no-remote-export'
+    '--sync-session=off'
 ) + $executionPermissionArguments
 & copilot @execute
+if ($LASTEXITCODE -ne 0) { throw 'Runner execution failed; retain its output and stderr.' }
 ```
 
 The authorization identifies the accepted handshake/manifest and permitted work, without Author analysis.
-The next candidate test uses a different new UUID, not this continuation.
+The next candidate test starts a fresh runtime-generated session, not this continuation.
 
 Do not insert `--allow-all`, disable mandatory instructions, or broaden access to evade a real permission
 request/denial. Keep three decisions separate: the user authorizes the task, the Author checks input identity,
@@ -173,8 +200,12 @@ If an actual runtime policy prevents launch/execution, record the exact command/
 returned error or approval prompt. Report only the affected work as blocked; do not substitute "desktop/runtime
 approval unavailable" for this evidence. Respect the denial rather than trying another route around it.
 
-`--session-id` can resume an existing session, so generate a new UUID and verify the returned session really
-started for this dispatch. `--add-dir` also loads skills/agents from that directory: do not add the Author's
+Record `action-too-long` as a command-review failure and `authorization-history-incomplete` as an approval
+history failure, not missing task authorization. Shorter commands do not repair incomplete approval history;
+stop blind retries and surface the concrete runtime obstacle. Discarding a failed session does not erase its
+denials or reset repair counters; a later dispatch must still satisfy runtime permissions, not evade them.
+
+`--add-dir` also loads skills/agents from that directory: do not add the Author's
 worktree/session directory. For SDK use, create a new session with no parent message history and record the
 equivalent controls; installing an SDK is not a prerequisite of this skill.
 
@@ -210,6 +241,8 @@ Repair allowance: <root: 2 different approaches or 20 minutes; batch: 60 minutes
 Round exit: <R0: return discovery; R1: restore/archive/return; authorized R2: one targeted confirmation then return, no automatic R3>
 
 Return the actual session/cwd/revision/source-loading/BITS handshake and end the preflight turn.
+Use small, independently reviewable probes and a separate receipt assembly; do not combine the entire
+preflight into one oversized command. Persist observed metadata between tool calls in the neutral handoff.
 The Author checks this handshake automatically and sends the execution acknowledgment; do not request another
 human approval simply to run R0. Until that acknowledgment, no product activation, input injection, recording,
 clipboard writes or settings changes. Actual runtime permission requirements still apply.

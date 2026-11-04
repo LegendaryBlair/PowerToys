@@ -82,7 +82,9 @@ still apply; never infer permission to exceed them.
 | One Author repair batch | At most 60 minutes of accumulated diagnostic/repair time across its root causes | Stop new repairs in the batch; continue normal independently executable coverage, then restore/archive |
 
 The initial R0-to-R1 sequence has one repair batch; an explicitly authorized follow-up defines its own batch.
-Charge Runner-side diagnostic corrections to the same allowance. Track time spent investigating, editing and
+Charge launch-configuration fixes, preflight/receipt diagnosis and Runner-side corrections to that same
+allowance, even before the first product action. Do not mark the repair batch "not started" after doing this
+work. Ordinary successful setup is not repair time. Track time spent investigating, editing and
 validating a repair, including waits for its probes/commands, rather than only tool-call counts. Ordinary
 planned discovery/test execution and idle time waiting for the user are not repair time; repeated attempts
 to overcome a known obstacle are. These are not limits on the duration or size of the full R1 checklist.
