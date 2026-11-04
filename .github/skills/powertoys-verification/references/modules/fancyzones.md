@@ -239,6 +239,12 @@ history variants and conditional hardware scopes separate; do not invent cross-p
 Run unavailable conditional coverage as scoped limitations, not a reason to skip ordinary
 paths. Source/format review and helper regressions do not certify every scenario live.
 
+For bounded live helper acceptance, the same recipe supports `AcceptanceShell`,
+`AcceptancePersistence` and `AcceptanceObservation` with the matching scripts under
+`scripts\tests\cases` and `scripts\tests\fixtures\fancyzones-helper-acceptance.json`.
+These three groups use `InfrastructureAcceptance`, not the module's 171-assertion signoff.
+The Shell group uses `-ObservationOnly` to avoid activating FancyZones.
+
 ## References
 
 - [Checklist](../release-checklist/fancyzones.md) and [inventory](../assertion-inventories/fancyzones.json).

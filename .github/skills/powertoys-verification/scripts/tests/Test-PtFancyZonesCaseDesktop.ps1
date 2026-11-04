@@ -1,6 +1,6 @@
 #requires -Version 7.2
 param(
-    [Parameter(Mandatory)][ValidateSet('Span','Child','FZ-ASSIGN','FZ-DRAG',
+    [Parameter(Mandatory)][ValidateSet('Span','Child','AcceptanceShell','AcceptancePersistence','AcceptanceObservation','FZ-ASSIGN','FZ-DRAG',
         'FZ-HISTORY','FZ-ELEVATION','FZ-PINNED','FZ-DISPLAY','FZ-RELAYOUT','FZ-LAST-ZONE',
         'FZ-CYCLE','FZ-INDEX','FZ-POSITION','FZ-QUICK','FZ-LAYOUT','FZ-RESET','FZ-ROTATION')][string]$Case,
     [Parameter(Mandatory)][string]$Workspace,
@@ -16,13 +16,22 @@ $skill=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 foreach($file in Get-ChildItem "$skill\scripts" -Filter '*.ps1' -File) {
     if($file.Name -cne 'pt-session-diagnose.ps1'){. $file.FullName}
 }
-$itemId=switch -CaseSensitive ($Case){'Span'{'FZ-SPAN'} 'Child'{'FZ-CHILD'} default{$Case}}
+$acceptance=$Case -clike 'Acceptance*'
+$itemId=switch -CaseSensitive ($Case){
+    'Span'{'FZ-SPAN'} 'Child'{'FZ-CHILD'}
+    'AcceptanceShell'{'FZ-HELPER-SHELL'}
+    'AcceptancePersistence'{'FZ-HELPER-PERSISTENCE'}
+    'AcceptanceObservation'{'FZ-HELPER-OBSERVATION'}
+    default{$Case}
+}
 $inventory=Import-PtAssertionInventory "$skill\references\assertion-inventories\fancyzones.json" "$skill\references\release-checklist\fancyzones.md"
 $selected=@($inventory.Items|Where-Object Id -CEQ $itemId)
 $frozen=@()
 if($Case -cnotin @('Span','Child')){
     if(-not $CaseScript -or -not $ConditionScope){throw 'An explicit case script and frozen condition scope are required.'}
     $scopeDocument=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($ConditionScope))
+    if($acceptance){$selected=@($scopeDocument.Items|Where-Object Id -CEQ $itemId)}
+    if($selected.Count -ne 1){throw 'Exactly one declared selected item is required.'}
     $frozen=@($scopeDocument.Conditions|Where-Object ScenarioId -CEQ $itemId)
     if(-not $frozen.Count -or @($frozen.ConditionId|Sort-Object -Unique).Count -ne $frozen.Count){
         throw 'Selected condition catalogue is empty or duplicated.'
@@ -54,15 +63,16 @@ $inputs=@(
     @{Name='surface.exe';Role='Other';Path=$FixturePath}
 )
 if($CaseScript){$inputs+=@(@{Name='case-operation.ps1';Role='Other';Path=$CaseScript})}
-if($ConditionScope){$inputs+=@(@{Name='condition-scope.json';Role='Other';Path=$ConditionScope})}
+if($ConditionScope){$inputs+=@(@{Name='condition-scope.json';Role=$(if($acceptance){'Checklist'}else{'Other'});Path=$ConditionScope})}
 $repository=Split-Path (Split-Path (Split-Path $skill -Parent) -Parent) -Parent
 $editorSource=Join-Path $repository 'src\modules\fancyzones\editor\FancyZonesEditor'
 $inputs+=@(@{Name='editor-opaque-client.xaml';Role='Other';Path="$editorSource\MainWindow.xaml"})
 foreach($theme in 'Dark','Light','HighContrast1','HighContrast2','HighContrastBlack','HighContrastWhite'){
     $inputs+=@(@{Name="editor-theme-$theme.xaml";Role='Other';Path="$editorSource\Themes\$theme.xaml"})
 }
-$run=New-PtVerificationRun -Workspace $Workspace -Module FancyZones -Bits 'Installed 0.102.3001.0; one explicitly selected case' `
-    -Scenario A -Items $selected -Inputs @(Get-PtVerificationInputs -Skill $skill -Inputs $inputs)
+$run=New-PtVerificationRun -Workspace $Workspace -Module $(if($acceptance){'FancyZones helper acceptance'}else{'FancyZones'}) `
+    -Bits 'Installed 0.102.3001.0; one explicitly selected case' `
+    -Scenario $(if($acceptance){'InfrastructureAcceptance'}else{'A'}) -Items $selected -Inputs @(Get-PtVerificationInputs -Skill $skill -Inputs $inputs)
 $private=Join-Path ([IO.Path]::GetDirectoryName($run.Workspace)) ([IO.Path]::GetFileName($run.Workspace)+'-private')
 if(Test-Path $private){throw 'Private recovery already exists.'}
 [IO.Directory]::CreateDirectory($private)|Out-Null
@@ -231,13 +241,13 @@ function Start-CaseSurface {
     }
     if($FzCase.SurfaceReady.Pid -ne $FzCase.Surface.ProcessId){throw 'Fixture ready PID does not match launch.'}
     Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
-    $FzCase.Driver.ApplicationPaths=@($FixturePath)
+    if($FzCase.Driver){$FzCase.Driver.ApplicationPaths=@($FixturePath)}
     Surface-Command "hide|$($FzCase.SurfaceReady.Child)"|Out-Null
     Surface-Command "hide|$($FzCase.SurfaceReady.Second)"|Out-Null
 }
 function Capture-CaseRegion($Attempt,[string]$Name,$Target,$Region,$Element) {
     Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
-    Register-PtCreatedProcessWindows $FzCase.Host|Out-Null
+    if($FzCase.Host){Register-PtCreatedProcessWindows $FzCase.Host|Out-Null}
     if($FzCase.Driver.EditorCreation){Register-PtCreatedProcessWindows $FzCase.Driver.EditorCreation|Out-Null}
     # MainWindow's themed client uses FF-alpha brushes; the authored surface paints opaque controls.
     $editorTarget=$FzCase.Driver.Editor -and $Target.hwnd -eq $FzCase.Driver.Editor.hwnd
