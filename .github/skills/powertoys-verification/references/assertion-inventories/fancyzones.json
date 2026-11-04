@@ -1,7 +1,7 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 1,
-  "SourceSha256": "485EEA4DEED6FA3392DEFFE666F40DFB22889DB22DE5746A7606ABBBA5821FCC",
+  "Revision": 2,
+  "SourceSha256": "05D32FC8AE70316890D8D9B01A62C7A4F8475CEEDE955C9BD57E54BF617B0285",
   "Items": [
     { "Id": "FZ-ENTRY", "Assertions": [
       { "Id": "FZ-ENTRY.settings", "Description": "Settings Launch layout editor opens the monitor/layout surface." },
@@ -16,9 +16,21 @@
       { "Id": "FZ-SHORTCUT.held-input", "Description": "Holding a non-modifier and holding the Windows key are separate recorder conditions; neither produces abnormal blinking or unstable dialog state." },
       { "Id": "FZ-SHORTCUT.dialog-lifetime", "Description": "Repeated open/dismiss is safe; separately, with authorized theme switching, opening during a theme transition does not create duplicate dialogs or crash the parent." }
     ] },
-    { "Id": "FZ-CREATE", "Assertions": [
+    { "Id": "FZ-CREATE", "PreviousScenarioIds": ["FZ-CREATE", "FZ-CANVAS", "FZ-GRID", "FZ-COMMIT"], "Assertions": [
       { "Id": "FZ-CREATE.grid", "Description": "Create an owned Unicode-named grid, save and reopen; name, type and geometry persist." },
-      { "Id": "FZ-CREATE.canvas", "Description": "Create an owned Unicode-named canvas, save and reopen; name, type and geometry persist." }
+      { "Id": "FZ-CREATE.canvas", "Description": "Create an owned Unicode-named canvas, save and reopen; name, type and geometry persist." },
+      { "Id": "FZ-CANVAS.move", "Description": "Moving an owned canvas zone changes its persisted and reopened position." },
+      { "Id": "FZ-CANVAS.resize", "Description": "Resizing an owned canvas zone changes its persisted and reopened size." },
+      { "Id": "FZ-CANVAS.add", "Description": "Adding a canvas zone persists the additional zone after reopening." },
+      { "Id": "FZ-CANVAS.delete", "Description": "Deleting a canvas zone removes only that zone after reopening." },
+      { "Id": "FZ-GRID.split", "Description": "Splitting an owned grid zone persists the split after reopening." },
+      { "Id": "FZ-GRID.merge", "Description": "Merging owned grid zones persists the merged geometry after reopening." },
+      { "Id": "FZ-GRID.resize", "Description": "Moving a grid edge persists resized zone geometry after reopening." },
+      { "Id": "FZ-COMMIT.grid-save", "Description": "Grid Save and apply commits geometry and applies that layout to the selected work area." },
+      { "Id": "FZ-COMMIT.grid-cancel", "Description": "Grid Cancel preserves previous geometry and assignment." },
+      { "Id": "FZ-COMMIT.canvas-save", "Description": "Canvas Save and apply commits geometry and applies that layout to the selected work area." },
+      { "Id": "FZ-COMMIT.canvas-cancel", "Description": "Canvas Cancel preserves previous geometry and assignment." },
+      { "Id": "FZ-COMMIT.delete", "Description": "Deleting an owned layout removes its card and stored definition while retaining unrelated layouts." }
     ] },
     { "Id": "FZ-DUPLICATE", "Assertions": [
       { "Id": "FZ-DUPLICATE.template", "Description": "Creating a custom copy of a template retains its geometry as an independent custom layout." },
@@ -29,24 +41,6 @@
       { "Id": "FZ-TEMPLATE.count", "Description": "Changed template zone count survives editor reopen and appears in layout geometry." },
       { "Id": "FZ-TEMPLATE.spacing", "Description": "Changed template spacing survives editor reopen and appears between zones." },
       { "Id": "FZ-TEMPLATE.highlight", "Description": "Changed template highlight distance survives editor reopen and affects adjacent-zone selection." }
-    ] },
-    { "Id": "FZ-CANVAS", "Assertions": [
-      { "Id": "FZ-CANVAS.move", "Description": "Moving an owned canvas zone changes its persisted and reopened position." },
-      { "Id": "FZ-CANVAS.resize", "Description": "Resizing an owned canvas zone changes its persisted and reopened size." },
-      { "Id": "FZ-CANVAS.add", "Description": "Adding a canvas zone persists the additional zone after reopening." },
-      { "Id": "FZ-CANVAS.delete", "Description": "Deleting a canvas zone removes only that zone after reopening." }
-    ] },
-    { "Id": "FZ-GRID", "Assertions": [
-      { "Id": "FZ-GRID.split", "Description": "Splitting an owned grid zone persists the split after reopening." },
-      { "Id": "FZ-GRID.merge", "Description": "Merging owned grid zones persists the merged geometry after reopening." },
-      { "Id": "FZ-GRID.resize", "Description": "Moving a grid edge persists resized zone geometry after reopening." }
-    ] },
-    { "Id": "FZ-COMMIT", "Assertions": [
-      { "Id": "FZ-COMMIT.grid-save", "Description": "Grid Save and apply commits geometry and applies that layout to the selected work area." },
-      { "Id": "FZ-COMMIT.grid-cancel", "Description": "Grid Cancel preserves previous geometry and assignment." },
-      { "Id": "FZ-COMMIT.canvas-save", "Description": "Canvas Save and apply commits geometry and applies that layout to the selected work area." },
-      { "Id": "FZ-COMMIT.canvas-cancel", "Description": "Canvas Cancel preserves previous geometry and assignment." },
-      { "Id": "FZ-COMMIT.delete", "Description": "Deleting an owned layout removes its card and stored definition while retaining unrelated layouts." }
     ] },
     { "Id": "FZ-ASSIGN", "Assertions": [
       { "Id": "FZ-ASSIGN.monitors", "Description": "With two or more monitors, distinct per-monitor layouts remain independently assigned after editor reopen." },
@@ -70,27 +64,23 @@
       { "Id": "FZ-EXCLUDE.behavior", "Description": "An owned executable does not snap while excluded and snaps again after its owned exclusion is removed." },
       { "Id": "FZ-EXCLUDE.scroll", "Description": "Scrolling to and editing Excluded apps remains usable without repeated Settings scroll bounce." }
     ] },
-    { "Id": "FZ-DRAG", "Assertions": [
+    { "Id": "FZ-DRAG", "PreviousScenarioIds": ["FZ-DRAG", "FZ-DRAG-DISPLAY"], "Assertions": [
       { "Id": "FZ-DRAG.shift-during", "Description": "Spanning off and on separately: Shift activation on, mouse toggle off; start drag then press Shift, observe visible zones, release Shift to hide, and separately drop while active to snap/hide." },
       { "Id": "FZ-DRAG.shift-before", "Description": "Spanning off and on separately: Shift activation on, mouse toggle off; hold Shift before drag, observe zones, then independently verify Shift-release hide and active-drop snap/hide." },
       { "Id": "FZ-DRAG.mouse-toggle", "Description": "Spanning off and on separately: Shift activation off, mouse toggle on; initial zones visible, non-primary click deactivates; separately Shift deactivates." },
       { "Id": "FZ-DRAG.immediate", "Description": "Spanning off and on separately: Shift activation and mouse toggle off; initial zones visible, pressing Shift hides them." },
-      { "Id": "FZ-DRAG.both", "Description": "Spanning off and on separately: both options on; initial zones hidden, Shift activates and non-primary click toggles the active state." }
-    ] },
-    { "Id": "FZ-DRAG-DISPLAY", "Assertions": [
+      { "Id": "FZ-DRAG.both", "Description": "Spanning off and on separately: both options on; initial zones hidden, Shift activates and non-primary click toggles the active state." },
       { "Id": "FZ-DRAG-DISPLAY.all-monitors", "Description": "Spanning off and on separately, with two monitors: Show zones on all monitors off/on limits or displays the drag overlays accordingly." },
       { "Id": "FZ-DRAG-DISPLAY.overlap", "Description": "Spanning off and on separately: unequal overlapping canvas zones honor each available overlap option (smallest, largest, positional, closest center); establish independent geometric targets for all four." },
       { "Id": "FZ-DRAG-DISPLAY.transparency", "Description": "Spanning off and on separately: transparent-drag off/on retains or reduces window opacity during drag and restores the original opacity after drop and cancellation." }
     ] },
-    { "Id": "FZ-HISTORY", "Assertions": [
+    { "Id": "FZ-HISTORY", "PreviousScenarioIds": ["FZ-HISTORY", "FZ-UNSNAP"], "Assertions": [
       { "Id": "FZ-HISTORY.drag", "Description": "Spanning off and on separately: with authorized isolated empty history, a drag snap records the owned app, correct work area and zone index; retain ordinary owned-entry coverage separately." },
       { "Id": "FZ-HISTORY.keyboard", "Description": "Spanning off and on separately: with authorized isolated empty history, keyboard snapping records the owned app, correct work area and zone index; retain ordinary owned-entry coverage separately." },
       { "Id": "FZ-HISTORY.multizone", "Description": "Spanning off and on separately: snapping to several zones records their complete correct index set." },
       { "Id": "FZ-HISTORY.unsnap", "Description": "Spanning off and on separately: unsnapping an owned single assignment removes its history record, not unrelated records." },
       { "Id": "FZ-HISTORY.monitors", "Description": "Spanning off and on separately, with two distinct work areas where supported: snap one app on both monitors, verify both histories, unsnap one and verify the other remains. A combined work area cannot prove two independent monitor histories; retain that applicability conflict." },
-      { "Id": "FZ-HISTORY.desktops", "Description": "Spanning off and on separately, with two owned virtual desktops: snap the same app on both, unsnap one and verify only that desktop's history is removed." }
-    ] },
-    { "Id": "FZ-UNSNAP", "Assertions": [
+      { "Id": "FZ-HISTORY.desktops", "Description": "Spanning off and on separately, with two owned virtual desktops: snap the same app on both, unsnap one and verify only that desktop's history is removed." },
       { "Id": "FZ-UNSNAP.enabled", "Description": "Spanning off and on separately: restore-size enabled before snap and through unsnap restores the original size." },
       { "Id": "FZ-UNSNAP.disabled", "Description": "Spanning off and on separately: restore-size disabled throughout retains snapped size after unsnap." },
       { "Id": "FZ-UNSNAP.enabled-late", "Description": "Spanning off and on separately: restore-size disabled at snap and enabled before unsnap still retains snapped size." }
@@ -119,7 +109,7 @@
       { "Id": "FZ-RELAYOUT.return", "Description": "Spanning off and on separately: after reducing zones 1-2 to zone 1, returning to the three-zone layout restores the 1-2 assignment." },
       { "Id": "FZ-RELAYOUT.disabled", "Description": "Spanning off and on separately: with layout-change movement off, a zone-1 window stays put when changing layouts." }
     ] },
-    { "Id": "FZ-LAST-ZONE", "Assertions": [
+    { "Id": "FZ-LAST-ZONE", "PreviousScenarioIds": ["FZ-LAST-ZONE", "FZ-ACTIVE-MONITOR"], "Assertions": [
       { "Id": "FZ-LAST-ZONE.primary", "Description": "Spanning off and on separately: with last-zone placement enabled, closing/reopening an owned primary-monitor window restores its zone." },
       { "Id": "FZ-LAST-ZONE.both-monitors", "Description": "Spanning off and on separately, where distinct monitor histories exist: with history on both monitors, reopening restores the active monitor's zone." },
       { "Id": "FZ-LAST-ZONE.secondary-only", "Description": "Spanning off and on separately, where distinct monitor histories exist: with only secondary history, reopening restores the secondary zone." },
@@ -127,9 +117,7 @@
       { "Id": "FZ-LAST-ZONE.unsnapped-desktop", "Description": "Spanning off and on separately, with secondary monitor and owned virtual desktops: an unsnapped window keeps its position/size after switching away and back." },
       { "Id": "FZ-LAST-ZONE.resized-desktop", "Description": "Spanning off and on separately, with owned virtual desktops: a manually resized snapped window keeps its resized size after switching away and back." },
       { "Id": "FZ-LAST-ZONE.popup", "Description": "Spanning off and on separately, with an owned genuine popup application fixture: close/reopen restores its zone." },
-      { "Id": "FZ-LAST-ZONE.vscode-menu", "Description": "Spanning off and on separately, in a separate owned VS Code window: menus remain anchored to controls after snapping, not relocated to the zone origin." }
-    ] },
-    { "Id": "FZ-ACTIVE-MONITOR", "Assertions": [
+      { "Id": "FZ-LAST-ZONE.vscode-menu", "Description": "Spanning off and on separately, in a separate owned VS Code window: menus remain anchored to controls after snapping, not relocated to the zone origin." },
       { "Id": "FZ-ACTIVE-MONITOR.new", "Description": "Spanning off and on separately, on two monitors with active-monitor placement on: a never-snapped owned window opens on the active monitor." },
       { "Id": "FZ-ACTIVE-MONITOR.same", "Description": "Spanning off and on separately: current-desktop/current-monitor history restores its zone." },
       { "Id": "FZ-ACTIVE-MONITOR.other-monitor", "Description": "Spanning off and on separately: current-desktop/other-monitor history places the new window on the active monitor." },
@@ -189,15 +177,13 @@
       { "Id": "FZ-RECOVERY.unlock", "Description": "With authorized lock/unlock, first no-Shift drag does not activate zones and held-Shift drag does." },
       { "Id": "FZ-RECOVERY.teardown", "Description": "Ordinary module disable/enable and authorized display/span reconfiguration during drag are separate conditions: no crash, clean overlay teardown and usable subsequent input." }
     ] },
-    { "Id": "FZ-WHEEL", "Assertions": [
+    { "Id": "FZ-WHEEL", "PreviousScenarioIds": ["FZ-WHEEL", "FZ-INDICATOR"], "Assertions": [
       { "Id": "FZ-WHEEL.directions", "Description": "With wheel switching enabled and zones visible, down selects next and up previous, including both wraparounds, on the monitor under the cursor; drop uses the selected layout." },
       { "Id": "FZ-WHEEL.hotkey-order", "Description": "With at least two mapped custom layouts, wheel order follows assigned digit order." },
       { "Id": "FZ-WHEEL.custom-order", "Description": "With zero assigned digits and separately one assigned digit, wheel order falls back to all custom layouts in editor order." },
       { "Id": "FZ-WHEEL.disabled", "Description": "Wheel switching off neither changes layouts nor consumes normal wheel input." },
       { "Id": "FZ-WHEEL.hidden", "Description": "With zones hidden, wheel input remains ordinary and does not change layouts." },
-      { "Id": "FZ-WHEEL.too-few", "Description": "With zero and with one eligible custom layout in an authorized isolated fixture, wheel input is not consumed and no layout switch occurs; two layouts is the positive control." }
-    ] },
-    { "Id": "FZ-INDICATOR", "Assertions": [
+      { "Id": "FZ-WHEEL.too-few", "Description": "With zero and with one eligible custom layout in an authorized isolated fixture, wheel input is not consumed and no layout switch occurs; two layouts is the positive control." },
       { "Id": "FZ-INDICATOR.entries", "Description": "During visible-zone dragging, wheel and keyboard quick switches separately show the current custom layout name." },
       { "Id": "FZ-INDICATOR.disabled", "Description": "Disabling the label suppresses it; ending a drag clears an enabled label." },
       { "Id": "FZ-INDICATOR.positions", "Description": "All seven positions apply live: top-left, top-center, top-right, center, bottom-left, bottom-center, bottom-right." },

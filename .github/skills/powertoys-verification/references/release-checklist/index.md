@@ -11,7 +11,7 @@ One file per module; a verification run loads only its module's file.
 | Color Picker | 17 / 25 | `color-picker.md` |
 | Crop And Lock | 13 / 14 | `crop-and-lock.md` |
 | Environment Variables | 29 / 135 | `environment-variables.md` |
-| FancyZones | 42 / 171 | `fancyzones.md` |
+| FancyZones | 35 / 171 | `fancyzones.md` |
 | File Locksmith | 10 / 10 | `file-locksmith.md` |
 | Image Resizer | 12 / 18 | `image-resizer.md` |
 | Keyboard Manager | 24 / 135 | `keyboard-manager.md` |

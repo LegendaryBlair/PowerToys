@@ -2,6 +2,8 @@
 # Compositions for the finite desktop-case recipe; no operations occur on import.
 . "$PSScriptRoot\pt-fancyzones-driver.ps1"
 . "$PSScriptRoot\pt-taskbar-fixture.ps1"
+. "$PSScriptRoot\pt-shell-transition.ps1"
+. "$PSScriptRoot\pt-owned-capture.ps1"
 if(-not ('PtFancyZonesCaption' -as [type])){
     Add-Type @'
 using System;
@@ -47,6 +49,22 @@ function Set-PtFancyZonesCaseOption {
         return
     }
     Set-PtFancyZonesBoolean -Context $FzCase.Driver -ContainerId $mapping[0] -SettingKey $mapping[1] -Value $Value|Out-Null
+}
+
+function Invoke-PtFancyZonesCaseTaskView {
+    param([Parameter(Mandatory)]$Target,[Parameter(Mandatory)][scriptblock]$Action,
+        [object[]]$ArgumentList=@(),[string]$Title='Task View')
+    if($FzCase.TaskView -and $FzCase.TaskView.State -cne 'Closed'){
+        throw 'An earlier Task View transition is unresolved.'
+    }
+    $transition=$null
+    try {
+        Invoke-PtTaskViewScope -TargetIdentity $Target -Transition ([ref]$transition) `
+            -Action $Action -ArgumentList $ArgumentList -Title $Title
+    } finally {
+        $FzCase.TaskView=$transition
+        Save-Private 'task-view-transition.json' $transition
+    }
 }
 
 function Set-PtFancyZonesCasePositionMode {
@@ -106,14 +124,44 @@ function Open-PtFancyZonesCaseLayoutProperties {
     }|Out-Null
 }
 
+function Save-PtFancyZonesDefaultEvidence {
+    param([Parameter(Mandatory)]$Attempt,[Parameter(Mandatory)][string]$LayoutId,
+        [Parameter(Mandatory)][ValidateSet('Horizontal','Vertical')][string]$Orientation)
+    if($LayoutId -cnotin $FzCase.Driver.LayoutIds){throw 'Default observation requires a creation-owned custom layout.'}
+    $layouts=Get-PtFancyZonesSnapshotJson $FzCase.Driver.ExpectedModule 'custom-layouts.json'
+    $layout=@($layouts.'custom-layouts'|Where-Object uuid -CEQ $LayoutId)
+    if($layout.Count -ne 1){throw 'Owned layout identity is not unique.'}
+    Open-PtFancyZonesCaseLayoutProperties $layout[0].name
+    try {
+        $selectedId="${Orientation}DefaultLayoutButton"
+        $unselectedId="SetLayoutAs${Orientation}DefaultButton"
+        $root=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]$FzCase.Driver.Editor.hwnd)
+        $buttons=@($root.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|
+            Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and
+                $_.Current.AutomationId -cin @($selectedId,$unselectedId) -and -not $_.Current.IsOffscreen})
+        $button=Select-PtUniqueUiElement -Elements $buttons -Description "actual $Orientation default state"
+        $path=New-PtVerificationArtifactPath -Attempt $Attempt -Name "default-$Orientation.png"
+        Save-PtOwnedControlScreenshot -Path $path -WindowIdentity $FzCase.Driver.Editor -Element $button `
+            -OpaqueBackgroundIdentity $FzCase.Driver.Editor|Out-Null
+        $image=Add-PtVerificationArtifact -Attempt $Attempt -Path $path -Kind Screenshot -Description "Exact $Orientation default control; not Save/Cancel or layout-creation controls"
+        $state=Add-PtVerificationArtifact -Attempt $Attempt -Path "$path.state.json" -Kind Evidence -Description 'Control runtime identity and complete pre/post capture bounds'
+        [pscustomobject]@{Selected=($button.Current.AutomationId -ceq $selectedId);ControlId=$button.Current.AutomationId
+            Orientation=$Orientation;LayoutId=$LayoutId;Evidence=@($image,$state)}
+    } finally {Invoke-PtFancyZonesCaseButton SecondaryButton}
+}
+
 function Set-PtFancyZonesCaseZoneCount {
     param([Parameter(Mandatory)][string]$Template,[Parameter(Mandatory)][ValidateRange(1,64)][int]$Count)
     Open-PtFancyZonesCaseLayoutProperties $Template
     $scope=New-PtFancyZonesDriverScope $FzCase.Driver
     $scope.TemplateTypes=@($Template.ToLowerInvariant())
     $FzCase.Driver.TemplateTypes=@($FzCase.Driver.TemplateTypes+$scope.TemplateTypes|Sort-Object -Unique)
-    Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($Count) -Action {
-        param($count)
+    $defaults=Get-PtFancyZonesSnapshotJson $FzCase.Driver.ExpectedModule 'default-layouts.json'
+    $referencing=@($defaults.'default-layouts'|Where-Object {$_.layout.type -ceq $Template.ToLowerInvariant()})
+    foreach($reference in $referencing){$reference.layout.'zone-count'=$Count}
+    $scope|Add-Member NoteProperty PredictedDefaults $defaults
+    Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($Count,$Template.ToLowerInvariant(),$defaults) -Action {
+        param($count,$type,$predictedDefaults)
         $root=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]$FzCase.Driver.Editor.hwnd)
         $elements=@($root.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|
             Where-Object {$_.Current.AutomationId -in @('TemplateZoneCount','TemplateZoneSlider') -and -not $_.Current.IsOffscreen})
@@ -129,6 +177,13 @@ function Set-PtFancyZonesCaseZoneCount {
         }
         if(-not $written){throw 'No supported numeric zone-count peer was found.'}
         Invoke-PtFancyZonesCaseButton PrimaryButton
+        Wait-PtFancyZonesPersistence -Context $FzCase.Driver -ArgumentList @($type,$count,$predictedDefaults) -Ready {
+            param($snapshot,$tag,$expectedCount,$expectedDefaults)
+            $templates=Get-PtFancyZonesSnapshotJson $snapshot 'layout-templates.json'
+            $savedDefaults=Get-PtFancyZonesSnapshotJson $snapshot 'default-layouts.json'
+            @($templates.'layout-templates'|Where-Object {$_.type -ceq $tag -and $_.'zone-count' -eq $expectedCount}).Count -eq 1 -and
+                (Test-PtFancyZonesJsonEqual $savedDefaults $expectedDefaults)
+        }|Out-Null
     }|Out-Null
 }
 
@@ -136,12 +191,33 @@ function Apply-PtFancyZonesCaseLayout {
     param([Parameter(Mandatory)][string]$Name,[int]$MonitorNumber=0)
     Open-PtFancyZonesEditor $FzCase.Driver|Out-Null
     if($MonitorNumber){Select-PtFancyZonesMonitor $FzCase.Driver $MonitorNumber}
+    $parameters=Get-PtFancyZonesSnapshotJson $FzCase.Driver.ExpectedModule 'editor-parameters.json'
+    $monitors=@($parameters.monitors|Where-Object 'monitor-number' -EQ $FzCase.Driver.SelectedMonitorNumber)
+    if($monitors.Count -ne 1){throw 'Current editor selection is not uniquely bound to a native monitor.'}
+    $device=ConvertTo-PtFancyZonesDevice $monitors[0]
+    $custom=Get-PtFancyZonesSnapshotJson $FzCase.Driver.ExpectedModule 'custom-layouts.json'
+    $layouts=@($custom.'custom-layouts'|Where-Object name -CEQ $Name)
+    $types=@{Columns='columns';Rows='rows';Grid='grid';Focus='focus';'Priority grid'='priority-grid';'No layout'='blank'}
+    if($layouts.Count -gt 1 -or ($layouts.Count -eq 0 -and -not $types.ContainsKey($Name))){throw 'Layout expectation is ambiguous or unsupported.'}
+    $expectation=if($layouts.Count){@{Uuid=$layouts[0].uuid}}else{@{Type=$types[$Name]}}
     $scope=New-PtFancyZonesDriverScope $FzCase.Driver
     $scope.NativeSerialization=$true
-    Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($Name) -Action {
-        param($name)
+    Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($Name,$device,$expectation) -Action {
+        param($name,$targetDevice,$expectedLayout)
         $card=Resolve-PtUiElement -Hwnd $FzCase.Driver.Editor.hwnd -Name $name -ControlType ListItem
         Invoke-PtFancyZonesElementClick -Hwnd $FzCase.Driver.Editor.hwnd -Element $card
+        Wait-PtFancyZonesPersistence -Context $FzCase.Driver -ArgumentList @($card,$targetDevice,$expectedLayout) -Ready {
+            param($snapshot,$selectedCard,$deviceId,$layoutId)
+            $selection=$null
+            if(-not $selectedCard.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern,[ref]$selection)){
+                throw 'Layout card has no independent selection readback.'
+            }
+            $applied=Get-PtFancyZonesSnapshotJson $snapshot 'applied-layouts.json'
+            $matching=@($applied.'applied-layouts'|Where-Object {Test-PtFancyZonesNativeDevice $deviceId $_.device})
+            if($matching.Count -ne 1){return $false}
+            $layout=$matching[0].'applied-layout'
+            $selection.Current.IsSelected -and $(if($layoutId.Uuid){$layout.uuid -ieq $layoutId.Uuid}else{$layout.type -ceq $layoutId.Type})
+        }|Out-Null
     }|Out-Null
 }
 
@@ -159,9 +235,14 @@ function Copy-PtFancyZonesCaseTemplate {
     Open-PtFancyZonesCaseLayoutProperties $Template
     $scope=New-PtFancyZonesDriverScope $FzCase.Driver
     $scope.NewLayoutName=$newName;$scope.NewLayoutType='grid';$scope.NativeSerialization=$true
-    Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -Action {
+    Invoke-PtFancyZonesDriverAction -Context $FzCase.Driver -Scope $scope -ArgumentList @($newName,@($before.'custom-layouts'.uuid)) -Action {
+        param($expectedName,$originalIds)
         Invoke-PtFancyZonesCaseButton createFromTemplateLayoutButton
-        Start-Sleep -Milliseconds 200
+        Wait-PtFancyZonesPersistence -Context $FzCase.Driver -ArgumentList @($expectedName,$originalIds) -Ready {
+            param($snapshot,$name,$oldIds)
+            $layouts=Get-PtFancyZonesSnapshotJson $snapshot 'custom-layouts.json'
+            @($layouts.'custom-layouts'|Where-Object {$_.name -ceq $name -and $_.uuid -cnotin $oldIds}).Count -eq 1
+        }|Out-Null
     }|Out-Null
     $after=Get-PtFancyZonesSnapshotJson $FzCase.Driver.ExpectedModule 'custom-layouts.json'
     $created=@($after.'custom-layouts'|Where-Object { $_.uuid -cnotin @($before.'custom-layouts'.uuid) -and $_.name -ceq $newName })

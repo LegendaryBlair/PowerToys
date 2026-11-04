@@ -85,6 +85,7 @@ function Save-PtOwnedScreenshot {
                 Scene=Get-PtOwnedCaptureScene -WindowIdentity $WindowIdentity -OpaqueBackgroundIdentity $OpaqueBackgroundIdentity -Region $Region
                 Observation=$(if($callerObservation){& $callerObservation})
             }
+
         }
         $state.path=[IO.Path]::GetFullPath($Path)
         $bytes=[Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $state -Depth 30))
@@ -102,4 +103,56 @@ function Save-PtOwnedScreenshot {
         }
         [IO.Directory]::Delete($private,$false)
     }
+}
+
+function Assert-PtControlWindowScope {
+    param([Parameter(Mandatory)]$Element,[Parameter(Mandatory)]$WindowIdentity)
+    if(-not(Get-Command Initialize-PtUiAutomation -ErrorAction Ignore)){. "$PSScriptRoot\pt-uia.ps1"}
+    Initialize-PtUiAutomation
+    $root=[Windows.Automation.AutomationElement]::FromHandle([IntPtr][long]$WindowIdentity.hwnd)
+    $node=$Element
+    for($depth=0;$node -and $depth -lt 64;$depth++){
+        if([Windows.Automation.Automation]::Compare($node,$root)){return}
+        $node=[Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($node)
+    }
+    throw 'Control is not in the declared window subtree.'
+}
+
+function Get-PtControlCaptureState {
+    param([Parameter(Mandatory)]$Element,[Parameter(Mandatory)]$WindowIdentity)
+    Assert-PtWindowIdentity $WindowIdentity
+    $current=$Element.Current
+    $runtime=@($Element.GetRuntimeId())
+    $bounds=$current.BoundingRectangle
+    if(-not $runtime.Count -or $current.ProcessId -ne $WindowIdentity.processId -or $current.IsOffscreen -or
+        $bounds.Width -le 0 -or $bounds.Height -le 0){throw 'Control is unavailable, offscreen or belongs to another process.'}
+    Assert-PtControlWindowScope -Element $Element -WindowIdentity $WindowIdentity
+    $left=[Math]::Floor($bounds.Left);$top=[Math]::Floor($bounds.Top)
+    $right=[Math]::Ceiling($bounds.Right);$bottom=[Math]::Ceiling($bounds.Bottom)
+    [pscustomobject]@{RuntimeId=$runtime;AutomationId=$current.AutomationId;ControlType=$current.ControlType.ProgrammaticName
+        Bounds=[pscustomobject]@{Left=$bounds.Left;Top=$bounds.Top;Right=$bounds.Right;Bottom=$bounds.Bottom}
+        Region=[pscustomobject]@{Left=[int]$left;Top=[int]$top;Width=[int]($right-$left);Height=[int]($bottom-$top)}}
+}
+
+function Save-PtOwnedControlScreenshot {
+    <#.SYNOPSIS
+    Capture a complete actual control and reject identity/geometry changes during capture.
+    .NOTES
+    This proves crop association and ownership, not that the rendered content is correct.
+    The caller must realize the control and establish the opaque background beforehand.
+    #>
+    param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)]$WindowIdentity,
+        [Parameter(Mandatory)]$Element,[Parameter(Mandatory)]$OpaqueBackgroundIdentity)
+    $controlElement=$Element
+    $controlWindow=$WindowIdentity
+    $initialControl=Get-PtControlCaptureState -Element $controlElement -WindowIdentity $controlWindow
+    $controlSignature=ConvertTo-Json $initialControl -Depth 8 -Compress
+    Save-PtOwnedScreenshot -Path $Path -WindowIdentity @($controlWindow) `
+        -OpaqueBackgroundIdentity $OpaqueBackgroundIdentity -Region $initialControl.Region -Observe {
+            $currentControl=Get-PtControlCaptureState -Element $controlElement -WindowIdentity $controlWindow
+            if((ConvertTo-Json $currentControl -Depth 8 -Compress) -cne $controlSignature){
+                throw 'Control identity or geometry changed; do not publish the stale crop.'
+            }
+            $currentControl
+        }
 }

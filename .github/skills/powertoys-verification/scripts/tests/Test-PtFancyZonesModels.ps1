@@ -50,4 +50,13 @@ $defaultPlan = New-PtFancyZonesWorkAreaPlan -AppliedLayouts $document -EditorPar
 $last = $defaultPlan.Document.'applied-layouts'[-1].'applied-layout'
 Require ($last.uuid -eq [guid]::Empty.ToString('B').ToUpperInvariant() -and $last.type -eq 'rows' -and $last.spacing -eq 16) 'Native default-layout values were not preserved.'
 Require (($document | ConvertTo-Json -Depth 15 -Compress) -ceq $original) 'Planning changed the input baseline.'
+$original=[pscustomobject]@{ZoneMask=3;Frame=(Rect 0 0 600 800)}
+$reduced=[pscustomobject]@{ZoneMask=3;Frame=(Rect 0 0 1000 800)}
+$returned=[pscustomobject]@{ZoneMask=3;Frame=(Rect 0 0 600 800)}
+$observation=Get-PtFancyZonesRelayoutObservation $original $reduced $returned (Rect 0 0 1000 800)
+Require ($observation.FitsRemainingZone -and $observation.ReturnsToOriginalGeometry -and $observation.ReturnsToOriginalAssignment) 'Retained requested indices falsely failed correct reduced geometry.'
+$reduced.ZoneMask=1;$reduced.Frame=Rect 0 0 400 800
+$returned.ZoneMask=1
+$observation=Get-PtFancyZonesRelayoutObservation $original $reduced $returned (Rect 0 0 1000 800)
+Require (-not $observation.FitsRemainingZone -and -not $observation.ReturnsToOriginalAssignment) 'A desired mask hid incorrect geometry or lost requested indices.'
 'PASS: physical/logical topology, negative origin, editor target, native/editor identity differences, combined assignment creation, defaults and immutable inputs.'

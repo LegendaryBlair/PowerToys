@@ -18,6 +18,24 @@ public static class FancyZonesSurface
 
     private sealed class BackgroundForm : Form
     {
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            base.OnPaintBackground(e);
+            using (var contrast = new SolidBrush(Color.FromArgb(110, 125, 145)))
+            {
+                for (int y = 0; y < ClientSize.Height; y += 32)
+                {
+                    for (int x = 0; x < ClientSize.Width; x += 32)
+                    {
+                        if (((x / 32) + (y / 32)) % 2 == 0)
+                        {
+                            e.Graphics.FillRectangle(contrast, x, y, 32, 32);
+                        }
+                    }
+                }
+            }
+        }
+
         protected override CreateParams CreateParams
         {
             get
@@ -153,6 +171,7 @@ public static class FancyZonesSurface
             Child = child == null ? 0 : child.Handle.ToInt64(),
             Backgrounds = backgrounds,
             BackgroundInfo = backgroundInfo,
+            BackgroundPattern = "Opaque 32-pixel checkerboard for before/during/after transparency comparison",
             Frequency = Stopwatch.Frequency,
         });
         Timer timer = new Timer { Interval = 50 };

@@ -14,7 +14,7 @@ $expectedInventories=[ordered]@{
     'advanced-paste'=@(29,32); 'color-picker'=@(17,25); 'crop-and-lock'=@(13,14)
     'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(12,18)
     'keyboard-manager'=@(24,135)
-    'fancyzones'=@(42,171)
+    'fancyzones'=@(35,171)
     'new-plus'=@(9,9); 'peek'=@(18,18); 'power-display'=@(33,138); 'power-rename'=@(16,17); 'settings'=@(25,50)
     'shortcut-guide'=@(19,96); 'workspaces'=@(38,72); 'zoomit'=@(39,39); 'quick-accent'=@(18,57)
 }
@@ -115,6 +115,25 @@ foreach($case in $mergeCases){
     }
 }
 $results+=@(@{Name='Merged workflows retain original independent observations';Status='PASS'})
+$fancyzones=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$skill\references\assertion-inventories\fancyzones.json"))
+$retained=ConvertTo-Json -InputObject @($fancyzones.Items.Assertions|Sort-Object Id|Select-Object Id,Description) -Compress
+Require ((Get-PtReportHash ([Text.Encoding]::UTF8.GetBytes($retained))) -ceq
+    '22D98DEB23C9E269D3769F4E82BDF9FA2149D9751767D2D6CE3FD250817A67F1') 'FancyZones regrouping lost or changed an original assertion.'
+foreach($mapping in @(
+    @{Id='FZ-CREATE';Previous=@('FZ-CREATE','FZ-CANVAS','FZ-GRID','FZ-COMMIT');Children=14},
+    @{Id='FZ-DRAG';Previous=@('FZ-DRAG','FZ-DRAG-DISPLAY');Children=8},
+    @{Id='FZ-HISTORY';Previous=@('FZ-HISTORY','FZ-UNSNAP');Children=9},
+    @{Id='FZ-LAST-ZONE';Previous=@('FZ-LAST-ZONE','FZ-ACTIVE-MONITOR');Children=12},
+    @{Id='FZ-WHEEL';Previous=@('FZ-WHEEL','FZ-INDICATOR');Children=12}
+)){
+    $item=@($fancyzones.Items|Where-Object Id -CEQ $mapping.Id)[0]
+    Require ($item.Assertions.Count -eq $mapping.Children -and
+        @(Compare-Object @($item.PreviousScenarioIds) $mapping.Previous).Count -eq 0) "Incomplete FancyZones merge: $($mapping.Id)"
+    foreach($child in $item.Assertions){
+        Require ($child.Id.Split('.')[0] -cin $mapping.Previous) "Wrong assertion membership: $($child.Id)"
+    }
+}
+$results+=@(@{Name='FancyZones shared Arrange/Act workflows preserve all original independent assertions';Status='PASS'})
 $settings=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$skill\references\assertion-inventories\settings.json"))
 $localization=@($settings.Items|Where-Object Id -CEQ 'SET-LOCALIZATION')
 Require (@($settings.Items|Where-Object Id -CEQ 'SET-RESTART-MEDIUM').Count -eq 0) 'Ambiguous standalone restart scenario returned'

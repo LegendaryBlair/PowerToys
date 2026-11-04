@@ -4,6 +4,9 @@
 . "$PSScriptRoot\pt-file-io.ps1"
 . "$PSScriptRoot\pt-uia.ps1"
 . "$PSScriptRoot\pt-session-safety.ps1"
+. "$PSScriptRoot\pt-state-snapshot.ps1"
+. "$PSScriptRoot\pt-cleanup-plan.ps1"
+. "$PSScriptRoot\pt-shell-transition.ps1"
 . "$PSScriptRoot\pt-foreground-guard.ps1"
 . "$PSScriptRoot\pt-shared-events.ps1"
 if (-not ('PtFancyZonesDriverNative' -as [type])) {
@@ -107,7 +110,7 @@ function New-PtFancyZonesDriverContext {
     [pscustomobject]@{
         ModuleRoot=$copy.FileState.Path; ExpectedModule=$copy; ExpectedSnapshotPath=$path
         HostCreation=$HostCreation; Settings=$Settings; EditorPath=$EditorPath
-        EditorCreation=$null; Editor=$null; InMutation=$false
+        EditorCreation=$null; Editor=$null; InMutation=$false; SelectedMonitorNumber=$null
         StopFile=$null
         LayoutIds=@(); ApplicationPaths=@(); HotkeyDigits=@(); DefaultOrientations=@(); TemplateTypes=@()
     }
@@ -193,6 +196,10 @@ function Open-PtFancyZonesEditor {
         Register-PtCreatedProcessWindows $driver.EditorCreation | Out-Null
         Assert-PtForegroundOrAbort -Hwnd $driver.Editor.hwnd
     } | Out-Null
+    $parameters=Get-PtFancyZonesSnapshotJson $Context.ExpectedModule 'editor-parameters.json'
+    $selected=@($parameters.monitors|Where-Object 'is-selected' -EQ $true)
+    if($selected.Count -ne 1){throw 'Host editor input has no unique selected monitor.'}
+    $Context.SelectedMonitorNumber=[int]$selected[0].'monitor-number'
     $Context.Editor
 }
 
@@ -267,6 +274,11 @@ function Select-PtFancyZonesMonitor {
     })
     $target = Select-PtUniqueUiElement -Elements $matching -Description "actual monitor $MonitorNumber"
     Invoke-PtFancyZonesElementClick -Hwnd $hwnd -Element $target
+    Wait-PtCondition -Description 'actual monitor selection readback' -TimeoutSeconds 5 -Probe {
+        $selection=$target.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
+        $selection.Current.IsSelected
+    }|Out-Null
+    $Context.SelectedMonitorNumber=$MonitorNumber
 }
 
 function Set-PtFancyZonesBoolean {
@@ -330,4 +342,80 @@ function Set-PtFancyZonesBoolean {
         }
     } | Out-Null
     $result
+}
+
+function New-PtFancyZonesCleanupPlan {
+    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)][scriptblock]$SetEnabled)
+    if(-not [object]::ReferenceEquals($Context,$global:FzCase)){throw 'Cleanup requires the active finite-case context.'}
+    # Private snapshots must stay out of the recorder's serialized step arguments.
+    @(
+        @{Id='task-view';Phase='Ui';DependsOn=@();Arguments=@();Action={
+            $context=$global:FzCase
+            if($context.TaskView){Close-PtTaskViewTransition $context.TaskView}
+        };Verify={-not $global:FzCase.TaskView -or $global:FzCase.TaskView.State -ceq 'Closed'}},
+        @{Id='editor';Phase='Quiesce';DependsOn=@('task-view');Arguments=@();Action={
+            $context=$global:FzCase
+            if($context.Driver -and $context.Driver.EditorCreation){Close-PtFancyZonesEditor $context.Driver}
+        };Verify={@(Get-PtResourceProcessCandidates $global:FzCase.EditorPath).Count -eq 0}},
+        @{Id='surface';Phase='Quiesce';DependsOn=@();Arguments=@();Action={
+            $context=$global:FzCase
+            if($context.Surface){
+                Restore-PtPointerPosition $context.Desktop.pointer|Out-Null
+                Register-PtCreatedProcessWindows $context.Surface|Out-Null
+                Stop-PtOwnedProcess -Creation $context.Surface -TimeoutSeconds 12 -ArgumentList @($context.SurfaceState) -RequestExit {
+                    param($identity,$state)
+                    [IO.File]::WriteAllText("$state\exit",'exit')
+                }|Out-Null
+            }
+        };Verify={
+            $context=$global:FzCase
+            if(-not $context.Surface){return $true}
+            $current=Get-PtResourceProcessIdentity $context.Surface.ProcessId
+            -not $current -or $current.processStartTicks -ne $context.Surface.ProcessStartTicks
+        }},
+        @{Id='host';Phase='Quiesce';DependsOn=@('editor');Arguments=@($SetEnabled);Action={
+            param($setEnabled)
+            $context=$global:FzCase
+            if($context.Host){
+                Register-PtCreatedProcessWindows $context.Host|Out-Null
+                Stop-PtOwnedProcess -Creation $context.Host -TimeoutSeconds 15 -ArgumentList @($setEnabled) -RequestExit {
+                    param($identity,$restore)
+                    & $restore $false|Out-Null
+                }|Out-Null
+            }
+        };Verify={param($setEnabled) @(Get-PtResourceProcessCandidates $global:FzCase.HostPath).Count -eq 0}},
+        @{Id='settings-ui';Phase='Quiesce';DependsOn=@('host');Arguments=@();Action={
+            $context=$global:FzCase
+            if($context.SettingsSnapshot){$context.SettingsRestoration=Restore-PtSettingsUiSnapshot $context.SettingsSnapshot}
+        };Verify={-not $global:FzCase.SettingsSnapshot -or $global:FzCase.SettingsRestoration.Restored -eq $true}},
+        @{Id='module-files';Phase='Files';DependsOn=@('host','editor','surface');Arguments=@();Action={
+            $context=$global:FzCase
+            if($context.OriginalModule){
+                $expected=if($context.Driver){$context.Driver.ExpectedModule}else{$context.ExpectedModule}
+                $receipt=Restore-PtFileSetSnapshot $context.OriginalModule $expected $context.OriginalModule.FileNames
+                if(-not $receipt.SelectedFilesMatchBaseline){throw 'Module comparison differs.'}
+            }
+        };Verify={
+            $context=$global:FzCase
+            if(-not $context.OriginalModule){return $true}
+            (Restore-PtFileSetSnapshot $context.OriginalModule $context.OriginalModule @()).SelectedFilesMatchBaseline
+        }},
+        @{Id='general-files';Phase='Files';DependsOn=@('host','editor','settings-ui');Arguments=@();Action={
+            $context=$global:FzCase
+            if($context.OriginalGeneral){
+                $receipt=Restore-PtFileSetSnapshot $context.OriginalGeneral $context.ExpectedGeneral $context.OriginalGeneral.FileNames
+                if(-not $receipt.SelectedFilesMatchBaseline){throw 'General comparison differs.'}
+            }
+        };Verify={
+            $context=$global:FzCase
+            if(-not $context.OriginalGeneral){return $true}
+            (Restore-PtFileSetSnapshot $context.OriginalGeneral $context.OriginalGeneral @()).SelectedFilesMatchBaseline
+        }},
+        @{Id='desktop-input';Phase='Windows';DependsOn=@('task-view','surface','settings-ui');Arguments=@();Action={
+            $context=$global:FzCase
+            if($context.Desktop){Restore-PtDesktopSnapshot $context.Desktop|Out-Null}
+            if($context.Keyboard){Restore-PtKeyboardLayoutSnapshot $context.Keyboard -ExpectedLayout @($context.Keyboard.Layout)|Out-Null}
+            $context.DesktopRestored=$true
+        };Verify={$global:FzCase.DesktopRestored -eq $true}}
+    )
 }

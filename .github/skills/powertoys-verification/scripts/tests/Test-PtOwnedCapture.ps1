@@ -21,6 +21,7 @@ function Reject([scriptblock]$Action,[string]$Message){
 function Get-PtActiveResourceSession {[pscustomobject]@{Windows=$script:records}}
 function Assert-PtResourceSession {param($Session)}
 function Assert-PtWindowIdentity {param($Identity)}
+function Assert-PtControlWindowScope {param($Element,$WindowIdentity) if($script:wrongControlWindow){throw 'Control is not in the declared window subtree.'}}
 function Test-PtWindowCloaked {param($Hwnd) $Hwnd -in $script:cloaked}
 function Get-PtNativeWindow {
     param([switch]$Visible)
@@ -44,6 +45,7 @@ function Save-PtPassiveScreenshot {
     $before=& $Observe
     [IO.File]::WriteAllText($Path,'synthetic capture bytes')
     if($script:lateForeign){$script:order=@($script:foreign,$script:target,$script:background)}
+    if($script:moveControl){$script:control.Current.BoundingRectangle.Left+=1}
     $after=& $Observe
     if((ConvertTo-Json $before -Depth 20 -Compress) -cne (ConvertTo-Json $after -Depth 20 -Compress)){throw 'Capture scene changed'}
     [pscustomobject]@{before=$before;after=$after;path=$Path}
@@ -73,5 +75,25 @@ $script:lateForeign=$true
 Reject {Save-PtOwnedScreenshot @options -Path "$Workspace\late.png"} 'unowned above-background'
 Require (-not(Test-Path "$Workspace\late.png") -and -not(Test-Path (Split-Path $script:privateImage))) 'Untrusted pixels were published or retained'
 $groups.Add('A post-capture ownership change deletes private pixels and publishes nothing')
+$script:lateForeign=$false
+$script:order=@($target,$background)
+$script:control=[pscustomobject]@{Current=[pscustomobject]@{ProcessId=10;IsOffscreen=$false;AutomationId='actual-default-button'
+    ControlType=[pscustomobject]@{ProgrammaticName='ControlType.Button'}
+    BoundingRectangle=[pscustomobject]@{Left=100.25;Top=100.1;Right=299.75;Bottom=249.2;Width=199.5;Height=149.1}}}
+$control|Add-Member ScriptMethod GetRuntimeId {return @(1,4)}
+$controlState=Get-PtControlCaptureState $control $target
+Require ($controlState.Region.Left -eq 100 -and $controlState.Region.Top -eq 100 -and
+    $controlState.Region.Width -eq 200 -and $controlState.Region.Height -eq 150) 'Fractional bounds clipped the control'
+Save-PtOwnedControlScreenshot -Path "$Workspace\control.png" -WindowIdentity $target -Element $control -OpaqueBackgroundIdentity $background|Out-Null
+$script:moveControl=$true
+Reject {Save-PtOwnedControlScreenshot -Path "$Workspace\moved-control.png" -WindowIdentity $target -Element $control -OpaqueBackgroundIdentity $background} 'Control identity or geometry changed'
+Require (-not(Test-Path "$Workspace\moved-control.png")) 'A stale control crop was published'
+$script:moveControl=$false
+$script:wrongControlWindow=$true
+Reject {Get-PtControlCaptureState $control $target} 'window subtree'
+$script:wrongControlWindow=$false
+$control.Current.ProcessId=20
+Reject {Get-PtControlCaptureState $control $target} 'another process'
+$groups.Add('Complete actual control bounds, same-process identity and movement checks prevent stale/clipped crops')
 $groups|ConvertTo-Json|Set-Content "$Workspace\results.json"
 "PASS: $($groups.Count) owned capture contract groups; no desktop access. $Workspace"

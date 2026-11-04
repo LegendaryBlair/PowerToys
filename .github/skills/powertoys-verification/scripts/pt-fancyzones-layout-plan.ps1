@@ -1,6 +1,33 @@
 #requires -Version 7.2
 . "$PSScriptRoot\pt-fancyzones-state.ps1"
 
+function Test-PtFancyZonesFrameEqual {
+    param([Parameter(Mandatory)]$Actual,[Parameter(Mandatory)]$Expected,
+        [ValidateRange(0,10)][int]$Tolerance=2)
+    foreach($edge in 'Left','Top','Right','Bottom'){
+        if($null -eq $Actual.$edge -or $null -eq $Expected.$edge){throw 'Complete physical frame observations are required.'}
+        if([Math]::Abs([double]$Actual.$edge-[double]$Expected.$edge) -gt $Tolerance){return $false}
+    }
+    return $true
+}
+
+function Get-PtFancyZonesRelayoutObservation {
+    <#.SYNOPSIS
+    Separate the reduced rectangle from the retained requested zone-index stamp.
+    #>
+    param([Parameter(Mandatory)]$Original,[Parameter(Mandatory)]$Reduced,
+        [Parameter(Mandatory)]$Returned,[Parameter(Mandatory)]$ExpectedOneZoneFrame)
+    if($Original.ZoneMask -ne 3){throw 'The original zones-1-2 assignment was not established.'}
+    [pscustomobject]@{
+        FitsRemainingZone=(Test-PtFancyZonesFrameEqual $Reduced.Frame $ExpectedOneZoneFrame)
+        ReturnsToOriginalGeometry=(Test-PtFancyZonesFrameEqual $Returned.Frame $Original.Frame)
+        ReturnsToOriginalAssignment=($Returned.ZoneMask -eq $Original.ZoneMask)
+        OriginalRequestedMask=$Original.ZoneMask
+        ReducedObservedMask=$Reduced.ZoneMask
+        ReturnedObservedMask=$Returned.ZoneMask
+    }
+}
+
 function Get-PtFancyZonesMonitorOrdinal {
     param([Parameter(Mandatory)]$EditorParameters,[Parameter(Mandatory)][int]$MonitorNumber)
     if($EditorParameters.'span-zones-across-monitors'){throw 'Combined mode has no individual monitor selection.'}

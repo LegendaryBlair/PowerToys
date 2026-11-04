@@ -18,6 +18,40 @@ function Test-PtFancyZonesJsonEqual {
         (Get-PtFancyZonesJsonKey ($Right | ConvertTo-Json -Depth 80 -Compress))
 }
 
+function Wait-PtFancyZonesPersistence {
+    <#.SYNOPSIS
+    Wait for declared persistence readiness and stable selected bytes without adopting them.
+    .NOTES
+    Snapshots remain private. Stability is a bounded readiness signal, not a writer lock or
+    permission to replace expected state. Attribution still runs in the enclosing action.
+    #>
+    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)][scriptblock]$Ready,
+        [object[]]$ArgumentList=@(),[ValidateRange(0.1,30)][double]$TimeoutSeconds=8)
+    $poll=@{Signature=$null;Stable=0;Samples=0;Ready=$false}
+    try {
+        Wait-PtCondition -Description 'declared FancyZones persistence and selected-file stability' -TimeoutSeconds $TimeoutSeconds -Probe {
+            $snapshot=Get-PtFileSetSnapshot -Path $Context.ModuleRoot -FileNames $Context.ExpectedModule.FileNames -MaxBytes 8MB
+            $poll.Samples++
+            $signature=ConvertTo-Json -InputObject @($snapshot.FileState.Files|Select-Object RelativePath,Length,Sha256) -Compress
+            $readyResult=@(& $Ready $snapshot @ArgumentList)
+            if($readyResult.Count -ne 1 -or $readyResult[0] -isnot [bool]){throw 'Persistence readiness must return exactly one Boolean.'}
+            $poll.Ready=$readyResult[0]
+            if($poll.Ready){
+                if($signature -ceq $poll.Signature){$poll.Stable++}else{$poll.Stable=1}
+            }else{$poll.Stable=0}
+            $poll.Signature=$signature
+            if($poll.Ready -and $poll.Stable -ge 3){
+                [pscustomobject]@{Ready=$true;Samples=$poll.Samples;StableSamples=3}
+            }
+        }
+    } catch {
+        $_.Exception.Data['FancyZonesPersistenceReadiness']=[pscustomobject]@{
+            Samples=$poll.Samples;Ready=$poll.Ready;StableSamples=$poll.Stable
+        }
+        throw
+    }
+}
+
 function Test-PtFancyZonesScopedFileChange {
     <#
     .SYNOPSIS
@@ -109,6 +143,9 @@ function Test-PtFancyZonesScopedFileChange {
             $new.'layout-hotkeys' = @($new.'layout-hotkeys' | Where-Object key -NotIn @($Scope.HotkeyDigits))
         }
         'default-layouts.json' {
+            if($Scope.PSObject.Properties['PredictedDefaults']){
+                return Test-PtFancyZonesJsonEqual $Scope.PredictedDefaults $After
+            }
             $old.'default-layouts' = @($old.'default-layouts' | Where-Object 'monitor-configuration' -CNotIn @($Scope.DefaultOrientations))
             $new.'default-layouts' = @($new.'default-layouts' | Where-Object 'monitor-configuration' -CNotIn @($Scope.DefaultOrientations))
         }

@@ -1,7 +1,7 @@
 #requires -Version 7.2
 param(
-    [Parameter(Mandatory)][ValidateSet('Span','Child','FZ-ASSIGN','FZ-DRAG','FZ-DRAG-DISPLAY',
-        'FZ-HISTORY','FZ-ELEVATION','FZ-PINNED','FZ-DISPLAY','FZ-RELAYOUT','FZ-ACTIVE-MONITOR',
+    [Parameter(Mandatory)][ValidateSet('Span','Child','FZ-ASSIGN','FZ-DRAG',
+        'FZ-HISTORY','FZ-ELEVATION','FZ-PINNED','FZ-DISPLAY','FZ-RELAYOUT','FZ-LAST-ZONE',
         'FZ-CYCLE','FZ-INDEX','FZ-POSITION','FZ-QUICK','FZ-LAYOUT','FZ-RESET','FZ-ROTATION')][string]$Case,
     [Parameter(Mandatory)][string]$Workspace,
     [Parameter(Mandatory)][string]$FixturePath,
@@ -71,6 +71,7 @@ $global:FzCase=@{
     OriginalModule=$null;ExpectedModule=$null;OriginalGeneral=$null;ExpectedGeneral=$null
     SettingsSnapshot=$null;Desktop=$null;Keyboard=$null;Lifecycle=$null;Host=$null
     Driver=$null;Surface=$null;SurfaceReady=$null;SurfaceState="$private\surface"
+    TaskView=$null;HostPath=$hostPath;EditorPath=$editorPath
     Conditions=[Collections.Generic.List[object]]::new();Cleanup=[Collections.Generic.List[object]]::new()
     Frozen=$frozen;Ledger=@{}
     StopFile=$StopFile
@@ -86,8 +87,14 @@ $plan=@{Schema='PtRunResources.v1';Resources=@(
     @{Id='host';Kind='Process';Ownership='Owned';FilePath=$hostPath;RestoreStep='host'},
     @{Id='editor';Kind='Process';Ownership='Owned';FilePath=$editorPath;RestoreStep='editor'},
     @{Id='surface';Kind='Process';Ownership='Owned';FilePath=$FixturePath;RestoreStep='surface'},
+    @{Id='task-view';Kind='Other';RestoreStep='task-view'},
+    @{Id='module-files';Kind='File';RestoreStep='module-files'},
+    @{Id='general-files';Kind='File';RestoreStep='general-files'},
+    @{Id='desktop-input';Kind='Other';RestoreStep='desktop-input'},
     @{Id='settings';Kind='Settings';Hwnd=$FzCase.Settings.hwnd}
 )}
+Assert-PtRunResourcePlan -Plan $plan -CleanupPlan (New-PtFancyZonesCleanupPlan -Context $FzCase -SetEnabled {param($value) Set-CaseEnabled $value}) `
+    -SettingsHwnd @($FzCase.Settings.hwnd)
 New-PtResourceSession -Run $run -ResourcePlan $plan|Out-Null
 function Save-Private([string]$Name,$Value) {
     [IO.File]::WriteAllText((Join-Path $FzCase.Private $Name),($Value|ConvertTo-Json -Depth 35),[Text.UTF8Encoding]::new($false))
@@ -228,7 +235,7 @@ function Start-CaseSurface {
     Surface-Command "hide|$($FzCase.SurfaceReady.Child)"|Out-Null
     Surface-Command "hide|$($FzCase.SurfaceReady.Second)"|Out-Null
 }
-function Capture-CaseRegion($Attempt,[string]$Name,$Target,$Region) {
+function Capture-CaseRegion($Attempt,[string]$Name,$Target,$Region,$Element) {
     Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
     Register-PtCreatedProcessWindows $FzCase.Host|Out-Null
     if($FzCase.Driver.EditorCreation){Register-PtCreatedProcessWindows $FzCase.Driver.EditorCreation|Out-Null}
@@ -240,7 +247,11 @@ function Capture-CaseRegion($Attempt,[string]$Name,$Target,$Region) {
     $background=$Target
     Assert-PtForegroundOrAbort -Hwnd $Target.hwnd
     $path=New-PtVerificationArtifactPath -Attempt $Attempt -Name "$Name.png"
-    Save-PtOwnedScreenshot -Path $path -WindowIdentity @($Target,$background) -OpaqueBackgroundIdentity $background -Region $Region|Out-Null
+    if($Element){
+        Save-PtOwnedControlScreenshot -Path $path -WindowIdentity $Target -OpaqueBackgroundIdentity $background -Element $Element|Out-Null
+    }else{
+        Save-PtOwnedScreenshot -Path $path -WindowIdentity @($Target,$background) -OpaqueBackgroundIdentity $background -Region $Region|Out-Null
+    }
     Add-PtVerificationArtifact -Attempt $Attempt -Path "$path.state.json" -Kind Evidence -Description 'Before/after owned capture scene'|Out-Null
     Add-PtVerificationArtifact -Attempt $Attempt -Path $path -Kind Screenshot -Description 'Owned composed region, paired with full native work-area geometry; not an accepted reference'
 }
@@ -281,14 +292,16 @@ function Observe-Span($Attempt,[bool]$Enabled) {
     if($selectors.Count -gt 1){throw 'Ambiguous monitor selector.'}
     $selectorVisible=$selectors.Count -eq 1 -and -not $selectors[0].Current.IsOffscreen
     if($selectorVisible){
+        $captureElement=$selectors[0]
         $bounds=$selectors[0].Current.BoundingRectangle
         $region=[pscustomobject]@{Left=[int]$bounds.Left;Top=[int]$bounds.Top;Width=[int]$bounds.Width;Height=[int]$bounds.Height}
     }else{
         $button=Resolve-PtUiElement -Hwnd $editor.hwnd -AutomationId NewLayoutButton -ControlType Button
+        $captureElement=$button
         $bounds=$button.Current.BoundingRectangle
         $region=[pscustomobject]@{Left=[int]$bounds.Left;Top=[int]$bounds.Top;Width=[int]$bounds.Width;Height=[int]$bounds.Height}
     }
-    $images=@(Capture-CaseRegion $Attempt "span-$label-editor-selector" $editor $region)
+    $images=@(Capture-CaseRegion $Attempt "span-$label-editor-selector" $editor $region $captureElement)
     $evidence=Case-Proof $Attempt "span-$label" @{
         Spanning=$Enabled;PhysicalMonitorCount=$model.Monitors.Count
         ActualModelCount=$actual.monitors.Count;ExpectedModelCount=$predicted.monitors.Count
@@ -360,8 +373,9 @@ function Observe-Child($Attempt,[bool]$Spanning,[bool]$Enabled) {
         $mode=if($Spanning){'on'}else{'off'}
         $branch=if($Enabled){'enabled'}else{'disabled'}
         $label="child-$branch-$mode"
-        $frame=$after.Native.Frame
-        $region=[pscustomobject]@{Left=[int]($frame.Left+40);Top=[int]($frame.Top+80);Width=240;Height=120}
+        $client=[PtDesktop]::ClientBounds([IntPtr][long]$child.hwnd)
+        $region=[pscustomobject]@{Left=[int]$client.Left;Top=[int]$client.Top
+            Width=[int]($client.Right-$client.Left);Height=[int]($client.Bottom-$client.Top)}
         $image=Capture-CaseRegion $Attempt $label $child $region
         $evidence=Case-Proof $Attempt $label @{
             Spanning=$Spanning;ChildSnapping=$Enabled;Before=$before.Native;After=$after.Native
@@ -426,7 +440,7 @@ try {
             -Settings $FzCase.Settings -EditorPath $editorPath -PrivateRecoveryDirectory $FzCase.Private
         $FzCase.Driver.StopFile=$StopFile
         Case-Proof $attempt 'preflight' @{MonitorCount=$model.Monitors.Count;Dpi=@($model.Monitors.Dpi)
-            Host=$FzCase.Host.ProcessId;OriginalEnabled=$false;FullInventory=42;SelectedCase=$itemId}|Out-Null
+            Host=$FzCase.Host.ProcessId;OriginalEnabled=$false;FullInventory=$inventory.Items.Count;SelectedCase=$itemId}|Out-Null
     }|Out-Null
     if($Case -ceq 'Span') {
         Invoke-PtVerificationCase -Run $run -ItemId $itemId -Name 'Spanning off and on' -Command 'Toggle actual Settings, observe host model and editor geometry, close normally' -Action {
@@ -477,45 +491,15 @@ try {
 finally {
     Invoke-PtVerificationCase -Run $run -Context Cleanup -Name 'Restore original case state' -Command 'Independent cleanup and original-state comparisons' -Action {
         param($attempt)
-        Cleanup-CaseStep $attempt 'editor' {
-            if($FzCase.Driver -and $FzCase.Driver.EditorCreation){Close-PtFancyZonesEditor $FzCase.Driver}
+        $cleanupPlan=New-PtFancyZonesCleanupPlan -Context $FzCase -SetEnabled {param($value) Set-CaseEnabled $value}
+        try {
+            $cleanupRows=@(Invoke-PtCleanupPlan -Attempt $attempt -Steps $cleanupPlan)
+        } catch {
+            if(-not $_.Exception.Data['CleanupResults']){throw}
+            $cleanupRows=@($_.Exception.Data['CleanupResults'])
         }
-        Cleanup-CaseStep $attempt 'surface' {
-            if($FzCase.Surface){
-                Restore-PtPointerPosition $FzCase.Desktop.pointer|Out-Null
-                Register-PtCreatedProcessWindows $FzCase.Surface|Out-Null
-                Stop-PtOwnedProcess -Creation $FzCase.Surface -TimeoutSeconds 12 -ArgumentList @($FzCase.SurfaceState) -RequestExit {
-                    param($identity,$state)
-                    [IO.File]::WriteAllText("$state\exit",'exit')
-                }|Out-Null
-            }
-        }
-        Cleanup-CaseStep $attempt 'host' {
-            if($FzCase.Host){
-                Register-PtCreatedProcessWindows $FzCase.Host|Out-Null
-                Stop-PtOwnedProcess -Creation $FzCase.Host -TimeoutSeconds 15 -RequestExit {param($identity) Set-CaseEnabled $false}|Out-Null
-            }
-        }
-        Cleanup-CaseStep $attempt 'module-files' {
-            if(@(Get-PtResourceProcessCandidates $hostPath).Count -or @(Get-PtResourceProcessCandidates $editorPath).Count){throw 'Module writers still live.'}
-            if($FzCase.OriginalModule){
-                $expected=if($FzCase.Driver){$FzCase.Driver.ExpectedModule}else{$FzCase.ExpectedModule}
-                $receipt=Restore-PtFileSetSnapshot $FzCase.OriginalModule $expected $FzCase.OriginalModule.FileNames
-                if(-not $receipt.SelectedFilesMatchBaseline){throw 'Module comparison differs.'}
-            }
-        }
-        Cleanup-CaseStep $attempt 'settings-ui' {
-            if($FzCase.SettingsSnapshot){Restore-PtSettingsUiSnapshot $FzCase.SettingsSnapshot|Out-Null}
-        }
-        Cleanup-CaseStep $attempt 'general-files' {
-            if($FzCase.OriginalGeneral){
-                $receipt=Restore-PtFileSetSnapshot $FzCase.OriginalGeneral $FzCase.ExpectedGeneral $FzCase.OriginalGeneral.FileNames
-                if(-not $receipt.SelectedFilesMatchBaseline){throw 'General comparison differs.'}
-            }
-        }
-        Cleanup-CaseStep $attempt 'desktop-input' {
-            if($FzCase.Desktop){Restore-PtDesktopSnapshot $FzCase.Desktop|Out-Null}
-            if($FzCase.Keyboard){Restore-PtKeyboardLayoutSnapshot $FzCase.Keyboard -ExpectedLayout @($FzCase.Keyboard.Layout)|Out-Null}
+        foreach($row in $cleanupRows){
+            $FzCase.Cleanup.Add(@{Name=$row.Resource;Passed=($row.Verdict -ceq 'PASS');Reason=$row.Reason})
         }
         Cleanup-CaseStep $attempt 'resources' {Complete-PtResourceSession -Attempt $attempt|Out-Null}
         $proof=Case-Proof $attempt 'cleanup-summary' @($FzCase.Cleanup) Restoration

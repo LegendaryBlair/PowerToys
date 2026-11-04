@@ -8,7 +8,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Color Picker | 2 | 17 | 25 |
 | Crop And Lock | 1 | 13 | 14 |
 | Environment Variables | 3 | 29 | 135 |
-| FancyZones | 1 | 42 | 171 |
+| FancyZones | 2 | 35 | 171 |
 | File Locksmith | 2 | 10 | 10 |
 | Image Resizer | 1 | 12 | 18 |
 | Keyboard Manager | 2 | 24 | 135 |
@@ -113,6 +113,14 @@ single-monitor selector precedence and differential startup observations explici
 Confirmed power-off writes remain in `PD-CLI-WRITE.set`; `power-guard` separately covers
 the confirmation rejection. JSON placement and malformed-input rows are distinguished.
 These source-aligned clarifications apply only to new inputs; historical results are unchanged.
+
+FancyZones revision 2 groups creation/geometry/commit checks under `FZ-CREATE`, drag activation
+and display under `FZ-DRAG`, history/unsnap under `FZ-HISTORY`, window reopening/active-monitor
+placement under `FZ-LAST-ZONE`, and wheel/indicator checks under `FZ-WHEEL`.
+`PreviousScenarioIds` records all five mappings. All 171 original child IDs and descriptions
+remain unchanged; the 42 former scenarios become 35 shared-fixture workflows. Share an action's
+observations only when initial state and parameters match; no condition or commit boundary is
+removed, and no new Cartesian product is implied. Historical reports keep their original mappings.
 
 FancyZones retains both editor and runtime requirements, including the repeated spanning-off/on
 conditions in 73 children. Children with direction, locale, layout-type or input matrices require

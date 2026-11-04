@@ -31,7 +31,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 | Command Palette | `command-palette.md` | ✅ written 2026-07-07 (CmdPal AppX foreground-lock / TextChanged-broken / alias-keystroke / Esc-filtered quirks — moved out of the global SKILL.md pitfalls) |
 | Color Picker | `color-picker.md` | Shared WIP harness baseline; WinUI profile and 25-assertion checklist migrated from the Color Picker branch |
 | Environment Variables | `environment-variables.md` | Shared WIP harness, private restoration helper and functional 29-scenario checklist with frozen assertion IDs |
-| FancyZones | `fancyzones.md` | 42-scenario/171-assertion operating guide; initial live entry discovery, scoped input/control recipes and owned-sibling cleanup. Full-inventory confirmation remains required |
+| FancyZones | `fancyzones.md` | 35-scenario/171-assertion operating guide; shared-fixture flows, scoped input/capture, persistence and dependency-ordered recovery. Full-inventory confirmation remains required |
 | Workspaces | `workspaces.md` | ✅ written 2026-08-12 (bottom-up automation profile plus an embedded top-down human workflow and sanitized visual landmarks) |
 | PowerToys Settings | `settings.md` | Aligned operating-profile format: scoped main/secondary/Quick Access controls, hide-versus-exit lifecycle and explicit restoration/fixture boundaries; empty-shortcut, classic-picker and specialist-observer support still needs acceptance |
 | Shortcut Guide | `shortcut-guide.md` | ✅ written 2026-08-21 (app-aware manifests, Windows-key modes, overlay lifecycle, search/pinning, localization and CmdPal traps) |
