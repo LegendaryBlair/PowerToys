@@ -37,6 +37,7 @@ if([bool]$Cleanup -eq [bool]$CleanupPlan){throw 'Supply exactly one CleanupPlan 
 Get-ChildItem "$Skill\scripts" -Filter '*.ps1' |
     Where-Object Name -ne 'pt-session-diagnose.ps1' | ForEach-Object { . $_.FullName }
 $inventoryKey=switch($Module.Replace(' ','').ToLowerInvariant()){
+    'alwaysontop'{'always-on-top'} 'aot'{'always-on-top'}
     'advancedpaste'{'advanced-paste'} 'cropandlock'{'crop-and-lock'}
     'filelocksmith'{'file-locksmith'} 'imageresizer'{'image-resizer'}
     'new+'{'new-plus'} 'newplus'{'new-plus'} 'peek'{'peek'} 'powerrename'{'power-rename'}
