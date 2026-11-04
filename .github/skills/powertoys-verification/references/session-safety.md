@@ -5,6 +5,11 @@ engine, scheduler or OS sandbox. Use it in the **same runspace** as UI driving. 
 not capture the desktop. `New-PtResourceSession -Run` captures pre-existing native windows
 and process IDs; `Open-PtResourceSession -Run` resumes its original receipt, not a new baseline.
 The thin run template opens this layer before Preflight and completes it during Cleanup.
+Direct bootstrap retains the supplied `-ResourcePlan`; do not recreate or force-add its member after activation.
+Opening the same validated active resource session is idempotent and preserves its in-memory
+guards; a different run still refuses activation. For same-runspace template continuation,
+`-Resume -ResumeRun $run` reuses the caller's current recorder handle. Stale handles remain
+errors: do not reopen another writer while callbacks retain the original one.
 
 ## Mandatory wiring for aligned module runs
 
@@ -61,6 +66,7 @@ Settings HWND and run-local file/UI comparisons.
 | `Invoke-PtOwnedProcessActivation -FilePath -Action [-ArgumentList]` | For a declared Process executable, run one explicit broker/COM activation and record the new exact identity. Refuse an existing singleton and ambiguous multiple processes. No activation retry or ownership by name alone. |
 | `Stop-PtOwnedProcess -Creation -RequestExit [-ArgumentList]` | Check recorded PID/start time/image path, clipboard dependencies and every native sibling before calling the supplied shutdown protocol once. Wait for actual exit; protocol errors or timeout remain failures. No automatic force-kill fallback. |
 | `Register-PtCreatedWindow -Identity -Creation` | Exact PID/start match to a recorded launch; baseline HWNDs cannot become owned. Register every owned native sibling that a process-wide close might affect, including hidden helper windows. |
+| `Register-PtCreatedProcessWindows -Creation` | Repeated sibling discovery for one resolved creation. Retains verified existing owned records and registers only new HWNDs; rejects changed process identity, conflicting ownership and a live HWND with a closed record. Does not close anything or adopt a borrowed process. |
 | `Close-PtTrackedWindow -Identity` | In an active resource session, require explicit ownership and satisfied clipboard dependencies before WM_CLOSE. Reject an unowned same-process sibling. |
 | `Invoke-PtOwnedWindowReopen -Identity -Creation -ResolveHwnd` | Close a launch-owned window, observe process exit, launch a new instance and resolve its new HWND. Does not close/recreate borrowed Settings or adopt a packaged shared host. |
 | `Assert-PtProcessRelease -ProcessId` | Refuse owner/writer release while a registered clipboard obligation is unresolved. The lifecycle helper checks before disable; restart passes through the same check. |
@@ -72,6 +78,9 @@ of that exact declared executable which lack a creation record. Such a gap block
 it does not authorize adopting or killing them. Existing singleton processes remain borrowed.
 Do not claim whole-run restoration from a subset of file/window receipts, or delete private
 recovery material while an owned helper still has an unresolved cleanup obligation.
+Final completion records process-candidate identity failures per candidate and continues
+independent resource comparisons. The affected row and overall restoration remain BLOCKED;
+this is not permission to adopt, close or certify an inaccessible process.
 
 ```powershell
 @{Id='companion-provider';Kind='Process';Ownership='Owned'

@@ -103,7 +103,8 @@ function New-PtResourceSession {
     $session=[pscustomobject]@{
         Schema='PtResources.v1';RunId=$Run.Id;Path=$sessionPath
         BaselinePath=$baselinePath;BaselineHash=Get-PtReportHash ([IO.File]::ReadAllBytes($baselinePath))
-        Processes=@();Windows=@();Obligations=@();Settings=@();Desktop=$null;ResourcePlan=$null
+        Processes=@();Windows=@();Obligations=@();Settings=@();Desktop=$null
+        ResourcePlan=$(if($ResourcePlan){ConvertFrom-PtReportJson (ConvertTo-Json $ResourcePlan -Depth 20)})
     }
     Write-PtReportText $sessionPath (ConvertTo-Json $session -Depth 30)
     $global:PtActiveResourceSession=$session
@@ -113,7 +114,14 @@ function New-PtResourceSession {
 
 function Open-PtResourceSession {
     param([Parameter(Mandatory)]$Run)
-    if(Get-PtActiveResourceSession){throw 'A resource session is already active.'}
+    $active=Get-PtActiveResourceSession
+    if($active){
+        if($active.RunId -cne $Run.Id -or $active.Path -ine (Join-Path $Run.Workspace 'resource-session.json')){
+            throw 'A different resource session is already active.'
+        }
+        Assert-PtResourceSession $active
+        return $active
+    }
     $session=ConvertFrom-PtReportJson ([IO.File]::ReadAllText((Join-Path $Run.Workspace 'resource-session.json')))
     if($session.RunId -cne $Run.Id -or $session.Path -ine (Join-Path $Run.Workspace 'resource-session.json')){
         throw 'Resource session does not belong to this run.'
@@ -240,10 +248,15 @@ function Get-PtResourceProcessIdentity {
 }
 
 function Get-PtResourceProcessCandidates {
-    param([Parameter(Mandatory)][string]$FilePath)
+    param([Parameter(Mandatory)][string]$FilePath,[switch]$IncludeFailures)
     $name=[IO.Path]::GetFileNameWithoutExtension($FilePath)
     foreach($process in @(Get-Process|Where-Object ProcessName -EQ $name)){
-        $identity=Get-PtResourceProcessIdentity -ProcessId $process.Id
+        try{$identity=Get-PtResourceProcessIdentity -ProcessId $process.Id}
+        catch{
+            if(-not $IncludeFailures){throw}
+            [pscustomobject]@{processId=$process.Id;ProbeError=$_.Exception.Message}
+            continue
+        }
         if($identity -and $identity.path -ieq $FilePath){$identity}
     }
 }
@@ -384,6 +397,43 @@ function Register-PtCreatedWindow {
     if($launch.Count -ne 1 -or $launch[0].ProcessId -ne $Identity.processId -or
         $launch[0].ProcessStartTicks -ne $Identity.processStartTicks){throw 'Window is not a product of the recorded launch.'}
     Register-PtOwnedWindowRecord $session $Identity $launch[0].Lifetime $launch[0].Id
+}
+
+function Register-PtCreatedProcessWindows {
+    <#.SYNOPSIS
+    Register new siblings of one owned creation without registering existing windows twice.
+    #>
+    param([Parameter(Mandatory)]$Creation)
+    $session=Get-PtActiveResourceSession
+    if(-not $session){throw 'A resource session is required.'}
+    Assert-PtResourceSession $session
+    $launch=@($session.Processes|Where-Object Id -CEQ $Creation.Id)
+    if($launch.Count -ne 1 -or $launch[0].State -ne 'Started' -or
+        $launch[0].ProcessId -ne $Creation.ProcessId -or
+        $launch[0].ProcessStartTicks -ne $Creation.ProcessStartTicks){
+        throw 'Sibling discovery requires the original resolved creation.'
+    }
+    $process=Get-PtResourceProcessIdentity -ProcessId $Creation.ProcessId
+    if(-not $process){
+        return [pscustomobject]@{ProcessId=$Creation.ProcessId;AlreadyExited=$true;Registered=0;Existing=0}
+    }
+    if($process.processStartTicks -ne $Creation.ProcessStartTicks -or
+        $process.path -ine $launch[0].ImagePath){throw 'Process identity changed before sibling discovery.'}
+    $new=[Collections.Generic.List[object]]::new()
+    $existing=0
+    foreach($window in @(Get-PtNativeWindow -ProcessId $Creation.ProcessId)){
+        $identity=Get-PtWindowIdentity -Hwnd $window.Hwnd
+        $records=@($session.Windows|Where-Object {$_.Identity.hwnd -eq $identity.hwnd})
+        if($records.Count){
+            if($records.Count -ne 1 -or $records[0].Ownership -cne 'Owned' -or
+                $records[0].Creation -cne $Creation.Id -or $records[0].CloseScope -cne 'Process' -or
+                $records[0].Closed){throw 'Existing sibling has a different or closed ownership record.'}
+            Assert-PtWindowIdentity -Identity $records[0].Identity
+            $existing++
+        }else{$new.Add($identity)}
+    }
+    foreach($identity in $new){Register-PtCreatedWindow -Identity $identity -Creation $Creation|Out-Null}
+    [pscustomobject]@{ProcessId=$Creation.ProcessId;AlreadyExited=$false;Registered=$new.Count;Existing=$existing}
 }
 
 function Register-PtOwnedWindowRecord {
@@ -614,7 +664,12 @@ function Complete-PtResourceSession {
             }catch{$status='BLOCKED';$reason=$_.Exception.Message}
             $rows+=@([pscustomobject]@{Resource="borrowed-process-$($original.processId)";Status=$status;Reason=$reason})
         }
-        foreach($identity in @(Get-PtResourceProcessCandidates $resource.FilePath)){
+        foreach($identity in @(Get-PtResourceProcessCandidates $resource.FilePath -IncludeFailures)){
+            if($identity.PSObject.Properties['ProbeError']){
+                $rows+=@([pscustomobject]@{Resource="process-$($resource.Id)-$($identity.processId)";Status='BLOCKED'
+                    Reason="Declared-name candidate identity could not be verified; no ownership is inferred: $($identity.ProbeError)"})
+                continue
+            }
             if(@($scope[0].Identities|Where-Object {
                 $_.processId -eq $identity.processId -and $_.processStartTicks -eq $identity.processStartTicks
             }).Count){continue}

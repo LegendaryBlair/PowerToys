@@ -8,11 +8,13 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Color Picker | 2 | 17 | 25 |
 | Crop And Lock | 1 | 13 | 14 |
 | Environment Variables | 3 | 29 | 135 |
+| FancyZones | 2 | 35 | 171 |
 | File Locksmith | 2 | 10 | 10 |
 | Image Resizer | 1 | 12 | 18 |
 | Keyboard Manager | 2 | 24 | 135 |
 | New+ | 1 | 9 | 9 |
 | Peek | 1 | 18 | 18 |
+| Power Display | 2 | 33 | 138 |
 | PowerRename | 2 | 16 | 17 |
 | PowerToys Settings | 4 | 25 | 50 |
 | Quick Accent | 2 | 18 | 57 |
@@ -101,7 +103,33 @@ $items = $inventory.Items
 # Pass Items to the existing run/template; record both input files.
 ```
 
-The thin template rejects different run-local Items for all 15 Scenario A modules
+Power Display revision 1 derives its 33 scenarios and 138 children from included merged
+PR claims, not a missing release-baseline section. Hardware, recovery, migration,
+policy and elevated conditions remain separate from bounded flyout/CLI discovery.
+The inventory does not include unshipped VCP restrictions, the reverted diagnostics-copy
+button or a proposed Command Palette integration. See the [fixture boundaries](../power-display-fixtures.md).
+Revision 2 retains those IDs and memberships, adds fixed condition tables, and makes
+single-monitor selector precedence and differential startup observations explicit.
+Confirmed power-off writes remain in `PD-CLI-WRITE.set`; `power-guard` separately covers
+the confirmation rejection. JSON placement and malformed-input rows are distinguished.
+These source-aligned clarifications apply only to new inputs; historical results are unchanged.
+
+FancyZones revision 2 groups creation/geometry/commit checks under `FZ-CREATE`, drag activation
+and display under `FZ-DRAG`, history/unsnap under `FZ-HISTORY`, window reopening/active-monitor
+placement under `FZ-LAST-ZONE`, and wheel/indicator checks under `FZ-WHEEL`.
+`PreviousScenarioIds` records all five mappings. All 171 original child IDs and descriptions
+remain unchanged; the 42 former scenarios become 35 shared-fixture workflows. Share an action's
+observations only when initial state and parameters match; no condition or commit boundary is
+removed, and no new Cartesian product is implied. Historical reports keep their original mappings.
+
+FancyZones retains both editor and runtime requirements, including the repeated spanning-off/on
+conditions in 73 children. Children with direction, locale, layout-type or input matrices require
+each described condition, not one representative observation. Legacy bare-digit quick switching,
+index-boundary wording and separate-monitor assertions under a combined work area retain explicit
+specification/applicability questions rather than silently changing the baseline. Its inventory
+does not certify those questions resolved or the full conditional scope executable.
+
+The thin template rejects different run-local Items for all 17 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify

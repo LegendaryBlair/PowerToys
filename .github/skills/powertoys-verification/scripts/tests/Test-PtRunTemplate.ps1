@@ -5,6 +5,7 @@ $skill=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . "$skill\scripts\pt-verification-report.ps1"
 . "$skill\scripts\pt-session-safety.ps1"
 . "$skill\scripts\pt-state-snapshot.ps1"
+. "$skill\scripts\pt-assertion-inventory.ps1"
 [IO.Directory]::CreateDirectory($Workspace)|Out-Null
 $global:PtTemplateFixtureState=@{Path="$Workspace\fixture.txt";Baseline=$null;Expected=$null
     CleanupRan=0;IndependentCleanupRan=0;FailRestore=$false;FailCase=$false;ForeignWrite=$false}
@@ -82,7 +83,9 @@ $failed=Get-PtReportState (Open-PtVerificationRun "$Workspace\failed-cleanup")
 Require (@($failed.Restoration|Where-Object {$_.Data.Verdict -eq 'BLOCKED'}).Count -gt 0) 'Resource failure was not recorded'
 $baselinePath="$Workspace\failed-cleanup\original-file.json"
 $baselineHash=Get-PtReportHash ([IO.File]::ReadAllBytes($baselinePath))
-ClearSession
+$activeSession=Get-PtActiveResourceSession
+$resumeRun=Open-PtVerificationRun "$Workspace\failed-cleanup"
+$resumeSequence=$resumeRun.Sequence
 
 $resumeOptions=$common.Clone()
 $resumeOptions.Cases={param($run)}
@@ -91,7 +94,9 @@ $wrong.ResourcePlan=ConvertFrom-PtReportJson (ConvertTo-Json $common.ResourcePla
 $wrong.ResourcePlan.Resources[0].Id='different-resource'
 Reject {& "$skill\templates\verification-run.ps1" @wrong -Workspace "$Workspace\failed-cleanup" -Resume} 'original resource plan'|Out-Null
 $global:PtTemplateFixtureState.FailRestore=$false
-& "$skill\templates\verification-run.ps1" @resumeOptions -Workspace "$Workspace\failed-cleanup" -Resume|Out-Null
+& "$skill\templates\verification-run.ps1" @resumeOptions -Workspace "$Workspace\failed-cleanup" -Resume -ResumeRun $resumeRun|Out-Null
+Require ($resumeRun.Sequence -gt $resumeSequence -and $resumeRun.IsCompleted) 'Template did not advance the supplied recorder handle'
+Require ($activeSession.BaselineHash -ceq (Get-PtReportHash ([IO.File]::ReadAllBytes("$Workspace\failed-cleanup\resource-baseline.json")))) 'Active-session resume changed the resource baseline'
 Require ([IO.File]::ReadAllText($global:PtTemplateFixtureState.Path) -ceq 'second-original') 'Resume adopted the dirty state as its baseline'
 Require ($baselineHash -ceq (Get-PtReportHash ([IO.File]::ReadAllBytes($baselinePath)))) 'Original local snapshot was overwritten'
 Test-PtVerificationArchive -Workspace "$Workspace\failed-cleanup"|Out-Null
@@ -119,6 +124,18 @@ ClearSession
 
 foreach($removed in 'SharedStateProbe','DesktopKey','PreviousHandoffPath','PreviousHandoffHash','BatchId'){
     Require (-not (Get-Command "$skill\templates\verification-run.ps1").Parameters.ContainsKey($removed)) "Removed template parameter still exposed: $removed"
+}
+foreach($moduleName in 'FancyZones','FZ'){
+    $inventory=Import-PtAssertionInventory "$skill\references\assertion-inventories\fancyzones.json" `
+        "$skill\references\release-checklist\fancyzones.md"
+    $changed=$common.Clone()
+    $changed.Module=$moduleName
+    $changed.Scenario='A'
+    $changed.Items=$inventory.Items
+    $changed.Items[0].Assertions[0].Description+=' Changed outside the frozen inventory.'
+    $rejectedWorkspace=Join-Path $Workspace "rejected-$moduleName"
+    Reject {& "$skill\templates\verification-run.ps1" @changed -Workspace $rejectedWorkspace} 'frozen module inventory Items'|Out-Null
+    Require (-not (Test-Path -LiteralPath $rejectedWorkspace)) "Changed $moduleName inventory reached run creation"
 }
 Require (-not (Test-Path "$skill\scripts\pt-run-handoff.ps1")) 'Removed helper is still shipped'
 Require (@(Get-ChildItem $Workspace -Recurse -File -Filter '*handoff*').Count -eq 0) 'Run emitted cross-run artifacts'

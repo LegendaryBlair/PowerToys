@@ -298,6 +298,30 @@ function Restore-PtDesktopSnapshot {
     Get-PtDesktopSnapshot -WindowHwnd @(foreach ($window in $Snapshot.windows) { $window.identity.hwnd })
 }
 
+function Test-PtTrackedWindowClosed {
+    <#.SYNOPSIS
+    Observe disappearance without reading a destroyed HWND; reject a reused identity.
+    #>
+    param([Parameter(Mandatory)]$Identity,[switch]$AllowHidden)
+    if(-not [PtDesktop]::IsWindow([IntPtr][long]$Identity.hwnd)){return $true}
+    try {
+        Assert-PtWindowIdentity $Identity
+        $window=Get-PtNativeWindow -Hwnd $Identity.hwnd
+        return $AllowHidden.IsPresent -and -not $window.Visible
+    } catch {
+        if(-not [PtDesktop]::IsWindow([IntPtr][long]$Identity.hwnd)){return $true}
+        throw
+    }
+}
+
+function Wait-PtTrackedWindowClosed {
+    param([Parameter(Mandatory)]$Identity,[switch]$AllowHidden,
+        [ValidateRange(0.1,30)][double]$TimeoutSeconds=5)
+    Wait-PtCondition -Description "tracked HWND $($Identity.hwnd) to close" -TimeoutSeconds $TimeoutSeconds -Probe {
+        Test-PtTrackedWindowClosed -Identity $Identity -AllowHidden:$AllowHidden
+    }|Out-Null
+}
+
 function Close-PtTrackedWindow {
     <# .SYNOPSIS
     Request normal close for an owned fixture after checking identity; never kill its shared host.
@@ -308,7 +332,5 @@ function Close-PtTrackedWindow {
     if (-not [PtDesktop]::PostMessage([IntPtr][long]$Identity.hwnd, 0x10, [IntPtr]::Zero, [IntPtr]::Zero)) {
         throw "WM_CLOSE failed for HWND $($Identity.hwnd)."
     }
-    Wait-PtCondition -Description "fixture HWND $($Identity.hwnd) to close" -TimeoutSeconds 5 -Probe {
-        -not [PtDesktop]::IsWindow([IntPtr][long]$Identity.hwnd)
-    } | Out-Null
+    Wait-PtTrackedWindowClosed -Identity $Identity
 }

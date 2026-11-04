@@ -9,6 +9,7 @@ function Assert-PtCleanupPlan {
             throw 'Cleanup steps need unique IDs and explicit Action/Verify blocks.'
         }
         Assert-PtReportName $step.Id
+        if($null -eq $step.DependsOn){throw 'Cleanup steps require explicit DependsOn; use @() for independent steps.'}
         $phase=[array]::IndexOf($phases,$step.Phase)
         if($phase -lt $previous -or $phase -lt 0){throw 'Cleanup phases must follow the declared safe order.'}
         foreach($dependency in @($step.DependsOn)){if(-not $known.ContainsKey($dependency)){throw 'Cleanup dependency must reference an earlier step.'}}

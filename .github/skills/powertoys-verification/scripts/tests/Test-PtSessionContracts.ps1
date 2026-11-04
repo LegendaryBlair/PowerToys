@@ -31,6 +31,7 @@ function Get-Process {
 }
 function Get-PtResourceProcessIdentity {
     param([int]$ProcessId)
+    if($ProcessId -eq $script:deniedProcess){throw 'Synthetic process identity access denied'}
     $process=$script:processes[$ProcessId]
     if($process){[pscustomobject]@{processId=$ProcessId;processStartTicks=$process.StartTime.ToUniversalTime().Ticks
         path=$process.Path;sessionId=1}}
@@ -63,7 +64,8 @@ function Session {
         -Items @(@{Id='I1';Description='Contract';Admin='NO';Clarity='CLEAR';UserVisible=$false;Assertions=@(@{Id='a';Description='Synthetic behavior'})}) `
         -Inputs @(Get-PtVerificationInputs -Skill (Split-Path $helpers -Parent) -Inputs @(@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath}))
     $session=New-PtResourceSession $run -ResourcePlan $ResourcePlan
-    $session.ResourcePlan=$ResourcePlan;Save-PtResourceSession $session
+    Require ((ConvertTo-Json $session.ResourcePlan -Depth 20 -Compress) -ceq
+        (ConvertTo-Json $ResourcePlan -Depth 20 -Compress)) 'Direct bootstrap discarded the supplied resource plan'
     $run
 }
 Check 'Borrowed and pre-existing windows cannot become owned or be closed' {
@@ -85,6 +87,38 @@ Check 'Additional process scopes retain the original baseline and seal pre-activ
     Reject {Add-PtResourceProcessScope -Id duplicate -FilePath $path -RestoreStep helper-exit} 'already declared'
     [IO.File]::AppendAllText($scope.Path,' ')
     Reject {Assert-PtResourceSession $session} 'snapshot changed'
+}
+Check 'Same-session resume retains live guards and refuses a different run' {
+    $run=Session
+    $session=Get-PtActiveResourceSession
+    $guard=[pscustomobject]@{Restored=$false}
+    Add-PtClipboardObligation $guard 10
+    $resumed=Open-PtResourceSession $run
+    Require ([object]::ReferenceEquals($session,$resumed)) 'Resume replaced the active session'
+    $guard.Restored=$true
+    Assert-PtProcessRelease @(10)
+    $other=[pscustomobject]@{Id='different';Workspace=$run.Workspace}
+    Reject {Open-PtResourceSession $other} 'different resource session'
+}
+Check 'Candidate identity errors retain blocked evidence and do not omit other resources' {
+    $path=[IO.Path]::GetFullPath('probe.exe')
+    $plan=@{Schema='PtRunResources.v1';Resources=@(@{Id='probe';Kind='Process';Ownership='Owned';FilePath=$path;RestoreStep='exit'})}
+    $run=Session $plan
+    $script:processes[98]=[pscustomobject]@{Id=98;StartTime=[datetime]'2026-01-01T00:00:00Z';Path=$path;ProcessName='probe'}
+    $script:processes[99]=[pscustomobject]@{Id=99;StartTime=[datetime]'2026-01-01T00:00:00Z';Path=$path;ProcessName='probe'}
+    $script:deniedProcess=98
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Candidate probe failure' -Kind Normal
+    try{
+        Reject {Get-PtResourceProcessCandidates $path} 'access denied'
+        Reject {Complete-PtResourceSession $attempt} 'unresolved ownership'
+        $state=Get-PtReportState $run
+        $rows=Get-Content (Join-Path $run.Workspace $state.CurrentRestoration[0].Data.Evidence[0].Path) -Raw|ConvertFrom-Json
+        Require (@($rows|Where-Object {$_.Resource -eq 'process-probe-98' -and $_.Status -eq 'BLOCKED' -and $_.Reason -match 'access denied'}).Count -eq 1) 'Probe failure lost its receipt'
+        Require (@($rows|Where-Object {$_.Resource -eq 'process-probe-99' -and $_.Status -eq 'BLOCKED'}).Count -eq 1) 'Independent candidate was omitted'
+    }finally{
+        $script:deniedProcess=0
+        Stop-PtVerificationAttempt $attempt -Reason 'Failures remain blocked, independent candidates assessed'
+    }
 }
 Check 'An attempted helper activation cannot acquire a replacement scope' {
     $run=Session -ResourcePlan @{Schema='PtRunResources.v1';Resources=@()}
@@ -117,6 +151,44 @@ Check 'Receipt and immutable baseline edits fail before further mutation' {
     [IO.File]::WriteAllText($session.Path,$saved)
     [IO.File]::AppendAllText($session.BaselinePath,' ')
     Reject {Register-PtBorrowedWindow (Get-PtWindowIdentity 10)} 'baseline was altered'
+}
+Check 'Owned sibling discovery is repeatable and registers later windows before cleanup' {
+    $run=Session
+    $creation=Start-PtOwnedProcess fixture.exe
+    Native 21 $creation.ProcessId|Out-Null
+    Native 22 $creation.ProcessId|Out-Null
+    Register-PtCreatedProcessWindows $creation|Out-Null
+    $again=Register-PtCreatedProcessWindows $creation
+    Require ($again.Registered -eq 0 -and $again.Existing -eq 2) 'Repeated discovery registered the same HWND twice'
+    Native 23 $creation.ProcessId|Out-Null
+    Register-PtCreatedProcessWindows $creation|Out-Null
+    Require (@((Get-PtActiveResourceSession).Windows).Count -eq 3) 'Later owned sibling was omitted or duplicated'
+    Assert-PtWindowRelease (Get-PtWindowIdentity 21)
+}
+Check 'Sibling discovery preserves mismatched and closed ownership records' {
+    $run=Session
+    $creation=Start-PtOwnedProcess fixture.exe
+    $identity=Native 21 $creation.ProcessId
+    Register-PtCreatedWindow $identity $creation|Out-Null
+    $session=Get-PtActiveResourceSession
+    $session.Windows[0].Creation='another-creation';Save-PtResourceSession $session
+    Native 22 $creation.ProcessId|Out-Null
+    Reject {Register-PtCreatedProcessWindows $creation} 'different or closed ownership'
+    Require ($session.Windows.Count -eq 1) 'Conflicting ownership allowed new registrations'
+    $session.Windows[0].Creation=$creation.Id;$session.Windows[0].Closed=$true
+    Save-PtResourceSession $session
+    Reject {Register-PtCreatedProcessWindows $creation} 'different or closed ownership'
+    Require $session.Windows[0].Closed 'A closed HWND record was silently reopened'
+}
+Check 'Sibling discovery rejects reused process identities and tolerates actual exit' {
+    $run=Session
+    $creation=Start-PtOwnedProcess fixture.exe
+    Native 21 $creation.ProcessId|Out-Null
+    $script:processes[$creation.ProcessId].StartTime=[datetime]'2026-02-01T00:00:00Z'
+    Reject {Register-PtCreatedProcessWindows $creation} 'Process identity changed'
+    Require ((Get-PtActiveResourceSession).Windows.Count -eq 0) 'Reused process acquired window ownership'
+    $script:processes.Remove($creation.ProcessId)
+    Require (Register-PtCreatedProcessWindows $creation).AlreadyExited 'Exited process was not recognized'
 }
 Check 'Clipboard owner/writer release is gated, restored guards clear it, resume retains unresolved data' {
     $run=Session;$guard=[pscustomobject]@{Restored=$false}
@@ -255,6 +327,8 @@ Check 'Cleanup enforces order, requires Boolean comparison and continues indepen
         @{Id='false-success';Phase='Verify';DependsOn=@();Action={};Verify={'true'}}
     )
     try{
+        Reject {Assert-PtCleanupPlan @(@{Id='missing';Phase='Files';Action={};Verify={$true}})} 'explicit DependsOn'
+        Reject {Assert-PtCleanupPlan @(@{Id='null';Phase='Files';DependsOn=$null;Action={};Verify={$true}})} 'explicit DependsOn'
         Reject {Invoke-PtCleanupPlan $attempt $steps} 'Cleanup incomplete'
         Require (($script:ran -join ',') -ceq 'files') 'Dependent action ran or independent action skipped'
         Reject {Invoke-PtCleanupPlan $attempt @($steps[2],$steps[0])} 'safe order'

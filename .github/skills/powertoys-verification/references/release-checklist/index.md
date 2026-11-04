@@ -11,11 +11,13 @@ One file per module; a verification run loads only its module's file.
 | Color Picker | 17 / 25 | `color-picker.md` |
 | Crop And Lock | 13 / 14 | `crop-and-lock.md` |
 | Environment Variables | 29 / 135 | `environment-variables.md` |
+| FancyZones | 35 / 171 | `fancyzones.md` |
 | File Locksmith | 10 / 10 | `file-locksmith.md` |
 | Image Resizer | 12 / 18 | `image-resizer.md` |
 | Keyboard Manager | 24 / 135 | `keyboard-manager.md` |
 | New+ | 9 / 9 | `new-plus.md` |
 | Peek | 18 / 18 | `peek.md` |
+| Power Display | 33 / 138 | `power-display.md` |
 | PowerRename | 16 / 17 | `power-rename.md` |
 | PowerToys Settings | 25 / 50 | `settings.md` |
 | Quick Accent | 18 / 57 | `quick-accent.md` |

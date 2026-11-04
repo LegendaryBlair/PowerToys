@@ -1,0 +1,46 @@
+{
+  "Purpose": "Three bounded live helper acceptance groups; not full module or checklist signoff.",
+  "Items": [
+    {
+      "Id": "FZ-HELPER-SHELL",
+      "Description": "Exact-owned Task View entry and finally cleanup",
+      "Admin": "NO",
+      "Clarity": "CLEAR",
+      "UserVisible": false,
+      "Assertions": [
+        { "Id": "shell.normal", "Description": "A test-opened Task View is identified, normally dismissed and returns to the exact owned foreground." },
+        { "Id": "shell.failure-cleanup", "Description": "An injected observation error still dismisses only the test-opened Task View and preserves the original error." }
+      ]
+    },
+    {
+      "Id": "FZ-HELPER-PERSISTENCE",
+      "Description": "Template-dependent defaults and exact selected-default capture",
+      "Admin": "NO",
+      "Clarity": "CLEAR",
+      "UserVisible": true,
+      "Assertions": [
+        { "Id": "persistence.linked-default", "Description": "Changing a template count through UI settles the template and its referencing orientation-default records without unrelated changes." },
+        { "Id": "persistence.control-crop", "Description": "A reopened creation-owned custom layout exposes the selected default control and its complete identity-bound crop." }
+      ]
+    },
+    {
+      "Id": "FZ-HELPER-OBSERVATION",
+      "Description": "Reduced geometry and patterned transparency observation",
+      "Admin": "NO",
+      "Clarity": "CLEAR",
+      "UserVisible": true,
+      "Assertions": [
+        { "Id": "observation.relayout", "Description": "A real zones-1-2 assignment fits the one-zone layout and returns to its original geometry/index set without assuming reduced mask 1." },
+        { "Id": "observation.transparency", "Description": "A real transparent drag exposes the patterned owned background; normal opacity returns on cancellation, with before/during/after pixels and native evidence." }
+      ]
+    }
+  ],
+  "Conditions": [
+    { "ScenarioId": "FZ-HELPER-SHELL", "ChildId": "shell.normal", "ConditionId": "shell.normal:current-desktop", "Spanning": "not-applicable", "Variant": "normal", "Expected": "A test-opened Task View is identified, normally dismissed and returns to the exact owned foreground." },
+    { "ScenarioId": "FZ-HELPER-SHELL", "ChildId": "shell.failure-cleanup", "ConditionId": "shell.failure-cleanup:current-desktop", "Spanning": "not-applicable", "Variant": "observer-error", "Expected": "An injected observation error still dismisses only the test-opened Task View and preserves the original error." },
+    { "ScenarioId": "FZ-HELPER-PERSISTENCE", "ChildId": "persistence.linked-default", "ConditionId": "persistence.linked-default:off", "Spanning": "off", "Variant": "linked-count", "Expected": "Changing a template count through UI settles the template and its referencing orientation-default records without unrelated changes." },
+    { "ScenarioId": "FZ-HELPER-PERSISTENCE", "ChildId": "persistence.control-crop", "ConditionId": "persistence.control-crop:off", "Spanning": "off", "Variant": "reopened-default", "Expected": "A reopened creation-owned custom layout exposes the selected default control and its complete identity-bound crop." },
+    { "ScenarioId": "FZ-HELPER-OBSERVATION", "ChildId": "observation.relayout", "ConditionId": "observation.relayout:off", "Spanning": "off", "Variant": "reduce-return", "Expected": "A real zones-1-2 assignment fits the one-zone layout and returns to its original geometry/index set without assuming reduced mask 1." },
+    { "ScenarioId": "FZ-HELPER-OBSERVATION", "ChildId": "observation.transparency", "ConditionId": "observation.transparency:off", "Spanning": "off", "Variant": "cancel", "Expected": "A real transparent drag exposes the patterned owned background; normal opacity returns on cancellation, with before/during/after pixels and native evidence." }
+  ]
+}
