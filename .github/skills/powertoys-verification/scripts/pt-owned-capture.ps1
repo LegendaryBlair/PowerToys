@@ -121,7 +121,7 @@ function Assert-PtControlWindowScope {
 function Get-PtControlViewportBounds {
     param([Parameter(Mandatory)]$Element,[Parameter(Mandatory)]$WindowIdentity)
     $root=[Windows.Automation.AutomationElement]::FromHandle([IntPtr][long]$WindowIdentity.hwnd)
-    $ancestor=[Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($Element)
+    $ancestor=[Windows.Automation.TreeWalker]::RawViewWalker.GetParent($Element)
     for($depth=0;$ancestor -and $depth -lt 64;$depth++){
         $scroll=$null
         $isRoot=[Windows.Automation.Automation]::Compare($ancestor,$root)
@@ -129,7 +129,7 @@ function Get-PtControlViewportBounds {
             $ancestor.Current.BoundingRectangle
         }
         if($isRoot){return}
-        $ancestor=[Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($ancestor)
+        $ancestor=[Windows.Automation.TreeWalker]::RawViewWalker.GetParent($ancestor)
     }
     throw 'Control viewport ancestry did not reach the declared window.'
 }

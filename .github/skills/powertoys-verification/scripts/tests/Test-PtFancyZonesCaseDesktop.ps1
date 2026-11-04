@@ -425,6 +425,12 @@ try {
         Show-PtSettingsForObservation $FzCase.Settings.hwnd
         $nav=Resolve-PtUiElement -Hwnd $FzCase.Settings.hwnd -AutomationId FancyZonesNavItem -ControlType ListItem
         $nav.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Wait-PtCondition -Description 'FancyZones page enable control realized' -TimeoutSeconds 5 -Probe {
+            $root=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]$FzCase.Settings.hwnd)
+            $toggles=@($root.FindAll([Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty,'EnableFancyZonesToggleSwitch')))
+            $toggles.Count -eq 1
+        }|Out-Null
         Show-Setting EnableFancyZonesToggleSwitch|Out-Null
         $profile=@{Id='fancyzones';ModuleKey='FancyZones';PageAutomationId='FancyZonesNavItem';ToggleAutomationId='EnableFancyZonesToggleSwitch'
             Model='Resident';ProcessName='PowerToys.FancyZones';ProcessPath=$hostPath;WindowClass='SuperFancyZones'

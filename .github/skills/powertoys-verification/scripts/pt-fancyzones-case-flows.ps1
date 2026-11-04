@@ -140,6 +140,7 @@ function Save-PtFancyZonesDefaultEvidence {
             Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and
                 $_.Current.AutomationId -cin @($selectedId,$unselectedId) -and -not $_.Current.IsOffscreen})
         $button=Select-PtUniqueUiElement -Elements $buttons -Description "actual $Orientation default state"
+        $button.SetFocus()
         $ancestor=$button
         while($ancestor){
             $scroll=$null
@@ -147,7 +148,7 @@ function Save-PtFancyZonesDefaultEvidence {
                 $scroll.SetScrollPercent(-1,100)
                 break
             }
-            $ancestor=[Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($ancestor)
+            $ancestor=[Windows.Automation.TreeWalker]::RawViewWalker.GetParent($ancestor)
         }
         $viewportReadiness=@{Signature=$null;Stable=0}
         Wait-PtCondition -Description 'complete default control inside its viewport' -TimeoutSeconds 5 -Probe {
@@ -232,7 +233,7 @@ function Apply-PtFancyZonesCaseLayout {
             if(-not $selectedCard.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern,[ref]$selection)){
                 throw 'Layout card has no independent selection readback.'
             }
-            $applied=Get-PtFancyZonesSnapshotJson $snapshot 'applied-layouts.json'
+            $applied=ConvertTo-PtFancyZonesNativeLayouts (Get-PtFancyZonesSnapshotJson $snapshot 'applied-layouts.json')
             $matching=@($applied.'applied-layouts'|Where-Object {Test-PtFancyZonesNativeDevice $deviceId $_.device})
             if($matching.Count -ne 1){return $false}
             $layout=$matching[0].'applied-layout'

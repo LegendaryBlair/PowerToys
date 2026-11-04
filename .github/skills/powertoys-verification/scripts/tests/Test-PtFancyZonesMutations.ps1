@@ -111,7 +111,8 @@ try {
             if($FileName -ceq 'editor-parameters.json'){
                 [pscustomobject]@{monitors=@([pscustomobject]@{monitor='A';'monitor-instance-id'='one';'monitor-number'=1
                     'monitor-serial-number'='';'virtual-desktop'=[guid]::Empty.ToString('B')})}
-            }else{
+            }elseif($FileName -ceq 'applied-layouts.json'){$editorAfter}
+            else{
                 [pscustomobject]@{'custom-layouts'=@([pscustomobject]@{name='owned';uuid='{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}'})}
             }
         }
@@ -119,6 +120,22 @@ try {
         function Invoke-PtFancyZonesDriverAction {
             param($Context,$Scope,$ArgumentList,$Action)
             Require (Test-PtFancyZonesScopedFileChange applied-layouts.json $editorBefore $editorAfter $Scope) 'Editor application incorrectly required native first-wins serialization.'
+            . "$PSScriptRoot\..\pt-uia.ps1"
+            Initialize-PtUiAutomation
+            $wait=$definition.Find({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Wait-PtFancyZonesPersistence'},$true)
+            for($i=0;$i -lt $wait.CommandElements.Count;$i++){
+                if($wait.CommandElements[$i] -is [Management.Automation.Language.CommandParameterAst] -and
+                    $wait.CommandElements[$i].ParameterName -ceq 'Ready'){
+                    $ready=$wait.CommandElements[$i+1].ScriptBlock.GetScriptBlock()
+                }
+            }
+            $card=[pscustomobject]@{}
+            $card|Add-Member ScriptMethod TryGetCurrentPattern {
+                param($pattern,$selection)
+                $selection.Value=[pscustomobject]@{Current=[pscustomobject]@{IsSelected=$true}}
+                return $true
+            }
+            Require (& $ready $null $card $deviceA $ArgumentList[2]) 'Native first-wins readiness was blocked by a retained historical alias.'
         }
         try{Apply-PtFancyZonesCaseLayout -Name owned}finally{$global:FzCase=$null}
     }
