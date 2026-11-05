@@ -103,5 +103,31 @@ $scroll.Changes=0;$scroll.Current.VerticalScrollPercent=0.0
 $scroll|Add-Member -Force ScriptMethod SetScrollPercent {param($horizontal,$vertical) $this.Changes++;$this.Current.VerticalScrollPercent=25.0}
 $transitions=@(Set-PtSettingsScrollState -Hwnd 1 -Scroll $expected.Scroll)
 Require ($scroll.Changes -eq 1 -and -not $transitions[0].ReappliedForChangedExtent -and $transitions[0].Vertical -eq 25.0) 'Unchanged layout triggered a blind retry or a fabricated readback'
+$restoreSnapshot=[pscustomobject]@{
+    Schema='PtSettingsUi.v1';Identity=@{hwnd=1;className='WinUIDesktopWin32WindowClass'}
+    Native=@{visible=$true;placement=@{showCmd=1;Left=0}}
+    Ui=@{PageAutomationId='GeneralNavItem';Expansion=@();Scroll=@()}
+    Scope=@('SelectedPage');UnsupportedState=@();Path=Join-Path $Workspace 'passive-settings.json'
+}
+Write-PtReportText $restoreSnapshot.Path (ConvertTo-Json $restoreSnapshot -Depth 20)
+$script:restoreNative=ConvertFrom-PtReportJson (ConvertTo-Json $restoreSnapshot.Native -Depth 20)
+$script:restoreUi=@{PageAutomationId='AlwaysOnTopNavItem';Expansion=@();Scroll=@()}
+$script:restoreCalls=0
+function Get-PtActiveResourceSession {}
+function Get-PtSettingsRestorationSnapshot {param($Snapshot,$ReplacementIdentity) $Snapshot}
+function Get-PtWindowSnapshot {param($Hwnd) $script:restoreNative}
+function Restore-PtWindowSnapshot {param($Snapshot) $script:restoreNative}
+function Show-PtSettingsForObservation {throw 'Non-activating restoration attempted foreground activation.'}
+function Read-PtSettingsUiState {param($Hwnd,[switch]$AllowUnselected) $script:restoreUi}
+function Wait-PtSettingsUiState {param($Hwnd) $script:restoreUi}
+function Set-PtSettingsUiState {param($Hwnd,$State,[switch]$DeferScroll) $script:restoreUi=$State;$script:restoreCalls++}
+function Complete-PtSettingsObligation {param($Snapshot,$ReceiptPath)}
+$restored=Restore-PtSettingsUiSnapshot -Snapshot $restoreSnapshot -NoActivate
+Require ($restored.Restored -and $script:restoreCalls -eq 1) 'Visible UIA-only restoration did not restore the original page.'
+$script:restoreNative.placement.Left=10
+Reject {Restore-PtSettingsUiSnapshot -Snapshot $restoreSnapshot -NoActivate} 'unchanged visible normal placement'
+$script:restoreNative.placement.Left=0;$script:restoreNative.visible=$false
+Reject {Restore-PtSettingsUiSnapshot -Snapshot $restoreSnapshot -NoActivate} 'unchanged visible normal placement'
+Require ($script:restoreCalls -eq 1) 'Non-activating restoration mutated a moved or hidden window.'
 Write-PtReportText "$Workspace\results.json" '{"StaleProviderRebind":"PASS","NonStaleFailurePropagation":"PASS","TransientProviderAbsence":"PASS","StrictBaseline":"PASS","RealizationPolling":"PASS","NoRedundantExpansion":"PASS","NavigationScrollFirst":"PASS","AmbiguousSelectionRefusal":"PASS","ExactWinUiWireReadback":"PASS","WinUiArithmeticRounding":"PASS","RealDriftRejected":"PASS","ObservedExtentChange":"PASS","NoBlindReplay":"PASS"}'
-"PASS: installed-Settings readiness regressions with synthetic UIA elements only. $Workspace"
+"PASS: Settings readiness and non-activating restoration regressions with synthetic UIA elements only. $Workspace"

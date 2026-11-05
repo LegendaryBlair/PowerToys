@@ -38,8 +38,32 @@ try {
     $rejected=$false
     try { Get-PtAlwaysOnTopWindowState -Identity $wrong | Out-Null } catch { $rejected=$true }
     Require $rejected 'Mismatched window identity was accepted.'
+    $hostIntegrity = Get-PtAlwaysOnTopProcessIntegrity -ProcessId $PID
+    Require ($hostIntegrity.Identity.processId -eq $PID -and $hostIntegrity.IntegrityRid -gt 0) 'Actual mandatory integrity was not read.'
+    $rejected = $false
+    try { Assert-PtAlwaysOnTopExecutionReady -Identity $identity -RequireForeground | Out-Null }
+    catch { $rejected = $true }
+    Require $rejected 'The hidden fixture was accepted as an exact foreground input target.'
+    $reader = ${function:Get-PtAlwaysOnTopProcessIntegrity}
+    try {
+        function Get-PtAlwaysOnTopProcessIntegrity {
+            param([int]$ProcessId)
+            if ($ProcessId -eq $PID) { return $hostIntegrity }
+            if ($guardCase -eq 'ReadError') { throw 'Synthetic token read failure.' }
+            [pscustomobject]@{
+                Identity = [pscustomobject]@{sessionId=($hostIntegrity.Identity.sessionId + [int]($guardCase -eq 'Session'))}
+                IntegrityRid = $hostIntegrity.IntegrityRid + $(if ($guardCase -eq 'Integrity') {4096} else {0})
+            }
+        }
+        foreach ($guardCase in 'Session','Integrity','ReadError') {
+            $rejected = $false
+            try { Assert-PtAlwaysOnTopExecutionReady -Identity $identity -PeerProcessId 2147483647 | Out-Null }
+            catch { $rejected = $true }
+            Require $rejected "Execution guard accepted $guardCase."
+        }
+    } finally { Set-Item Function:\Get-PtAlwaysOnTopProcessIntegrity -Value $reader }
 } finally { $window.Dispose() }
 $rejected=$false
 try { Get-PtAlwaysOnTopWindowState -Identity $identity | Out-Null } catch { $rejected=$true }
 Require $rejected 'Destroyed window identity was accepted.'
-'PASS: Always On Top read-only observations distinguish marker/style, alpha availability, and stale identities.'
+'PASS: Always On Top observations and execution guards reject stale identities, incompatible sessions/integrity, and unreadable tokens.'

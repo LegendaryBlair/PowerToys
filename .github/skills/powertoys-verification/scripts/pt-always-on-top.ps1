@@ -4,6 +4,8 @@
 
 . "$PSScriptRoot\pt-desktop.ps1"
 . "$PSScriptRoot\pt-state-snapshot.ps1"
+. "$PSScriptRoot\pt-admin-probe.ps1"
+. "$PSScriptRoot\pt-module-lifecycle.ps1"
 
 if (-not ('PtAlwaysOnTopObservation' -as [type])) {
     Add-Type -TypeDefinition @'
@@ -12,6 +14,29 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 public static class PtAlwaysOnTopObservation {
+    [DllImport("user32.dll", SetLastError=true)]
+    static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+    [DllImport("user32.dll")]
+    static extern bool CloseDesktop(IntPtr desktop);
+    [DllImport("user32.dll")]
+    static extern IntPtr GetThreadDesktop(uint thread);
+    [DllImport("kernel32.dll")]
+    static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder text, uint size, out uint needed);
+    static string DesktopName(IntPtr desktop) {
+        var text=new StringBuilder(256);
+        uint needed;
+        if(desktop==IntPtr.Zero || !GetUserObjectInformation(desktop,2,text,512,out needed))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        return text.ToString();
+    }
+    public static string[] ReadInputDesktop() {
+        var input=OpenInputDesktop(0,false,1);
+        if(input==IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try { return new[] { DesktopName(GetThreadDesktop(GetCurrentThreadId())), DesktopName(input) }; }
+        finally { CloseDesktop(input); }
+    }
     [DllImport("user32.dll", CharSet=CharSet.Unicode)]
     public static extern IntPtr GetProp(IntPtr hwnd, string name);
     [DllImport("user32.dll", SetLastError=true)]
@@ -124,4 +149,63 @@ function Get-PtAlwaysOnTopGameMode {
     param()
     $state = [PtAlwaysOnTopObservation]::NotificationState()
     [pscustomobject]@{ NotificationState = $state; RunningDirect3DFullScreen = $state -eq 3 }
+}
+
+function Get-PtAlwaysOnTopProcessIntegrity {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][int]$ProcessId)
+    $identity = Get-PtLifecycleProcessProbe -ProcessId $ProcessId
+    if (-not $identity) { throw 'Required process is absent.' }
+    $handle = [PtTok]::OpenProcess(0x1000, $false, $ProcessId)
+    if ($handle -eq [IntPtr]::Zero) { throw 'Cannot open required process for integrity observation.' }
+    $token = [IntPtr]::Zero
+    $buffer = [IntPtr]::Zero
+    try {
+        if (-not [PtTok]::OpenProcessToken($handle, 8, [ref]$token)) { throw 'Cannot read required process token.' }
+        [uint32]$size = 0
+        [void][PtTok]::GetTokenInformation($token, 25, [IntPtr]::Zero, 0, [ref]$size)
+        if ($size -lt [IntPtr]::Size -or $size -gt 4096) { throw 'Invalid mandatory-label buffer size.' }
+        $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal([int]$size)
+        if (-not [PtTok]::GetTokenInformation($token, 25, $buffer, $size, [ref]$size)) { throw 'Mandatory-label observation failed.' }
+        $sid = [Security.Principal.SecurityIdentifier]::new([Runtime.InteropServices.Marshal]::ReadIntPtr($buffer)).Value
+        $after = Get-PtLifecycleProcessProbe -ProcessId $ProcessId
+        if (-not $after -or $after.processStartTicks -ne $identity.processStartTicks -or $after.path -ine $identity.path) {
+            throw 'Required process changed during integrity observation.'
+        }
+        [pscustomobject]@{ Identity = $identity; IntegrityRid = [int]($sid.Split('-')[-1]) }
+    } finally {
+        if ($buffer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer) }
+        if ($token -ne [IntPtr]::Zero) { [void][PtTok]::CloseHandle($token) }
+        [void][PtTok]::CloseHandle($handle)
+    }
+}
+
+function Assert-PtAlwaysOnTopExecutionReady {
+    <#
+    .SYNOPSIS
+    Check the ordinary same-integrity desktop path immediately before its finite action.
+    .NOTES
+    This does not establish ownership or support mixed-integrity test variants.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Identity, [int[]]$PeerProcessId = @(), [switch]$RequireInput, [switch]$RequireForeground)
+    Assert-PtWindowIdentity -Identity $Identity | Out-Null
+    $hostState = Get-PtAlwaysOnTopProcessIntegrity -ProcessId $PID
+    $processes = @(foreach ($processIdValue in @($Identity.processId) + $PeerProcessId | Select-Object -Unique) {
+        $state = Get-PtAlwaysOnTopProcessIntegrity -ProcessId $processIdValue
+        if ($state.Identity.sessionId -ne $hostState.Identity.sessionId -or
+            $state.IntegrityRid -ne $hostState.IntegrityRid -or $state.IntegrityRid -lt 8192) {
+            throw 'Ordinary acceptance requires the same session and measured medium-or-higher integrity.'
+        }
+        $state
+    })
+    $desktop = [PtAlwaysOnTopObservation]::ReadInputDesktop()
+    if ($desktop[0] -ine 'Default' -or $desktop[1] -ine $desktop[0]) { throw 'The required input desktop is unavailable.' }
+    $foreground = [PtDesktop]::GetForegroundWindow().ToInt64()
+    if ((($RequireInput -or $RequireForeground) -and -not $foreground) -or
+        ($RequireForeground -and $foreground -ne $Identity.hwnd)) {
+        throw 'The required foreground target is unavailable.'
+    }
+    Assert-PtWindowIdentity -Identity $Identity | Out-Null
+    [pscustomobject]@{ Host = $hostState; Processes = $processes; Desktop = $desktop; Foreground = $foreground }
 }

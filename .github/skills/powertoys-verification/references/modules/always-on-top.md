@@ -71,6 +71,7 @@ Re-resolve after transitions; never pick the first repeated control.
 | Send configured command | Owned eligible foreground | Non-UI: complete window identity/current pin/opacity chord | Guarded `Send-PtChord`; diagnostic `Invoke-PtSharedEvent` keeps foreground guard. |
 | Invoke window menu | Owned classic target's Alt+Space popup | Fresh owner; localized `MenuItem` | Inspect/invoke/reopen check state. No index/internal-message substitute. |
 | Read target | Exact owned window | Non-UI: identity for `Get-PtAlwaysOnTopWindowState` | Marker/style/alpha availability/frame/DPI; not pixels/verdict. |
+| Check ordinary execution | Before navigation or fixture input | `Assert-PtAlwaysOnTopExecutionReady` with exact target and peer PIDs | Measures session/integrity and desktop; use `-RequireInput` for input availability and `-RequireForeground` immediately before target-directed input. Does not establish ownership or support mixed-integrity variants. |
 | Invoke palette Settings | Installed extension; baseline saved | Actual title/subtitle/Settings command | Palette profile; favorites/locale need separate observations. |
 | Check updates | Enablement baseline saved | [Settings controls](settings.md#control-locator-and-interaction-index) | Check only, compare before cleanup; no download/install. |
 
@@ -122,6 +123,14 @@ Re-resolve after transitions; never pick the first repeated control.
 | Palette/query/favorites/provider | Palette integration | Private baseline; declare provider Process before activation | Restore favorites/query/files; shutdown only recorded new provider | No added favorite/provider; preserve borrowed singleton. |
 
 ### Helper boundaries
+
+`scripts\tests\Test-PtAlwaysOnTopPinDesktop.ps1` is a finite infrastructure-acceptance entry, not a controller
+or full R0/R1. It requires initially disabled Always On Top and already-visible Settings. `-InspectOnly`
+exercises guarded page navigation and restores unchanged visible placement through
+`Restore-PtSettingsUiSnapshot -NoActivate`; it sends no keyboard input and does not claim pin coverage.
+Full mode additionally requires attached input and creation-proven fixtures for a single native pin/unpin
+cycle. Its default enable-toggle name is English; confirm the actual localized name before supplying it.
+Native marker/topmost evidence does not establish border pixels, audio or the full checklist.
 
 [Tracking](../session-safety.md) is not settings restore; [byte rollback](../directory-snapshots.md)
 is not cache restore. Existing-file guards cannot restore absence; never pre-create
