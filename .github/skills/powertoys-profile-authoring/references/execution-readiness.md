@@ -4,6 +4,18 @@ A profile saying "establish ownership" or "discover the operation" is not an imp
 Turn requirements into usable, tested mechanics before asking a confirmation Runner to rely on them.
 This is an **automatic Author work checklist, not another human permission gate**.
 
+Use the existing recorder with finite, source-visible actions and `try/finally` restoration. Do not build a
+run-local service that polls a request directory and executes unspecified future scripts merely to retain
+PowerShell variables. Keep related stateful actions in one bounded invocation, or use the existing recorder's
+documented reopen path between completed attempts. Unknown R0 controls can be inspected in short read-only
+steps before composing the next concrete action; they do not require a general command dispatcher.
+
+Wire prerequisite checks into the execution path, not just the brief: check actual target identity and the
+required process/session/integrity conditions before mutation; check input desktop and exact foreground before
+input delivery. A defined-but-unused guard is not protection. Use checks appropriate to the action rather than
+requiring input-injection prerequisites for unrelated read-only work. First exercise one representative
+operation/observation/restoration path, then continue the remaining round scope; this does not shrink R0 or R1.
+
 ## 1. Maintain a small capability map
 
 Group assertions by the mechanics they share; do not create a framework or one adapter per checkbox.

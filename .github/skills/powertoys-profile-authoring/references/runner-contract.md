@@ -131,6 +131,13 @@ Use a new runtime session for **every** scored iteration:
 - Retain required repository/organization instructions. List unavoidable ambient inputs rather than bypassing
   policy or claiming a stronger isolation level than the runtime provides.
 
+Current-run statistics are not cross-session memory retrieval. Declare a narrow read-only reporting scope for
+this Runner's own exact event-log file (or its captured JSONL stream), resolved from its actual runtime ID.
+After execution/cleanup, extract only the fixed run interval's tool names, IDs, timestamps, outcomes and
+case correlation metadata. Do not enumerate the session-store root, read another session, load conversation
+content as guidance, or publish raw logs/private payloads. If runtime access is denied, report statistics
+unavailable without inventing zeros or treating that reporting limit as a product-execution prerequisite.
+
 An ordinary subagent is acceptable only if its runtime contract actually guarantees fresh context and the
 required source selection. "Separate context window" alone does not prove those conditions.
 If unavailable, use a fresh standalone CLI/SDK session or return `blocked: session isolation unavailable`.
@@ -243,6 +250,10 @@ Round exit: <R0: return discovery; R1: restore/archive/return; authorized R2: on
 Return the actual session/cwd/revision/source-loading/BITS handshake and end the preflight turn.
 Use small, independently reviewable probes and a separate receipt assembly; do not combine the entire
 preflight into one oversized command. Persist observed metadata between tool calls in the neutral handoff.
+Use finite reviewed actions, not a queue accepting future scripts. Actually call required guards before
+navigation/input. After execution and cleanup, current-run statistics may read only this runtime session's
+exact declared log/stream and bounded tool metadata; cross-session history and conversation retrieval remain
+forbidden. Runtime permission checks still apply to that reporting read.
 The Author checks this handshake automatically and sends the execution acknowledgment; do not request another
 human approval simply to run R0. Until that acknowledgment, no product activation, input injection, recording,
 clipboard writes or settings changes. Actual runtime permission requirements still apply.
