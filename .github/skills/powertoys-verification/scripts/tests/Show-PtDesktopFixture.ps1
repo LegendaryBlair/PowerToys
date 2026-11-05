@@ -53,6 +53,10 @@ foreach ($groupName in 'FixturePanel1','FixturePanel2') {
     $panel.Name = $groupName
     $panel.Dock = 'Bottom'
     $panel.Height = 32
+    $owner = [Windows.Forms.Panel]::new()
+    $owner.Name = 'RepeatedOwner'
+    $owner.AccessibleName = $groupName
+    $owner.Dock = 'Fill'
     $combo = [Windows.Forms.ComboBox]::new()
     $combo.Name = 'FixtureCombo'
     $combo.AccessibleName = 'Fixture choice'
@@ -60,7 +64,8 @@ foreach ($groupName in 'FixturePanel1','FixturePanel2') {
     $combo.Dock = 'Fill'
     $combo.Items.AddRange([object[]]@('Alpha','Beta','Gamma'))
     $combo.SelectedIndex = 0
-    $panel.Controls.Add($combo)
+    $owner.Controls.Add($combo)
+    $panel.Controls.Add($owner)
     $form.Controls.Add($panel)
 }
 $other = [Windows.Forms.Form]::new()

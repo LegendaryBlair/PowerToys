@@ -57,6 +57,10 @@ try{
         Reject {Resolve-PtUiElement -Hwnd $ready.hwnd -AutomationId FixtureCombo -ControlType ComboBox} '2 distinct'
         $first=Resolve-PtUiElement -Hwnd $ready.hwnd -AutomationId FixtureCombo -ControlType ComboBox -WithinAutomationId FixturePanel1
         Require ($null -ne $first) 'Scoped control not found'
+        Reject {Resolve-PtUiElement -Hwnd $ready.hwnd -AutomationId FixtureCombo -ControlType ComboBox -WithinAutomationId RepeatedOwner} '2 distinct'
+        $named=Resolve-PtUiElement -Hwnd $ready.hwnd -AutomationId FixtureCombo -ControlType ComboBox -WithinAutomationId RepeatedOwner -WithinName FixturePanel1
+        Require ((@($named.GetRuntimeId()) -join ',') -ceq (@($first.GetRuntimeId()) -join ',')) 'Combined owner ID/name selected the wrong repeated control.'
+        Reject {Resolve-PtUiElement -Hwnd $ready.hwnd -AutomationId FixtureCombo -ControlType ComboBox -WithinAutomationId FixturePanel1 -WithinName FixturePanel2} '0 distinct'
         try{
             [void][PtDesktop]::ShowWindow([IntPtr]$ready.hwnd,6)
             Reject {Select-PtComboBoxItem -Hwnd $ready.hwnd -ControlName 'Fixture choice' -WithinAutomationId FixturePanel1 -ItemName Beta} 'hidden or minimized'

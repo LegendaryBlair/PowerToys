@@ -11,12 +11,13 @@ Keep an unlocked interactive desktop and serialize keyboard input. Explicitly na
 to the intended Settings page and make its window visible before taking the snapshot.
 Provide the exact HWND, selected navigation AutomationId, settings path and property
 segments. If the page contains multiple `EditButton` controls, supply a unique
-`-WithinAutomationId` container; distinct matching controls are an error.
+`-WithinAutomationId` container. If that ID itself repeats, refine it with the actual
+`-WithinName`; both predicates must identify one owner. Distinct matching controls remain an error.
 
 | API | Contract |
 |---|---|
 | `Get-PtShortcutBinding -SettingsPath -PropertyPath` | Read the exact nested JSON object; property segments are literal, not a dotted expression. No writes. |
-| `Get-PtShortcutSnapshot -Hwnd -PageAutomationId -SettingsPath -PropertyPath -Workspace [-AutomationId EditButton] [-WithinAutomationId]` | Verify UI HelpText against the persisted binding and save an ownership/original-value receipt in an existing local workspace. |
+| `Get-PtShortcutSnapshot -Hwnd -PageAutomationId -SettingsPath -PropertyPath -Workspace [-AutomationId EditButton] [-WithinAutomationId] [-WithinName]` | Verify UI HelpText against the persisted binding and save an ownership/original-value receipt in an existing local workspace. WithinName requires WithinAutomationId; the combined owner selector is preserved for restoration. |
 | `Set-PtShortcutBinding -Snapshot -Binding [-Mode Save/Cancel] [-TimeoutSeconds]` | Confirm recorder readiness, input the requested chord, read visible key labels, then save or cancel. Returns Before, Requested, Actual, HelpText, DialogKeys, Changed and the receipt path. |
 | `Set-PtShortcutBinding ... [-CapturedObserver] [-ObserverArgumentList]` | Read-only observation hook before commit, receiving detached captured facts followed by explicit arguments. Exceptions cancel the owned dialog. Active recorder contexts retain the observer source and output. |
 | `Restore-PtShortcutSnapshot -Snapshot` | Restore the captured original through the same UI operation, including custom modifiers, key code and original HelpText. Never substitutes a factory default. |

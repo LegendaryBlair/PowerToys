@@ -141,6 +141,35 @@ function Get-PtAlwaysOnTopDesktop {
     $result
 }
 
+function Wait-PtAlwaysOnTopAlphaChange {
+    <#
+    .SYNOPSIS
+    Wait for available constant alpha to change from the same target's post-pin observation.
+    .NOTES
+    Keep the pre-pin observation separately for restoration. Unavailable/null alpha is not a change.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Identity,[Parameter(Mandatory)]$Before,
+        [ValidateRange(0.1,30)][double]$TimeoutSeconds=5)
+    Assert-PtWindowIdentity -Identity $Identity | Out-Null
+    if((ConvertTo-Json $Before.Identity -Compress) -cne (ConvertTo-Json $Identity -Compress)){
+        throw 'Alpha baseline belongs to a different window identity.'
+    }
+    $baselineAlpha=if($Before.LayerStatus -ceq 'NotLayered' -and -not $Before.Layered){255}
+    elseif($Before.LayerStatus -ceq 'Available' -and $Before.Layered -and ($Before.LayerFlags -band 2) -ne 0 -and
+        ($Before.Alpha -is [byte] -or $Before.Alpha -is [int] -or $Before.Alpha -is [long]) -and
+        $Before.Alpha -ge 0 -and $Before.Alpha -le 255){[int]$Before.Alpha}
+    else{throw 'Alpha baseline is unavailable; do not infer an opaque default.'}
+    Wait-PtCondition -Description 'available changed constant alpha on the owned target' -TimeoutSeconds $TimeoutSeconds -Probe {
+        $observed=Get-PtAlwaysOnTopWindowState -Identity $Identity
+        if($observed.LayerStatus -ceq 'Available' -and $observed.Layered -and ($observed.LayerFlags -band 2) -ne 0 -and
+            ($observed.Alpha -is [byte] -or $observed.Alpha -is [int] -or $observed.Alpha -is [long]) -and
+            $observed.Alpha -ge 0 -and $observed.Alpha -le 255 -and $observed.Alpha -ne $baselineAlpha){
+            $observed
+        }
+    }
+}
+
 function Get-PtAlwaysOnTopGameMode {
     <# .SYNOPSIS
     Read the same Windows notification condition used by Always On Top, without enabling it.

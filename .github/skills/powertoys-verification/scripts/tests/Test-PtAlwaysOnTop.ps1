@@ -31,6 +31,39 @@ try {
     Require ([PtAotObservationFixture]::SetLayeredWindowAttributes($window.Handle,0,173,2)) 'Fixture alpha setup failed.'
     $layer = Get-PtAlwaysOnTopWindowState -Identity $identity
     Require ($layer.LayerStatus -eq 'Available' -and $layer.Alpha -eq 173 -and $layer.LayerFlags -eq 2) 'Actual layered alpha/flags were not retained.'
+    $alphaReader=${function:Get-PtAlwaysOnTopWindowState}
+    try {
+        $script:alphaReads=0
+        function Get-PtAlwaysOnTopWindowState {
+            param($Identity)
+            $script:alphaReads++
+            $value=switch($script:alphaReads){1{$null} 2{173} default{140}}
+            [pscustomobject]@{Identity=$Identity;Layered=$true;LayerStatus=$(if($null -eq $value){'Unavailable'}else{'Available'});LayerFlags=2;Alpha=$value}
+        }
+        $changed=Wait-PtAlwaysOnTopAlphaChange -Identity $identity -Before $layer -TimeoutSeconds 2
+        Require ($script:alphaReads -eq 3 -and $changed.Alpha -eq 140) 'Unavailable or unchanged alpha satisfied the change wait.'
+        $rejected=$false
+        try { Wait-PtAlwaysOnTopAlphaChange -Identity $identity -Before $unavailable -TimeoutSeconds 0.1 | Out-Null } catch { $rejected=$true }
+        Require $rejected 'An unavailable baseline was treated as opaque.'
+        $mismatch=[pscustomobject]@{Identity=@{hwnd=0};LayerStatus='NotLayered';Layered=$false;Alpha=$null}
+        $rejected=$false
+        try { Wait-PtAlwaysOnTopAlphaChange -Identity $identity -Before $mismatch -TimeoutSeconds 0.1 | Out-Null } catch { $rejected=$true }
+        Require $rejected 'Alpha wait accepted a different baseline target.'
+        function Get-PtAlwaysOnTopWindowState {
+            param($Identity)
+            [pscustomobject]@{Identity=$Identity;Layered=$true;LayerStatus='Available';LayerFlags=2;Alpha=$null}
+        }
+        $rejected=$false
+        try { Wait-PtAlwaysOnTopAlphaChange -Identity $identity -Before $plain -TimeoutSeconds 0.1 | Out-Null } catch { $rejected=$true }
+        Require $rejected 'A null alpha labeled Available was accepted as an actual change.'
+        function Get-PtAlwaysOnTopWindowState {
+            param($Identity)
+            [pscustomobject]@{Identity=$Identity;Layered=$true;LayerStatus='Available';LayerFlags=1;Alpha=140}
+        }
+        $rejected=$false
+        try { Wait-PtAlwaysOnTopAlphaChange -Identity $identity -Before $plain -TimeoutSeconds 0.1 | Out-Null } catch { $rejected=$true }
+        Require $rejected 'Color-key-only attributes were mistaken for an active constant-alpha change.'
+    } finally { Set-Item Function:\Get-PtAlwaysOnTopWindowState -Value $alphaReader }
     $wrong = [pscustomobject]@{
         hwnd=$identity.hwnd; processId=$identity.processId
         processStartTicks=$identity.processStartTicks; className='NotTheFixtureClass'
