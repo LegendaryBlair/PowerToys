@@ -29,7 +29,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 | PowerRename | `power-rename.md` | ✅ written 2026-06-10; **reworked 2026-07-08** — recipe reduced to *capability → control* + a Read-out notes block, self-contradiction &amp; meta-hedges removed. Rows 4–12 are author-derived (control IDs discover-at-runtime); confirm on the next live run |
 | New+ | `new-plus.md` | ✅ written 2026-06-18 (registration-gate for menu presence; Settings-UI toggle drives template auto-copy) |
 | Command Palette | `command-palette.md` | ✅ written 2026-07-07 (CmdPal AppX foreground-lock / TextChanged-broken / alias-keystroke / Esc-filtered quirks — moved out of the global SKILL.md pitfalls) |
-| Always On Top | `always-on-top.md` | Source-grounded discovery-stage profile and 17-scenario/62-assertion inventory; live locator, fixture and restoration confirmation remains required. R0/R1 execution is not established by this draft |
+| Always On Top | `always-on-top.md` | Discovery-stage operating profile with native/composed-scene methods and 17-scenario/62-assertion inventory. Actual coverage and restoration are recorded per run; shortcut scoping and specialist fixtures remain separate readiness gaps |
 | Color Picker | `color-picker.md` | Shared WIP harness baseline; WinUI profile and 25-assertion checklist migrated from the Color Picker branch |
 | Environment Variables | `environment-variables.md` | Shared WIP harness, private restoration helper and functional 29-scenario checklist with frozen assertion IDs |
 | FancyZones | `fancyzones.md` | 35-scenario/171-assertion operating guide; shared-fixture flows, scoped input/capture, persistence and dependency-ordered recovery. Full-inventory confirmation remains required |
