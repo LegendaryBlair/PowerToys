@@ -1,0 +1,103 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "9F3EA6B2D7F35B8BA5A22F6685A11FC6554DE4B3191826192E5C25959BBE1481",
+  "Items": [
+    {"Id":"AOT-PIN","Assertions":[
+      {"Id":"AOT-PIN.topmost","Description":"The configured shortcut pins the ordinary fixture, with actual WS_EX_TOPMOST and visible precedence over an overlapping owned ordinary window."},
+      {"Id":"AOT-PIN.border-on","Description":"The pin action displays a composed border around the fixture when highlighting is enabled."},
+      {"Id":"AOT-PIN.unpin","Description":"Repeating the configured shortcut removes topmost and restores ordinary overlapping-window precedence."},
+      {"Id":"AOT-PIN.border-off","Description":"Unpin removes the fixture's border."}
+    ]},
+    {"Id":"AOT-WINDOW-STATE","Assertions":[
+      {"Id":"AOT-WINDOW-STATE.minimize","Description":"Minimizing the pinned fixture leaves no floating border."},
+      {"Id":"AOT-WINDOW-STATE.restore","Description":"Restoring the minimized fixture retains pinning and restores its surrounding border."},
+      {"Id":"AOT-WINDOW-STATE.maximize","Description":"Maximizing the pinned fixture moves the border to its visible frame, not the old bounds; restore normal placement afterward."}
+    ]},
+    {"Id":"AOT-VIRTUAL-DESKTOP","Assertions":[
+      {"Id":"AOT-VIRTUAL-DESKTOP.away","Description":"After switching to an identity-checked, safely owned temporary desktop, the original fixture's border is absent there."},
+      {"Id":"AOT-VIRTUAL-DESKTOP.return","Description":"Returning to the original desktop shows the still-pinned fixture and its surrounding border; remove only the owned temporary desktop."}
+    ]},
+    {"Id":"AOT-ENABLE","Assertions":[
+      {"Id":"AOT-ENABLE.disabled","Description":"With no affected user pins, UI disable stops the module and disables dependent activation and appearance controls."},
+      {"Id":"AOT-ENABLE.enabled","Description":"UI re-enable restores controls and module readiness; an ordinary pin/unpin works."},
+      {"Id":"AOT-ENABLE.retained","Description":"Navigation away and back retains configured values and enablement."}
+    ]},
+    {"Id":"AOT-PIN-SHORTCUT","Assertions":[
+      {"Id":"AOT-PIN-SHORTCUT.save","Description":"Save a collision-checked temporary pin binding; its key and all modifiers persist and the editor's shortcut/Save/Cancel controls are not clipped."},
+      {"Id":"AOT-PIN-SHORTCUT.new","Description":"The saved temporary pin shortcut actually pins and unpins the owned fixture."},
+      {"Id":"AOT-PIN-SHORTCUT.old","Description":"The former binding no longer pins the fixture while the temporary binding is saved."},
+      {"Id":"AOT-PIN-SHORTCUT.cancel","Description":"Canceling a different draft preserves the saved binding."},
+      {"Id":"AOT-PIN-SHORTCUT.restore","Description":"Restoring the original binding restores actual pin/unpin with that binding."}
+    ]},
+    {"Id":"AOT-BORDER","Assertions":[
+      {"Id":"AOT-BORDER.toggle-off","Description":"Disabling highlighting removes the border without unpinning the fixture or restarting the module."},
+      {"Id":"AOT-BORDER.toggle-on","Description":"Re-enabling highlighting restores the border on the same still-pinned fixture."},
+      {"Id":"AOT-BORDER.color","Description":"Changing custom color from #00CC66 to #FF00FF updates saved values and composed pixels live on the pinned fixture."},
+      {"Id":"AOT-BORDER.thickness","Description":"Changing thickness from 4 to 18 updates saved values and observed physical border geometry live; record the available monitor/DPI conditions."},
+      {"Id":"AOT-BORDER.accent","Description":"Switching from custom to Windows accent mode produces the independently read current accent color."},
+      {"Id":"AOT-BORDER.solid","Description":"At frame opacity 100%, straight border interior is solid without mottling or translucent fill; the target interior remains unobscured."},
+      {"Id":"AOT-BORDER.opacity","Description":"At frame opacity 50%, the border blends with a known opaque backdrop and does not fill the target interior."},
+      {"Id":"AOT-BORDER.corners","Description":"On Windows 11, rounded-corners on and off produce their respective surrounding contour while retaining transparent interior."}
+    ]},
+    {"Id":"AOT-DEFAULTS","Assertions":[
+      {"Id":"AOT-DEFAULTS.fresh","Description":"In a separately authorized clean user/profile without previous module settings, initial UI and saved thickness are 4; never delete this user's configuration to simulate it."},
+      {"Id":"AOT-DEFAULTS.existing","Description":"An existing non-default thickness survives ordinary module disable/enable and Settings reopen or navigation, instead of resetting to 4."}
+    ]},
+    {"Id":"AOT-EXCLUDE","Assertions":[
+      {"Id":"AOT-EXCLUDE.block","Description":"Adding only the collision-checked fixture executable to the existing exclusions prevents its pin and border."},
+      {"Id":"AOT-EXCLUDE.unpin","Description":"After removing the test exclusion and pinning, adding it again immediately removes topmost and border without another shortcut or restart; restore the original list."}
+    ]},
+    {"Id":"AOT-SOUND","Assertions":[
+      {"Id":"AOT-SOUND.pin-on","Description":"With sound enabled and a usable process-attributed audio observer or human listener, successful pin produces feedback; a sound-file open alone is insufficient."},
+      {"Id":"AOT-SOUND.unpin-on","Description":"With sound enabled and a usable audio observer/listener, successful unpin produces feedback."},
+      {"Id":"AOT-SOUND.pin-off","Description":"With sound disabled and a usable audio observer/listener, successful pin produces no feedback."},
+      {"Id":"AOT-SOUND.unpin-off","Description":"With sound disabled and a usable audio observer/listener, successful unpin produces no feedback."},
+      {"Id":"AOT-SOUND.failed","Description":"Given an explicitly authorized elevated owned target, a non-elevated module, enabled sound and a usable observer, an independently established failed state change produces no success sound."}
+    ]},
+    {"Id":"AOT-GAME","Assertions":[
+      {"Id":"AOT-GAME.blocked","Description":"With an owned exclusive D3D fullscreen fixture independently reporting QUNS_RUNNING_D3D_FULL_SCREEN, enabled Game Mode blocking prevents a pin marker."},
+      {"Id":"AOT-GAME.allowed","Description":"Under the same independently detected fullscreen condition, disabling Game Mode blocking permits pinning."},
+      {"Id":"AOT-GAME.normal","Description":"After leaving fullscreen, normal pin/unpin works with Game Mode blocking enabled; restore device/window and original setting."}
+    ]},
+    {"Id":"AOT-OPACITY","Assertions":[
+      {"Id":"AOT-OPACITY.decrease","Description":"The configured decrease shortcut reduces actual alpha and visible opacity of a pinned layered-alpha-compatible fixture."},
+      {"Id":"AOT-OPACITY.increase","Description":"Away from maximum opacity, the configured increase shortcut raises actual alpha and visible opacity of the pinned compatible fixture."},
+      {"Id":"AOT-OPACITY.restore-plain","Description":"Unpinning the originally non-layered fixture restores its original non-layered state after opacity edits."},
+      {"Id":"AOT-OPACITY.restore-layered","Description":"On a fixture originally layered with known non-default alpha, unpin restores the original alpha and layered flags rather than forcing opaque."},
+      {"Id":"AOT-OPACITY.pass-through","Description":"On an unpinned key-observing fixture, both increase and decrease shortcuts leave alpha unchanged and deliver their keys to the application."}
+    ]},
+    {"Id":"AOT-OPACITY-SHORTCUTS","Assertions":[
+      {"Id":"AOT-OPACITY-SHORTCUTS.increase-save","Description":"Save a distinct collision-checked increase binding with modifiers different from pin; all key/modifier fields persist without changing decrease or pin."},
+      {"Id":"AOT-OPACITY-SHORTCUTS.increase-drive","Description":"Below maximum alpha, the new increase binding changes opacity and the former binding no longer does so."},
+      {"Id":"AOT-OPACITY-SHORTCUTS.decrease-save","Description":"Save a distinct collision-checked decrease binding with modifiers different from pin; all key/modifier fields persist without changing increase or pin."},
+      {"Id":"AOT-OPACITY-SHORTCUTS.decrease-drive","Description":"The new decrease binding changes opacity and the former binding no longer does so."},
+      {"Id":"AOT-OPACITY-SHORTCUTS.cancel","Description":"Canceling an opacity-shortcut draft preserves all three saved bindings."},
+      {"Id":"AOT-OPACITY-SHORTCUTS.restore","Description":"Restore all three original bindings and observe both increase and decrease again on a pinned compatible fixture."}
+    ]},
+    {"Id":"AOT-SYSTEM-MENU","Assertions":[
+      {"Id":"AOT-SYSTEM-MENU.off","Description":"With the option off, the owned classic window's actual system menu has no Always On Top command."},
+      {"Id":"AOT-SYSTEM-MENU.on","Description":"Enabling the option adds exactly one Always On Top command to the owned window's real title-bar system menu."},
+      {"Id":"AOT-SYSTEM-MENU.reopen","Description":"Reopening that system menu retains exactly one command, without duplication."},
+      {"Id":"AOT-SYSTEM-MENU.pin","Description":"Invoking the menu command pins the actual fixture and the reopened menu shows it checked."},
+      {"Id":"AOT-SYSTEM-MENU.unpin","Description":"Invoking again unpins the fixture and the reopened menu shows it unchecked."},
+      {"Id":"AOT-SYSTEM-MENU.collision","Description":"An owned fixture's pre-existing command with the colliding ID retains its original caption and action, without a replacement Always On Top item; restore the option."}
+    ]},
+    {"Id":"AOT-CMDPAL","Assertions":[
+      {"Id":"AOT-CMDPAL.settings","Description":"With the installed PowerToys extension available, invoking its Always On Top Settings command opens the correct Settings page without pinning another window."},
+      {"Id":"AOT-CMDPAL.pin","Description":"With restorable owned favorites, pin the Settings command and verify it remains available after reopening the palette."},
+      {"Id":"AOT-CMDPAL.unpin","Description":"Unpin the command and verify removal from pinned commands while restoring palette and extension lifetime state."},
+      {"Id":"AOT-CMDPAL.localized","Description":"In an already available non-English test locale, the Always On Top command title/subtitle are localized."}
+    ]},
+    {"Id":"AOT-REFRESH","Assertions":[
+      {"Id":"AOT-REFRESH.preserved","Description":"Check for updates without install/download preserves recorded non-default Always On Top enablement and runtime state; no channel or automatic-update changes."}
+    ]},
+    {"Id":"AOT-SESSION-END","Assertions":[
+      {"Id":"AOT-SESSION-END.cancel","Description":"In a separately authorized disposable Windows session, a canceled session-end attempt leaves Always On Top usable."},
+      {"Id":"AOT-SESSION-END.confirm","Description":"In a separately authorized disposable session, confirmed logoff/shutdown exits the module message loop without a quiesce hang; ordinary disable is not equivalent."}
+    ]},
+    {"Id":"AOT-TELEMETRY","Assertions":[
+      {"Id":"AOT-TELEMETRY.events","Description":"Only with diagnostic consent and an authorized safely restorable restart, enable Diagnostic data/Enable viewing before flows and observe corresponding Always On Top pin/unpin events in the viewer; restore original diagnostic settings."}
+    ]}
+  ]
+}

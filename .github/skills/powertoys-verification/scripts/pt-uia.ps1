@@ -42,13 +42,18 @@ function Resolve-PtUiElement {
         [Parameter(Mandatory,ParameterSetName='AutomationId')][string]$AutomationId,
         [Parameter(Mandatory,ParameterSetName='Name')][string]$Name,
         [Parameter(Mandatory)][ValidateSet('ComboBox','Button','Edit','Tab','TabItem','List','ListItem','Pane','Group','Text','Document','Custom','Hyperlink','CheckBox','RadioButton','Tree','TreeItem','Window','Slider','Spinner','ProgressBar')][string]$ControlType,
-        [string]$WithinAutomationId)
+        [string]$WithinAutomationId,[string]$WithinName)
+    if($WithinName -and -not $WithinAutomationId){throw 'WithinName requires an explicit WithinAutomationId owner.'}
     Initialize-PtUiAutomation
     $null = Get-PtNativeWindow -Hwnd $Hwnd
     $root = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Hwnd)
     if ($WithinAutomationId) {
         $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty,$WithinAutomationId)
-        $root = Select-PtUniqueUiElement -Elements @($root.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)) -Description "container $WithinAutomationId"
+        if($WithinName){
+            $condition=[Windows.Automation.AndCondition]::new($condition,
+                [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$WithinName))
+        }
+        $root = Select-PtUniqueUiElement -Elements @($root.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)) -Description "container $WithinAutomationId '$WithinName'"
     }
     $property = if($PSCmdlet.ParameterSetName -eq 'Name'){[Windows.Automation.AutomationElement]::NameProperty}else{[Windows.Automation.AutomationElement]::AutomationIdProperty}
     $value = if($PSCmdlet.ParameterSetName -eq 'Name'){$Name}else{$AutomationId}

@@ -294,7 +294,7 @@ function Get-PtSettingsRestorationSnapshot {
 }
 
 function Restore-PtSettingsUiSnapshot {
-    param([Parameter(Mandatory)]$Snapshot,$ReplacementIdentity)
+    param([Parameter(Mandatory)]$Snapshot,$ReplacementIdentity,[switch]$NoActivate)
     $session=Get-PtActiveResourceSession
     if($session){
         Assert-PtResourceSession $session
@@ -319,6 +319,10 @@ function Restore-PtSettingsUiSnapshot {
     $winUi=$Snapshot.Identity.className -ceq 'WinUIDesktopWin32WindowClass'
     $normalFinal=$Snapshot.Native.visible -and $Snapshot.Native.placement.showCmd -notin 2,6,7,11
     $placement=Get-PtWindowSnapshot $Snapshot.Identity.hwnd
+    if($NoActivate -and (-not $normalFinal -or
+        (ConvertTo-Json $placement -Depth 20 -Compress) -cne (ConvertTo-Json $Snapshot.Native -Depth 20 -Compress))){
+        throw 'Non-activating Settings restoration requires unchanged visible normal placement.'
+    }
     $alreadyRestored=$false
     if($normalFinal -and (ConvertTo-Json $placement -Depth 20 -Compress) -ceq (ConvertTo-Json $Snapshot.Native -Depth 20 -Compress)){
         $current=Read-PtSettingsUiState $Snapshot.Identity.hwnd -AllowUnselected
@@ -330,7 +334,9 @@ function Restore-PtSettingsUiSnapshot {
         # Restore original layout before applying scroll percentages. WinUI may unload its
         # automation subtree while minimized, so observe while surfaced, then re-minimize.
         Restore-PtWindowSnapshot $Snapshot.Native|Out-Null
-        Show-PtSettingsForObservation $Snapshot.Identity.hwnd -RevealNavigation:($Snapshot.Scope -contains 'AuthorizedReplacementIdentity')
+        if(-not $NoActivate){
+            Show-PtSettingsForObservation $Snapshot.Identity.hwnd -RevealNavigation:($Snapshot.Scope -contains 'AuthorizedReplacementIdentity')
+        }
         $current=Wait-PtSettingsUiState $Snapshot.Identity.hwnd
         if(-not (Test-PtSettingsUiStateMatch -Expected $Snapshot.Ui -Actual $current -AllowWinUiFloatReadback:$winUi)){
             Set-PtSettingsUiState -Hwnd $Snapshot.Identity.hwnd -State $Snapshot.Ui -DeferScroll:$normalFinal

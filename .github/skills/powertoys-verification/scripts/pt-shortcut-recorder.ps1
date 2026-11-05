@@ -99,6 +99,13 @@ function Get-PtShortcutDisplay {
     if($Dialog){$keys}else{$keys -join ' + '}
 }
 
+function Get-PtShortcutOwnerName {
+    param($Snapshot)
+    if($Snapshot -is [Collections.IDictionary]){return $Snapshot['WithinName']}
+    $property=$Snapshot.PSObject.Properties['WithinName']
+    if($property){$property.Value}
+}
+
 function Get-PtShortcutEditor {
     param($Snapshot)
     Assert-PtWindowIdentity $Snapshot.Identity
@@ -108,7 +115,8 @@ function Get-PtShortcutEditor {
     if(-not $page.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected){
         throw 'The expected Settings page is not selected; no shortcut control was changed.'
     }
-    $button=Resolve-PtUiElement -Hwnd $Snapshot.Identity.hwnd -AutomationId $Snapshot.AutomationId -ControlType Button -WithinAutomationId $Snapshot.WithinAutomationId
+    $button=Resolve-PtUiElement -Hwnd $Snapshot.Identity.hwnd -AutomationId $Snapshot.AutomationId -ControlType Button `
+        -WithinAutomationId $Snapshot.WithinAutomationId -WithinName (Get-PtShortcutOwnerName $Snapshot)
     if(-not $button.Current.IsEnabled -or $button.Current.IsOffscreen){throw 'Shortcut edit control is disabled or offscreen.'}
     $button
 }
@@ -135,7 +143,9 @@ function Assert-PtShortcutSnapshot {
     if((ConvertTo-PtShortcutKey $saved.Original) -cne (ConvertTo-PtShortcutKey $Snapshot.Original) -or
         $saved.SettingsPath -cne $Snapshot.SettingsPath -or ($saved.PropertyPath -join "`0") -cne ($Snapshot.PropertyPath -join "`0") -or
         $saved.PageAutomationId -cne $Snapshot.PageAutomationId -or $saved.AutomationId -cne $Snapshot.AutomationId -or
-        $saved.WithinAutomationId -cne $Snapshot.WithinAutomationId -or $saved.OriginalHelpText -cne $Snapshot.OriginalHelpText -or
+        $saved.WithinAutomationId -cne $Snapshot.WithinAutomationId -or
+        (Get-PtShortcutOwnerName $saved) -cne (Get-PtShortcutOwnerName $Snapshot) -or
+        $saved.OriginalHelpText -cne $Snapshot.OriginalHelpText -or
         (ConvertTo-Json $saved.Identity -Compress) -cne (ConvertTo-Json $Snapshot.Identity -Compress)){
         throw 'Shortcut baseline/target differs from the persisted receipt; do not mutate Original to construct a new chord.'
     }
@@ -148,7 +158,8 @@ function Get-PtShortcutSnapshot {
     [CmdletBinding()]
     param([Parameter(Mandatory)][long]$Hwnd,[Parameter(Mandatory)][string]$PageAutomationId,
         [Parameter(Mandatory)][string]$SettingsPath,[Parameter(Mandatory)][string[]]$PropertyPath,
-        [Parameter(Mandatory)][string]$Workspace,[string]$AutomationId='EditButton',[string]$WithinAutomationId)
+        [Parameter(Mandatory)][string]$Workspace,[string]$AutomationId='EditButton',[string]$WithinAutomationId,[string]$WithinName)
+    if($WithinName -and -not $WithinAutomationId){throw 'WithinName requires an explicit WithinAutomationId owner.'}
     Initialize-PtUiAutomation
     $directory=(Get-Item -LiteralPath $Workspace -ErrorAction Stop).FullName
     if(-not [IO.Directory]::Exists($directory)){throw 'Shortcut receipts require an existing workspace directory.'}
@@ -157,7 +168,7 @@ function Get-PtShortcutSnapshot {
     $snapshot=[pscustomobject]@{
         Schema='PtShortcut.v1';Workspace=$directory;Identity=Get-PtWindowIdentity $Hwnd;PageAutomationId=$PageAutomationId
         SettingsPath=[IO.Path]::GetFullPath($SettingsPath);PropertyPath=@($PropertyPath)
-        AutomationId=$AutomationId;WithinAutomationId=$WithinAutomationId
+        AutomationId=$AutomationId;WithinAutomationId=$WithinAutomationId;WithinName=$WithinName
         Original=$binding;ExpectedCurrent=$binding;OriginalHelpText=''
         ReceiptPath=Join-Path $directory "shortcut-$([Guid]::NewGuid().ToString('N')).json"
     }

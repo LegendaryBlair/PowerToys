@@ -70,19 +70,34 @@ Check 'Persisted receipts protect original values, target addressing and concurr
     function Get-PtShortcutKeyName {param($Code,$Hwnd) 'F11'}
     $path=Join-Path $Workspace 'snapshot-settings.json'
     [IO.File]::WriteAllText($path,(ConvertTo-Json @{properties=@{shortcut=(Chord $true $false $false $true 122)}} -Depth 8))
-    $snapshot=Get-PtShortcutSnapshot -Hwnd 1 -PageAutomationId fixture -SettingsPath $path -PropertyPath properties,shortcut -Workspace $Workspace
+    $snapshot=Get-PtShortcutSnapshot -Hwnd 1 -PageAutomationId fixture -SettingsPath $path -PropertyPath properties,shortcut `
+        -Workspace $Workspace -WithinAutomationId LayoutRoot -WithinName 'Pin shortcut'
     $loaded=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($snapshot.ReceiptPath))
     Assert-PtShortcutSnapshot $loaded
+    Require ($loaded.WithinAutomationId -ceq 'LayoutRoot' -and $loaded.WithinName -ceq 'Pin shortcut') 'Combined owner scope was not persisted.'
+    $loaded.WithinName='Increase opacity'
+    Reject {Assert-PtShortcutSnapshot $loaded} 'baseline/target differs'
+    $loaded=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($snapshot.ReceiptPath))
     $loaded.Original.win=$false
     Reject {Assert-PtShortcutSnapshot $loaded} 'baseline/target differs'
     $loaded=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($snapshot.ReceiptPath))
     $loaded.ReceiptPath=Join-Path $Workspace 'unowned.json'
     Reject {Assert-PtShortcutSnapshot $loaded} 'Invalid shortcut ownership'
+    $legacy=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($snapshot.ReceiptPath))
+    $legacy.PSObject.Properties.Remove('WithinName')
+    [IO.File]::WriteAllText($legacy.ReceiptPath,(ConvertTo-Json $legacy -Depth 15))
+    & {Set-StrictMode -Version Latest;Assert-PtShortcutSnapshot $legacy}
+    [IO.File]::WriteAllText($snapshot.ReceiptPath,(ConvertTo-Json $snapshot -Depth 15))
+    Assert-PtShortcutSnapshot $snapshot
     $foreign=Chord $false $true $false $true 123
     [IO.File]::WriteAllText($path,(ConvertTo-Json @{properties=@{shortcut=$foreign}} -Depth 8))
     Reject {Set-PtShortcutBinding $snapshot (Chord $true $true $false $false 121)} 'outside this transaction'
     Reject {Restore-PtShortcutSnapshot $snapshot} 'outside this transaction'
     Require ((ConvertTo-PtShortcutKey (Get-PtShortcutBinding $path @('properties','shortcut'))) -ceq (ConvertTo-PtShortcutKey $foreign)) 'Concurrent state was overwritten'
+}
+Check 'Named owner refinement requires an AutomationId before resolving any UI' {
+    Reject {Get-PtShortcutSnapshot -Hwnd 1 -PageAutomationId fixture -SettingsPath unused -PropertyPath properties,shortcut -Workspace $Workspace -WithinName 'Unbounded owner'} 'requires an explicit WithinAutomationId'
+    Reject {Resolve-PtUiElement -Hwnd 0 -AutomationId EditButton -ControlType Button -WithinName 'Unbounded owner'} 'requires an explicit WithinAutomationId'
 }
 Check 'Recorded commands use the real public signature and retain escaped snapshot/binding values' {
     function Get-PtActiveVerificationAttempt {[pscustomobject]@{Id='synthetic'}}
