@@ -1,0 +1,86 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "E2F632CF7E5964B892E0FE2282C7D5BA85428A821E64BF94D9C6C45D692CB625",
+  "Items": [
+    {"Id":"TE-ACTIVATION","Assertions":[
+      {"Id":"TE-ACTIVATION.shortcut","Description":"Enable through Settings and activate the current shortcut from a normal-user owned foreground scene; observe the overlay.","Sources":["baseline:L607-L608"]},
+      {"Id":"TE-ACTIVATION.escape","Description":"Escape closes all overlays and leaves the clipboard unchanged.","Sources":["baseline:L609"]},
+      {"Id":"TE-ACTIVATION.reopen","Description":"The same shortcut reopens the overlay after Escape.","Sources":["baseline:L610"]},
+      {"Id":"TE-ACTIVATION.context-cancel","Description":"Right-click the selection surface and choose Cancel; all overlays close without changing the clipboard.","Sources":["baseline:L611"]}
+    ]},
+    {"Id":"TE-DISABLE","Assertions":[
+      {"Id":"TE-DISABLE.off","Description":"After proven shortcut activation, disable through Settings; UI and persisted enabled state are off and the same shortcut does not open the overlay.","Sources":["baseline:L612"]},
+      {"Id":"TE-DISABLE.reenable","Description":"Re-enable through Settings and observe successful activation; restore original enablement."}
+    ]},
+    {"Id":"TE-EVENT","Assertions":[
+      {"Id":"TE-EVENT.show","Description":"The enabled module's existing show event opens an overlay that can be dismissed; this is not keyboard-binding evidence.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-CAPTURE","Assertions":[
+      {"Id":"TE-CAPTURE.region","Description":"Select rendered PowerToys Text Extractor; clipboard contains those words in order and the overlay closes.","Sources":["baseline:L613-L614","PR:49431"]},
+      {"Id":"TE-CAPTURE.word","Description":"Click the rendered PowerToys word; only that word is copied and the overlay closes.","Sources":["PR:49431"]},
+      {"Id":"TE-CAPTURE.blank","Description":"Capture a blank owned region; no clipboard change, recoverable no-text message, and overlay remains open.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-FORMAT","Assertions":[
+      {"Id":"TE-FORMAT.single-line","Description":"Single-line capture joins both rendered lines in order without line breaks.","Sources":["PR:49431"]},
+      {"Id":"TE-FORMAT.table","Description":"Table capture preserves two rendered rows and tab-separated columns in a clearly spaced two-column fixture.","Sources":["PR:49431"]},
+      {"Id":"TE-FORMAT.s","Description":"S changes the single-line toolbar toggle; a second S restores its initial value.","Sources":["PR:49431"]},
+      {"Id":"TE-FORMAT.t","Description":"T changes the table toolbar toggle; a second T restores its initial value.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-SELECTION","Assertions":[
+      {"Id":"TE-SELECTION.shift","Description":"While dragging, Shift-movement translates the selected region without resizing before capture.","Sources":["PR:49431"]},
+      {"Id":"TE-SELECTION.cancel-clip","Description":"Escape during a drag closes overlays, copies nothing, and restores the original cursor clipping bounds.","Sources":["PR:49431"]},
+      {"Id":"TE-SELECTION.crosshair","Description":"The crosshair remains visible while moving through the selection interior, excluding toolbar and display edges.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-ERROR","Assertions":[
+      {"Id":"TE-ERROR.layout","Description":"On WinUI builds, the blank-capture error appears below every toolbar control without overlap.","Sources":["PR:49431"]},
+      {"Id":"TE-ERROR.keyboard","Description":"After blank capture and without refocusing, S, T and every available language number among 1-9 change the corresponding state; cancellation remains usable.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-LANGUAGE","Assertions":[
+      {"Id":"TE-LANGUAGE.context","Description":"With at least two OCR languages, a right-click language change updates checked menu and toolbar state and recognizes a known sample in the selected language.","Sources":["baseline:L615"]},
+      {"Id":"TE-LANGUAGE.toolbar","Description":"With at least two OCR languages, change the toolbar language and verify the context-menu checked item agrees.","Sources":["PR:49431"]},
+      {"Id":"TE-LANGUAGE.numbers","Description":"For every installed OCR language among the first nine, press its displayed number shortcut and observe the corresponding selected language.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-DISPLAYS","Assertions":[
+      {"Id":"TE-DISPLAYS.all","Description":"With multiple monitors, capture owned known text separately on every monitor and verify the words.","Sources":["baseline:L616-L617"]},
+      {"Id":"TE-DISPLAYS.mixed-dpi","Description":"With multiple monitors at different DPI, verify capture on each, recording physical bounds and scale separately.","Sources":["baseline:L616-L617","PR:49431"]},
+      {"Id":"TE-DISPLAYS.negative-origin","Description":"With a negative-origin display, verify correct text capture on that display.","Sources":["PR:49431"]},
+      {"Id":"TE-DISPLAYS.synchronized","Description":"With multiple overlays open, change language and formatting on one monitor and observe synchronized state on every other overlay.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-SHORTCUT","Assertions":[
+      {"Id":"TE-SHORTCUT.save","Description":"Save a collision-checked temporary shortcut through Settings; verify persisted code and all modifiers.","Sources":["baseline:L618-L619"]},
+      {"Id":"TE-SHORTCUT.new","Description":"The saved temporary shortcut activates the overlay.","Sources":["baseline:L619"]},
+      {"Id":"TE-SHORTCUT.old","Description":"The former shortcut does not activate after the replacement is saved.","Sources":["baseline:L619"]},
+      {"Id":"TE-SHORTCUT.restored","Description":"Restore the exact original shortcut through the recorder and verify activation.","Sources":["baseline:L619"]}
+    ]},
+    {"Id":"TE-PREFERRED","Assertions":[
+      {"Id":"TE-PREFERRED.save","Description":"With a second installed OCR language, change the Settings preference and verify the persisted native language name.","Sources":["baseline:L620"]},
+      {"Id":"TE-PREFERRED.applied","Description":"A new overlay starts in the new preferred language and captures a known sample correctly.","Sources":["baseline:L620"]},
+      {"Id":"TE-PREFERRED.restored","Description":"Restore the original preference; a fresh overlay uses that preference or the documented input-language fallback.","Sources":["baseline:L620"]}
+    ]},
+    {"Id":"TE-SETTINGS-ENTRY","Assertions":[
+      {"Id":"TE-SETTINGS-ENTRY.toolbar","Description":"On WinUI builds, the toolbar Settings button closes overlays and opens the Text Extractor Settings page.","Sources":["PR:49431"]},
+      {"Id":"TE-SETTINGS-ENTRY.context","Description":"On WinUI builds, the right-click Settings item closes overlays and opens the Text Extractor Settings page.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-CMDPAL","Assertions":[
+      {"Id":"TE-CMDPAL.activate","Description":"With the installed PowerToys extension available, invoke its Text Extractor activation command and observe the overlay.","Sources":["PR:44006"]},
+      {"Id":"TE-CMDPAL.settings","Description":"Invoke the extension's Text Extractor settings command and observe the correct Settings page.","Sources":["PR:44006"]},
+      {"Id":"TE-CMDPAL.disabled","Description":"While Text Extractor is disabled, its activation command is unavailable but its settings command remains available; restore original state.","Sources":["PR:44006"]}
+    ]},
+    {"Id":"TE-ATTRIBUTION","Assertions":[
+      {"Id":"TE-ATTRIBUTION.localized-link","Description":"With non-English Settings UI on a build containing localizable attribution links, inspect the localized label and open Text-Grab in an owned browser tab; restore tab/language/Settings state.","Sources":["PR:49690"]}
+    ]},
+    {"Id":"TE-APPEARANCE","Assertions":[
+      {"Id":"TE-APPEARANCE.light","Description":"In light Windows app theme, inspect toolbar, context menu and error text for readable, unclipped, nonoverlapping controls.","Sources":["PR:46218","PR:49431"]},
+      {"Id":"TE-APPEARANCE.dark","Description":"In dark Windows app theme, inspect toolbar, context menu and error text for readable, unclipped, nonoverlapping controls.","Sources":["PR:46218","PR:49431"]},
+      {"Id":"TE-APPEARANCE.localized","Description":"With installed non-English UI, inspect translated overlay labels, tooltips and error text; resource keys must not appear.","Sources":["PR:49431"]}
+    ]},
+    {"Id":"TE-TELEMETRY","Assertions":[
+      {"Id":"TE-TELEMETRY.events","Description":"In an authorized diagnostic-data environment, enable Diagnostic data and Enable viewing before a controlled restart, then verify invocation/cancellation/capture events from owned actions in Diagnostic data viewer and restore original settings.","Sources":["baseline:L1-L5","PR:49431"]}
+    ]},
+    {"Id":"TE-POLICY","Assertions":[
+      {"Id":"TE-POLICY.disabled","Description":"In an authorized disposable policy fixture, forced-disabled Text Extractor cannot be enabled or activated; restore exact original policy state.","Sources":["PR:49431"]},
+      {"Id":"TE-POLICY.enabled","Description":"In an authorized disposable policy fixture, forced-enabled Text Extractor cannot be disabled and can activate; restore exact original policy state.","Sources":["PR:49431"]}
+    ]}
+  ]
+}
