@@ -49,16 +49,26 @@ $items=@(@{Id='settings-adapter';Description='Installed Settings navigation, exp
 $preflight={
     param($attempt)
     $state=$global:PtInstalledSettingsAcceptance
-    $snapshot=Get-PtSettingsUiSnapshot $state.Identity.hwnd $attempt.Run.Workspace
-    if($snapshot.Ui.UnsupportedControls.Count){throw 'Original Settings has unsupported expansion/scroll state; do not navigate away from an incomplete baseline.'}
-    $state.AlternatePage=if($snapshot.Ui.PageAutomationId -eq 'GeneralNavItem'){'DashboardNavItem'}else{'GeneralNavItem'}
-    $path=New-PtVerificationArtifactPath $attempt 'initial-ui-state.json'
-    Write-PtReportText $path (ConvertTo-Json $snapshot -Depth 20)
-    Add-PtVerificationArtifact $attempt $path Evidence 'Exact original Settings baseline before navigation'|Out-Null
+    Assert-PtWindowIdentity $state.Identity
+    $process=Get-Process -Id $state.Identity.processId
+    if($process.SessionId -ne [Diagnostics.Process]::GetCurrentProcess().SessionId){throw 'Settings changed session.'}
     & "$skill\scripts\pt-session-diagnose.ps1"
 }
 $cases={
     param($run)
+    $state=$global:PtInstalledSettingsAcceptance
+    $snapshot=Get-PtSettingsUiSnapshot $state.Identity.hwnd $run.Workspace
+    if($snapshot.Ui.UnsupportedControls.Count){throw 'Original Settings has unsupported expansion/scroll state; do not navigate away from an incomplete baseline.'}
+    $state.AlternatePage=if($snapshot.Ui.PageAutomationId -eq 'GeneralNavItem'){'DashboardNavItem'}else{'GeneralNavItem'}
+    Invoke-PtVerificationCase -Run $run -Context Preflight -Name 'Review captured Settings baseline' `
+        -Command 'Record the existing Settings baseline after template prerequisite checks and capture' -Action {
+            param($attempt)
+            $state=$global:PtInstalledSettingsAcceptance
+            $snapshot=Get-PtSettingsUiSnapshot $state.Identity.hwnd $attempt.Run.Workspace
+            $path=New-PtVerificationArtifactPath $attempt 'initial-ui-state.json'
+            Write-PtReportText $path (ConvertTo-Json $snapshot -Depth 20)
+            Add-PtVerificationArtifact $attempt $path Evidence 'Exact original Settings baseline before navigation'|Out-Null
+    }|Out-Null
     Invoke-PtVerificationCase -Run $run -ItemId settings-adapter -Name 'Installed Settings adapter round trip' `
         -Command 'Reuse the borrowed Settings HWND; navigate, change supported visual state, then restore the captured original' -Action {
             param($attempt)

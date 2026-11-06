@@ -356,6 +356,12 @@ function Assert-PtRunResourcePlan {
             if($null -ne $resource.AllowRunnerRestart -and $resource.AllowRunnerRestart -isnot [bool]){
                 throw 'Settings AllowRunnerRestart must be Boolean when supplied.'
             }
+            if($null -ne $resource.NoActivate -and $resource.NoActivate -isnot [bool]){
+                throw 'Settings NoActivate must be Boolean when supplied.'
+            }
+            if($resource.NoActivate -eq $true -and $resource.AllowRunnerRestart -eq $true){
+                throw 'Non-activating Settings cannot permit Runner restart.'
+            }
             if($resource.Hwnd -isnot [long] -and $resource.Hwnd -isnot [int]){throw 'Settings resources require an explicit native HWND.'}
             if($resource.Hwnd -le 0 -or -not $handles.Add($resource.Hwnd)){
                 throw 'Settings HWNDs must be unique, positive values.'
@@ -696,7 +702,7 @@ function Complete-PtResourceSession {
             $snapshot=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($record.Path))
             $snapshot=Get-PtSettingsRestorationSnapshot -Snapshot $snapshot
             Assert-PtWindowIdentity $snapshot.Identity
-            $observed=Get-PtSettingsCurrentState $snapshot.Identity.hwnd -AllowTemporaryRestore
+            $observed=Get-PtSettingsCurrentState $snapshot.Identity.hwnd -AllowTemporaryRestore:($snapshot.NoActivate -ne $true)
             $ui=$observed.Ui;$native=$observed.Native
             if(-not (Test-PtSettingsUiStateMatch -Expected $snapshot.Ui -Actual $ui `
                 -AllowWinUiFloatReadback:($snapshot.Identity.className -ceq 'WinUIDesktopWin32WindowClass')) -or

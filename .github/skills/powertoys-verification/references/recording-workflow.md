@@ -18,6 +18,13 @@ initialize/preflight/cases/finally-cleanup/export lifecycle. Supply actual callb
 include the template, caller script and every loaded helper in the input snapshots.
 The template does not invent case steps or restoration claims.
 
+`Preflight` now runs **before** the template prepares Settings/desktop baselines and must be read-only.
+Keep identity, permission and input-availability observations there. Put navigation, fixture creation and
+baseline-dependent operations in `Cases`, after the original Settings state is captured. Existing callers
+that used an automatically captured Settings snapshot inside Preflight must move that work into Cases.
+For already-visible UIA-only Settings, use the resource plan's `NoActivate=$true`; do not disable guards to
+avoid an unavailable foreground. See [session safety](session-safety.md).
+
 For Color Picker, Workspaces and Shortcut Guide Scenario A runs, load the
 [frozen assertion inventory](assertion-inventories/README.md); the template rejects
 run-local regrouping. It also enables the [resource-session contract](session-safety.md).
@@ -38,6 +45,53 @@ Before final sealing, collect the required
 They count requests directly submitted by the executing agent, not nested calls recorded
 inside a script. The run template's `-Report` callback is the reporting-only slot after
 cleanup and before export; it receives a Diagnostic attempt and cannot stand in for cleanup.
+
+### Minimal template composition
+
+Use the same lifecycle for each module. The variables below are the caller's already prepared finite
+callbacks, frozen inventory, input files and cleanup plan, not another dispatcher. `$driveAndReview`
+uses `Invoke-PtVerificationCase` as shown below; do not manually reproduce Start/Stop around every action.
+Include any separate callback source files in `$inputs`.
+
+```powershell
+$report = {
+    param($attempt)
+    $journal = @(Read-PtReportEvents $attempt.Run)
+    $cleanup = @($journal | Where-Object {
+        $_.Type -eq 'AttemptStopped' -and $_.Phase -eq 'Cleanup'
+    } | Select-Object -Last 1)[0]
+    if (-not $cleanup) { throw 'Execution/cleanup cutoff is not available.' }
+    Add-PtAgentExecutionStatistics -Attempt $attempt `
+        -SessionLogPath $sessionLogPath -SessionId $executionSessionId `
+        -EntryToolCallId $entryToolCallIds `
+        -ExecutionSegments @(@{
+            StartUtc = $journal[0].Timestamp
+            EndUtc = $cleanup.Timestamp
+        }) | Out-Null
+}
+& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $workspace `
+    -Module $module -Bits $bits -Scenario A -Items $inventory.Items -Inputs $inputs `
+    -ResourcePlan $resources -CleanupPlan $cleanupPlan `
+    -Preflight $readOnlyChecks -Cases $driveAndReview -Report $report `
+    -Retrospective $retrospective
+```
+
+`$sessionLogPath` is the exact current execution session's authorized log, and `$executionSessionId` must
+match its observed identity. `$entryToolCallIds` contains runtime-observed outer execution request IDs,
+not invented IDs or inner function calls. No session-store directory scan or conversation retrieval is needed.
+The single segment above suits a continuous run. Supply separate explicit segments when reporting and
+later recovery divide execution. If a still-running outer entry started before the segment, supply its
+known `-EntryToolCallId` rather than dropping it or guessing which older pending call owns the run.
+Use `-CaseByToolCallId` only for known direct-call mappings; shared entry calls remain MULTI-CASE and unknown
+requests remain UNASSIGNED. Per-case driver metrics come from recorder steps, not expanded helper calls.
+
+The template protects reporting with `Invoke-PtVerificationCase` too. A statistics exception therefore closes
+its reporting attempt and preserves the original execution/cleanup errors. If reporting needs repair, open
+the unsealed run and use a reporting-only `Invoke-PtVerificationCase -Context Diagnostic -Kind Diagnostic`
+to regenerate/register statistics, then finalize normally. Do not rerun UI or use the template's execution
+`-Resume` merely to fix a report. A truly interrupted gesture still needs explicit state recovery.
+
+### Recorded case and review
 
 `Invoke-PtVerificationCase` handles attempt creation, nested command recording and closure.
 Its callback receives the attempt first. Review in groups of 3-5 cases; a successful callback

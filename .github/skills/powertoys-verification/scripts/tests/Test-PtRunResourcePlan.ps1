@@ -43,6 +43,15 @@ Check 'Settings restart permission must be an explicit Boolean resource field' {
     $copy.Resources[0].AllowRunnerRestart=$true
     Assert-PtRunResourcePlan $copy $steps
 }
+Check 'Non-activating Settings is explicit and cannot also allow restart' {
+    $copy=ConvertFrom-PtReportJson (ConvertTo-Json $plan -Depth 10)
+    $copy.Resources[0]|Add-Member NoteProperty NoActivate 'true'
+    Reject {Assert-PtRunResourcePlan $copy $steps} 'NoActivate must be Boolean'
+    $copy.Resources[0].NoActivate=$true
+    Assert-PtRunResourcePlan $copy $steps
+    $copy.Resources[0]|Add-Member NoteProperty AllowRunnerRestart $true
+    Reject {Assert-PtRunResourcePlan $copy $steps} 'cannot permit Runner restart'
+}
 Check 'Borrowed windows cannot omit ownership and duplicate resources remain invalid' {
     $copy=ConvertFrom-PtReportJson (ConvertTo-Json $plan -Depth 10)
     $copy.Resources[2].Ownership=$null

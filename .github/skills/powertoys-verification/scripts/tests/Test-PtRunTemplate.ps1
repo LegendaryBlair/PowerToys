@@ -4,6 +4,7 @@ $ErrorActionPreference='Stop'
 $skill=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . "$skill\scripts\pt-verification-report.ps1"
 . "$skill\scripts\pt-session-safety.ps1"
+. "$skill\scripts\pt-cleanup-plan.ps1"
 . "$skill\scripts\pt-state-snapshot.ps1"
 . "$skill\scripts\pt-assertion-inventory.ps1"
 [IO.Directory]::CreateDirectory($Workspace)|Out-Null
@@ -141,6 +142,70 @@ Require (-not (Test-Path "$skill\scripts\pt-run-handoff.ps1")) 'Removed helper i
 Require (@(Get-ChildItem $Workspace -Recurse -File -Filter '*handoff*').Count -eq 0) 'Run emitted cross-run artifacts'
 $receipt=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$Workspace\clean\resource-session.json"))
 Require (-not $receipt.PSObject.Properties['Shared']) 'New resource session retains cross-run state'
+
+$stubSkill=Join-Path $Workspace 'template-skill'
+[IO.Directory]::CreateDirectory("$stubSkill\scripts")|Out-Null
+[IO.Directory]::CreateDirectory("$stubSkill\scripts\hosts")|Out-Null
+Write-PtReportText "$stubSkill\SKILL.md" '# Synthetic template ordering fixture'
+Write-PtReportText "$stubSkill\scripts\hosts\clipboard-keeper.ps1" '# Not executed by this fixture'
+Write-PtReportText "$stubSkill\scripts\template-fixture.ps1" @'
+function New-PtResourceSession {
+    param($Run,$ResourcePlan)
+    $global:PtTemplateOrder.Session=[pscustomobject]@{RunId=$Run.Id;ResourcePlan=$ResourcePlan;Desktop=$null;Settings=@()}
+    $global:PtTemplateOrder.Session
+}
+function Get-PtActiveResourceSession {$global:PtTemplateOrder.Session}
+function Save-PtResourceSession {param($Session)}
+function Get-PtDesktopSnapshot {
+    $global:PtTemplateOrder.Events.Add('desktop')
+    if($global:PtTemplateOrder.Passive){throw 'Passive Settings must not require foreground.'}
+    @{coordinateSpace='Physical';foreground=@{hwnd=99};pointer=@{X=0;Y=0};windows=@()}
+}
+function Get-PtSettingsUiSnapshot {
+    param($Hwnd,$Workspace,[switch]$AllowRunnerRestart,[switch]$NoActivate)
+    $global:PtTemplateOrder.Events.Add('snapshot')
+    if(-not $global:PtTemplateOrder.Checked){throw 'Settings capture ran before prerequisite checks.'}
+    if($NoActivate.IsPresent -ne $global:PtTemplateOrder.Passive){throw 'Capture lost NoActivate.'}
+    $snapshot=[pscustomobject]@{Path=Join-Path $Workspace 'settings.json';Identity=@{hwnd=$Hwnd};NoActivate=$NoActivate.IsPresent}
+    Write-PtReportText $snapshot.Path (ConvertTo-Json $snapshot -Depth 5)
+    $global:PtTemplateOrder.Session.Settings=@($snapshot)
+    $snapshot
+}
+function Restore-PtSettingsUiSnapshot {
+    param($Snapshot,[switch]$NoActivate)
+    $global:PtTemplateOrder.Events.Add('restore-settings')
+    if($NoActivate.IsPresent -ne $global:PtTemplateOrder.Passive){throw 'Cleanup lost NoActivate.'}
+}
+function Restore-PtDesktopSnapshot {param($Snapshot) $global:PtTemplateOrder.Events.Add('restore-desktop')}
+function Complete-PtResourceSession {param($Attempt) $global:PtTemplateOrder.Events.Add('complete')}
+'@
+$orderOptions=@{Skill=$stubSkill;Module='Synthetic Settings ordering';Scenario='InfrastructureAcceptance'
+    Bits='No native UI';Items=$items;Inputs=$inputs;NoFriction=$true
+    ResourcePlan=@{Schema='PtRunResources.v1';Resources=@(@{Id='settings';Kind='Settings';Hwnd=42L;NoActivate=$true})}
+    CleanupPlan=@(@{Id='verification';Phase='Verify';DependsOn=@();Action={};Verify={$true}})
+    Preflight={param($attempt) $global:PtTemplateOrder.Events.Add('preflight');$global:PtTemplateOrder.Checked=$true}
+    Cases={param($run)
+        Require $global:PtTemplateOrder.Checked 'Cases ran before preflight'
+        Require ($global:PtTemplateOrder.Session.Settings.Count -eq 1) 'Cases ran before the original Settings baseline'
+        $global:PtTemplateOrder.Events.Add('cases')
+    }}
+try{
+    foreach($passive in $true,$false){
+        $global:PtTemplateOrder=@{Passive=$passive;Checked=$false;Session=$null;Events=[Collections.Generic.List[string]]::new()}
+        $orderOptions.ResourcePlan.Resources[0].NoActivate=$passive
+        & "$skill\templates\verification-run.ps1" @orderOptions -Workspace "$Workspace\ordering-$passive"|Out-Null
+        $expected=if($passive){'preflight,snapshot,cases,restore-settings,complete'}else{'preflight,desktop,snapshot,cases,restore-settings,restore-desktop,complete'}
+        Require (($global:PtTemplateOrder.Events -join ',') -ceq $expected) 'Template preparation/restoration order differs'
+    }
+    $global:PtTemplateOrder=@{Passive=$true;Checked=$false;Session=$null;Events=[Collections.Generic.List[string]]::new()}
+    $orderOptions.ResourcePlan.Resources[0].NoActivate=$true
+    $orderOptions.Preflight={param($attempt) $global:PtTemplateOrder.Events.Add('preflight');throw 'Prerequisite refused'}
+    Reject {& "$skill\templates\verification-run.ps1" @orderOptions -Workspace "$Workspace\ordering-refused"} 'Prerequisite refused'|Out-Null
+    Require (($global:PtTemplateOrder.Events -join ',') -ceq 'preflight,complete') 'Failed prerequisites reached desktop preparation or cases'
+    $orderOptions.ResourcePlan.Resources[0].NoActivate=$false
+    Reject {& "$skill\templates\verification-run.ps1" @orderOptions -Workspace "$Workspace\ordering-refused" -Resume} 'original resource plan'|Out-Null
+}finally{Remove-Variable PtTemplateOrder -Scope Global -ErrorAction SilentlyContinue;ClearSession}
+
 Remove-Variable PtTemplateFixtureState -Scope Global
 Write-PtReportText "$Workspace\results.json" '{"LocalRestoration":"PASS","IndependentRunBaselines":"PASS","CleanupFailureEvidence":"PASS","IndependentCleanup":"PASS","ResumeOriginalBaseline":"PASS","ResumePlanGuard":"PASS","ForeignChangesPreserved":"PASS","PrimaryAndCleanupErrors":"PASS","PreflightFailureCleanup":"PASS","RemovedCrossRunSurface":"PASS"}'
 "PASS: run-local template cleanup, resume and failure contracts; no module UI driven. $Workspace"
