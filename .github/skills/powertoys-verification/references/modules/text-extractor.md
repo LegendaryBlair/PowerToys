@@ -57,7 +57,7 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
 |---|---|---|---|
 | Enable/disable | Text Extractor Settings page | AutomationId `EnableTextExtractorToggleSwitch`, Button with TogglePattern | Shared Resident lifecycle snapshot/transition APIs; restore clipboard and dismiss owned overlays before disable. |
 | Edit shortcut | Settings; enabled module | Group `TextExtractorActivationShortcut` -> Button `EditButton` (AutomationIds) | Shared shortcut recorder: page `TextExtractorNavItem`, property segments `@('properties','ActivationShortcut')`, `-WithinAutomationId TextExtractorActivationShortcut`. Save/restore through the dialog; test activation separately. |
-| Set preference | Settings; enabled module; original persisted preference is independently restorable | ComboBox AutomationId `TextExtractorLanguageComboBox` | Read original persisted value and UI selection; `Select-PtComboBoxItem` with exact HWND, AutomationId and native ItemName. Selection commits immediately. An empty original preference has no default/input-language option in this UI: defer mutation without a separately validated restoration fixture. |
+| Set preference | Settings; enabled module; durable original captured before navigation | ComboBox AutomationId `TextExtractorLanguageComboBox` | Wrap `Select-PtComboBoxItem` in `Invoke-PtTextExtractorPreferenceChange` with the intended native name and wait for persistence in the callback. Restore with the [state adapter](#helper-boundaries), not a nonexistent default-language option. |
 | Capture region | Overlay idle; owned scene on one display | Fresh overlay/scene physical bounds | `winapp ui drag <x,y> <x,y> -w <overlay-hwnd> --json`. Keep endpoints inside the display and pad glyph bounds. Observe copy/error completion. |
 | Capture word | Overlay idle; desired glyph | Fresh physical point inside the word | Zero-distance `drag` supplies coordinate press/release. `click` accepts a selector, not an `x,y` string. |
 | Translate selection | Selecting; owned mouse-down | Current selection and pointer | Keep mouse-down paired with release; hold Shift using `Invoke-PtHeldKeys` during movement. Retain before/after border observations; setting geometry is not a drag. |
@@ -81,6 +81,11 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
   preference. Selecting that same language after a change writes its explicit name,
   not the original empty string. Settings can also reserialize the module version.
   Do not infer full-document or cached-model restoration from matching visible text.
+- The state adapter leaves the stale page before exact file rollback, recreates the
+  page after file-watcher settlement, and commits the **unchanged** shortcut through
+  the shared recorder. Only a full-document writeback retaining the original
+  preference establishes its Settings-cache result. It then restores original bytes
+  again and leaves the page; the caller restores the run's original Settings UI.
 - Wrap OCR copies with `Invoke-PtClipboardWrite`, using actual writer PID/start time
   and waiting for completion inside its action. Only then read attributed synthetic
   output. Retain exact spaces, line breaks and tabs; overlay closure is not accuracy.
@@ -105,7 +110,7 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
 | Keys inactive after blank capture | Retain error/focus/input receipts and test S/T/numbers before toolbar refocus. | Refocusing would conceal the behavior under test. |
 | Conditional fixture unavailable | Record actual display/language/authority; continue independent cases. | One monitor is not mixed-DPI coverage; language labels are not recognition evidence. |
 | Settings rollback conflict | Preserve original receipt and unknown changes; stop dependent mutations. | Snapshot existence is not restoration; never close borrowed Settings. |
-| Original preference is empty | Inspect the persisted value before mutation, not only the displayed language. Use an independently validated isolated/cache-safe fixture or defer the preference change. | No default ComboBox option restores empty. Cleanup-only file repair does not prove a UI round trip or cached Settings equivalence. |
+| Original preference is empty | Capture with `New-PtTextExtractorState`; use `Restore-PtTextExtractorState` for guarded bytes plus recreated-page writeback. Preserve the private journal if any stage fails. | No default option restores empty. File equality alone is not a cache result; cleanup is not a product language-selection assertion. |
 
 ## Fixtures and restoration
 
@@ -117,7 +122,7 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
 | OCR overlays | Activation | No pre-existing overlay; track newly observed identities under borrowed resident process. | Owned Cancel/Escape, not process kill. | All owned overlays absent; original enablement restored. |
 | Clipboard keeper | Capture / cancellation | Complete supported formats captured privately; original provider retained. | Restore once, assert, dispose before provider shutdown. | Native readback, no pending write, keeper exited. History is separate. |
 | Borrowed Settings | Navigation / configuration | Snapshot page, expansion, scroll and native placement before navigation. | Shared Settings UI restore; never close borrowed window. | Fresh original-state comparison after final navigation. |
-| General/module settings | Enablement / shortcut / preference | Durable private baseline of original existence/full document, before mutation; declare semantic versus byte-exact comparison. | UI lifecycle/shortcut/preference rollback only for restorable originals. Empty preference and serialization changes need a validated file/cache boundary; this profile does not supply one. | Original flag, six shortcut fields, preference/version and unrelated values match after final writers; visible text and file equality do not certify an unobserved cache. |
+| General/module settings | Enablement / shortcut / preference | Preserve general settings separately. The OCR state adapter encrypts the complete existing module file, including empty preference, version and original formatting, before navigation. | Restore enablement separately; the state adapter composes selected-file rollback and unchanged-shortcut UI writeback without closing Settings/Runner. | Byte hash equals the durable original after final UI operations; cache writeback matches all declared fields. Unknown changes are conflicts, not new baselines. |
 | Input / desktop | Physical gestures | Desktop/layout snapshots and original cursor clip; actual process integrity. | Release owned input; pointer before scene close; final Settings, foreground and layout restoration. | Fresh physical pointer, original foreground/layout and clip rectangle after all writes. |
 | External provider / tab | Palette / attribution | Declare exact executable before activation; preserve borrowed UI and own only new tabs/windows. | Supported normal close after clipboard dependencies. | No owned provider/tab survives; borrowed hosts remain. |
 
@@ -137,16 +142,29 @@ Use the shared [recorder/template](../recording-workflow.md),
 The keeper does not preserve clipboard history/cloud sync; establish separate safe
 handling if enabled. These helpers do not authorize policy, diagnostic-data, theme or
 language changes. Settings snapshots do not preserve unexposed drafts/IME composition.
-In particular, do not change an empty preferred-language setting on a borrowed
-Settings instance using only a ComboBox rollback plan. No general process restart or
-unconditional JSON overwrite is authorized to overcome that limitation.
+For preference changes, `scripts\pt-text-extractor-state.ps1` provides:
+
+| API | Contract |
+|---|---|
+| `New-PtTextExtractorState -SettingsPath -RecoveryPath` | Before navigation, capture the existing `settings.json` with the shared selected-file snapshot. Persist a current-user DPAPI-encrypted original in an existing private directory **outside** evidence. Returns metadata only; never replaces an existing baseline. |
+| `Invoke-PtTextExtractorPreferenceChange -RecoveryPath -PreferredLanguage -Action [-ArgumentList]` | Persist intent, execute one supplied UI action, then validate the complete document: only the requested preference and known serialization version may differ. The callback waits for persistence. Errors retain recoverable intent/owned writes without replay. |
+| `Restore-PtTextExtractorState -RecoveryPath -SettingsTarget -Workspace` | Use the exact borrowed Settings identity and run workspace. Navigate to General, restore original bytes, recreate OCR, verify unchanged-shortcut Save retains the original preference, and restore bytes again. Caller still owns final page/desktop/runtime observation. |
+| `Restore-PtTextExtractorFile -RecoveryPath` | File-only recovery stage for a quiescent writer. Supports process-boundary recovery and idempotence, but does **not** certify cache/UI restoration. |
+
+Do not record decrypted recovery objects or place the journal in a run archive.
+Selected-file rollback is conflict-aware, not a filesystem transaction; quiesce
+selected writers and preserve the journal on errors. Missing originals, unsupported
+shortcut schemas, disabled controls and unknown concurrent writes are refused rather
+than normalized. Full restoration intentionally performs a real unchanged-value Save;
+it is not a read-only operation or the shortcut helper's default no-op.
 
 ### Restoration order
 
 1. Release owned input, cancel owned overlays/popups and compare cursor clipping.
 2. Restore clipboard before module disable/provider exit; dispose only after the gate.
-3. Restore preferred language and shortcut through Settings, verify persistence, then
-   restore original enablement. Capture every actual startup-written sidecar.
+3. Restore preference with the state adapter while the module is enabled; observe a
+   new overlay's selected language independently. Restore other shortcut/enablement
+   changes separately and account for startup-written sidecars.
 4. Restore pointer while the owned scene is usable; close owned scenes/companions.
    Perform any authorized byte rollback only with quiescent writers.
 5. Restore borrowed Settings, original foreground/layout, then compare all resources

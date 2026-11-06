@@ -116,6 +116,9 @@ Check 'Recorded commands use the real public signature and retain escaped snapsh
     $snapshot=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($receipt.FullName))
     $result=Set-PtShortcutBinding $snapshot (Chord $true $true $false $false 121)
     Require ($result.Command.Contains('-Snapshot (ConvertFrom-PtReportJson') -and $result.Arguments[1].code -eq 121) 'Snapshot/binding were not retained'
+    $forced=Set-PtShortcutBinding $snapshot (Chord $true $true $false $false 121) -CommitUnchanged
+    Require ($forced.Arguments[4] -eq $true -and $forced.Command.Contains('-CommitUnchanged:$true')) 'Explicit unchanged commit was lost at the recorded boundary'
+    Reject {Set-PtShortcutBinding $snapshot (Chord $true $true $false $false 121) -Mode Cancel -CommitUnchanged} 'requires Save'
 }
 Check 'Failed receipt replacement leaves the original recovery record intact' {
     $file=Get-ChildItem $Workspace -Filter 'shortcut-*.json'|Select-Object -First 1
@@ -232,6 +235,8 @@ try{
                 }
                 $same=Set-PtShortcutBinding $snapshot (Chord $true $true $false $false 121)
                 Require (-not $same.Changed) 'Matching binding was rewritten'
+                $forced=Set-PtShortcutBinding $snapshot (Chord $true $true $false $false 121) -CommitUnchanged
+                Require ($forced.Committed -and -not $forced.Changed) 'Unchanged Save must commit without claiming a binding change'
             }finally{
                 $persisted=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($snapshot.ReceiptPath))
                 Restore-PtShortcutSnapshot $persisted|ConvertTo-Json -Depth 12|Set-Content "$Workspace\$($target.Name)-restored.json"

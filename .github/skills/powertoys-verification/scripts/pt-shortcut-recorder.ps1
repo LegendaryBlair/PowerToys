@@ -257,24 +257,25 @@ function Set-PtShortcutBinding {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Snapshot,[Parameter(Mandatory)]$Binding,
         [ValidateSet('Save','Cancel')][string]$Mode='Save',[ValidateRange(1,15)][int]$TimeoutSeconds=5,
-        [scriptblock]$CapturedObserver,[object[]]$ObserverArgumentList=@())
+        [scriptblock]$CapturedObserver,[object[]]$ObserverArgumentList=@(),[switch]$CommitUnchanged)
+    if($CommitUnchanged -and $Mode -ne 'Save'){throw 'CommitUnchanged requires Save mode.'}
     Assert-PtShortcutBinding $Binding
     Assert-PtShortcutSnapshot $Snapshot
     $desired=ConvertFrom-PtReportJson (ConvertTo-PtShortcutKey $Binding)
     $shortcutObserver=$CapturedObserver
     $shortcutObserverArguments=$ObserverArgumentList
     $drive={
-        param($target,$requested,$commitMode,$timeout)
+        param($target,$requested,$commitMode,$timeout,$commitUnchanged)
         $before=Get-PtShortcutBinding $target.SettingsPath $target.PropertyPath
         if((ConvertTo-PtShortcutKey $before) -cne (ConvertTo-PtShortcutKey $target.ExpectedCurrent)){
             throw 'Shortcut changed outside this transaction; refusing to overwrite concurrent state.'
         }
         $editor=Get-PtShortcutEditor $target
         if($editor.Current.HelpText -ine (Get-PtShortcutDisplay $before $target.Identity.hwnd)){throw 'Current UI and settings binding disagree.'}
-        $result=[pscustomobject]@{Before=$before;Requested=$requested;Mode=$commitMode;Changed=$false;Actual=$before
+        $result=[pscustomobject]@{Before=$before;Requested=$requested;Mode=$commitMode;Changed=$false;Committed=$false;Actual=$before
             DialogKeys=@();DialogWindowsArtworkObservable=$false;HelpText=$editor.Current.HelpText;Receipt=$target.ReceiptPath}
         if(Find-PtShortcutDialog $target $editor.Current.Name){throw 'A dialog already exists; it is not owned by this edit operation.'}
-        if($commitMode -eq 'Save' -and (ConvertTo-PtShortcutKey $before) -ceq (ConvertTo-PtShortcutKey $requested)){return $result}
+        if($commitMode -eq 'Save' -and -not $commitUnchanged -and (ConvertTo-PtShortcutKey $before) -ceq (ConvertTo-PtShortcutKey $requested)){return $result}
         Assert-PtShortcutInputIdle
         $dialog=$null;$originalError=$null
         try{
@@ -317,6 +318,7 @@ function Set-PtShortcutBinding {
                 $target.ExpectedCurrent=$requested
                 Save-PtShortcutSnapshot $target
                 (Get-PtShortcutDialogButton $dialog PrimaryButton).GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+                $result.Committed=$true
                 $after=Wait-PtCondition -Description 'exact persisted shortcut and complete UI HelpText' -TimeoutSeconds $timeout -Probe {
                     $actual=Get-PtShortcutBinding $target.SettingsPath $target.PropertyPath
                     $button=Get-PtShortcutEditor $target
@@ -325,7 +327,8 @@ function Set-PtShortcutBinding {
                         [pscustomobject]@{Binding=$actual;HelpText=$button.Current.HelpText}
                     }
                 }
-                $result.Actual=$after.Binding;$result.HelpText=$after.HelpText;$result.Changed=$true
+                $result.Actual=$after.Binding;$result.HelpText=$after.HelpText
+                $result.Changed=(ConvertTo-PtShortcutKey $before) -cne (ConvertTo-PtShortcutKey $after.Binding)
             }
         }catch{$originalError=$_;$originalError.Exception.Data['ShortcutReceipt']=$target.ReceiptPath;throw}
         finally{
@@ -351,9 +354,9 @@ function Set-PtShortcutBinding {
         $snapshotText=(ConvertTo-Json -InputObject $Snapshot -Depth 15 -Compress).Replace("'","''")
         $bindingText=(ConvertTo-PtShortcutKey $desired).Replace("'","''")
         Invoke-PtVerificationStep $attempt -Name 'Edit scoped shortcut binding' `
-            -Command "Set-PtShortcutBinding -Snapshot (ConvertFrom-PtReportJson '$snapshotText') -Binding (ConvertFrom-PtReportJson '$bindingText') -Mode $Mode -TimeoutSeconds $TimeoutSeconds # Optional observer source/arguments are retained in its nested step." `
-            -Implementation ${function:Set-PtShortcutBinding} -Action $drive -ArgumentList @($Snapshot,$desired,$Mode,$TimeoutSeconds)
-    }else{& $drive $Snapshot $desired $Mode $TimeoutSeconds}
+            -Command "Set-PtShortcutBinding -Snapshot (ConvertFrom-PtReportJson '$snapshotText') -Binding (ConvertFrom-PtReportJson '$bindingText') -Mode $Mode -TimeoutSeconds $TimeoutSeconds -CommitUnchanged:`$$($CommitUnchanged.IsPresent.ToString().ToLowerInvariant()) # Optional observer source/arguments are retained in its nested step." `
+            -Implementation ${function:Set-PtShortcutBinding} -Action $drive -ArgumentList @($Snapshot,$desired,$Mode,$TimeoutSeconds,$CommitUnchanged.IsPresent)
+    }else{& $drive $Snapshot $desired $Mode $TimeoutSeconds $CommitUnchanged.IsPresent}
 }
 
 function Restore-PtShortcutSnapshot {
