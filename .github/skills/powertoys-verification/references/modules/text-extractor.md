@@ -57,7 +57,7 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
 |---|---|---|---|
 | Enable/disable | Text Extractor Settings page | AutomationId `EnableTextExtractorToggleSwitch`, Button with TogglePattern | Shared Resident lifecycle snapshot/transition APIs; restore clipboard and dismiss owned overlays before disable. |
 | Edit shortcut | Settings; enabled module | Group `TextExtractorActivationShortcut` -> Button `EditButton` (AutomationIds) | Shared shortcut recorder: page `TextExtractorNavItem`, property segments `@('properties','ActivationShortcut')`, `-WithinAutomationId TextExtractorActivationShortcut`. Save/restore through the dialog; test activation separately. |
-| Set preference | Settings; enabled module | ComboBox AutomationId `TextExtractorLanguageComboBox` | Read original selection; `Select-PtComboBoxItem` with exact HWND, AutomationId and native ItemName. Selection commits immediately. Restore the original default/input-language option for an empty original string. |
+| Set preference | Settings; enabled module; original persisted preference is independently restorable | ComboBox AutomationId `TextExtractorLanguageComboBox` | Read original persisted value and UI selection; `Select-PtComboBoxItem` with exact HWND, AutomationId and native ItemName. Selection commits immediately. An empty original preference has no default/input-language option in this UI: defer mutation without a separately validated restoration fixture. |
 | Capture region | Overlay idle; owned scene on one display | Fresh overlay/scene physical bounds | `winapp ui drag <x,y> <x,y> -w <overlay-hwnd> --json`. Keep endpoints inside the display and pad glyph bounds. Observe copy/error completion. |
 | Capture word | Overlay idle; desired glyph | Fresh physical point inside the word | Zero-distance `drag` supplies coordinate press/release. `click` accepts a selector, not an `x,y` string. |
 | Translate selection | Selecting; owned mouse-down | Current selection and pointer | Keep mouse-down paired with release; hold Shift using `Invoke-PtHeldKeys` during movement. Retain before/after border observations; setting geometry is not a drag. |
@@ -77,6 +77,10 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
   Use shared live-file readers, not exclusive file reads.
 - Overlay language is session-only. A changed Settings preference needs a **new**
   overlay and independent selected-value/OCR observations.
+- The displayed preferred-language selection can represent an empty persisted
+  preference. Selecting that same language after a change writes its explicit name,
+  not the original empty string. Settings can also reserialize the module version.
+  Do not infer full-document or cached-model restoration from matching visible text.
 - Wrap OCR copies with `Invoke-PtClipboardWrite`, using actual writer PID/start time
   and waiting for completion inside its action. Only then read attributed synthetic
   output. Retain exact spaces, line breaks and tabs; overlay closure is not accuracy.
@@ -101,6 +105,7 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
 | Keys inactive after blank capture | Retain error/focus/input receipts and test S/T/numbers before toolbar refocus. | Refocusing would conceal the behavior under test. |
 | Conditional fixture unavailable | Record actual display/language/authority; continue independent cases. | One monitor is not mixed-DPI coverage; language labels are not recognition evidence. |
 | Settings rollback conflict | Preserve original receipt and unknown changes; stop dependent mutations. | Snapshot existence is not restoration; never close borrowed Settings. |
+| Original preference is empty | Inspect the persisted value before mutation, not only the displayed language. Use an independently validated isolated/cache-safe fixture or defer the preference change. | No default ComboBox option restores empty. Cleanup-only file repair does not prove a UI round trip or cached Settings equivalence. |
 
 ## Fixtures and restoration
 
@@ -112,7 +117,7 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
 | OCR overlays | Activation | No pre-existing overlay; track newly observed identities under borrowed resident process. | Owned Cancel/Escape, not process kill. | All owned overlays absent; original enablement restored. |
 | Clipboard keeper | Capture / cancellation | Complete supported formats captured privately; original provider retained. | Restore once, assert, dispose before provider shutdown. | Native readback, no pending write, keeper exited. History is separate. |
 | Borrowed Settings | Navigation / configuration | Snapshot page, expansion, scroll and native placement before navigation. | Shared Settings UI restore; never close borrowed window. | Fresh original-state comparison after final navigation. |
-| General/module settings | Enablement / shortcut / preference | Original existence and full document values, kept privately; declare semantic versus byte-exact comparison. | UI lifecycle, shortcut recorder and preference ComboBox restore. Byte rollback requires explicit ownership and quiescent writers. | Original flag, six shortcut fields, preference and unrelated values match; serialization is not byte equality. |
+| General/module settings | Enablement / shortcut / preference | Durable private baseline of original existence/full document, before mutation; declare semantic versus byte-exact comparison. | UI lifecycle/shortcut/preference rollback only for restorable originals. Empty preference and serialization changes need a validated file/cache boundary; this profile does not supply one. | Original flag, six shortcut fields, preference/version and unrelated values match after final writers; visible text and file equality do not certify an unobserved cache. |
 | Input / desktop | Physical gestures | Desktop/layout snapshots and original cursor clip; actual process integrity. | Release owned input; pointer before scene close; final Settings, foreground and layout restoration. | Fresh physical pointer, original foreground/layout and clip rectangle after all writes. |
 | External provider / tab | Palette / attribution | Declare exact executable before activation; preserve borrowed UI and own only new tabs/windows. | Supported normal close after clipboard dependencies. | No owned provider/tab survives; borrowed hosts remain. |
 
@@ -132,6 +137,9 @@ Use the shared [recorder/template](../recording-workflow.md),
 The keeper does not preserve clipboard history/cloud sync; establish separate safe
 handling if enabled. These helpers do not authorize policy, diagnostic-data, theme or
 language changes. Settings snapshots do not preserve unexposed drafts/IME composition.
+In particular, do not change an empty preferred-language setting on a borrowed
+Settings instance using only a ComboBox rollback plan. No general process restart or
+unconditional JSON overwrite is authorized to overcome that limitation.
 
 ### Restoration order
 
