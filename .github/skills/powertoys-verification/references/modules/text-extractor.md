@@ -81,6 +81,11 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
   preference. Selecting that same language after a change writes its explicit name,
   not the original empty string. Settings can also reserialize the module version.
   Do not infer full-document or cached-model restoration from matching visible text.
+- Selecting an already displayed language can be a UI no-op while the file still
+  contains an empty preference. To prepare an explicit-language fixture, select a
+  different installed language first, then the desired language, with each change
+  separately journaled. Verify automatic-language behavior against the current input
+  fallback, not a language name remembered from an earlier activation.
 - The state adapter leaves the stale page before exact file rollback, recreates the
   page after file-watcher settlement, and commits the **unchanged** shortcut through
   the shared recorder. Only a full-document writeback retaining the original
