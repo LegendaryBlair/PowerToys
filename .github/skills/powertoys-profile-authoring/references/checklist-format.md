@@ -15,7 +15,7 @@ engine merely to copy its presentation.
 | Author/run input records | Source wording/references/hashes, PR analysis, inclusion evidence, review decisions and historical comparisons |
 
 Source analysis is still required. Retain it in the existing Author/input records, not as
-another narrative the Runner must work through before reaching the cases. A short per-case
+another narrative the executing agent must work through before reaching the cases. A short per-case
 source reference is acceptable when useful; it is not a second test or a required history dump.
 
 Do **not** generate checklist sections named or serving the purpose of:
@@ -88,7 +88,7 @@ restoration obligations. Link the profile/fixture guide for the mechanics.
 Do not copy helper API catalogs, snapshot code, complete file inventories, recovery recipes
 or recorder instructions into this section. Conversely, do not remove safety requirements
 merely to shorten the document. For a profile-absent R0, reference the available shared
-guidance and provide the actual executable fixture plan in the neutral Runner packet;
+guidance and provide the actual executable fixture plan in the run inputs;
 do not link to a nonexistent mature profile.
 
 ## 4. Keep detailed assertions in the inventory
@@ -136,4 +136,4 @@ Before the input checkpoint and after each checklist revision, confirm:
   the candidate worktree. Formatting alone does not advance a live-validation claim.
 
 Retain the review result with existing Author round records. This is an automatic Author
-check, not an additional human approval gate or proof that the Runner can execute the cases.
+check, not an additional human approval gate or proof that the cases are executable.

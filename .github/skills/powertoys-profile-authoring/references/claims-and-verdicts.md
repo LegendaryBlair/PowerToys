@@ -114,6 +114,7 @@ filled verdict row as proof of execution:
 | Unexecuted by cause | External authority/hardware/safety limits, infrastructure/authoring gaps, specification decisions and confirmed product dependencies; retain IDs and evidence |
 | Execution coverage | Executed conditions divided by the full retained condition count, plus any separately labeled eligible-scope rate; never silently remove blocked conditions from the denominator |
 | Restoration and round status | Verified cleanup versus conflicts/unfinished recovery; R1 complete, full assessment with limits, or incomplete under the completion gate |
+| Execution independence | Same-agent confirmation by default; claim independent verification only when explicitly requested and actually performed with isolated context |
 
 Use the frozen inventory and its explicit matrix rows for these units; do not invent smaller assertions to
 inflate coverage. If an aggregate child's conditions are only partly observed, show that partial coverage
@@ -126,7 +127,7 @@ instead of receiving the same external-limit exemption. Apply the
 [R1 completion gate](stopping-policy.md#r1-completion-gate) without manufacturing non-BLOCKED results.
 
 A diagnostic/repair budget or no-progress stop permits ending that work, not erasing its gaps or recategorizing
-them as external limitations. Report root/batch attempts and time, deferred work and the exit reason alongside
+them as external limitations. Report per-root attempts and time, deferred work and the exit reason alongside
 the completion-gate outcome. Under the [finite exit policy](stopping-policy.md#finite-exit-policy), a finished
 R1/R2 session can still have incomplete coverage or unconfirmed repairs; neither forces another automatic round.
 
@@ -147,8 +148,9 @@ Before a from-scratch comparison, agree and record the experiment inputs:
   context, sibling helpers, fixtures, screenshots or prior checklist decisions.
 - Use a fresh Author session for a from-scratch generation when the existing Author has read the competing
   profile. Give it the revised authoring skill and declared source inputs, not the old module recipes/results.
-- Keep both the Author and Runner from recovering the excluded profile through old branches, Git history,
-  archives or session memory. The Runner is always fresh and receives only its current neutral packet.
+- Keep the author/executor from recovering the excluded profile through old branches, Git history,
+  archives or session memory. Any explicitly requested independent verifier receives only its neutral inputs;
+  ordinary same-agent execution is not an independent experiment.
 - Declare permitted generic helpers/templates and whether the checklist is regenerated or held fixed. Reusing
   a stronger module's profile/harness is a valid engineering choice, but label it reuse rather than from-scratch success.
 - After the candidate is committed and run, compare independently using the exact archived revisions and

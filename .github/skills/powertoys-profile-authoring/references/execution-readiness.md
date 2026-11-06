@@ -1,7 +1,7 @@
 # Execution readiness is Author work
 
 A profile saying "establish ownership" or "discover the operation" is not an implementation of that capability.
-Turn requirements into usable, tested mechanics before asking a confirmation Runner to rely on them.
+Turn requirements into usable, tested mechanics before relying on them for confirmation.
 This is an **automatic Author work checklist, not another human permission gate**.
 
 Use the existing recorder with finite, source-visible actions and `try/finally` restoration. Do not build a
@@ -20,7 +20,8 @@ operation/observation/restoration path, then continue the remaining round scope;
 
 Group assertions by the mechanics they share; do not create a framework or one adapter per checkbox.
 Keep this map with the round's private authoring records, and put the resolved operational instructions in the
-committed profile/helper/fixture. Send the Runner a neutral current plan, not the Author's diagnosis transcript.
+committed profile/helper/fixture. The current agent executes that plan by default; only an explicitly
+requested independent verifier needs a neutral handoff without the Author's diagnosis transcript.
 
 | Field | Required content |
 |---|---|
@@ -29,12 +30,14 @@ committed profile/helper/fixture. Send the Runner a neutral current plan, not th
 | State touched | Files, clipboard, history, windows, enabled state, processes, pins, temporary outputs |
 | Helper / fixture | Concrete implementation available at the candidate revision; no archived handles |
 | UI-test discovery | Reviewed test/helper and source revision when available, or searched locations/revision/access limits; reuse or fallback decision kept in Author records |
-| Validation | Test/probe receipt for the mechanism, including relevant failure/cleanup paths |
-| Runtime checks | What the Runner must independently confirm before using it |
+| Validation | Distinguish mechanical tests from an actual module operation/observation/restoration receipt, including relevant failure/cleanup paths |
+| Runtime checks | What must be freshly observed before using the capability |
 | Readiness | `ready`, `author-work`, `external-condition` or `spec-decision` |
 | Next action | Who does what; an exact missing condition rather than "needs ownership" |
 
 `ready` means the method exists and its mechanical contract has been checked, not that the product will PASS.
+It does not mean the module-specific chain has been exercised. Record that evidence explicitly in the
+existing Validation entry; a helper's presence, successful import or synthetic unit test cannot stand in for it.
 An available helper name is insufficient: inspect what it actually preserves, observes and restores.
 For example, enumerating clipboard formats is not a clipboard backup, and backing up one settings file does
 not restore history, clipboard or user windows.
@@ -101,19 +104,28 @@ bounded discovery does not limit R1 to the same selection.
   operation/result evidence and verify restoration; opening the module alone is insufficient. Retain the full
   inventory, record unexecuted conditions and known limits, and report partial discovery when core mechanics
   remain unproven. Valid product FAIL evidence is useful; successful product behavior is not a prerequisite.
-- **When R0 finds a gap:** continue independent safe assertions, return the affected IDs and evidence, and let
-  the Author prioritize repairs within the [approved limits](stopping-policy.md#diagnostic-and-repair-limits).
-  Do not make the Runner rewrite tracked materials or develop a new helper framework.
+- **Choose R0 by mechanism, not easiest checkbox count:** use the existing capability map to select a small
+  example of each distinct safely available core path. For OCR, a known-text capture, a negative/cancel path
+  and exact clipboard restoration exercise different guarantees; repeatedly opening the overlay does not.
+  Leave exhaustive parameter/condition matrices to R1. Missing specialist mechanisms stay explicit author
+  work or external conditions, not assumed readiness; this adds no approval checkpoint or new report.
+- **When R0 finds a gap:** continue independent safe assertions, record the affected IDs and evidence, and
+  prioritize repairs within the [approved limits](stopping-policy.md#diagnostic-and-repair-limits).
+  Restore affected state and close attempts before editing tracked materials. Do not develop a new helper framework.
 - **Before R1:** review readiness across the entire frozen inventory, including conditional matrices outside
   R0's sample. Address known fixture/helper/observer gaps within the repair allowance. Retain exhausted gaps
   and continue safe independent cases, rather than making one small unresolved issue prevent all R1 coverage.
   Do not send the same broken path again merely to repeat its BLOCKED result.
+  Reuse the candidate's supported template and protected case/Report callbacks. Keep prerequisite checks
+  before potentially activating preparation and keep UIA-only preservation distinct from keyboard-input needs.
+  Do not author another manual recorder lifecycle or statistics parser. Repair reporting from recorded
+  evidence without replaying successful UI actions.
 - **R1 scope and exit:** process every assertion and matrix condition, actually execute all safely available
   independent conditions, and verify restoration. Unprocessed work or unresolved infrastructure/specification
   gaps means incomplete R1, not a completed full confirmation. Cite concrete evidence for external limits
   and confirmed product dependencies; these remain assessed but unexecuted coverage.
   Restore/archive and exit after the full pass by default, even if its completion gate was not satisfied.
-- **R2 scope and exit:** only when explicitly authorized, fix a selected issue batch within its allowance and
+- **R2 scope and exit:** only when explicitly authorized, fix the selected issues within per-root and any explicit task limits and
   run one targeted confirmation with neighboring regressions. Restore/archive and exit with fixed, unresolved
   or incomplete results; do not start R3 automatically or treat an all-green result as a prerequisite to stop.
 - A genuine external condition can remain deferred. Record it without deleting its assertion or silently
@@ -154,7 +166,7 @@ Declare case/run ownership and indirect startup/companion writes. Distinguish he
 existing files from absence-capable rollback, and snapshots from conflict-aware guards. Complete final
 verification after the last required restart/write; restoring defaults is not restoring the captured baseline.
 If the helper lacks a required guarantee, repair/test that capability or state the concrete scoped limitation,
-not a fictional API or a generic instruction for the Runner to "ensure restoration".
+not a fictional API or a generic instruction to "ensure restoration".
 
 If an empty-history/destructive fixture cannot be obtained safely, use an already authorized isolated context,
 request the specific additional environment/authority if genuinely needed, or defer that condition. Never
@@ -226,9 +238,9 @@ Layer: expectation / profile / helper / fixture / environment / report
 Concrete change and candidate commit:
 Profile format review: <profile/contract identities, conformance and remaining gaps>
 Mechanical checks completed:
-Repair batch/root IDs, approaches and diagnostic/repair time consumed:
-Remaining allowance, stop reason and deferred lower-value work:
-Fresh Runner round/scope: <R1: full frozen inventory; R2+: affected IDs and neighboring regressions>
+Root causes, approaches and diagnostic/repair time consumed:
+Remaining per-root allowance, explicit task limits if any, stop reason and deferred work:
+Execution mode and round/scope: <same agent by default; R1: full inventory; authorized R2+: targeted regression>
 Remaining external conditions or decisions:
 ```
 
@@ -250,6 +262,9 @@ Use these to review an authoring iteration; they are not claims that this workfl
 
 | Situation | Expected workflow response |
 |---|---|
+| Ordinary profile authoring requests R0 and R1 | The current agent performs both sequentially; no mandatory child session or handshake |
+| User explicitly requests independent verification | Use the optional isolation contract; do not confuse it with ordinary R1 completion |
+| A tool request was denied in another execution role | Retain and respect the denial; do not replay the effect through the main agent or a wrapper |
 | Clipboard contains text/image; history is non-empty | Establish supported private backup + owned test data, or state the concrete unsatisfied condition; no blanket environment failure |
 | Old checkout lacks the current common helpers | Correct the verification baseline before authoring; do not reproduce the missing framework |
 | Current shared helper lacks a required guarantee | Improve that shared mechanism minimally with focused regressions; no module-local duplicate or guard bypass |
@@ -259,7 +274,7 @@ Use these to review an authoring iteration; they are not claims that this workfl
 | Old product checkout lacks a newer UI-test suite | Inspect current upstream read-only and pin its source identity without changing the execution baseline |
 | Existing UI tests cover only part of the manual requirements | Reuse their operating knowledge without shrinking the full checklist/inventory |
 | A UI test is green after action retries or process resets | Keep retry/reset evidence separate; confirm the adapted flow rather than inheriting a reliability claim |
-| High-integrity fixture, medium-integrity Runner | Repair/validate the normal-user setup; do not conclude product hotkey failure |
+| High-integrity fixture, medium-integrity PowerToys runner | Repair/validate the normal-user setup; do not conclude product hotkey failure |
 | Drag-reorder is disabled but a Move menu exists | Test the menu and put that recipe in the profile |
 | Settings value saved, but downstream action never observed | Preserve the partial observation; do not PASS the compound requirement |
 | No accepted reference image exists | Capture candidate evidence; reference promotion and behavioral verification are separate |
@@ -267,8 +282,9 @@ Use these to review an authoring iteration; they are not claims that this workfl
 | R1 selects only R0 failures or representative cases | Reject the reduced scope as full R1; retain the complete inventory and required matrices |
 | Every R1 row has a verdict but many conditions were never driven | Separate assessed from executed coverage and inspect blocker evidence; verdict assignment alone does not satisfy the completion gate |
 | A known fixture/observer defect leaves R1 cases blocked | Repair within the approved allowance or exit with incomplete authoring; do not relabel it as external or loop until green |
-| One minor point consumes the root/batch repair allowance | Stop that repair, preserve evidence and process other independent R1 conditions; no fresh allowance by renaming the issue |
-| R2 still reports a failure or blocked condition | Restore/archive and return the unresolved result; do not automatically modify again or dispatch R3 |
+| One minor point consumes its per-root repair allowance | Stop that repair, preserve evidence and process other independent R1 conditions; no fresh allowance by renaming the issue |
+| A historical cumulative repair balance is exhausted | Preserve it as history, not a current default gate; continue eligible work subject to per-root and explicit user/runtime limits, without adding timed checkpoints |
+| R2 still reports a failure or blocked condition | Restore/archive and return the unresolved result; do not automatically modify again or start R3 |
 | Child operation is unreachable after a valid upstream product failure | Retain the root finding and explicit unexecuted dependency; continue independent conditions without inventing extra product failures |
 | Profile has correct headings but mixes JSON paths with UI locators | Repair the contracted interaction/read-out separation before confirmation |
 | File helper cannot restore a required absent baseline | Implement/test suitable ownership-safe mechanics or keep the affected scope incomplete; do not fabricate a guard or pre-create the file to bypass the gap |

@@ -10,7 +10,7 @@ helpers, recorded verdicts or machine paths. Use only materials allowed by the c
 authoring/comparison scope; do not retrieve an excluded profile to fill gaps.
 
 Record this contract's path/hash with the Author's input record. Format compliance is an
-Author review gate, not proof of executable readiness, a fresh Runner confirmation or product
+Author review gate, not proof of executable readiness, completed verification or product
 correctness. It must not become a prerequisite for the authorized profile-absent R0 discovery.
 Aim for approximately 10 KB per profile, or 12 KB with a visual workflow. Remove duplicate
 generic mechanics and link their common owner; a separate fixture guide must not repeat the profile.
@@ -295,4 +295,4 @@ Format result: conforming / needs-author-work
 
 A conforming document can still expose a product failure or lack execution readiness.
 A discovery-stage commit is not an accepted profile. Preserve those distinctions and use
-[execution readiness](execution-readiness.md) before dispatching a confirmation.
+[execution readiness](execution-readiness.md) before a confirmation run.

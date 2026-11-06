@@ -24,7 +24,7 @@ Let the Author propose the selection and rationale from the checklist/PR claims.
 cases. This selection is for reference assets, **not** permission to omit the rest of the functional checklist.
 Choose approved test-owned content and define exactly what must remain visible.
 
-## 2. Record while the Runner executes
+## 2. Record during execution
 
 Use the selected execution revision's capture helpers and inspect the installed CLI help first:
 
@@ -100,7 +100,7 @@ Default promotion requires human acceptance. If the user explicitly delegates re
 policy and the independent expectation used; do not infer delegation from permission to record.
 The Author can prepare all candidates and a compact review sheet automatically.
 
-**Never make the current screenshot the expected baseline solely because it is repeatable or the Runner said
+**Never make the current screenshot the expected baseline solely because it is repeatable or the executing agent said
 PASS.** In particular, do not overwrite an older accepted reference to erase a regression. A migration may
 change toolkit styling without changing UX: distinguish semantic requirements from exact pixel equality and
 record intentional differences before accepting replacement references.
@@ -139,5 +139,5 @@ Use the current engine's asset layout if it differs. Link the visual index from 
 profile with every frame. Preserve hashes/relative artifact locators without committing machine-specific private
 archive paths. Label any annotated/redacted derivative and retain its source privately.
 
-The next fresh Runner receives only accepted references with their applicability, never candidate/failure images
+Later executions use only accepted references with their applicability, never candidate/failure images
 disguised as an answer key. Refresh references when their build/UI-stack/theme/locale applicability changes.

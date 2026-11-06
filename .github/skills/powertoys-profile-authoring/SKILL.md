@@ -1,14 +1,16 @@
 ---
 name: powertoys-profile-authoring
-description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a module profile, expand missing coverage, or iterate from test results. Starts an isolated worktree from the freshly fetched published verification WIP, checks existing coverage, and separates the harness baseline from product evidence. Learns from repository UI tests where available; reuses common helpers; requires bounded R0 discovery followed by full-inventory R1 in fresh Runner sessions, then exits by default. Applies approved diagnostic/repair limits; R2 needs explicit authorization and does not start R3 automatically. Makes scoped local commits. Profile authoring is not full-module signoff. Uses powertoys-verification, not a new multi-agent framework."
+description: "Create or refine PowerToys module verification checklists, profiles, helpers and visual references. Use when asked to author a module profile, expand missing coverage, or iterate from test results. Uses the published verification WIP and learns from repository UI tests where available. The current agent performs bounded R0 discovery, material revisions and full-inventory R1 sequentially, then exits. Independent Runner sessions are opt-in, never a default prerequisite. Retains input provenance, evidence, restoration and approved repair limits. R2 requires explicit authorization; no automatic R3. Makes scoped local commits. Profile authoring is not full-module signoff. Uses powertoys-verification, not a new orchestration framework."
 license: Complete terms in LICENSE.txt
 ---
 
 # Author a PowerToys verification profile
 
-Use **one Author** to prepare, inspect results and improve materials sequentially. For each execution, start a
-**fresh Runner session** with a neutral brief and an exact committed input revision. Do not require a permanent
-Engineer/Runner/Reviewer team or parallel agents on a shared desktop.
+Use **the current agent** to prepare materials, execute R0, improve the profile and execute full R1 sequentially.
+"Author" and "executor" are roles of that same agent, not separate processes. Do not launch a Runner subagent,
+standalone CLI session, coordinator or two-turn identity handshake by default. Keep one live driver per desktop.
+Use an independent Runner only when the user explicitly requests independent verification; label ordinary R1
+as same-agent confirmation, not evidence of fresh-session reproducibility.
 
 This skill defines the authoring workflow. `powertoys-verification` in the selected candidate worktree
 remains the execution engine: controls, classification, evidence, restoration and per-run archive.
@@ -20,7 +22,7 @@ Do not create an orchestration framework merely to follow this workflow.
 
 - Create verification coverage for a module without a dedicated checklist/profile.
 - Turn a release baseline and relevant merged PRs into reusable module knowledge.
-- Improve a profile/helper using actual execution failures, then confirm with a fresh Runner.
+- Improve a profile/helper using actual execution failures, then confirm the changed candidate.
 - Produce or refine visual-reference candidates from recorded core user flows.
 
 For a one-off module/PR verification with already-mature materials, use the verification engine directly.
@@ -34,12 +36,12 @@ the user says no commits. Push, PR creation, publishing media and CI require sep
 ### First-run authorization
 
 An explicit request to execute this authoring workflow includes **bounded R0 discovery and full-inventory R1**:
-launch fresh Runners, verify their inputs, perform the selected module's ordinary reversible UI checks and
-scoped captures, restore owned state and archive results. Do not request another routine Runner/desktop
+verify inputs, perform the selected module's ordinary reversible UI checks and scoped captures in the current
+agent, restore owned state and archive results. Do not request another routine agent/desktop
 approval or CLI permission arguments merely to begin. Respect a user-requested narrower task, but label it
 partial/scoped authoring rather than completion of the full workflow or R1.
 
-The Author prepares launch configuration from the task scope and effective runtime policy. This does not
+The current agent works within the task scope and its effective runtime policy. This does not
 override real tool/path denials, grant elevation, authorize installation/destructive operations, or imply
 `--allow-all`. Surface an actual runtime approval request when necessary, with the operation and reason.
 Unavailable conditional cases do not stop independent eligible coverage.
@@ -59,7 +61,7 @@ actual execution, profile acceptance and product sign-off remain separate; no PA
 ## Required reads
 
 1. Repository `AGENTS.md` and applicable instructions in the chosen worktree.
-2. [Runner session contract](references/runner-contract.md): context isolation, exact skill selection and handoff.
+2. [Execution contract](references/runner-contract.md): single-agent execution, exact inputs and optional independent verification.
 3. [Checklist format](references/checklist-format.md): Workspaces-style functional cases, concise fixture
    conventions and separate detailed assertion definitions. Read before checklist generation and each revision.
 4. [Module profile format](references/module-profile-format.md): the normative section order, exact table
@@ -73,10 +75,10 @@ actual execution, profile acceptance and product sign-off remain separate; no PA
 8. [Claims and verdicts](references/claims-and-verdicts.md) before finalizing the checklist or reviewing results.
 9. [Execution readiness](references/execution-readiness.md), including
    [UI-test discovery and conditional reuse](references/execution-readiness.md#learn-from-existing-ui-tests) before designing
-   recipes/helpers; revisit before dispatch and when repairing a run's blockers.
+   recipes/helpers; revisit before execution and when repairing a run's blockers.
 
-The verification skill loaded from the current chat is **not evidence** that a later Runner loads the same
-version. Read and attest the actual Runner worktree files.
+The verification skill cached in the current chat is **not evidence** of the candidate's actual version.
+Read the selected worktree files and record the sources actually used.
 Record this authoring skill's path/revision/hash separately from the candidate's execution inputs.
 If the proposed execution base lacks the current shared loader, recorder or template, correct the base
 selection before authoring; do not recreate those capabilities or copy an old verification tree into it.
@@ -95,13 +97,13 @@ Keep this skill's format contract and the selected WIP guidance consistent; reso
 | UI-test discovery | Reviewed tests/helpers and reuse limits when available; otherwise searched locations/revision or access limits and the source/live-discovery fallback |
 | Checklist format | Loaded checklist-format contract path/hash; functional prose and matching assertion inventory |
 | Profile format | Loaded format-contract path/hash and applicability of its conditional sections |
-| Runner scope | Round and inventory identity/counts; all IDs and matrix conditions for R1, explicit selections for R0/R2+; environment, authorized state changes and artifacts |
+| Execution scope | Round and inventory identity/counts; all IDs and matrix conditions for R1, explicit selections for R0/R2+; environment, authorized state changes and artifacts |
 | Visual scope | Core states and scoped capture plan; reference-promotion approval is separate from R0 execution |
-| Exit/repair policy | Default exit after R1; approved per-root/batch limits and task overrides; explicit authorization/scope for R2 or later work |
+| Exit/repair policy | Default exit after R1; per-root repair limits and any explicit user/runtime limits; no default cumulative cap or timed checkpoints; explicit authorization/scope for R2 or later work |
 | Regeneration/comparison | From-scratch or reuse; allowed prior materials, fixed baseline/build/helper conditions and fresh Author context where needed |
 
 Ask only about choices that materially change expectations, scope, permissions, visual authority or investment.
-Discover ordinary paths/control IDs and prepare Runner configuration yourself. Complete the authorized initial
+Discover ordinary paths/control IDs and prepare finite execution steps yourself. Complete the authorized initial
 sequence through full R1 assessment, then return `needs-review`; further work requires explicit authorization.
 If a genuine limit prevents it, report the round incomplete with exact remaining work, not a completed R1.
 Do not convert silence into an unlimited loop or an invented convergence threshold.
@@ -113,14 +115,14 @@ fresh published-verification-WIP author branch
   -> existing-coverage check: create missing material or refine existing material
   -> UI-test discovery: reuse relevant tests if present; otherwise source/live discovery
   -> checklist/inventory + input checkpoint
-  -> fresh Runner R0 (representative core mechanisms, actual observations and restoration)
+  -> current agent executes R0 (representative core mechanisms, observations and restoration)
   -> initial evidence-derived profile + local commit
   -> bounded, prioritized improvements + local commit
-  -> fresh Runner R1 on that commit (full frozen inventory and all matrix conditions)
+  -> same agent executes R1 on that commit (full frozen inventory and all matrix conditions)
   -> restore + archive + review -> EXIT by default
 
 only when explicitly authorized:
-  fixed repair scope/budget -> bounded repair + commit -> fresh Runner R2 (targeted regression)
+  fixed repair scope/budget -> bounded repair + commit -> same-agent R2 (targeted regression)
   -> restore + archive + report fixed/unresolved/incomplete -> EXIT (no automatic R3)
 ```
 
@@ -148,7 +150,7 @@ $verificationSkill = Join-Path $authorWorktree '.github\skills\powertoys-verific
 Verify that this tree contains the shared inventory loader, recorder, resource/cleanup adapters and
 `templates\verification-run.ps1`. Load their actual contracts. Do not stash, clean, reset, overwrite unrelated
 changes or silently import helpers from another worktree. The Author may use this authoring skill as a
-separately recorded guidance input; the Runner uses only the candidate's declared execution engine.
+separately recorded guidance input; execution uses only the candidate's declared engine.
 
 Before creating files, check the module catalog, profile, checklist, assertion inventory, helper scripts,
 specialist references and relevant stashed drafts read-only. Distinguish:
@@ -238,7 +240,7 @@ Review the initial scope/ambiguous expectations with the user as needed.
 
 Create a **local input checkpoint commit** for the checklist and any approved supporting changes. This extra
 checkpoint makes the first no-profile run reproducible; it is not a claim that a profile already exists.
-If commits are prohibited, pause to agree an explicit hashed-snapshot alternative to the commit-based Runner
+If commits are prohibited, pause to agree an explicit hashed-snapshot alternative to the commit-based input
 contract; do not label dirty material with its base commit and pretend it is the tested revision.
 
 **Output:** functional checklist, matching stable assertion inventory and testable input revision;
@@ -262,51 +264,52 @@ Non-empty clipboard/history is not automatically untestable. Protect private pay
 exposure while using permitted local programmatic backup/restoration. If preservation or authority is genuinely
 unavailable, defer only the dependent conditions and continue independent coverage.
 
-Record actual host/Runner/module/foreground-fixture integrity, not merely IsAdmin for the shell. Normal-user
-hotkey checks must not accidentally target an elevated fixture. Measure DPI/geometry and use fresh observations.
+Record actual automation-host/PowerToys-runner/module/foreground-fixture integrity, not merely IsAdmin for
+the shell. Normal-user hotkey checks must not accidentally target an elevated fixture. Measure DPI/geometry and use fresh observations.
 Do not infer delivery from a successful SendInput call or a previous log line.
-Checkpoint any added helper/fixture with focused mechanical checks before giving its revision to the Runner.
+Checkpoint any added helper/fixture with focused mechanical checks before using that revision for confirmation.
 Validate inventory import, exact counts/IDs, required parameters, links and cleanup contracts before the
 bounded real-user-flow check. Missing hardware or blocked observation remains scoped evidence, not proof
 that a profile is complete; offline contract tests do not establish live restoration.
+Select R0 examples by distinct core input/observer/restoration mechanisms in the existing capability map,
+not by the easiest assertions. Before R1, distinguish a mechanically checked helper from a module path
+actually exercised and restored; keep remaining gaps explicit without blocking unrelated safe work.
 
-### 2. Run the checklist in a fresh session
+### 2. Execute R0 in the current agent
 
-Follow [the Runner contract](references/runner-contract.md). Use the clean, committed author worktree while
-the Author pauses all edits; a separate detached execution worktree is optional. Start a new session at the
-exact candidate commit, not a fork/resume of the Author or a previous round's Runner.
+Follow [the execution contract](references/runner-contract.md). Use the selected committed module worktree,
+the candidate's verification engine and the existing recorder's input snapshots. Pause material edits while
+driving that candidate. There is no child dispatch, neutral handoff packet or separate approval acknowledgment
+in the default workflow. Check actual prerequisites and proceed directly to the permitted finite actions.
+Keep the resolved fixture/restoration plan and remaining runtime checks with the run's ordinary inputs.
+Use the candidate engine's supported template/case wrappers and reporting helper instead of rebuilding
+their lifecycle. Preflight checks must precede any potentially activating preparation; preserve the original
+Settings state before navigation. Prefer its non-activating adapter for already-visible UIA-only work.
 
-Provide only the neutral task packet: scope, expected behaviors from the checklist, exact engine/material paths
-and hashes, product identity, permissions and artifact destinations. Do not provide the Author's reasoning,
-desired verdicts, previous PASS labels, troubleshooting transcript or private notes.
-Include the resolved fixture/restoration plan and remaining runtime checks from the capability map, not a
-promise that the Runner can somehow establish them without an implementation.
-
-For a new-profile R0, explicitly declare `profile: absent`. The Runner uses the candidate's generic engine,
-discovers controls and writes execution artifacts; it must not invent a mature profile before trying the UI.
+For a new-profile R0, explicitly declare `profile: absent`. Use the candidate's generic engine to discover
+controls and write execution artifacts; do not invent a mature profile before trying the UI.
 For refinement/reuse, supply the existing committed profile as an explicit input instead. Do not delete it
 merely to fit the new-profile path or describe that run as from-scratch generation.
 State the round's coverage mode explicitly. A focused discovery/repair run cannot stand in for full R1;
-unavailable conditions remain in the frozen inventory with evidence, not silently filtered from the packet.
+unavailable conditions remain in the frozen inventory with evidence, not silently filtered from the scope.
 
-Use an identity-only first turn. The Author **automatically** verifies its handshake and sends execution
-authorization in that same new Runner session; this is an input-consistency check, not a human approval gate.
-The acknowledgment contains no troubleshooting/coaching. Run one live driver per shared desktop. The Runner records
+Run one live driver per shared desktop. The current agent records
 raw actions/observations/errors, per-assertion results, restoration and retrospective; unavailable conditional
 coverage does not stop unrelated eligible cases. Scripts failing are not automatically environment/product failures.
 Apply [evidence-based verdicts](references/claims-and-verdicts.md): setup/integrity failures cannot establish
 a product defect, and unavailable dependent actions do not become additional product failures.
 
-The Runner may write recorded, run-local driving code. It may not hot-edit the tested checklist/profile/shared
-helpers, write product fixes, commit changes or launch another authoring loop. This task-level split overrides
-the execution skill's normal instruction to update profiles after a run: return discoveries/gaps to the Author.
+Write finite, recorded run-local driving code when needed. Do not hot-edit the tested checklist/profile/shared
+helpers or write product fixes while a candidate is executing. Restore affected state and close its attempts
+before revising formal materials; checkpoint and record changed inputs for later execution. The same agent
+performs this transition without a role handoff or a reset of repair counters.
 
 **Output:** archived run, actual session/input identities, observations, round completion status,
 assessed versus executed coverage, remaining IDs/causes and restoration status.
 
-Do not stop at the input checkpoint with a generic "Runner approval unavailable" claim. If R0 cannot start,
+Do not stop at the input checkpoint with a generic "approval unavailable" claim. If R0 cannot start,
 retain the actual denied operation/error or the verified missing runtime capability and identify what is needed;
-an unfilled permission-template variable is configuration work for the Author, not evidence of a denial.
+an absent child-session configuration is not a default prerequisite or evidence of a denial.
 
 ### 3. Generate the module profile and make a local commit
 
@@ -370,7 +373,7 @@ the evidence, implementation, checks and intended confirmation IDs. When helpers
 warnings or stricter evidence gates alone is not completion of this improvement step.
 
 For every change retain: original problem/evidence, chosen layer, diff, affected assertion IDs, confirmation plan
-and completed helper checks, including root-cause attempts/time and remaining batch allowance.
+and completed helper checks, including root-cause attempts/time and any explicit task limits.
 A static selector replacement or renamed failure category alone is not proof of improvement.
 Reapply the checklist/profile format review gates to the corresponding revised materials and update
 candidate/contract hashes. Checklist reformatting must preserve assertion semantics and distinct conditions.
@@ -384,18 +387,19 @@ profile generation, record that fact and test the initial-profile commit; do not
 **Output:** candidate commit and the full frozen inventory for R1; later rounds may select affected assertions
 and neighboring regressions only when authorized. Address known repairable gaps across R1's safely available
 conditions within the repair allowance, not only R0's sample. At a limit, retain the gap and continue independent
-safe coverage; do not dispatch the same broken path just to repeat its failure. Unresolved gaps remain Author
+safe coverage; do not rerun the same broken path just to repeat its failure. Unresolved gaps remain Author
 work and prevent a ready/full-completion claim, but do not require an endless repair loop.
 
-### 5. Start another fresh Runner on the candidate; repeat only as authorized
+### 5. Execute full R1 in the same agent; repeat only as authorized
 
-Start a new Runner session at the next committed candidate and repeat the full identity handshake.
-The same clean worktree can be reused after the preceding run ends; the new Runner gets the new materials,
-not the Author's explanation of why they should now pass.
+Keep the current agent and module worktree. Start the R1 execution record against the committed candidate,
+using the engine's actual input snapshots and fresh product observations. R0 knowledge may guide operation,
+but previous PASS labels and expectations are not evidence of the R1 outcome. Independent verification is
+optional and requires an explicit request; absence of a fresh Runner does not make ordinary R1 incomplete.
 
 Before R1, prioritize known infrastructure gaps across the full safely available inventory and check profile
 format conformance within the repair allowance. Keep exhausted gaps explicit and continue safe independent
-cases; if none can run safely, stop with R1 incomplete. Do not repeatedly dispatch unchanged broken paths.
+cases; if none can run safely, stop with R1 incomplete. Do not repeatedly execute unchanged broken paths.
 This profile gate does not apply to profile-absent R0. No routine human "approve R1" prompt is needed.
 Before R2, require an explicit authorized repair list, regression selection and allowance, then perform one
 targeted confirmation on the committed candidate. Do not add unrelated fixes or retry the round until green.
@@ -414,7 +418,8 @@ After each run:
 2. Compare observations and explanations, not just PASS counts; review the tested snapshots and distinct
    subconditions, not later-edited profiles or different coverage denominators.
 3. Check required round completion separately from the chosen [acceptance/further-iteration policy](references/stopping-policy.md).
-4. Restore/archive and exit at the round boundary; dispatch another round only under explicit authorization.
+4. Proceed from completed R0 through revisions to the authorized R1. Restore/archive and exit after R1 or
+   an authorized R2; do not start an extra round without explicit authorization.
 
 The [finite exit policy](references/stopping-policy.md#finite-exit-policy) governs R1 and authorized R2:
 PASS is not an exit prerequisite. Return confirmed repairs, unresolved findings, actual coverage and restoration.
@@ -435,8 +440,8 @@ from the newly fetched published baseline; a permanently reused authoring branch
 
 Deliver:
 
-- Base/branch and checkpoint commits; actual Runner session IDs and material/build identities.
-- Checklist/profile/helper paths and what the latest fresh run actually supports.
+- Base/branch and checkpoint commits; actual execution session IDs, mode and material/build identities.
+- Checklist/profile/helper paths and what the latest run actually supports.
 - Checklist/profile format-contract identities and review receipts, separate from execution readiness.
 - Immutable report locations, per-assertion gaps and separate product findings.
 - Round coverage/completion, actual execution counts, unprocessed conditions and blocker causes; never just verdict totals.
