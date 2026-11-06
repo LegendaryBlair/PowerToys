@@ -115,6 +115,8 @@ try{
     Require ($failure.Exception.Message -match 'Original execution error') 'Statistics error masked execution failure'
     Require ($failure.Exception.Data['ReportPreparationFailure'] -match 'Statistics extraction error') 'Secondary reporting error lost'
     Require ($global:PtStatisticsFixture.Cleaned -and $global:PtStatisticsFixture.ReportCalled) 'Failed execution skipped cleanup or reporting'
+    $failedState=Get-PtReportState (Open-PtVerificationRun "$Workspace\failed")
+    Require (@($failedState.Attempts|Where-Object {-not $_.Complete}).Count -eq 0) 'Report failure left an open attempt that blocks later report-only repair'
     Write-PtReportText "$Workspace\results.json" '{"ReportAfterCleanup":"PASS","StatisticsCutoff":"PASS","UnavailableDuration":"PASS","InlineStatistics":"PASS","LatestStatistics":"PASS","SelfContainedResults":"PASS","IntegrityCovered":"PASS","TamperingRefused":"PASS","CrossRunStatisticsRefusedBeforeSealing":"PASS","InvalidTotalsRefusedBeforeSealing":"PASS","RestorationScopePreserved":"PASS","PrimaryAndReportingErrorsPreserved":"PASS"}'
 }finally{
     $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}

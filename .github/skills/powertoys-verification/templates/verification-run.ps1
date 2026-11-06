@@ -4,6 +4,7 @@
 Thin one-run lifecycle. Supply module observations/review and explicit restoration callbacks.
 .NOTES
 Callbacks receive the run (Cases) or active attempt (Preflight/Cleanup). This is not a scheduler.
+Preflight is read-only and runs before automatic Settings baseline preparation. Cases run after it.
 No UI, retries, restarts, fixtures or verdicts are invented by this template.
 Report receives a reporting-only Diagnostic attempt after cleanup and before sealing.
 Its optionality preserves legacy callers; new skill-guided runs supply the required statistics.
@@ -114,8 +115,15 @@ try {
         }
         if(-not $Resume){$resources.ResourcePlan=$ResourcePlan;Save-PtResourceSession $resources}
     }
+    Invoke-PtVerificationCase -Run $run -Context Preflight -Name 'Preflight' `
+        -Command 'Check actual prerequisites without changing product or desktop state' -Action $Preflight | Out-Null
     if($SettingsHwnd.Count){
-        if(-not $resources.Desktop){
+        $needsDesktop=$false
+        foreach($hwndValue in $SettingsHwnd){
+            $resource=@($ResourcePlan.Resources|Where-Object {$_.Kind -eq 'Settings' -and $_.Hwnd -eq $hwndValue})
+            if($resource.Count -ne 1 -or $resource[0].NoActivate -ne $true){$needsDesktop=$true}
+        }
+        if($needsDesktop -and -not $resources.Desktop){
             if($Resume){throw 'Resume has no original desktop baseline; do not replace it with current state.'}
             $resources.Desktop=Get-PtDesktopSnapshot
             Save-PtResourceSession $resources
@@ -123,6 +131,7 @@ try {
         foreach($hwndValue in $SettingsHwnd){
             $resource=@($ResourcePlan.Resources|Where-Object {$_.Kind -eq 'Settings' -and $_.Hwnd -eq $hwndValue})
             $restartable=$resource.Count -eq 1 -and $resource[0].AllowRunnerRestart -eq $true
+            $noActivate=$resource.Count -eq 1 -and $resource[0].NoActivate -eq $true
             $existing=@($resources.Settings|Where-Object {$_.Identity.hwnd -eq $hwndValue})
             if($Resume -and $restartable -and $existing.Count -eq 1 -and $existing[0].RestartAuthorization){
                 if($existing[0].Hash -cne (Get-PtReportHash ([IO.File]::ReadAllBytes($existing[0].Path)))){
@@ -130,11 +139,10 @@ try {
                 }
                 continue
             }
-            Get-PtSettingsUiSnapshot -Hwnd $hwndValue -Workspace $run.Workspace -AllowRunnerRestart:$restartable|Out-Null
+            Get-PtSettingsUiSnapshot -Hwnd $hwndValue -Workspace $run.Workspace `
+                -AllowRunnerRestart:$restartable -NoActivate:$noActivate|Out-Null
         }
     }
-    Invoke-PtVerificationCase -Run $run -Context Preflight -Name 'Preflight' `
-        -Command 'Capture this run baseline and evaluate its actual prerequisites' -Action $Preflight | Out-Null
     & $Cases $run | Out-Null
 } catch { $rootError = $_ }
 finally {
@@ -155,7 +163,7 @@ finally {
                     foreach($record in $state.Settings){
                         try{
                             $snapshot=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($record.Path))
-                            Restore-PtSettingsUiSnapshot $snapshot|Out-Null
+                            Restore-PtSettingsUiSnapshot $snapshot -NoActivate:($snapshot.NoActivate -eq $true)|Out-Null
                         }
                         catch{
                             if($cleanupError){$cleanupError.Exception.Data["Settings-$($record.Identity.hwnd)"]=$_.Exception.Message}

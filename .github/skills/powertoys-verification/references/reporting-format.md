@@ -477,6 +477,21 @@ can include user waits, code authoring, queue idle or uninstrumented activity.
 
 ### Required artifacts and report view
 
+Use `scripts\pt-agent-statistics.ps1` rather than regenerating an extractor per module.
+`Get-PtAgentExecutionStatistics -Run -SessionLogPath -SessionId -ExecutionSegments` returns the existing
+schema; `Add-PtAgentExecutionStatistics` takes `-Attempt` instead of `-Run` and registers it as Evidence
+inside the template's protected Report callback. It reads only the named source file, bounds the read to
+its opening length and projects tool metadata; no raw argument/result/conversation payload is published.
+
+Completed calls overlapping a segment are included even when their start precedes it. A still-running
+pre-segment entry needs its known `-EntryToolCallId`; other older pending calls are not assumed to belong.
+Optional `-CaseByToolCallId` maps known call IDs to frozen case IDs. Time overlap alone is not attribution.
+The helper emits every inventory case row from outer recorded executing steps, excluding nested steps and
+review-only attempts. Missing completions or truncated case spans remain null with explicit limitations.
+Wait durations are unioned within the selected segments, not summed across overlapping requests.
+Source identity errors, missing declared entries and contradictory metadata fail explicitly; do not substitute
+zero counts. See the [minimal composition](recording-workflow.md#minimal-template-composition).
+
 `statistics.json` must contain the run ID, counting mode `agent-origin-requests`, source
 session IDs/event ranges/cutoff, collection time, module totals, per-case rows, non-case
 rows and explicit limitations. Use the following field names for inline rendering:

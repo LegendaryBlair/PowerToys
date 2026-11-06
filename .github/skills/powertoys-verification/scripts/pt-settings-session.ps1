@@ -159,12 +159,16 @@ function Get-PtSettingsUiSnapshot {
     <#.SYNOPSIS
     Capture the borrowed Settings window before navigation, preserving only explicitly supported state.
     #>
-    param([Parameter(Mandatory)][long]$Hwnd,[Parameter(Mandatory)][string]$Workspace,[switch]$AllowRunnerRestart)
+    param([Parameter(Mandatory)][long]$Hwnd,[Parameter(Mandatory)][string]$Workspace,
+        [switch]$AllowRunnerRestart,[switch]$NoActivate)
+    if($NoActivate -and $AllowRunnerRestart){throw 'Non-activating Settings cannot permit Runner restart.'}
     $identity=Get-PtWindowIdentity $Hwnd
     $session=Get-PtActiveResourceSession
     if($session){
         Assert-PtResourceSession $session
         $planned=@($session.ResourcePlan.Resources|Where-Object {$_.Kind -eq 'Settings' -and $_.Hwnd -eq $Hwnd})
+        if($planned.Count -eq 1 -and $planned[0].NoActivate -eq $true){$NoActivate=[switch]$true}
+        if($NoActivate -and $AllowRunnerRestart){throw 'Non-activating Settings cannot permit Runner restart.'}
         if($AllowRunnerRestart -and $planned.Count -eq 1 -and $planned[0].AllowRunnerRestart -ne $true){
             throw 'Settings restart permission must agree with the original resource plan.'
         }
@@ -177,11 +181,14 @@ function Get-PtSettingsUiSnapshot {
                 throw 'Settings original snapshot changed.'
             }
             $original=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($existing[0].Path))
+            if($NoActivate -and $original.NoActivate -ne $true){
+                throw 'Non-activating preservation cannot be added after baseline capture.'
+            }
             Assert-PtWindowIdentity $original.Identity
             return $original
         }
     }
-    $current=Get-PtSettingsCurrentState $Hwnd -AllowTemporaryRestore
+    $current=Get-PtSettingsCurrentState $Hwnd -AllowTemporaryRestore:(-not $NoActivate)
     $native=$current.Native;$ui=$current.Ui
     Assert-PtWindowIdentity $identity
     if(Get-PtActiveResourceSession){Register-PtBorrowedWindow $identity|Out-Null}
@@ -191,6 +198,7 @@ function Get-PtSettingsUiSnapshot {
         UnsupportedState=@('IME composition/conversion','Keyboard focus','Unsaved page drafts','Unexposed scroll state')+@($ui.UnsupportedControls)
         Path=Join-Path $Workspace "settings-ui-$([guid]::NewGuid().ToString('N')).json"
     }
+    if($NoActivate){$snapshot|Add-Member NoteProperty NoActivate $true}
     if($AllowRunnerRestart){
         if(-not $session){throw 'Restartable Settings requires an active resource session.'}
         $process=Get-PtResourceProcessIdentity -ProcessId $identity.processId
@@ -310,6 +318,7 @@ function Restore-PtSettingsUiSnapshot {
         throw 'Settings baseline changed; refusing restoration.'
     }
     $Snapshot=Get-PtSettingsRestorationSnapshot -Snapshot $Snapshot -ReplacementIdentity $ReplacementIdentity
+    if($Snapshot.NoActivate -eq $true){$NoActivate=[switch]$true}
     if($ReplacementIdentity){
         $registered[0].ReplacementIdentity=$ReplacementIdentity
         $registered[0].Restored=$false

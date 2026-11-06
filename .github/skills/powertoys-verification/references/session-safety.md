@@ -4,7 +4,9 @@ This is a layer over the existing recorder, identities and module adapters, not 
 engine, scheduler or OS sandbox. Use it in the **same runspace** as UI driving. Imports do
 not capture the desktop. `New-PtResourceSession -Run` captures pre-existing native windows
 and process IDs; `Open-PtResourceSession -Run` resumes its original receipt, not a new baseline.
-The thin run template opens this layer before Preflight and completes it during Cleanup.
+The thin run template opens this layer before the read-only Preflight callback and completes it during Cleanup.
+Automatic Settings/desktop baseline preparation runs only after Preflight succeeds and before Cases.
+Move baseline-dependent navigation, fixture creation and other mutations out of Preflight into Cases.
 Direct bootstrap retains the supplied `-ResourcePlan`; do not recreate or force-add its member after activation.
 Opening the same validated active resource session is idempotent and preserves its in-memory
 guards; a different run still refuses activation. For same-runspace template continuation,
@@ -49,6 +51,13 @@ it must match exactly. Resume retains the same saved plan and original snapshots
 Undeclared clipboard capture and dedicated owned-process launch are refused.
 Identity checks and fixture-specific ownership validators still apply; a declaration alone
 does not grant window ownership or prove that an arbitrary callback restores state.
+
+For an already-visible, UIA-only Settings path, declare `NoActivate=$true` on that Settings resource.
+The template then captures without temporarily surfacing the window and restores with the same constraint.
+When every declared Settings resource uses this mode, the adapter does not require an unrelated foreground/
+pointer baseline. Input or other desktop changes still need their own declared preservation and guards.
+The mode is stored in the original snapshot and cannot be weakened on resume. Hidden/minimized capture or
+changed native placement is rejected rather than activated; `NoActivate` cannot also permit Runner restart.
 
 Use the same template for the actual module driver, not only its smoke test.
 `Test-PtRunResourcePlan.ps1` covers missing/mismatched wiring without accessing Settings
@@ -115,7 +124,7 @@ or closing Settings. The first snapshot per HWND remains the run baseline across
 `Invoke-PtSettingsScope -Hwnd -Workspace -Action` is the small paired borrow/restore driver.
 The action receives the exact Settings identity. It preserves action errors and reports
 restoration errors separately. Foreground/pointer remain the enclosing desktop scope's
-responsibility; the template captures/restores them when `-SettingsHwnd` is supplied.
+responsibility; the template captures/restores them for Settings paths that permit activation.
 
 Missing/ambiguous selected pages or duplicate stable control IDs refuse the baseline,
 before navigation. Unnamed/unexposed scroll or expansion state, IME composition/conversion,

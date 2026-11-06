@@ -124,10 +124,30 @@ function Set-PtSettingsUiState {param($Hwnd,$State,[switch]$DeferScroll) $script
 function Complete-PtSettingsObligation {param($Snapshot,$ReceiptPath)}
 $restored=Restore-PtSettingsUiSnapshot -Snapshot $restoreSnapshot -NoActivate
 Require ($restored.Restored -and $script:restoreCalls -eq 1) 'Visible UIA-only restoration did not restore the original page.'
+$restoreSnapshot|Add-Member NoteProperty NoActivate $true
+$restoreSnapshot.Path=Join-Path $Workspace 'passive-settings-stored.json'
+Write-PtReportText $restoreSnapshot.Path (ConvertTo-Json $restoreSnapshot -Depth 20)
+$script:restoreUi=@{PageAutomationId='AlwaysOnTopNavItem';Expansion=@();Scroll=@()}
+$restored=Restore-PtSettingsUiSnapshot -Snapshot $restoreSnapshot
+Require ($restored.Restored -and $script:restoreCalls -eq 2) 'Stored NoActivate was not enforced when the caller omitted the switch.'
 $script:restoreNative.placement.Left=10
 Reject {Restore-PtSettingsUiSnapshot -Snapshot $restoreSnapshot -NoActivate} 'unchanged visible normal placement'
 $script:restoreNative.placement.Left=0;$script:restoreNative.visible=$false
 Reject {Restore-PtSettingsUiSnapshot -Snapshot $restoreSnapshot -NoActivate} 'unchanged visible normal placement'
-Require ($script:restoreCalls -eq 1) 'Non-activating restoration mutated a moved or hidden window.'
+Require ($script:restoreCalls -eq 2) 'Non-activating restoration mutated a moved or hidden window.'
+$script:temporaryRestore=$null;$script:hiddenCapture=$false
+function Register-PtSettingsObligation {param($Snapshot)}
+function Get-PtSettingsCurrentState {
+    param($Hwnd,[switch]$AllowTemporaryRestore)
+    $script:temporaryRestore=$AllowTemporaryRestore.IsPresent
+    if($script:hiddenCapture -and -not $AllowTemporaryRestore){throw 'Hidden baseline was not surfaced.'}
+    @{Native=@{visible=$true;placement=@{showCmd=1}};Ui=@{PageAutomationId='GeneralNavItem';Expansion=@();Scroll=@();UnsupportedControls=@()}}
+}
+$captured=Get-PtSettingsUiSnapshot -Hwnd 1 -Workspace $Workspace -NoActivate
+Require ($captured.NoActivate -eq $true -and -not $script:temporaryRestore) 'Passive capture requested temporary activation'
+$script:hiddenCapture=$true
+Reject {Get-PtSettingsUiSnapshot -Hwnd 1 -Workspace $Workspace -NoActivate} 'Hidden baseline was not surfaced'
+$legacy=Get-PtSettingsUiSnapshot -Hwnd 1 -Workspace $Workspace
+Require $script:temporaryRestore 'Existing active capture lost explicit temporary-restoration support'
 Write-PtReportText "$Workspace\results.json" '{"StaleProviderRebind":"PASS","NonStaleFailurePropagation":"PASS","TransientProviderAbsence":"PASS","StrictBaseline":"PASS","RealizationPolling":"PASS","NoRedundantExpansion":"PASS","NavigationScrollFirst":"PASS","AmbiguousSelectionRefusal":"PASS","ExactWinUiWireReadback":"PASS","WinUiArithmeticRounding":"PASS","RealDriftRejected":"PASS","ObservedExtentChange":"PASS","NoBlindReplay":"PASS"}'
 "PASS: Settings readiness and non-activating restoration regressions with synthetic UIA elements only. $Workspace"
