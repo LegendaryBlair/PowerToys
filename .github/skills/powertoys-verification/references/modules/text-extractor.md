@@ -120,10 +120,11 @@ overlays. Observe arrival before continuing. This is not a fixed execution order
 
 The [scene helper](../../scripts/tests/Show-PtTextExtractorFixture.ps1) renders region,
 line/table text and blank space. Pass an existing new absolute `-StateDirectory` and
-optional zero-based `-MonitorIndex` to a dedicated `pwsh -STA` launch. Wait for
+optional zero-based `-MonitorIndex` to a dedicated `pwsh -STA` launch. Supply
+`-LanguageSample` with independently known text for an installed non-Latin OCR
+language when needed; read its `Language` region from the receipt. Wait for
 `ready.json`, check its PID against the creation receipt and inspect real bounds/pixels
-before input. It does not drive OCR, preserve state or assert results; its English
-content is not a non-Latin oracle.
+before input. It does not drive OCR, preserve state or assert results.
 
 Use the shared [recorder/template](../recording-workflow.md),
 [resource plan](../session-safety.md), [lifecycle](../module-lifecycle.md),

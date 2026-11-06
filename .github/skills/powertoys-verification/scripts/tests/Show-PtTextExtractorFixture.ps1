@@ -3,7 +3,8 @@
 #requires -Version 7.2
 param(
     [Parameter(Mandatory)][string]$StateDirectory,
-    [ValidateRange(0,31)][int]$MonitorIndex = 0
+    [ValidateRange(0,31)][int]$MonitorIndex = 0,
+    [string]$LanguageSample = ''
 )
 $ErrorActionPreference = 'Stop'
 if (-not [IO.Path]::IsPathFullyQualified($StateDirectory) -or
@@ -28,6 +29,7 @@ $font = [Drawing.Font]::new('Segoe UI', 24, [Drawing.FontStyle]::Regular)
 $labels = [Collections.Generic.List[object]]::new()
 foreach ($line in @(
     @{Id='Region';Text='PowerToys Text Extractor';X=0.10;Y=0.32},
+    @{Id='Language';Text=$LanguageSample;X=0.57;Y=0.32},
     @{Id='Line1';Text='Alpha Bravo';X=0.10;Y=0.52},
     @{Id='Line2';Text='Charlie Delta';X=0.10;Y=0.60},
     @{Id='Cell11';Text='Apple';X=0.57;Y=0.52},
