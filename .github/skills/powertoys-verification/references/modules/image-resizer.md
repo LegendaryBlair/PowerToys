@@ -32,6 +32,10 @@ test is isolated Unit coverage:
 | Real multiple-image and mixed success/failure batches | `ResizeFunctionalTests` |
 | Settings UI serializer -> module consumer -> output | `ResizeFunctionalTests.SettingsUiJsonDrivesRealBatchOutput` |
 | Native modern-menu selection -> real pipe -> pending batch (no processing) | `ResizeFunctionalTests.ShellSelectionCreatesExpectedPendingBatch` |
+| Classic selection -> inherited stdin -> pending batch, including Resize here destination | `ResizeFunctionalTests.ClassicShellSelectionCreatesExpectedPendingBatch` |
+| Classic receiver executable missing -> launch error, no pending batch | `ResizeFunctionalTests.ClassicShellSelectionRejectsMissingReceiver` |
+| Confirmed dialog options -> persisted settings -> real output -> close request | `ResizeWorkflowTests.ConfirmedOptionsDriveOutputBeforeClosing` |
+| Mixed processing results -> successful output retained -> error model -> close command | `ResizeWorkflowTests.MixedBatchKeepsOutputAndShowsErrors` |
 | Error aggregation, progress and pre-cancelled behavior | `ResizeBatchTests` with explicit settings and mocked operations |
 
 Before relying on this smaller release scope, identify the relevant lower-layer run and
@@ -45,6 +49,10 @@ and run the successfully built `ImageResizer.Test.exe --report-trx` from its out
 directory so relative fixtures resolve. Use the repository's platform/configuration
 options. The existing C# UITests are separate coverage and are not modified by this pilot.
 See `doc\devdocs\modules\imageresizer-test-layering-plan.md` for the design and execution results.
+The workflow tests use isolated child processes and a real dispatcher, but replace the
+window with a recording `IMainView`; actual control bindings, page loading and window
+closure still require E2E. Section 13 also records an existing stale filename-format
+cache limitation; the passing workflows do not claim live filename-format updates.
 
 ## Entry paths
 

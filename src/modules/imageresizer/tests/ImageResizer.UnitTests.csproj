@@ -6,11 +6,16 @@
     <ProjectGuid>{E0CC7526-D85E-43AC-844F-D5DF0D2F5AB8}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <SelfContained>true</SelfContained>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsPackageType>None</WindowsPackageType>
+    <!-- The SDK generates the same public auto-initializer types in this host and the referenced app; use the host's definitions. -->
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
     <RuntimeIdentifier Condition="'$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
     <RuntimeIdentifier Condition="'$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ImageResizer</RootNamespace>
     <AssemblyName>ImageResizer.Test</AssemblyName>
+    <StartupObject>ImageResizer.Test.SelectionReceiver</StartupObject>
 
     <OutputPath>$(SolutionDir)$(Platform)\$(Configuration)\tests\$(AssemblyName)\</OutputPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);ImageResizer.UITests\**</DefaultItemExcludes>

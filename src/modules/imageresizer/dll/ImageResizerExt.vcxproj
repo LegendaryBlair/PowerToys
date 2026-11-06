@@ -95,6 +95,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ContextMenuHandler.h" />
+    <ClInclude Include="ClassicShellSelection.h" />
     <ClInclude Include="dllmain.h" />
     <None Include="packages.config" />
     <None Include="resource.base.h" />

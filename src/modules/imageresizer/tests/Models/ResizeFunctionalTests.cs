@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using ImageResizer.Properties;
@@ -167,6 +168,100 @@ namespace ImageResizer.Models
                     await sender.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
                 }
             }
+        }
+
+        [TestMethod]
+        [DataRow(2, false)]
+        [DataRow(2, true)]
+        [DataRow(128, true)]
+        public async Task ClassicShellSelectionCreatesExpectedPendingBatch(int imageCount, bool resizeHere)
+        {
+            var images = Enumerable.Range(0, imageCount)
+                .Select(index => CopyImage($"{index:000} classic \u6d4b\u8bd5 \u00e9 \U0001f4f7.png"))
+                .ToArray();
+            var originals = images.ToDictionary(path => path, File.ReadAllBytes);
+            var destination = resizeHere ? Path.Combine(_directory, "resize here \u6d4b\u8bd5 \u00e9") : null;
+            if (destination != null)
+            {
+                Directory.CreateDirectory(destination);
+            }
+
+            using var reportDirectory = new TestDirectory();
+            var reportPath = Path.Combine(reportDirectory, "pending-batch.json");
+            var startInfo = CreateClassicSender(Path.Combine(AppContext.BaseDirectory, "ImageResizer.Test.exe"), destination, images, reportPath);
+            using var sender = Process.Start(startInfo);
+            try
+            {
+                await sender.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                var report = File.Exists(reportPath) ? File.ReadAllText(reportPath) : "Receiver produced no pending batch.";
+                Assert.AreEqual(0, sender.ExitCode, $"{await sender.StandardError.ReadToEndAsync()}\n{report}");
+                using var document = JsonDocument.Parse(report);
+                var pending = document.RootElement;
+                Assert.IsTrue(pending.GetProperty("IsInputRedirected").GetBoolean());
+                CollectionAssert.AreEquivalent(images, pending.GetProperty("Files").EnumerateArray().Select(file => file.GetString()).ToArray());
+                Assert.AreEqual(destination, pending.GetProperty("DestinationDirectory").GetString());
+                CollectionAssert.AreEquivalent(images, Directory.GetFiles(_directory, "*", SearchOption.AllDirectories));
+                foreach (var (path, contents) in originals)
+                {
+                    CollectionAssert.AreEqual(contents, File.ReadAllBytes(path));
+                }
+            }
+            finally
+            {
+                if (!sender.HasExited)
+                {
+                    sender.Kill(entireProcessTree: true);
+                    await sender.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task ClassicShellSelectionRejectsMissingReceiver()
+        {
+            var image = CopyImage("unchanged.png");
+            var original = File.ReadAllBytes(image);
+            var reportPath = Path.Combine(_directory, "unexpected-pending-batch.json");
+            var startInfo = CreateClassicSender(Path.Combine(_directory, "missing.exe"), null, new[] { image }, reportPath);
+            using var sender = Process.Start(startInfo);
+            try
+            {
+                await sender.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(1, sender.ExitCode);
+                StringAssert.Contains(await sender.StandardError.ReadToEndAsync(), "0x80070002");
+                Assert.IsFalse(File.Exists(reportPath));
+                CollectionAssert.AreEqual(original, File.ReadAllBytes(image));
+            }
+            finally
+            {
+                if (!sender.HasExited)
+                {
+                    sender.Kill(entireProcessTree: true);
+                    await sender.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+            }
+        }
+
+        private static ProcessStartInfo CreateClassicSender(string receiver, string destination, string[] images, string reportPath)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = Path.Combine(AppContext.BaseDirectory, "ImageResizer.SelectionTestHost.exe"),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            startInfo.Environment[SelectionReceiver.OutputPathVariable] = reportPath;
+            startInfo.ArgumentList.Add("--classic");
+            startInfo.ArgumentList.Add(receiver);
+            startInfo.ArgumentList.Add(destination ?? string.Empty);
+            foreach (var file in images)
+            {
+                startInfo.ArgumentList.Add(file);
+            }
+
+            return startInfo;
         }
 
         private string CopyImage(string name)

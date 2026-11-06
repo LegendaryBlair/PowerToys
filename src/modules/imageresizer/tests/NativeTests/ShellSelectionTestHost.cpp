@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "../../ImageResizerContextMenu/ShellSelection.h"
+#include "../../dll/ClassicShellSelection.h"
 
 namespace
 {
@@ -21,12 +22,67 @@ namespace
         }
     };
 
+    HRESULT SendClassicSelection(IShellItemArray* selection, const wchar_t* receiverPath, const wchar_t* destinationPath)
+    {
+        ATL::CComPtr<IDataObject> dataObject;
+        HRESULT result = selection->BindToHandler(nullptr, BHID_DataObject, IID_PPV_ARGS(&dataObject));
+        if (FAILED(result))
+        {
+            return result;
+        }
+
+        PIDLIST_ABSOLUTE destination = nullptr;
+        if (*destinationPath)
+        {
+            result = SHParseDisplayName(destinationPath, nullptr, &destination, 0, nullptr);
+            if (FAILED(result))
+            {
+                return result;
+            }
+        }
+
+        std::unique_ptr<ITEMIDLIST, ShellItemDeleter> ownedDestination(destination);
+        ATL::CAtlFile writer;
+        PROCESS_INFORMATION processInformation{};
+        result = ImageResizer::StartClassicSelectionReceiver(receiverPath, destination, SW_HIDE, writer, processInformation);
+        if (FAILED(result))
+        {
+            return result;
+        }
+
+        ATL::CHandle process(processInformation.hProcess);
+        ATL::CHandle thread(processInformation.hThread);
+        ImageResizer::WriteClassicShellSelection(dataObject, nullptr, writer);
+        writer.Close();
+
+        if (WaitForSingleObject(process, 10000) != WAIT_OBJECT_0)
+        {
+            TerminateProcess(process, 1);
+            WaitForSingleObject(process, 5000);
+            return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+        }
+
+        DWORD exitCode = 1;
+        if (!GetExitCodeProcess(process, &exitCode))
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+
+        return exitCode == 0 ? S_OK : E_FAIL;
+    }
+
     HRESULT SendSelection(int argc, wchar_t** argv)
     {
+        const bool classic = wcscmp(argv[1], L"--classic") == 0;
+        if (classic && argc < 5)
+        {
+            return E_INVALIDARG;
+        }
+
         using ShellItemId = std::unique_ptr<ITEMIDLIST, ShellItemDeleter>;
         std::vector<ShellItemId> ownedItems;
         std::vector<PCIDLIST_ABSOLUTE> items;
-        for (int i = 2; i < argc; i++)
+        for (int i = classic ? 4 : 2; i < argc; i++)
         {
             PIDLIST_ABSOLUTE item = nullptr;
             HRESULT result = SHParseDisplayName(argv[i], nullptr, &item, 0, nullptr);
@@ -45,6 +101,11 @@ namespace
         if (FAILED(result))
         {
             return result;
+        }
+
+        if (classic)
+        {
+            return SendClassicSelection(selection, argv[2], argv[3]);
         }
 
         HANDLE pipe = ImageResizer::CreateSelectionPipe(argv[1]);

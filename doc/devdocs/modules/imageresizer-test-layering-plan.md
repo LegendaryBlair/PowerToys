@@ -453,6 +453,9 @@ execution and CLI process-exit cases remain outside this local validation eviden
 
 ## 11. Shell selection -> pending batch - 2026-10-27
 
+This section records the modern-menu increment. Section 12 adds the separate classic
+anonymous-pipe path and supersedes the current suite totals.
+
 ### Semantic contract and implementation
 
 Replaced `NamedPipeSelectionPreservesUnicodePathsAndProcessesImages` with
@@ -532,3 +535,175 @@ Final TRX and negative-control evidence are retained in session artifact directo
 `ir-selection-full-results`, `ir-pending-batch-results` and `ir-pending-batch-negative`;
 build logs use the `ir-selection-*` prefix. These new local results do not change the
 earlier installed-build E2E signoff/restoration limitation.
+
+## 12. Classic Shell selection -> inherited stdin -> pending batch - 2026-10-29
+
+This section records the classic handoff increment; section 13 adds ViewModel
+workflows and updates the suite totals.
+
+The classic handler uses an **anonymous pipe**, not the modern handler's named pipe.
+`ClassicShellSelectionCreatesExpectedPendingBatch` now covers three cases:
+2 images with no destination, 2 images with a Resize here destination, and 128 images
+with a destination. File paths include spaces, Chinese text, an accent and a surrogate
+pair; the destination includes spaces and non-ASCII characters.
+
+```text
+Managed test creates owned files and launches the existing native helper
+  -> real IShellItemArray.BindToHandler(BHID_DataObject) -> IDataObject / CF_HDROP
+  -> production StartClassicSelectionReceiver
+     CreatePipe + quoted /d argument + CreateProcess + inherited hStdInput
+  -> production WriteClassicShellSelection / HDropIterator
+     raw UTF-16 paths + CRLF, writer closed after sending
+  -> child test executable: Unicode Console.In -> production FromCommandLine
+  -> serialize pending Files / DestinationDirectory / IsInputRedirected and exit
+  -> parent checks exact selection, destination, EOF completion and unchanged files
+```
+
+Only the executable path is replaced with the test receiver. Process creation, command
+line construction, handle inheritance and selection serialization use production code,
+not a C# imitation. `ClassicShellSelection.h` holds the extracted functions and the
+real `CContextMenuHandler::ResizePictures` invokes them. No Explorer, GUI, settings
+singleton, registration, or processing operation is invoked by these fixtures.
+
+The existing `ImageResizer.Test.exe` doubles as the child receiver: a new test-only
+entry point delegates ordinary launches to the generated MSTest entry point. Only
+children given `POWERTOYS_IMAGERESIZER_TEST_RECEIVER_OUTPUT` via their own environment
+run the receiver mode. There is no new managed project or production testing switch.
+The native helper retains its child's process handle and waits for exit; timeout
+cleanup only terminates that owned child/tree. Both fixture directories are disposed.
+
+### Behavior and scope
+
+- The successful production launch and file-selection contract is unchanged. The
+  extraction adds scoped ownership for pipe/Shell allocations and explicit failures
+  for failed process creation or an unresolvable destination PIDL, instead of using
+  uninitialized process/path data. It does not add retries, product timeouts or change
+  the on-wire protocol.
+- `ClassicShellSelectionRejectsMissingReceiver` verifies the directly coupled failure
+  guard: a missing executable returns the file-not-found HRESULT, exits promptly and
+  creates no pending task or modified image.
+- The test asserts actual redirected stdin and child completion after the writer
+  closes. Keeping an inherited writer alive would prevent EOF and fail the bounded
+  test. The test timeout is not a new product timeout.
+- It does not invoke `Initialize`/`InvokeCommand`, exercise verb selection, perform
+  a physical drag/drop, render the menu, load the GUI or confirm Resize. The classic
+  class's alternate `IShellItemArray` invocation branch is not claimed by the
+  `IDataObject` fixture. Other launch/permission/disconnect failure matrices remain
+  outside this increment.
+- C# UITests and the **2-scenario / 5-observation agent checklist** remain unchanged.
+
+### Validation
+
+The current non-UI inventory is **144 methods / 163 expanded cases**. The full suite
+passed **163/163**, zero failed/skipped; approximately 11 seconds.
+
+| Command / operation | Result |
+|---|---|
+| `tools\build\build.ps1 -Path src\modules\imageresizer\tests\NativeTests -Platform x64 -Configuration Debug @<session>\files\ir-build.rsp` | Passed, exit 0, with VS 18 and existing analyzers. |
+| `tools\build\build.ps1 -Path src\modules\imageresizer\dll -Platform x64 -Configuration Debug /p:ForceImportAfterCppTargets=<session>\files\ir-no-registration.targets @<session>\files\ir-build.rsp` | Passed, exit 0. The session-only targets import the original repository C++ targets and override only COM registration; build log confirms registration was skipped. No repository registration settings changed. |
+| `tools\build\build.ps1 -Path src\modules\imageresizer\tests -Platform x64 -Configuration Debug /p:BuildProjectReferences=false @<session>\files\ir-build.rsp` | Passed, exit 0, using the previously documented VS 2022/session SDK workaround and separately built native artifacts. |
+| `ImageResizer.Test.exe --filter FullyQualifiedName~ClassicShellSelectionCreatesExpectedPendingBatch --report-trx --report-trx-filename classic.trx --results-directory <results> --timeout 1m` | Initial focused pass: 3/3. |
+| Negative control: omit `/d` from the production command-line builder, rebuild the helper, run the focused cases | Ordinary selection still passed; both Resize here cases failed because the received destination was null. Mutation removed; final helper, production DLL and managed tests rebuilt. |
+| `ImageResizer.Test.exe --report-trx --report-trx-filename full.trx --results-directory <results> --timeout 4m` | Final pass: 163/163, including all 4 new classic cases, both modern cases and the existing processing/settings tests. |
+| Native clang-format and C# `dotnet format whitespace . --folder --include Models\ResizeFunctionalTests.cs Test\SelectionReceiver.cs --verify-no-changes` | Passed; C# formatter selected both files. |
+
+Artifacts are retained under `ir-classic-results`, `ir-classic-negative`,
+`ir-classic-full-results` and `ir-classic-*build.log` in the session workspace.
+No owned helper/receiver processes remained after the run. Installed-product E2E
+was not rerun; the earlier Settings restoration limitation still applies.
+
+## 13. Confirmed options and processing outcomes - 2026-10-29
+
+Added exactly two Functional methods in `tests\ViewModels\ResizeWorkflowTests.cs`.
+This increment leaves production code unchanged and does not add Cancel/Stop tests
+or modify C# UITests.
+
+### Actual product behavior under test
+
+`ConfirmedOptionsDriveOutputBeforeClosing`:
+
+1. Load a selected two-file batch through the real `MainViewModel.LoadCommand`.
+2. Edit the real `InputViewModel.Settings`: Custom size, Stretch, 60 x 90 pixels,
+   `IgnoreOrientation=false`, `Replace=false`. Editing alone leaves the settings
+   file unchanged.
+3. Execute the real `ResizeCommand`. On the `CurrentPage` change notification,
+   independently reload the file and verify the confirmed options are already
+   persisted. Require the processing-stage notification, not only a changed property.
+4. Execute the resulting `ProgressViewModel.StartCommand`, which uses the production
+   `ResizeBatch.ProcessAsync` overload that reads `Settings.Default`. The test does
+   not bypass that handoff by injecting expected options directly into the engine.
+5. Verify the exact output set, 60 x 90 dimensions and unchanged source bytes.
+   The recording view's `Close` callback requires all expected outputs to exist,
+   contain data and permit exclusive opening. Exactly one close request is required.
+
+`MixedBatchKeepsOutputAndShowsErrors` runs the same confirmation flow with one valid
+PNG and one corrupt PNG. It requires the valid output to survive, source bytes to stay
+unchanged, no automatic close request, and a real `ResultsViewModel` identifying only
+`broken.png`. Its real `CloseCommand` must then request closure. The test makes no
+assumption about native error-message text or output ordering.
+
+### Isolation without replacing production orchestration
+
+Each method starts a fresh filtered invocation of the existing MSTest executable.
+The child uses a real `Microsoft.UI.Dispatching.DispatcherQueueController`, its
+synchronization context, `Settings.InitializeDispatcher`, `Settings.Default`, real
+settings files and real codecs. Only the view is a fake `IMainView`; the existing
+test resource provider also remains controlled. File-picker invocation is rejected
+because these scenarios already have a selected batch.
+
+The private workspace environment variable marks the child invocation and redirects
+`Settings.SettingsPath` before its first default-instance access. The parent requires
+exit code zero and a TRX containing exactly the requested single passed test. Child
+exit bounds the singleton/watcher/App-event lifetime; the parent then removes its
+owned directory. Parent suite totals count each logical test once, not again for its
+isolated child execution.
+
+The test project now explicitly enables unpackaged Windows App SDK self-contained
+activation, so the real dispatcher can be activated through the generated manifest.
+Without that manifest, the initial fixture failed with "ClassFactory cannot supply
+requested class." The SDK generates public auto-initializer types also present in
+the referenced application, so a documented project-local `CS0436` suppression
+selects the host's generated definitions. Other warnings-as-errors and analyzers
+remain enabled; no dependency versions, machine registration or installed application
+were changed.
+
+### Coverage boundaries and a discovered existing limitation
+
+- The test triggers `StartCommand` in place of `ProgressPage.Loaded`. Real XAML
+  bindings, actual page creation, rendering, foreground, HWND closure and process
+  exit of the real application remain E2E responsibilities.
+- The default settings watcher is initialized, but these tests do not establish the
+  external-file-edit/debounce/live-model update contract.
+- Mid-run cancellation, input Cancel, progress rendering and CLI lifecycle remain
+  outside these two flows.
+- Initial fixture exploration changed `FileName` on an instance whose
+  `FileNameFormat` had already been read during settings serialization. The persisted
+  `FileName` changed, but outputs still used the old `first (Input_Custom).png` naming
+  instead of `first_confirmed_60x90.png`. `Settings.FileNameFormat` caches its derived
+  string, and the `FileName` setter does not invalidate it (`Settings.cs:229-239`,
+  `534-546`). This source-build defect was recorded, not silently fixed.
+- Filename formatting is not edited in the resize dialog. The final two workflows
+  therefore seed that configuration before the application's first `Settings.Default`
+  load, then edit and confirm the actual resize-dialog options. They retain exact
+  output-name assertions, but **do not claim same-session filename-format update
+  coverage or that the discovered cache defect is resolved**.
+
+### Validation and evidence
+
+Current totals: **146 methods / 165 expanded cases**. The full suite passed
+**165/165**, zero failed/skipped; approximately 16 seconds.
+
+| Command / operation | Result |
+|---|---|
+| `tools\build\build.ps1 -Path src\modules\imageresizer\tests -Platform x64 -Configuration Debug /p:BuildProjectReferences=false @<session>\files\ir-build.rsp` | Passed after adding correct test-host activation and resolving analyzer findings, using the existing VS 2022/session SDK configuration. |
+| `ImageResizer.Test.exe --filter FullyQualifiedName~ResizeWorkflowTests --report-trx --report-trx-filename workflows.trx --results-directory <results> --timeout 2m` | Passed, 2/2; each parent verifies a one-case child TRX. |
+| Negative control: temporarily treat exactly one processing error as success in production `ProgressViewModel`, rebuild application/tests, run both workflows | Success flow passed; mixed flow failed because the product requested closure instead of preserving the error result. Mutation reverted; production diff is empty. |
+| `tools\build\build.ps1 -Path src\modules\imageresizer\ui -Platform x64 -Configuration Debug /p:BuildProjectReferences=false @<session>\files\ir-build.rsp`, then the test-project command above | Final restored application and test builds passed, exit 0. Existing native/managed project-reference outputs were reused. |
+| `ImageResizer.Test.exe --report-trx --report-trx-filename full.trx --results-directory <results> --timeout 4m` | Final pass: 165/165, including both workflows and modern/classic handoff cases. |
+| `dotnet format whitespace . --folder --include ViewModels\ResizeWorkflowTests.cs --verify-no-changes --verbosity diagnostic` from the test directory | Passed; one selected file, no changes needed. |
+
+Session artifacts: `ir-workflow-full-results\full.trx`, `ir-workflow-results`,
+`ir-workflow-negative\swallowed-error.trx`, and the separately retained exploratory
+`ir-workflow-investigation\filename-cache.trx`. Build logs use `ir-workflow-*build.log`.
+The E2E checklist remains **2 scenarios / 5 observations**; no new installed-product
+E2E signoff is claimed.

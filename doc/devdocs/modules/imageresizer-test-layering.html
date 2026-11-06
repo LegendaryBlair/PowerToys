@@ -104,18 +104,18 @@
     <div class="eyebrow">POWERTOYS · IMAGE RESIZER · THREE-LAYER PILOT</div>
     <h1>Execution Flow and Test Coverage: Before → After</h1>
     <p class="lead">Test rules and failure cases with <strong>Unit</strong> tests, exercise local workflows with real dependencies in <strong>Component / Functional</strong> tests, and reserve agent <strong>E2E</strong> for real entry points, UI wiring, and final outcomes.</p>
-    <p class="meta">Updated: 2026-10-27 · Original source baseline: e466450a · Branch: wip/image-resizer-test-layering-plan · Native sender extracted without business-logic changes. C# UITests unchanged. No VM used.</p>
+    <p class="meta">Updated: 2026-10-29 · Original source baseline: e466450a · Branch: wip/image-resizer-test-layering-plan · Modern/classic senders extracted; successful handoff behavior preserved. C# UITests unchanged. No VM used.</p>
     <nav class="nav" aria-label="Page navigation">
       <a href="#flow">Full execution flow</a><a href="#comparison">Before / after coverage</a><a href="#functional">Functional boundaries</a>
       <a href="#pipe">Selection-to-task contract</a><a href="#e2e">Remaining E2E</a><a href="#results">Results and gaps</a><a href="#sources">Source references</a>
     </nav>
     <div class="metrics">
-      <div class="metric"><strong>149 → 159</strong><span>Expanded non-UI cases · 159/159 now passing</span></div>
-      <div class="metric"><strong>+1 U / +7 F</strong><span>New test methods · 10 added cases after expansion</span></div>
+      <div class="metric"><strong>149 → 165</strong><span>Expanded non-UI cases · 165/165 now passing</span></div>
+      <div class="metric"><strong>+1 U / +11 F</strong><span>New test methods · 16 added cases after expansion</span></div>
       <div class="metric"><strong>12 → 2</strong><span>Agent checklist scenarios · 18 → 5 observations</span></div>
       <div class="metric"><strong>5 / 5 PASS</strong><span>E2E behavior observations · Overall signoff WITHHELD</span></div>
     </div>
-    <div class="callout"><strong>These counts are not functional coverage percentages.</strong> 149 is the original source-derived case count, not an executed baseline result. 159/159 is the current suite pass rate; 12→2 is the checklist scenario reduction. Line/branch coverage and the old checklist's execution time were not measured.</div>
+    <div class="callout"><strong>These counts are not functional coverage percentages.</strong> 149 is the original source-derived case count, not an executed baseline result. 165/165 is the current suite pass rate; 12→2 is the checklist scenario reduction. Line/branch coverage and the old checklist's execution time were not measured.</div>
   </header>
 
   <section id="flow">
@@ -191,13 +191,13 @@
           <text class="coverage-before" x="16" y="105">Before: parser / input tests + E2E launch; no standalone named-pipe receiver test.</text>
           <text class="coverage-after" x="16" y="133">After: F+ native selection → pending batch; E1 / E2 retain actual menu and GUI launch.</text>
         </g></a>
-        <a href="#e2e"><g class="node e2e" transform="translate(460 525)">
+        <a href="#workflow"><g class="node e2e" transform="translate(460 525)">
           <rect width="820" height="155"/>
           <text class="node-title" x="16" y="28">4 · Resolve options &amp; start processing</text>
           <text class="node-code" x="16" y="53">GUI: choose options → click Resize → Settings.Save → Progress. CLI: load settings and apply overrides.</text>
           <text class="node-code" x="16" y="75">Input Cancel closes the GUI; progress Stop requests cancellation. These are distinct branches.</text>
           <text class="coverage-before" x="16" y="105">Before: U CLI option rules; agent repeats resize option matrices.</text>
-          <text class="coverage-after e-label" x="16" y="133">After: E1 real controls once; F settings consumption. Watcher / mid-run Stop gaps remain.</text>
+          <text class="coverage-after" x="16" y="133">After: F+ confirmed options → real output; E1 retains actual controls and Loaded wiring.</text>
         </g></a>
         <a href="#functional"><g class="node functional" transform="translate(40 775)">
           <rect width="360" height="170"/>
@@ -223,7 +223,7 @@
           <text class="node-code" x="16" y="53">GUI: close or error page. CLI: exit code.</text>
           <text class="node-code" x="16" y="75">Outputs: files, names, dimensions, source bytes.</text>
           <text class="coverage-before" x="16" y="105">Before: output tests and normal UI completion.</text>
-          <text class="coverage-after" x="16" y="133">After: F output checks + E1 success.</text>
+          <text class="coverage-after" x="16" y="133">After: F+ close requests / error model / output.</text>
           <text class="flow-note" x="16" y="155">Gaps: error UI / mid-run Stop / CLI exit paths.</text>
         </g></a>
         <text class="flow-note" x="40" y="984">The main diagram groups related logic. All original coverage limits, protocol caveats, and branch details remain in the sections below.</text>
@@ -241,7 +241,8 @@
           <tr><td>Settings producer → consumer</td><td>Both sides had local tests, but composition was insufficiently tested.</td><td><code>SettingsUiJsonDrivesRealBatchOutput</code>: real producer serializer → file → explicit Reload → actual image output.</td><td>E1 checks control input, Save, and the actual module. F does not exercise the watcher.</td></tr>
           <tr><td>Multiple images and error aggregation</td><td><code>ResizeBatchTests</code> mocked the operation. Real single-image tests alone did not establish real batch behavior.</td><td>Added multi-image and valid + corrupt-image <span class="chip f">F+</span> cases, checking failure attribution and successful output.</td><td>E1 proves the Explorer selection reaches processing. Error-page rendering remains unverified.</td></tr>
           <tr><td>Cancellation</td><td>Mocked progress / error tests existed; the new pre-cancelled case did not.</td><td><code>CancelledBatchDoesNotExecuteFiles</code> <span class="chip u">U+</span>: cancellation before start prevents file execution.</td><td>Does not cover mid-run Stop, cancellation races, or remaining-output semantics.</td></tr>
-          <tr><td>Shell selection → pending task</td><td>Relied mainly on the real menu flow; the first pilot added only a managed sender smoke.</td><td>Now uses shared production native sender functions and real Shell objects in a separate process <span class="chip f">F+</span>; 2/128 images, Unicode, filtering and unchanged sources.</td><td>E1 retains actual menu activation, GUI launch and confirmation. <a href="#pipe">The Functional test stops before Resize.</a></td></tr>
+          <tr><td>Shell selection → pending task</td><td>Relied mainly on the real menu flow; the first pilot added only a managed sender smoke.</td><td>Shared production native senders and real Shell objects <span class="chip f">F+</span>: modern named pipe; classic inherited stdin and Resize here destination. Both check exact selections and unchanged sources.</td><td>E1/E2 retain actual menu activation, GUI launch and confirmation. <a href="#pipe">The Functional tests stop before Resize.</a></td></tr>
+          <tr><td>Confirmation and result decisions</td><td>The engine was tested, but Input/Progress/Results ViewModel orchestration was not.</td><td>Two <span class="chip f">F+</span> flows run real commands, Settings.Default, dispatcher and codecs; assert confirmed options, output, close timing and mixed-error state.</td><td>Test invokes StartCommand instead of Page.Loaded. Actual control bindings, rendering and window closure remain E2E.</td></tr>
           <tr><td>File side effects and test confidence</td><td>Real metadata / timestamp / replace tests existed; two metadata assertions could be swallowed by catch blocks.</td><td>Fixed assertion handling; added timestamp-off coverage, isolated settings paths, mock resources, explicit settings, and visible cleanup failures.</td><td>Functional tests still use real Windows dependencies. They do not cover every format or permission failure.</td></tr>
           <tr><td>Agent verification</td><td>12 scenarios / 18 children, including many processing matrices.</td><td>2 scenarios / 5 observations: settings-to-output and Shell enablement / entry.</td><td>Full E2E remains, with narrower responsibilities. Existing C# UITests are not added, changed, or removed.</td></tr>
         </tbody>
@@ -275,7 +276,16 @@
         <p class="path"><code>tests\Models\ResizeFunctionalTests.cs</code><br><code>SettingsUiJsonDrivesRealBatchOutput</code></p>
       </article>
     </div>
-    <h3 style="margin-top:22px">Added: 1 U method + 7 F methods = 10 expanded cases</h3>
+    <h3 id="workflow" style="margin-top:22px">F3 · Confirm options and handle the result</h3>
+    <pre>Isolated child process + real dispatcher + Settings.Default
+  → MainViewModel.LoadCommand → actual input options
+  → ResizeCommand → verify persisted options at page transition
+  → ProgressViewModel.StartCommand → real batch / codecs
+  → Success: complete 60 × 90 outputs before Close request
+  → Mixed failure: retain good output, expose broken.png in Results
+  → Results.CloseCommand requests closure when invoked</pre>
+    <p class="small">Only the view is a recording IMainView; resource strings use the existing controlled provider. Each child runs one filtered MSTest case and exits before fixture cleanup. No actual Window or XAML page is created. The watcher exists, but live external settings updates and Stop/Cancel are not established by these cases.</p>
+    <h3 style="margin-top:22px">Added: 1 U method + 11 F methods = 16 expanded cases</h3>
     <div class="table-wrap">
       <table>
         <thead><tr><th scope="col">Layer</th><th scope="col">Added method</th><th scope="col">Boundary</th></tr></thead>
@@ -285,6 +295,10 @@
           <tr><td><span class="chip f">F+</span></td><td><code>BatchKeepsSuccessfulOutputAndReportsCorruptInput</code></td><td>One real decode failure plus one successful input. Does not require a nonempty native error message.</td></tr>
           <tr><td><span class="chip f">F+</span></td><td><code>SettingsUiJsonDrivesRealBatchOutput</code></td><td>Real settings model / serializer / consumer / engine, not a Settings UI test.</td></tr>
           <tr><td><span class="chip f">F+ × 2</span></td><td><code>ShellSelectionCreatesExpectedPendingBatch</code></td><td>Real native sender → cross-process pipe → pending task. Two data rows; no processing or GUI.</td></tr>
+          <tr><td><span class="chip f">F+ × 3</span></td><td><code>ClassicShellSelectionCreatesExpectedPendingBatch</code></td><td>Real IDataObject, anonymous pipe, CreateProcess and inherited stdin; ordinary selection and Resize here, including 128 images.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>ClassicShellSelectionRejectsMissingReceiver</code></td><td>Missing receiver executable yields a launch error, no pending task and unchanged source.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>ConfirmedOptionsDriveOutputBeforeClosing</code></td><td>Actual confirmation command persists chosen dialog options; real processing produces both outputs before requesting closure.</td></tr>
+          <tr><td><span class="chip f">F+</span></td><td><code>MixedBatchKeepsOutputAndShowsErrors</code></td><td>Good output survives; a real ResultsViewModel identifies the corrupt file instead of closing automatically; its Close command is exercised.</td></tr>
           <tr><td><span class="chip f">F+</span></td><td><code>ExecuteWithoutDatePreservationUsesOutputWriteTime</code></td><td>Actual output write time and an unchanged source file.</td></tr>
           <tr><td><span class="chip f">F+</span></td><td><code>TransformUsesIndependentImageDpiForPhysicalUnits</code></td><td>Real PNG at 120 / 144 DPI, producing 60 × 36 output.</td></tr>
           <tr><td><span class="chip f">F+ × 2</span></td><td><code>FitRoundsHalfPixelsToEven</code></td><td>Two data rows: 24.5→24 and 25.5→26.</td></tr>
@@ -318,7 +332,16 @@
     <div class="callout" style="margin-top:18px"><strong>Keep the coverage claim narrow:</strong> the same native pipe creation, connection and per-item writer functions are used by the modern command and test helper. The test does not invoke the actual COM command wrapper, register a menu, launch the GUI, exercise elevation variants, or click Resize.</div>
     <p><span class="chip f">Implemented</span> Two cases select 2 and 128 real PNGs with spaces, Chinese text, an accent and a surrogate pair. Both add a corrupt PNG (retained until decoding) and an unsupported text file (filtered). The pending file set is exact and source bytes stay unchanged. The large case exceeds 16 KiB in aggregate; it does not require one overlong path.</p>
     <p class="small">This replaces the earlier single-path C# sender fixture, whose byte mode and BOM differed from production. An intentional native mutation omitting the first path made both new cases fail; the mutation was removed and final artifacts rebuilt.</p>
-    <p class="small">The classic handler uses an anonymous pipe plus inherited stdin. The named-pipe test does not replace classic-entry checks; this pilot's agent E2E exercised modern resize and classic launch.</p>
+    <h3>Classic-menu Functional path</h3>
+    <pre>Real Shell IDataObject / CF_HDROP
+  → Production CreatePipe + CreateProcess
+     with inherited stdin and optional quoted /d
+  → Production HDropIterator + UTF-16/CRLF writer
+  → Child test executable: Unicode Console.In
+  → Production FromCommandLine → pending task
+  → EOF, child exits; parent checks files/destination</pre>
+    <p>Three cases cover ordinary selection, Resize here with spaces/non-ASCII in the destination, and 128 selected images. Removing the native <code>/d</code> flag deliberately made both destination cases fail while ordinary selection still passed; the mutation was removed before the final build. A fourth case checks safe failure when the receiver executable is missing.</p>
+    <p class="small">The same test executable acts as the child receiver only when given a fixture-specific environment variable. Normal launches still run MSTest. No GUI or resize operation is invoked. Actual classic-menu activation/drag-drop and GUI launch remain E2E; the named-pipe test does not substitute for this separate stdin path.</p>
   </section>
 
   <section id="e2e">
@@ -352,15 +375,16 @@
 
   <section id="results">
     <h2>06 · Verified evidence and limits of the coverage claim</h2>
-    <div class="callout good"><strong>Established:</strong> the current complete non-UI suite passed 159/159 with no skips. The native sender was extracted without changing business logic; the helper and production Shell DLL built successfully (MSIX packaging excluded). Earlier revised-inventory checks and all five retained agent E2E behavior observations passed; those installed-build results are historical, not a rerun of the refactored DLL.</div>
+    <div class="callout good"><strong>Established:</strong> the current complete non-UI suite passed 165/165 with no skips. The two new ViewModel workflows need no production changes; a temporary production mutation misclassifying one error as success was detected, reverted and rebuilt. Earlier native builds and installed-agent E2E observations remain separate historical evidence.</div>
     <p class="small">Non-UI tests ran against a local source build. Agent E2E used installed PowerToys <strong>0.102.2933.0</strong> and winapp <strong>0.7.1</strong>. These are distinct recorded artifact identities, not an assumption that the installation exactly matches the checkout.</p>
     <h3 id="limits">Local paths and branches still insufficiently verified</h3>
     <ul>
-      <li>Actual Shell command activation/GUI launch, classic inherited stdin, and permission, connection-race and disconnect matrices beyond the new pending-task cases.</li>
+      <li>Actual Shell command activation/GUI launch and permission, connection-race and disconnect matrices beyond the modern/classic pending-task cases and missing-executable guard.</li>
       <li>The complete file-watcher / debounce / UI-dispatch update path; the settings Functional test explicitly calls Reload.</li>
       <li>GUI error results, mid-run cancellation, and the native file picker. This E2E run primarily checked normal resize and menu enablement.</li>
+      <li><strong>Known existing filename-cache issue:</strong> after FileNameFormat is cached, changing FileName on the same settings instance can retain the old output format. Exploratory workflow runs reproduced this; production is not fixed here. Final flows configure naming before startup and change only actual resize-dialog options.</li>
       <li>Full CLI process startup and exit codes; all codec / file-permission / disk-failure combinations; special AI / GPO branches.</li>
-      <li>Windows 10, ARM64, and other machine environments. The current 159/159 result cannot automatically be generalized to those platforms.</li>
+      <li>Windows 10, ARM64, and other machine environments. The current 165/165 result cannot automatically be generalized to those platforms.</li>
     </ul>
     <div class="callout"><strong>Overall E2E signoff: WITHHELD.</strong> All behavior observations passed. Original settings bytes / existence, enablement, test files and windows, original window placement, foreground, and pointer were restored. However, the initial snapshot could not fully certify restoration of the original Settings content page / scroll state. The baseline was not rewritten to manufacture a pass. This is a verification-tool preservation-boundary issue, not a resize-function failure.</div>
     <p><strong>Overall assessment:</strong> the original checklist's core processing rules and representative product connections have compositional coverage evidence, not “100% / 99% coverage” of the entire module. Scenario count fell by <strong>83.3%</strong> and child assertions by <strong>72.2%</strong>. This redistributes execution responsibilities; it is not code coverage.</p>
@@ -378,8 +402,9 @@
           <tr><td>GUI / CLI</td><td><code>ui\ImageResizerXAML\App.xaml.cs</code>; <code>ui\ViewModels\InputViewModel.cs</code>, <code>ProgressViewModel.cs</code>, <code>ResultsViewModel.cs</code><br><code>ImageResizerCLI\Program.cs</code>; <code>ui\Cli\ImageResizerCliExecutor.cs</code></td></tr>
           <tr><td>Settings, input, and engine</td><td><code>ui\Properties\Settings.cs</code>; <code>ui\Models\CliOptions.cs</code>, <code>ResizeBatch.cs</code>, <code>ResizeOperation.cs</code>, <code>ResizeSize.cs</code></td></tr>
           <tr><td>Added / repaired non-UI tests</td><td><code>tests\Models\ResizeFunctionalTests.cs</code>, <code>ResizeBatchTests.cs</code>, <code>ResizeOperationTests.cs</code><br><code>tests\Test\SettingsTestScope.cs</code>, <code>TestEnvironment.cs</code>; <code>tests\Properties\SettingsTests.cs</code></td></tr>
-          <tr><td>Native selection contract</td><td><code>ImageResizerContextMenu\ShellSelection.h</code><br><code>tests\NativeTests\ShellSelectionTestHost.cpp</code></td></tr>
-          <tr><td>Before / after scope and execution results</td><td><a href="imageresizer-test-layering-plan.md">Investigation, refactor plan, and execution report</a>: original projection in §03; first pilot in §10; native pending-task contract in §11.</td></tr>
+          <tr><td>Native selection contracts</td><td><code>ImageResizerContextMenu\ShellSelection.h</code>; <code>dll\ClassicShellSelection.h</code><br><code>tests\NativeTests\ShellSelectionTestHost.cpp</code>; <code>tests\Test\SelectionReceiver.cs</code></td></tr>
+          <tr><td>Confirmation / outcome contracts</td><td><code>tests\ViewModels\ResizeWorkflowTests.cs</code>: real commands/settings/dispatcher; recording view only.</td></tr>
+          <tr><td>Before / after scope and execution results</td><td><a href="imageresizer-test-layering-plan.md">Investigation, refactor plan, and execution report</a>: original projection in §03; first pilot in §10; native contracts in §11/§12; ViewModel workflows and filename limitation in §13.</td></tr>
           <tr><td>Current agent inputs</td><td><code>.github\skills\powertoys-verification\references\release-checklist\image-resizer.md</code><br>Also under that skill: <code>assertion-inventories\image-resizer.json</code> (revision 2) and <code>modules\image-resizer.md</code></td></tr>
           <tr><td>Archived E2E evidence</td><td><code>%OneDrive%\PowerToys\Module-Signoff\verify-ImageResizer-layering-8fdaf669bf23404d9c949c9fcae085c5\report.md</code><br>Run ID: <code>f05a61c14e7941f7a3aeb7d830a4ed36</code>; behavior PASS / overall signoff WITHHELD.</td></tr>
         </tbody>

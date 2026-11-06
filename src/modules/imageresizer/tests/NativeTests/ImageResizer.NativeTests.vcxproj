@@ -27,6 +27,7 @@
   <ItemGroup>
     <ClCompile Include="ShellSelectionTestHost.cpp" />
     <ClInclude Include="..\..\ImageResizerContextMenu\ShellSelection.h" />
+    <ClInclude Include="..\..\dll\ClassicShellSelection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
