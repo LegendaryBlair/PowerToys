@@ -17,3 +17,4 @@ PowerToys provides a comprehensive settings system that allows users to configur
 10. [XAML Island tweaks](/doc/devdocs/core/settings/xaml-island-tweaks.md)
 11. [Telemetry](/doc/devdocs/core/settings/telemetry.md)
 12. [DSC Configuration](/doc/devdocs/core/settings/dsc-configure.md)
+13. [Test layering investigation and plan](test-layering-plan.md)
