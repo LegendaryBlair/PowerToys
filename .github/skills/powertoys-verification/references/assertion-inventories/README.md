@@ -20,6 +20,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | PowerToys Settings | 4 | 25 | 50 |
 | Quick Accent | 2 | 18 | 57 |
 | Shortcut Guide | 3 | 19 | 96 |
+| Text Extractor | 1 | 17 | 45 |
 | Workspaces | 2 | 38 | 72 |
 | ZoomIt | 1 | 39 | 39 |
 
@@ -134,7 +135,7 @@ Always On Top retains ordinary pin/border behavior separately from opacity, syst
 audio, Game Mode, virtual-desktop and conditional release-integration observations.
 Its new-profile inventory does not establish readiness or accept any captured visual reference.
 
-The thin template rejects different run-local Items for all 18 Scenario A modules
+The thin template rejects different run-local Items for all 19 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify

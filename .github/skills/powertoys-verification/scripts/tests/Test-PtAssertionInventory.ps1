@@ -16,6 +16,7 @@ $expectedInventories=[ordered]@{
     'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(12,18)
     'keyboard-manager'=@(24,135)
     'fancyzones'=@(35,171)
+    'text-extractor'=@(17,45)
     'new-plus'=@(9,9); 'peek'=@(18,18); 'power-display'=@(33,138); 'power-rename'=@(16,17); 'settings'=@(25,50)
     'shortcut-guide'=@(19,96); 'workspaces'=@(38,72); 'zoomit'=@(39,39); 'quick-accent'=@(18,57)
 }
