@@ -34,7 +34,7 @@ specific checklist.
    scenario doc: `references/scenarios/module-checklist.md` (A) · `pr-validation.md` (B).
 2. **`references/winapp-toolchain.md`**, then **`references/winapp-ui-testing.md`** — resolve the latest official stable CLI before a new run unless an explicit version is pinned; read matching release-tag documentation and actual command help/schema. Keep that tool identity fixed during execution. The bundled UI mechanics doc supplies PT integration, not a permanently current copy of upstream CLI syntax.
 3. **This `SKILL.md`** — the shared engine: the 3-bucket drive-technique selector (Step 2), classification taxonomy, critical pitfalls, helper-script catalog.
-4. **`references/modules/<module>.md` IF IT EXISTS** — per-module entry-paths, item-by-item recipes, common BLOCKED traps, fixture lists, source citations. **Always check `references/modules/` first.** If no profile exists, fall back to this SKILL.md and create one after you finish (template in `references/modules/README.md`).
+4. **`references/modules/<module>.md` IF IT EXISTS** — per-module entry-paths, item-by-item recipes, common BLOCKED traps, fixture lists, source citations. **Always check `references/modules/` first.** If no profile exists, use this skill plus source/runtime discovery; keep findings in the run artifacts instead of automatically creating a profile.
 5. **`references/explorer-context-menu-flow.md` IF your module registers an Explorer right-click entry** (PowerRename, File Locksmith, Image Resizer, New+, Preview Pane, RegistryPreview) — shared synthetic-right-click + UIA-invoke + multi-file-selection flow + module-caption table. Helper: `scripts/pt-explorer-contextmenu.ps1`.
 6. **`references/pre-flight.md`** — pre-flight checks, bootstrap snippet, state-hygiene cleanup, final wrap-up, hard rules.
 7. **`references/reporting-format.md`** — per-item table template, top-of-report summary, step-table rules, anti-patterns, worked example.
@@ -77,7 +77,7 @@ specific checklist.
 | `scripts/pt-agent-statistics.ps1` | Read one declared session log and produce/register existing-schema agent statistics: overlapping entry calls, explicit attribution, outer case metrics and wait unions, without exposing payloads. Use the [template example](references/recording-workflow.md#minimal-template-composition), not a run-local extractor. |
 | `scripts/pt-verification-operation.ps1` | Keyless recorded Drive/Observe/Record calls, unique invocation IDs, original errors and cleanup attempts. No label locks, cumulative limits or automatic retries; uncertain invocation evidence remains visible without becoming execution permission. See [operation boundaries](references/operation-boundaries.md). |
 | `scripts/pt-verification-render.ps1` | Read-only compact report rendering; complete commands remain in `details.md`. |
-| `scripts/pt-cmdpal-recycle.ps1` | `Reset-CmdPalAppX`, `Reset-CmdPalToHome`, `Test-CmdPalDegraded`, `Invoke-CmdPalQuery` — CmdPal-specific lifecycle (handles TextChanged-broken state, BackButton navigation, AppX recycle). |
+| `scripts/pt-cmdpal-recycle.ps1` | Retired compatibility entry points: fail without product access. Use scoped shared UIA/input tools and explicit authorized recovery, not automatic CmdPal recycling. |
 | `scripts/pt-admin-probe.ps1` | `Test-PtAdmin`, `Test-ProcessElevated`, `Test-PtRunnerAdmin` — TokenElevation probes to verify your session and the PT runner have the right elevation for the test. |
 | `scripts/pt-clipboard-diff.ps1` | `Get-PtClipboardFormats`, `Compare-PtClipboardFormatDiff`, `Set-PtClipboardRich` — multi-format clipboard inspection for Advanced Paste tests. |
 | `scripts/pt-explorer-com.ps1` | `Get-PtExplorerWindows`, `Open-PtExplorerAtPath`, `Select-PtExplorerFiles`, `Invoke-PtPeekWithExplorerSelection`, `Test-PtInteractiveDesktop` — drive Explorer via Shell COM to set up multi-file selections, then trigger Peek/FZ/PowerRename/Image Resizer/Workspaces via their hotkeys. **Use this for Peek L706-L709, L719-L720 and any test that needs an Explorer file selection.** |
@@ -161,8 +161,9 @@ Stop-PtVerificationAttempt $preflight -Reason 'Prerequisites recorded'
 
 # The checklist source depends on the scenario (see references/scenarios/):
 #   A - read the supplied references/release-checklist/<module>.md
-#   B - derive 1-3 items from each PR's `gh pr view/diff`; then drive the installed bits, OR
-#       build+sideload if the code isn't in the build under test (pr-validation.md)
+#   B - derive PR claims and related risks from `gh pr view/diff`; use the preinstalled
+#       artifact only when merged and inclusion is confirmed. Otherwise create a fresh
+#       worktree and build runner/Settings/related modules plus dependencies; no VM prerequisite.
 # Then iterate the items (see Step 6 - Verifier loop).
 ```
 
@@ -181,22 +182,17 @@ Every checklist item boils down to ONE of three intents. **Pick the bucket from 
 | Interact with a UI element | "click X", "toggle X", "type into Y", "X button is visible", "selecting Z does W" | §2.B |
 | Trigger a module action | "pressing hotkey X opens Y", "module launches", "Z happens when invoked" | §2.C |
 
-### §2.A — Change a setting (single technique)
+### §2.A — Change a setting
 
-Edit the JSON file the module reads, wait for the file-watcher debounce, assert, then restore from backup. Zero external tools.
+For a Settings/UI claim, use the actual control and its supported interaction/commit path.
+Independently observe the requested UI value, persistence and downstream behavior as applicable,
+then restore the original state through the declared preservation plan. A JSON write does not
+test the binding/IPC path, and neither a fixed debounce sleep nor a matching file proves runtime use.
 
-```powershell
-$bk = Backup-PtModuleSettings -ModuleDir AdvancedPaste
-try {
-    $j = Get-PtModuleSettings -ModuleDir AdvancedPaste
-    $j.properties.IsAdvancedAIEnabled.value = $false
-    $j | ConvertTo-Json -Depth 12 | Set-Content "$env:LOCALAPPDATA\Microsoft\PowerToys\AdvancedPaste\settings.json"
-    Start-Sleep -Seconds 4  # debounce — runner re-reads via file-watcher
-    # ... assertion ...
-} finally {
-    Restore-PtModuleSettings -ModuleDir AdvancedPaste -BackupPath $bk
-}
-```
+Direct file edits are only for an explicitly allowed, owned configuration fixture, not a fallback
+that rescues a failed user flow. Preserve original bytes/existence and the attributed post-state;
+establish the module's actual reload and cached-state restoration boundary before writing.
+Follow the scenario's mutation contract and the [state hygiene rules](references/pre-flight.md).
 
 > For shell-extension modules, follow the profile's **module-owned** file and reload boundary: reopen the context menu or relaunch the owned module when specified. Do not automatically restart all PowerToys or Explorer. An explicitly required full PowerToys restart uses the shared [Restart-PtRunner contract](references/module-lifecycle.md#full-powertoys-restart). See pitfall #12 below.
 >
@@ -218,10 +214,16 @@ Invoke-PtWinApp -Arguments @('set-value','QueryTextBox','=2+3*4','-a','PowerToys
 Start-Sleep -Milliseconds 600
 Invoke-PtWinApp -Arguments @('inspect','--depth','7','-a','PowerToys.PowerLauncher','-i')
 ```
-Invoke goes through UIA InvokePattern COM IPC — no foreground steal, no UIPI. See references/winapp-ui-testing.md §CRITICAL — invoke vs click.
+Invoke uses the provider's UIA action pattern rather than a physical click. Verify provider access
+and the resulting state; do not infer universal foreground or integrity behavior from the control type.
+See references/winapp-ui-testing.md §CRITICAL — invoke vs click.
 
 #### B2. PostMessage WM_KEYDOWN/CHAR — when UIA can't reach the target
-For elevated targets, AppX windows with stunted UIA trees, or keystrokes that UIA `set-value` can't dispatch (arrow-key ListView nav, Enter to commit). See references/winapp-ui-testing.md §CRITICAL — Keystroke input that bypasses UIPI (PostMessage). Esc is often filtered by WinUI 3 raw-input hook — use BackButton invoke instead.
+Use message-based input only when the target is known to handle those messages and the assertion
+does not require the physical input route. It is not an integrity bypass or a substitute for
+global hooks/raw input. Verify the current target's key handling rather than assuming WinUI
+filters Escape; a Back button is an alternative navigation route, not proof of Escape behavior.
+See references/winapp-ui-testing.md §CRITICAL — Message-based input (PostMessage).
 
 ### §2.C — Trigger a module action (2 techniques, most-reliable first)
 
@@ -256,12 +258,13 @@ if (-not $line) { throw 'Runner did not log hotkey invocation' }
 
 > **Rare fallback — a module that uses its own `RegisterHotKey` and exposes no Named Event.** Post `WM_HOTKEY` (`0x312`) straight to its message window (find the HWND via `EnumWindows`+`GetClassName` through `Add-Type` — same P/Invoke pattern as `pt-foreground-guard.ps1`). **No current PT module needs this:** ZoomIt — the obvious candidate — also waits on Named Events (`ZoomIt.Zoom`, `ZoomIt.Draw`, …; source: `Zoomit.cpp` `CreateEventW(ZOOMIT_ZOOM_EVENT)`), so drive it with C1.
 
-> **Different case — sending keys *into* a specific focused window** (e.g. a CmdPal alias like `=` / `<` / `>` that `winapp ui set-value` can't trigger because it bypasses TextChanged; see `references/modules/command-palette.md`). Here the keystrokes go to whatever currently has focus, so you must bring the target window foreground first:
+> **Different case — sending keys *into* a specific focused window** (e.g. testing CmdPal alias typing rather than programmatic value setting; see `references/modules/command-palette.md`). Here the keystrokes go to whatever currently has focus, so establish and guard the exact target window:
 > ```powershell
-> Assert-PtForegroundOrAbort -AppId Microsoft.CmdPal.UI   # -AppId = the window you're typing INTO
+> Assert-PtForegroundOrAbort -Hwnd $hwnd   # Exact previously identified and preserved target
 > Send-PtChord -Key 0xBB                                  # '=' (no modifiers) to trigger the calculator alias
 > ```
-> The `-AppId` is whatever window you're targeting — it's **not** CmdPal-specific. CmdPal is just the worst offender: its AppX foreground-lock drops focus after the first `SetForegroundWindow`, so without the guard the keys silently leak to your terminal.
+> This is not CmdPal-specific. Do not assume a process-wide AppId or one successful foreground
+> request establishes the recipient of subsequent input; observe the target and actual outcome.
 
 > Verdict decisions (PASS if behavior matches spec; **FAIL** if the product is wrong *or* the checklist item is stale/ambiguous; BLOCKED if you couldn't run the check) live in **Step 3 — Classification taxonomy** below. Don't put verdict logic in Step 2.
 
@@ -282,7 +285,7 @@ Different failure reasons stay distinct because each drives a different remediat
 |---|---|
 | `BLK-ENV` | This specific shell lacks a required condition (elevation, interactive desktop, or Explorer windows). For missing elevation, skip only admin-required coverage by default and continue non-admin checks; cite `references/pre-flight.md` and the elevation probe. For desktop/session obstacles, cite `references/environment-setup.md`. State the required environment for a rerun. |
 | `BLK-HARDWARE` | Needs hardware this session lacks — multi-monitor, 2 physical PCs (MWB), real camera / battery / game-mode, or live screen/device capture. State the specific shortfall in **Category**. |
-| `BLK-DRAG-REQUIRED` | Needs a real mouse-drag gesture; synthetic drag is insufficient (e.g. FancyZones snap). |
+| `BLK-DRAG-REQUIRED` | The required drag cannot be delivered or independently observed through the available safe input routes. Record the concrete limitation; needing a drag alone is not a blocker. |
 | `BLK-DESTRUCTIVE` | Reboot, hibernate, install/uninstall, or mid-session AppX uninstall — would damage the run environment. |
 | `BLK-VISUAL-RENDER` | The thing to verify is a rendered surface UIA can't see — WinUI3 islands, WebView2, or Explorer-side context-menu rendering/localization. Needs pixel/OCR or a manual eyeball. |
 | `BLK-OVERLAY-INPUT-BLOCK` | Overlay both blocks input and excludes itself from capture (`BlockInput` + `WDA_EXCLUDEFROMCAPTURE`, e.g. ZoomIt draw mode) — can neither drive nor screenshot it. |
@@ -327,14 +330,16 @@ Catalog: see `references/modules/README.md`. Currently authored: `peek.md`, `pow
 If your module has NO profile yet:
 1. Fall back to the generic drive-stack in §2 above.
 2. **For Explorer-context-menu modules** (PowerRename / File Locksmith / Image Resizer / New+ / Preview Pane / RegistryPreview): read **`references/explorer-context-menu-flow.md`** first — it has the synthetic-right-click + UIA-invoke pattern with stability rules and module-caption table. Per-module profiles cite it and only document module-specific quirks. The canonical helper is `scripts/pt-explorer-contextmenu.ps1`.
-3. After finishing the verification, **create the profile** using the template in `references/modules/README.md` so the next agent benefits from what you learned.
+3. Keep newly discovered controls, limitations and run-local driver sources in this run's artifacts.
+   Creating/updating a profile or promoting a helper requires a separately scoped maintenance task,
+   not an automatic verification step.
 
 Quick one-liners for modules without dedicated profiles (will be moved to per-module files as they're authored):
 
 - **Advanced Paste**: `Invoke-PtSharedEvent -Name 'AdvancedPaste.ShowUI'` + `Set-PtClipboardRich` + `Compare-PtClipboardFormatDiff` (see `scripts/pt-clipboard-diff.ps1`).
-- **Command Palette**: `Invoke-PtSharedEvent -Name 'CmdPal.Show'` + `Invoke-CmdPalQuery` (auto-handles degraded state via `scripts/pt-cmdpal-recycle.ps1`). Settings file via `Get-CmdPalSettings`. **Full profile + AppX/alias/foreground quirks: `references/modules/command-palette.md`.**
+- **Command Palette**: owned/borrowed-state preparation, then explicit `CmdPal.Show` and scoped current UIA/input operations. Do not call the retired automatic-recovery helpers. Settings readback via `Get-CmdPalSettings`. **Profile and conditional input/observation guidance: `references/modules/command-palette.md`.**
 - **PowerToys Run**: `Invoke-PtSharedEvent -Name 'PowerLauncher.Invoke'` + `winapp ui set-value QueryTextBox`. Window has 2 HWNDs — filter by width ≥ 800.
-- **FancyZones**: `Invoke-PtSharedEvent -Name 'FancyZones.ToggleEditor'`. Snap-drag tests are usually `BLK-DRAG-REQUIRED`; settings verify via settings.json round-trip.
+- **FancyZones**: `Invoke-PtSharedEvent -Name 'FancyZones.ToggleEditor'` for downstream editor entry. Use the profile's guarded drag flow and actual MoveBegin/MoveEnd plus geometry observations for snapping; do not pre-classify drags as blocked. Settings claims use their actual UI/commit path.
 - **Light Switch**: `Invoke-PtSharedEvent -Name 'LightSwitch.Toggle' | LightSwitch.Light | LightSwitch.Dark`. Verify via `HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
 - **Always on Top**: `Invoke-PtSharedEvent -Name 'AOT.Pin'`. Verify `WS_EX_TOPMOST` on pinned HWND.
 - **Hosts File Editor** (admin): `Invoke-PtSharedEvent -Name 'Hosts.Show' | Hosts.ShowAdmin`.
@@ -428,11 +433,11 @@ Step 6 verifier loop → `references/pre-flight.md` §Final wrap-up → Step 7 a
 
 *Reference, not a sequential step — skim before you start and consult while driving. Numbered for cross-reference only.*
 
-1. **Each module's own `<Module>\settings.json` IS hot-reloaded** via per-module file watcher (~3s debounce). **EXCEPTION — shell-extension/context-menu modules do NOT read this file; see pitfall #12.**
+1. **Settings consumption is module- and version-specific.** A file watcher, Settings IPC, reopen or module lifecycle transition may be required. Determine the actual consumer/reload boundary from the target source and runtime; do not assume every `settings.json` hot-reloads after a fixed delay. See pitfall #12 for shell-extension stores.
 2. **GPO HKLM vs HKCU**: HKLM wins when both are set with conflicting values.
 3. **HKLM `Software\Policies\PowerToys` writes require admin** — verify with `Test-PtAdmin`.
 4. **`Stop-Process` is policy-blocked in this session unless you pass `-Id <int>` literally**. Always inline the PID.
-5. **WinUI 3 islands are largely invisible to UIA** (QuickAccess flyout, RegistryPreview Monaco editor, Peek WebView2). For these, fall back to screenshot + OCR or settings.json diff.
+5. **UIA coverage depends on the control, provider, visibility and tool version**, not merely WinUI/AppX identity. Inspect the actual target's scoped tree and supported patterns first. Use pixels for rendered content that is not exposed; a settings-file readback cannot establish that content was painted.
 6. **OS-reserved chords (Win+L, Win+Tab)** are consumed by Windows before any hook and cannot be injected via SendInput at all.
 7. **RDP minimized = `SendInput` denied.** Even though `quser` shows the remote session State=Active, minimizing the mstsc client detaches the session's input desktop. `GetForegroundWindow()` returns 0; `SendInput` returns `ACCESS_DENIED (5)`; tests that need synthetic input fail. **Same applies to: closed mstsc with X (Disconnected), local PC sleep (RDP TCP drops), remote screensaver/workstation lock, remote machine sleep.** Run `scripts/pt-session-diagnose.ps1` in pre-flight to detect, and see `references/environment-setup.md` for the full per-scenario table + `powercfg` setup commands the user should run before starting the agent. The agent should call `Test-PtForeground` mid-run before each input-injection-dependent item; if it returns False, mark `BLK-ENV` with mitigation citation (an environment block — not a product FAIL).
 8. **`winapp ui` arg-order quirk**: `winapp ui inspect --depth N -w $hwnd` may intermittently fail to parse `--depth` as Int64 if `-w` precedes it. **Put `-w $hwnd` AFTER `--depth N`** or as the first arg before any flag. If you see "Cannot bind argument" or numeric parse errors, swap the order and retry.
@@ -458,4 +463,6 @@ Confirm which file actually drives behavior with a quick A/B: edit the module-ow
 
 14. **Low-level keyboard hooks cannot observe a higher-integrity foreground app.** Before testing a physical-key hold or another action implemented through Runner's low-level hook, compare `Test-PtRunnerAdmin` with `Test-ProcessElevated -ProcessId <foreground-pid>`. The Runner must be at the same or higher integrity level. A `RegisterHotKey` chord can still work across this mismatch while a hold gesture silently produces no Runner/module log, so "regular hotkey passes, hold fails" is not enough to classify a product regression. Relaunch the foreground fixture non-elevated with `Start-PtNonElevated`, or run the local Runner elevated, then repeat the test.
 
-If you find another gap during verification, update this skill (add a recipe) AND consider proposing the addition to references/winapp-ui-testing.md if it's generic enough.
+If verification exposes a knowledge/helper gap, retain its evidence and a proposed correction in
+the run report. Do not automatically edit this skill, module profiles or shared helpers during the
+verification task; promote reusable changes only in separately authorized maintenance work.

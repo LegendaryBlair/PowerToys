@@ -18,9 +18,18 @@ bits as part of updating this automation dependency.
 
    Retain every item in the inventory. Record each skipped check as `BLOCKED` with `BLK-ENV (requires elevation; current session is not elevated)` and the `Test-PtAdmin=False` evidence. For a conditional item, preserve the non-admin results and identify the skipped variants; if any required coverage remains skipped, the item cannot be a PASS. Do not claim full sign-off with skipped coverage. This known prerequisite skip does not require trying privileged entry-paths.
 
-2. **PT runner present** — `Test-PtRunnerAdmin` should show the runner exists. If it doesn't exist, start PowerToys (`Start-Process "$env:LOCALAPPDATA\PowerToys\PowerToys.exe"`).
+2. **Target runtime matches the declared BITS.** Identify the intended current-session Runner/host
+   by actual path, process generation and integrity. `Test-PtRunnerAdmin` is an elevation probe,
+   not proof of the artifact under test. On the installed path, locate the actual installation;
+   on the local-build path, verify the selected build output and do not start an installed copy
+   as a fallback. If the target is absent, record it and perform any authorized launch later as
+   explicit setup, after preservation. The template's `Preflight` callback remains read-only.
 
-3. **Module installed** — `Get-PtModuleSettings -ModuleDir <ModuleDir>` (or `Get-CmdPalSettings` for CmdPal) returns non-null.
+3. **Target module is available and ready.** Check the appropriate executable/DLL/package and its
+   actual host against BITS. Existing settings are read-only configuration evidence, not proof of
+   installation, loading or readiness. A new module PR may have no prior settings; preserve that
+   absence instead of fabricating configuration to pass this check. On a build path, inspect
+   build/registration side effects before invoking build targets, not only before launching UI.
 
 4. **Interactive-desktop availability + session attachment** — the single most common cause of false-BLOCKED reports is a session mismatch where the agent runs in an elevated **non-console session** (e.g. RDP that's been disconnected/minimized, fast user switching, run-as-different-user, or scheduled-task-with-highest-privilege). In that scenario `Test-PtAdmin=True` but `GetForegroundWindow()=0` and `SendInput` returns `ERROR_ACCESS_DENIED (5)` — input injection cannot reach the active desktop.
 

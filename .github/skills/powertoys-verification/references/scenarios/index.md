@@ -43,6 +43,12 @@ BITS: local build of <Module> @ <sha/branch>, sideloaded        # no  — unmerg
 > **"Merged" is not the deciding word — "in the build under test" is.** A PR merged into `main` but
 > not yet in the installed build is still the **build + sideload** case (e.g. #45242).
 
+For PR verification, select this route from the observed PR/build provenance, without asking the
+user to choose again: merged with confirmed inclusion uses the preinstalled artifact; otherwise
+create a fresh worktree and build runner, Settings, the related module(s) and required dependencies.
+Use the existing local build scripts on the current machine. Do not add a VM requirement or
+provision a VM as a fallback. Deployment/state-preservation boundaries still apply.
+
 - **Installed / read-only (A, and B when the code is already shipped)** — the artifact is immutable.
   Forbidden: copying source-built files into the install or `%LOCALAPPDATA%\...\PowerToys\...`,
   pre-seeding caches the app/installer owns, editing module `settings.json` to bypass a Settings-UI
@@ -78,3 +84,7 @@ map 1:1 — use the `SKILL.md` set and treat the legacy labels as aliases:
 Whichever label set the caller asks for, keep the **evidence rules identical**: no "source verified /
 live deferred / pre-existing / probably / unlikely" weasel-words to justify a PASS — those flip the
 verdict to FAIL or BLOCKED-with-a-named-environmental-reason.
+
+Failure to reproduce a bug on a baseline is a limitation of the causal comparison, not a gate
+on subsequent PR-target verification. Continue safe target checks and report what they actually
+establish; do not turn an untriggered condition into a PASS or claim a demonstrated fix.

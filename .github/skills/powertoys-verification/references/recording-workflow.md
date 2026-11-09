@@ -91,6 +91,41 @@ the unsealed run and use a reporting-only `Invoke-PtVerificationCase -Context Di
 to regenerate/register statistics, then finalize normally. Do not rerun UI or use the template's execution
 `-Resume` merely to fix a report. A truly interrupted gesture still needs explicit state recovery.
 
+### Minimal Scenario B composition
+
+Use the same template with the PR-derived checklist, not a full frozen module inventory.
+`$prItems` contains the explicit Description/Admin/Clarity/UserVisible and child assertions
+described below. The source paths and finite callbacks are prepared by the caller; this is
+composition guidance, not a ready-made build switch or a claim of live acceptance.
+
+```powershell
+$inputs = @(
+    @{Name='pr-checklist.md';Role='Checklist';Path=$prChecklistPath}
+    @{Name='pr.json';Role='Other';Path=$prMetadataPath}
+    @{Name='pr.diff';Role='Other';Path=$prDiffPath}
+    @{Name='driver.ps1';Role='Other';Path=$driverPath}
+)
+if ($profilePath) {
+    $inputs += @{Name='profile.md';Role='Profile';Path=$profilePath}
+}
+& "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $workspace `
+    -Module $module -Bits $bits -Scenario B -Items $prItems -Inputs $inputs `
+    -ResourcePlan $resources -CleanupPlan $cleanupPlan `
+    -Preflight $readOnlyChecks -Cases $driveAndReview -Report $report `
+    -Retrospective $retrospective
+```
+
+The template snapshots the skill/helpers automatically. Include any other used source/callback
+files and already available build provenance as inputs; register later build logs/output identities
+from their recorded setup steps. Build/deployment with effects belongs after the declared
+preservation boundary, not inside the read-only Preflight callback.
+
+Follow the [PR artifact route](scenarios/pr-validation.md): preinstalled bits only for merged,
+confirmed-included changes; otherwise a fresh worktree and the existing minimum local build,
+without introducing a VM dependency. Baseline non-reproduction does not gate subsequent target
+checks; retain its separate identity/evidence and report the limitation without fabricating a fix.
+Do not import baseline observations as Normal-path proof of the target build.
+
 ### Recorded case and review
 
 `Invoke-PtVerificationCase` handles attempt creation, nested command recording and closure.
