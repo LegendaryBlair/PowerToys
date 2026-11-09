@@ -9,6 +9,7 @@ One file per module; a verification run loads only its module's file.
 |---|---:|---|
 | Advanced Paste | 29 / 32 | `advanced-paste.md` |
 | Always On Top | 17 / 62 | `always-on-top.md` |
+| Awake | 17 / 50 | `awake.md` |
 | Color Picker | 17 / 25 | `color-picker.md` |
 | Crop And Lock | 13 / 14 | `crop-and-lock.md` |
 | Environment Variables | 29 / 135 | `environment-variables.md` |

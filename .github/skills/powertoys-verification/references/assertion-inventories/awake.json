@@ -1,0 +1,91 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "03F859EC100EAE8549F5383A5A63AFCEE83282963E178CC68CE11A4ED5023EF9",
+  "Items": [
+    { "Id": "AWAKE-ENABLE", "Assertions": [
+      { "Id": "AWAKE-ENABLE.off", "Description": "Disabling through Settings removes the Awake process and tray icon and disables behavior controls." },
+      { "Id": "AWAKE-ENABLE.on", "Description": "Enabling restores the process, tray icon and retained active mode." },
+      { "Id": "AWAKE-ENABLE.isolation", "Description": "Both enablement transitions leave other modules' enabled values unchanged." }
+    ] },
+    { "Id": "AWAKE-MODES", "Assertions": [
+      { "Id": "AWAKE-MODES.passive", "Description": "Passive mode remains resident, disables screen configuration and releases Awake system/display requests." },
+      { "Id": "AWAKE-MODES.system", "Description": "Indefinite mode with screen off requests system wakefulness without a display request." },
+      { "Id": "AWAKE-MODES.display", "Description": "Keep screen on adds the display request; switching it off removes only that request." },
+      { "Id": "AWAKE-MODES.plan", "Description": "Mode/display transitions do not modify the active Windows power plan or its settings." },
+      { "Id": "AWAKE-MODES.idle", "Description": "With an independent idle/display observer and controlled timeouts, the active mode prevents actual idle sleep and keep-screen-on prevents display timeout." }
+    ] },
+    { "Id": "AWAKE-TIMED", "Assertions": [
+      { "Id": "AWAKE-TIMED.fields", "Description": "Committed 1-hour/2-minute fields persist, activate timed state and hide expiration controls." },
+      { "Id": "AWAKE-TIMED.completion", "Description": "A full 0-hour/1-minute interval expires to passive in Settings and runtime without terminating integrated Awake." },
+      { "Id": "AWAKE-TIMED.display-deadline", "Description": "Toggling display during the one-minute countdown changes its request without restarting the original deadline." },
+      { "Id": "AWAKE-TIMED.cancel", "Description": "Selecting passive cancels a running interval and releases requests before its deadline." }
+    ] },
+    { "Id": "AWAKE-EXPIRATION", "Assertions": [
+      { "Id": "AWAKE-EXPIRATION.edit", "Description": "Date and time picker commits persist a future deadline and duration controls are hidden." },
+      { "Id": "AWAKE-EXPIRATION.active", "Description": "Future expiration activates system wakefulness and respects the selected display setting." },
+      { "Id": "AWAKE-EXPIRATION.complete", "Description": "Actual expiration returns integrated Settings/runtime to passive while Awake remains resident." }
+    ] },
+    { "Id": "AWAKE-TRAY", "Assertions": [
+      { "Id": "AWAKE-TRAY.left", "Description": "Left click opens the real integrated menu with mode/display controls, disabled expiration information and no standalone Exit." },
+      { "Id": "AWAKE-TRAY.right", "Description": "Right click independently opens the same integrated menu and applicable controls." },
+      { "Id": "AWAKE-TRAY.mode", "Description": "Tray indefinite and passive selections synchronize Settings, persisted state, tray status and runtime requests." },
+      { "Id": "AWAKE-TRAY.display", "Description": "Tray Keep screen on toggles synchronize Settings, persistence, tray status and display requests." },
+      { "Id": "AWAKE-TRAY.intervals", "Description": "With default tray times, independently select 30 minutes, 1 hour and 2 hours and observe each corresponding persisted duration and active runtime state." }
+    ] },
+    { "Id": "AWAKE-CUSTOM-TRAY", "Assertions": [
+      { "Id": "AWAKE-CUSTOM-TRAY.dispatch", "Description": "With a preconfigured two-or-more-entry customTrayTimes fixture, first and last labels dispatch their own configured duration; preserve labels, values and order." }
+    ] },
+    { "Id": "AWAKE-TRAY-RECOVERY", "Assertions": [
+      { "Id": "AWAKE-TRAY-RECOVERY.servicing", "Description": "On an authorized disposable post-OS-update/session-start fixture, the enabled icon appears and is removed on disable." }
+    ] },
+    { "Id": "AWAKE-CLI-TEXT", "Assertions": [
+      { "Id": "AWAKE-CLI-TEXT.help", "Description": "Each of --help, -h and -? visibly displays documented options in an owned parent terminal, returns zero and creates no resident instance." },
+      { "Id": "AWAKE-CLI-TEXT.time-error", "Description": "--time-limit -1 visibly reports an invalid interval, exits nonzero and leaves no new process/power request." },
+      { "Id": "AWAKE-CLI-TEXT.pid-error", "Description": "--pid not-a-pid visibly reports an invalid PID, exits nonzero and leaves no new process/power request." },
+      { "Id": "AWAKE-CLI-TEXT.date-error", "Description": "--expire-at not-a-date visibly reports an invalid deadline, exits nonzero and leaves no new process/power request." }
+    ] },
+    { "Id": "AWAKE-CLI-MODES", "Assertions": [
+      { "Id": "AWAKE-CLI-MODES.default", "Description": "With integrated Awake disabled, no-argument standalone mode requests system-only wakefulness and the owned session's user-facing close releases it." },
+      { "Id": "AWAKE-CLI-MODES.display", "Description": "Separate --display-on and --display-on false standalone runs request the corresponding display state and release requests on user-facing close." },
+      { "Id": "AWAKE-CLI-MODES.timed", "Description": "-t 20 -d holds system/display requests for the requested interval, then actually exits and releases them." },
+      { "Id": "AWAKE-CLI-MODES.expire", "Description": "An approximately 30-second --expire-at deadline takes precedence over --time-limit 300 and actually exits/releases requests at that deadline." },
+      { "Id": "AWAKE-CLI-MODES.isolation", "Description": "Standalone arguments leave integrated preferences and active Windows power-plan settings unchanged." }
+    ] },
+    { "Id": "AWAKE-PID", "Assertions": [
+      { "Id": "AWAKE-PID.explicit", "Description": "--pid keeps Awake active while an owned target lives and Awake exits/releases requests after that target exits naturally." },
+      { "Id": "AWAKE-PID.parent", "Description": "--use-parent-pid keeps Awake active while its owned parent lives and Awake exits/releases requests after the parent exits." }
+    ] },
+    { "Id": "AWAKE-CLI-CONFIG", "Assertions": [
+      { "Id": "AWAKE-CLI-CONFIG.precedence", "Description": "With integrated instance disabled, --use-pt-config overrides conflicting --display-on and --time-limit 1 arguments with saved mode/display preferences." },
+      { "Id": "AWAKE-CLI-CONFIG.reload", "Description": "Settings UI mode/display edits reach the same configuration-bound CLI process, which remains resident on passive; no JSON setup bypass." }
+    ] },
+    { "Id": "AWAKE-LOCK", "Assertions": [
+      { "Id": "AWAKE-LOCK.start", "Description": "On a recoverable dedicated session and build containing the lock change, startup while locked suppresses display but retains active system request." },
+      { "Id": "AWAKE-LOCK.lock", "Description": "Actual workstation lock removes the configured display request but retains active system request." },
+      { "Id": "AWAKE-LOCK.unlock", "Description": "Actual unlock restores the configured active system/display requests." }
+    ] },
+    { "Id": "AWAKE-POWER", "Assertions": [
+      { "Id": "AWAKE-POWER.resume", "Description": "On a dedicated recoverable fixture, real sleep/resume reapplies active requests and Settings remains functional." },
+      { "Id": "AWAKE-POWER.source", "Description": "On suitable hardware, both actual AC-to-battery and battery-to-AC transitions reapply active requests." },
+      { "Id": "AWAKE-POWER.failure", "Description": "With authorized failure instrumentation, SetThreadExecutionState failure logs an error and returns to passive/tray fallback." }
+    ] },
+    { "Id": "AWAKE-CMDPAL", "Assertions": [
+      { "Id": "AWAKE-CMDPAL.settings", "Description": "The shipped PowerToys extension opens Awake Settings through its Settings command." },
+      { "Id": "AWAKE-CMDPAL.modes", "Description": "When enabled, independently execute indefinite, 30-minute, 1-hour, 2-hour and Turn off commands; refreshed status, Settings and runtime agree." },
+      { "Id": "AWAKE-CMDPAL.disabled", "Description": "When Awake is disabled, Settings entry remains while active-mode commands are absent." }
+    ] },
+    { "Id": "AWAKE-SHARED", "Assertions": [
+      { "Id": "AWAKE-SHARED.update", "Description": "Check for updates with Awake enabled and separately disabled preserves that choice and every other module enabled value; no update installation." },
+      { "Id": "AWAKE-SHARED.unavailable", "Description": "On an authorized disposable missing-module/shutdown fixture, a disabled Awake choice survives unavailable-module persistence and shutdown/restart." }
+    ] },
+    { "Id": "AWAKE-DIAGNOSTICS", "Assertions": [
+      { "Id": "AWAKE-DIAGNOSTICS.policy", "Description": "With authorized disabled-policy fixture, Settings and standalone activation are blocked while visible --help succeeds; restore the original policy." },
+      { "Id": "AWAKE-DIAGNOSTICS.modes", "Description": "With consented diagnostic viewing available, fresh mode-change events correlate with the run's actual mode transitions." },
+      { "Id": "AWAKE-DIAGNOSTICS.cli", "Description": "With consented diagnostic viewing available, fresh Awake_CLICommand events distinguish successful and failed CLI actions in this run." }
+    ] },
+    { "Id": "AWAKE-EXPLORATORY", "Assertions": [
+      { "Id": "AWAKE-EXPLORATORY.oracle", "Description": "Retain the complete baseline's open-ended feature-exploration requirement; its missing feature list and acceptance oracle require review, not inferred PASS." }
+    ] }
+  ]
+}

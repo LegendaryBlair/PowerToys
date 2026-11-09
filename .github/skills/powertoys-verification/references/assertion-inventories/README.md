@@ -6,6 +6,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 |---|---|---|---|
 | Advanced Paste | 1 | 29 | 32 |
 | Always On Top | 1 | 17 | 62 |
+| Awake | 1 | 17 | 50 |
 | Color Picker | 2 | 17 | 25 |
 | Crop And Lock | 1 | 13 | 14 |
 | Environment Variables | 3 | 29 | 135 |
@@ -135,7 +136,12 @@ Always On Top retains ordinary pin/border behavior separately from opacity, syst
 audio, Game Mode, virtual-desktop and conditional release-integration observations.
 Its new-profile inventory does not establish readiness or accept any captured visual reference.
 
-The thin template rejects different run-local Items for all 19 Scenario A modules
+Awake retains the vague release-baseline exploration separately from concrete shipped
+mode, tray, CLI and integration claims. Real lock/resume, power-source, policy, telemetry,
+OS-servicing and failure-injection conditions remain conditional, not silently optional.
+An inventory is not proof that those fixtures or the profile are execution-ready.
+
+The thin template rejects different run-local Items for all 20 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify

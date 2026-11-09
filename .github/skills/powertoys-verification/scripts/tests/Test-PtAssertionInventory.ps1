@@ -11,6 +11,7 @@ function Reject([scriptblock]$Body,[string]$Pattern){
     throw "Expected rejection: $Pattern"
 }
 $expectedInventories=[ordered]@{
+    'awake'=@(17,50)
     'always-on-top'=@(17,62)
     'advanced-paste'=@(29,32); 'color-picker'=@(17,25); 'crop-and-lock'=@(13,14)
     'environment-variables'=@(29,135); 'file-locksmith'=@(10,10); 'image-resizer'=@(12,18)
