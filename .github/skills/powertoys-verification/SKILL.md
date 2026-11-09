@@ -46,6 +46,7 @@ specific checklist.
 | File | Purpose |
 |---|---|
 | `scripts/pt-file-io.ps1` | Shared live-file reads that permit product read/write/delete; no automatic retries or default JSON. |
+| `scripts/pt-awake.ps1` | Read-only system-wide execution-state observation with optional Awake process-generation guards; no process-specific attribution, power mutation or physical sleep claim. |
 | `scripts/pt-always-on-top.ps1` | Read-only identity-checked pin/topmost/layered-alpha, physical frame, virtual-desktop and Game Mode observations. Does not drive the module or prove rendered border/audio behavior. |
 | `scripts/pt-file-set-snapshot.ps1` | Bounded direct-child file snapshots and ownership-guarded restoration, including absence, without reading unrelated live logs; see [selected-file preservation](references/directory-snapshots.md#selected-file-preservation). |
 | `scripts/pt-text-extractor-state.ps1` | Private durable OCR originals, declared preference writes, exact file rollback and recreated-Settings cache writeback; see [Text Extractor state boundaries](references/modules/text-extractor.md#helper-boundaries). |
