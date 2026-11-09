@@ -150,7 +150,11 @@ before mutation. Specify semantic or byte-exact file comparison up front.
 - **Do not add fixed test inputs, expected outputs or an `Observe` column.** Operation parameters and prerequisites are allowed; the checklist owns test values and assertions. Put settings-field mappings and where/how to read outcomes in **Read-out notes**, not the UI locator. A UI readback is not proof of persistence or downstream behavior.
 - **Tables are interaction-keyed, NOT line-keyed.** Upstream checklist line numbers (`L<n>`) **must not appear** — they drift between releases. PT-source-code citations should prefer **file + symbol** (a line number is fine only as an *as-of-build* hint).
 - **Cite source by file + symbol** (e.g. `Settings.cpp CSettings::Load`) where module behavior surprises (CLI guards, debounce timings, fallback chains) so reviewers can verify — symbols survive refactors, bare line numbers rot.
-- **Update the profile after every verification round**; promote any new technique into the right helper script if it generalizes beyond this module.
+- **Verification does not automatically maintain profiles or helpers.** Keep new observations,
+  selectors, limitations and run-local driver sources in the run artifacts. Review and promote
+  reusable knowledge only in a separately authorized maintenance task; a missing profile must
+  not turn PR verification into full-module profile authoring. Advice inside a profile to add
+  capability rows or recipes applies to that maintenance task, not to ordinary verification.
 
 ## Optional UI state-transition section
 

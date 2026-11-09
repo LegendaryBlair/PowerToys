@@ -393,20 +393,18 @@ Settings process. Keep this recovery separate from the Normal-path verdict.
 
 ### CRITICAL — `invoke` vs `click`: choose the right verb
 
-**`winapp ui invoke <sel>`** dispatches through UIA's **`InvokePattern` via COM IPC**:
-- ✅ Bypasses Windows UIPI (User Interface Privilege Isolation)
-- ✅ Works even when your test runs elevated and the target is non-elevated AppX
-- ✅ Does NOT steal foreground / does NOT trigger focus-loss handlers
-- ✅ Works on Buttons, ListItems, ToggleSwitches, CheckBoxes — anything that exposes `InvokePattern` or `TogglePattern`
-- ❌ Does NOT work on elements without an UIA action pattern (plain Grid, Text, Pane) — error message says "does not support any invoke pattern"
+Use the selected CLI's supported action syntax and inspect the target's actual patterns.
+UIA invocation dispatches a provider action rather than a physical click; it does not prove
+mouse hit-testing, nor does a Button/ListItem type guarantee that the needed pattern is exposed.
+Provider access and effects on focus must be observed, not inferred from WinUI/AppX identity.
 
-**`winapp ui click <sel>`** uses Win32 **`SendInput`** under the hood:
-- ❌ **BLOCKED by UIPI** when source is elevated and target is non-elevated (or any AppX) — error: `SendInput failed — the target window may be elevated`
-- ❌ Triggers foreground change → can dismiss popups, dialogs, AppX windows that hide on deactivation
-- ✅ Only use when you genuinely need a synthetic mouse click (e.g. testing mouse hover/right-click flyouts where InvokePattern is unavailable)
-- ✅ Subject to your process having interactive desktop access
+Physical input needs an attached input desktop, a guarded target and compatible integrity.
+SendInput can inject into equal- or lower-integrity applications; an elevated injector is not
+categorically blocked from a non-elevated AppX. Foreground/hit-target changes can still dismiss
+popups or send input elsewhere. See the [SendInput contract](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-sendinput).
 
-**Rule of thumb**: try `invoke` first; only fall back to `click` if the target lacks InvokePattern AND you have a non-elevated test runner.
+Prefer the appropriate UIA action when the claim permits it. Use a physical click when that route
+is under test or when a safely established alternative is necessary, then observe the actual outcome.
 
 ### CRITICAL — DataTemplate AutomationId vs ListItem InvokePattern
 
@@ -428,40 +426,17 @@ winapp ui invoke $li.selector -w $hwnd    # selector like 'itm-calculator-7e3f'
 
 If you encounter "does not support any invoke pattern" while trying to use a data-bound AutomationId, this is almost always the cause. The fix is to search by Name and invoke the sibling ListItem.
 
-### CRITICAL — Keystroke input that bypasses UIPI (PostMessage)
+### CRITICAL — Message-based input (PostMessage)
 
-`winapp ui` has no `send-keys` verb. For keystroke input into elevated/AppX targets where SendInput fails, use **inline Win32 `PostMessage WM_KEYDOWN/WM_KEYUP`** which goes through the target's message queue without UIPI checks:
+Check the selected CLI's actual input capabilities before introducing a native fallback.
+`PostMessage WM_KEYDOWN/WM_KEYUP` targets a window's message queue, not the physical input
+stream, and is subject to [UIPI restrictions](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-postmessagew).
+It is not a way to bypass an integrity failure.
 
-```powershell
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public static class K {
-    [DllImport("user32.dll", CharSet=CharSet.Auto)]
-    public static extern bool PostMessage(IntPtr h, uint msg, IntPtr wp, IntPtr lp);
-    public const uint WM_KEYDOWN = 0x0100;
-    public const uint WM_KEYUP   = 0x0101;
-}
-"@
-
-function Send-KeyToHwnd {
-    param([IntPtr]$Hwnd, [byte]$Vk)
-    [void][K]::PostMessage($Hwnd, [K]::WM_KEYDOWN, [IntPtr]$Vk, [IntPtr]0)
-    Start-Sleep -Milliseconds 30
-    [void][K]::PostMessage($Hwnd, [K]::WM_KEYUP,   [IntPtr]$Vk, [IntPtr]0)
-}
-
-# Common VK codes:
-#   0x08 Backspace  0x09 Tab     0x0D Enter   0x1B Escape
-#   0x25 Left       0x26 Up      0x27 Right   0x28 Down
-Send-KeyToHwnd -Hwnd $h -Vk 0x28   # Down arrow
-Send-KeyToHwnd -Hwnd $h -Vk 0x0D   # Enter
-```
-
-**Caveats**:
-- WinUI3 apps' raw-input hooks may NOT process some keys via WM_KEYDOWN — `Esc` in particular often goes ignored (use BackButton invoke instead). Arrow keys + Enter typically work for ListView navigation.
-- PostMessage returns immediately; allow 50-200 ms before reading state.
-- Repeat `Send-KeyToHwnd` calls work for multi-step navigation (Down × 5 to scroll, then Enter).
+Use it only for an explicitly scoped target known to handle those messages, when the assertion
+does not require a hook/raw-input/physical-key path. Check submission errors and independently
+observe the handled effect; a fixed sleep is not delivery evidence. Escape handling depends on
+the current control, focus and input mechanism. Invoking Back may navigate, but cannot prove Escape.
 
 ### CRITICAL — Global hotkeys / PowerToys activation chords (SendInput, verified working)
 
@@ -503,124 +478,40 @@ if ($sent -eq 0) { throw "SendInput failed err=$([Runtime.InteropServices.Marsha
 
 `SendInput` injects into the **session-wide** input stream — it goes to whatever IS foreground at the moment. If your target window has lost foreground (very common with AppX windows), the keys silently land in another window (often your own terminal) with no error returned.
 
-Always check the foreground state immediately before calling `SendInput`. For winapp ui's output, the literal substring `foreground` appears in the line for the foreground window:
+Use the shared `pt-foreground-guard.ps1` and `pt-sendinput-chord.ps1` helpers with the exact
+window identity/HWND after its preservation plan is established. An AppId or a text match for
+`foreground` cannot distinguish multiple windows of one process. Do not copy a second
+AttachThreadInput/force-foreground implementation or assume a once-per-session reliability rule.
+If the target cannot be established, stop input; UIA is an alternative only when it still tests
+the claimed route.
 
-```powershell
-function Test-AppForeground {
-    param([Parameter(Mandatory)][string]$AppId)
-    $r = winapp ui list-windows -a $AppId 2>$null | Out-String
-    return ($r -match 'foreground')
-}
+### CRITICAL — Value setting and typed input are different paths
 
-# Force foreground (works ONCE per session reliably; subsequent attempts may be blocked by
-# Windows foreground-lock):
-function Force-AppForeground {
-    param([Parameter(Mandatory)][IntPtr]$Hwnd, [int]$ProcessId)
-    Add-Type -TypeDefinition @'
-        using System; using System.Runtime.InteropServices;
-        public static class Fg {
-            [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
-            [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
-            [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
-            [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
-            [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
-            [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);
-            [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int pid);
-        }
-'@ -EA SilentlyContinue
-    [Fg]::AllowSetForegroundWindow($ProcessId) | Out-Null
-    [Fg]::ShowWindow($Hwnd, 9) | Out-Null  # SW_RESTORE
-    $fg = [Fg]::GetForegroundWindow(); $fgPid = 0
-    $fgThread = [Fg]::GetWindowThreadProcessId($fg, [ref]$fgPid)
-    $curThread = [Fg]::GetCurrentThreadId()
-    if ($fgThread -ne 0 -and $fgThread -ne $curThread) { [Fg]::AttachThreadInput($curThread, $fgThread, $true) | Out-Null }
-    [Fg]::BringWindowToTop($Hwnd) | Out-Null
-    [Fg]::SetForegroundWindow($Hwnd) | Out-Null
-    if ($fgThread -ne 0 -and $fgThread -ne $curThread) { [Fg]::AttachThreadInput($curThread, $fgThread, $false) | Out-Null }
-    Start-Sleep -Milliseconds 400
-}
+UIA ValuePattern sets a programmatic value. Whether that raises TextChanged, commits input or
+activates a provider depends on the current control and application. Do not assume it always
+bypasses TextChanged, or that a successful set-value proves the query was processed.
 
-# Guard pattern: abort instead of silently sending keys to wrong window
-if (-not (Test-AppForeground -AppId 'Microsoft.CmdPal.UI')) {
-    Force-AppForeground -Hwnd $h -ProcessId $pid
-    if (-not (Test-AppForeground -AppId 'Microsoft.CmdPal.UI')) {
-        throw 'Cannot force CmdPal foreground; aborting SendInput batch'
-    }
-}
-# ... now safe to SendInput ...
-```
+For CmdPal, discover the current query control and observe text and results independently.
+When testing alias typing, use guarded physical input; directly opening a provider is not an
+alias test. Earlier alias/event observations are version-specific troubleshooting clues, not
+universal WinUI behavior or permission to replay input until results appear.
 
-**Tip**: when foreground cannot be reliably maintained, prefer `winapp ui set-value` (UIA-IPC, no foreground required) or `winapp ui invoke` (UIA InvokePattern, no foreground required) instead of SendInput.
+### CRITICAL — Diagnose sparse UIA trees without automatic recovery
 
-### CRITICAL — `set-value` bypasses TextChanged for some apps (CmdPal alias detection)
+A sparse tree may reflect a hidden/cloaked window, virtualization, a different provider or
+an observation failure. Neither a fixed node-count threshold nor the number of earlier
+queries establishes process degradation. Retain the original error/tree, confirm the target,
+visibility and current tool capability, and use scoped pixels when needed.
 
-`winapp ui set-value` writes the value through UIA's ValuePattern, which fires a programmatic value-change event. **It does NOT raise the `TextBox.TextChanged` event** the way real keystrokes do. For apps whose logic listens to `TextChanged` rather than to property changes — most notably CmdPal's alias detection (typing `=`, `<`, `>`, `:`, `$`, `??`, `)` in MainSearchBox triggers navigation to a provider sub-page) — `set-value` will set the text but the alias will NOT activate.
-
-Workarounds:
-- For plain queries: `winapp ui set-value` works fine (CmdPal still re-runs all providers on value change).
-- For alias-triggered navigation: use **real keystrokes** via Force-AppForeground + SendInput, typing one character at a time with ~60-100ms delay so the alias detector sees the TextChanged sequence.
-- Alternative: invoke the provider tile directly by its stable AutomationId (e.g. `winapp ui invoke 'com.microsoft.cmdpal.calculator' -w $hwnd`) when you only need the destination page, not the alias path.
-
-### CRITICAL — Stunted UIA tree recovery
-
-After ~30+ rapid `set-value` calls or after AppX has been interactive too long, an AppX window's UIA tree can degrade to a "stunted" state where `winapp ui inspect -w $h --depth 6` returns only ~5 elements (TitleBar / Close / Min / Max / RootPane) — even though the app looks fine visually.
-
-Probe + recover pattern:
-
-```powershell
-# Probe: any healthy ListView-based AppX has >50 UIA nodes at depth 6
-$probe = winapp ui inspect -w $h --depth 6 --json | ConvertFrom-Json
-$nodes = 0
-$stack = [System.Collections.Stack]::new()
-if ($probe.windows[0].elements) { foreach ($e in $probe.windows[0].elements) { $stack.Push($e) } }
-while ($stack.Count -gt 0) {
-    $n = $stack.Pop(); $nodes++
-    if ($n.PSObject.Properties['children']) { foreach ($c in $n.children) { $stack.Push($c) } }
-}
-
-if ($nodes -lt 6) {
-    Write-Warning "UIA tree stunted ($nodes nodes); restarting AppX"
-    Get-Process Microsoft.CmdPal.UI -EA SilentlyContinue | ForEach-Object {
-        Stop-Process -Id $_.Id -Force
-        Wait-Process -Id $_.Id -Timeout 5 -EA SilentlyContinue
-    }
-    Start-Process 'shell:AppsFolder\Microsoft.CommandPalette_8wekyb3d8bbwe!App'
-    Start-Sleep 5
-    # Re-resolve HWND with list-windows
-}
-```
+Do not kill/relaunch an AppX, reset its query/navigation or repeatedly reissue the action as
+an implicit probe. Recovery requires a separate authorized, identity-checked preservation and
+lifecycle operation. Keep its effects separate from the original product verdict.
 
 ### Settings.json mutation safety contract
 
-When the only realistic way to reach a needed test state is editing the app's persistent settings (e.g. multi-select that the UI's `SelectionItemPattern.Select` clobbers), wrap mutations with **byte-identical backup + restore-on-exit**:
-
-```powershell
-$settings = "$env:LOCALAPPDATA\Packages\Microsoft.CommandPalette_8wekyb3d8bbwe\LocalState\settings.json"
-$backup = "$env:TEMP\settings-backup-$(Get-Random).json"
-$origBytes = [System.IO.File]::ReadAllBytes($settings)
-[System.IO.File]::WriteAllBytes($backup, $origBytes)
-try {
-    # 1. Stop the AppX so we can write the file (apps usually hold it open)
-    Get-Process Microsoft.CmdPal.UI -EA SilentlyContinue | Stop-Process -Force
-    Start-Sleep 1
-    # 2. Mutate
-    $j = $origBytes | ForEach-Object { [char]$_ } | Join-String | ConvertFrom-Json
-    $j.SomeKey = 'TestValue'
-    [System.IO.File]::WriteAllBytes($settings, [System.Text.Encoding]::UTF8.GetBytes(($j | ConvertTo-Json -Depth 10)))
-    # 3. Restart AppX so it re-reads the mutated settings
-    Start-Process 'shell:AppsFolder\Microsoft.CommandPalette_8wekyb3d8bbwe!App'
-    Start-Sleep 5
-    # 4. ... run your test ...
-} finally {
-    # ALWAYS restore — verify byte-identical via length + SHA256
-    Get-Process Microsoft.CmdPal.UI -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue
-    Start-Sleep 1
-    [System.IO.File]::WriteAllBytes($settings, $origBytes)
-    $check = [System.IO.File]::ReadAllBytes($settings)
-    if ($check.Length -ne $origBytes.Length) { Write-Error "Restore length mismatch!" }
-    Start-Process 'shell:AppsFolder\Microsoft.CommandPalette_8wekyb3d8bbwe!App'
-}
-```
-
-**Important**: this should be used ONLY when the UI route is unreachable. Any setting flippable through the AppX Settings UI should be flipped that way instead (it's the documented user flow and tests real binding code).
+Use the real Settings UI when that route is under test; a file edit cannot rescue a failed
+control, binding or IPC assertion. For an explicitly allowed configuration fixture, follow
+the [paired snapshot and rollback contract](pre-flight.md#state-hygiene-critical--always-restore)
+and the module's actual consumption boundary. Preserve original existence/bytes and attribute
+the expected post-state before rollback. Do not assume all settings hot-reload, force-stop a
+borrowed app to write its store, or claim cached-state restoration from disk equality alone.
