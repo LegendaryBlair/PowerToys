@@ -43,7 +43,7 @@ Settings can coexist with tray/console surfaces. `Settings / enabled` includes a
 | Timed integrated | Countdown completes | Passive integrated | Selector changes to passive; process remains resident |
 | Expiration integrated | Deadline completes | Passive integrated | Selector changes to passive; process remains resident |
 | Settings / enabled | Click real notification icon | Integrated tray menu | Awake-owned `#32768`; screen row unavailable in passive |
-| Integrated tray menu | Select a mode or dismiss by returning to Settings | Settings / enabled | Native menu gone; Settings remains available |
+| Integrated tray menu | Select a mode or dismiss with guarded Escape | Settings / enabled | Native menu gone; Settings remains available |
 | No Awake process | Owned standalone launch, valid arguments | Standalone active | Owned process and mode-dependent console/tray surface |
 | Standalone active | Timer/deadline/target exits, or user-facing Exit | No Awake process | Exact process generation gone |
 
@@ -64,7 +64,7 @@ Names; `x:Uid` is not an AutomationId. Persistence does not prove runtime effect
 | Find tray icon | Primary taskbar or owned new overflow | `ControlType=Button`, Name starts `PowerToys Awake`; `Shell_TrayWnd` / `TopLevelWindowForOverflowXamlIsland` | `Find-PtRunnerTrayControl` without `-RunnerIcon`; open observed chevron only if needed |
 | Open tray menu | Visible unoccluded icon | Exact icon Name/owner, current Awake generation | `Invoke-PtRunnerTrayRightClick` or scoped CLI left click; wait for Awake-owned `#32768` |
 | Operate tray row | Awake menu/submenu | `ControlType=MenuItem`, actual caption | Invoke supported pattern without focusing popup; rediscover interval submenu. No WM_COMMAND substitution |
-| Dismiss menu | Run-opened menu | Borrowed Settings HWND | Focus Settings and verify absence; do not activate the hidden Awake message HWND |
+| Dismiss menu | Run-opened menu; exact current foreground belongs to the same Awake generation | Current foreground HWND plus owned visible `#32768` menu | Guard both identities and recheck the foreground HWND immediately before `Send-PtChord -Key 0x1B`; do not activate the hidden owner. Verify menu absence, close only owned overflow, then restore pointer/foreground |
 | Run CLI | Owned terminal; resident Awake absent | Exact installed executable, documented arguments | Preserve visible console text, stdout and exit status separately |
 | Read requests | Controlled baseline/active states | Native power-information query | `Get-PtAwakePowerObservation` with optional `-ProcessIdentity` from `Get-PtLifecycleProcessProbe` |
 | Use extension | Shipped PowerToys CmdPal page | Actual Awake Settings/status/mode commands | Invoke, refresh status, compare Settings/runtime; no direct service/JSON substitute |
@@ -88,7 +88,7 @@ Names; `x:Uid` is not an AutomationId. Persistence does not prove runtime effect
 | Symptom / condition | Diagnose / recover | Interpretation boundary |
 |---|---|---|
 | CLI exits immediately | Check resident singleton; disable integrated Awake through Settings | Duplicate-instance rejection is not mode evidence |
-| Menu disappears / hidden-target refusal | Observe without activation; dismiss by returning to Settings | Do not focus popup or bypass input guards |
+| Menu disappears / hidden-target refusal | Native menus retain a hidden foreground owner. Use the same-generation/exact-HWND guarded Escape path above; focusing Settings is not a reliable dismissal | Do not activate popup/hidden owner or send input after the guard changes |
 | Screen toggle moves deadline | Retain commit/toggle/completion times; compare untouched countdown | Eventual expiry does not prove deadline preservation |
 | File restored but UI/runtime differs | Restore UI values first, then guarded bytes; reobserve cache | File equality alone is insufficient; no borrowed-window close/restart loop |
 | Picker cannot represent original seconds/offset | Prove exact file/cache rollback before editing | Missing rollback is Author work, not permission to normalize data |
