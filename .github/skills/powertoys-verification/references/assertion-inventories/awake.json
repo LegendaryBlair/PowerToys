@@ -1,7 +1,7 @@
 {
   "Schema": "PtAssertionInventory.v1",
-  "Revision": 1,
-  "SourceSha256": "03F859EC100EAE8549F5383A5A63AFCEE83282963E178CC68CE11A4ED5023EF9",
+  "Revision": 2,
+  "SourceSha256": "41FEF748119E194A3C9C9D1F2DBD66B431315005EA4DDF04239A1F2EB9217ABF",
   "Items": [
     { "Id": "AWAKE-ENABLE", "Assertions": [
       { "Id": "AWAKE-ENABLE.off", "Description": "Disabling through Settings removes the Awake process and tray icon and disables behavior controls." },

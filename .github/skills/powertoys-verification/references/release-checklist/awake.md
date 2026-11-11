@@ -96,9 +96,14 @@
 - [ ] **Configuration-bound CLI** [ID: AWAKE-CLI-CONFIG] [ADMIN: NO]
   With the integrated instance disabled and a preserved existing configuration, launch
   `--use-pt-config --display-on --time-limit 1`. Saved mode/display values take precedence over
-  conflicting standalone arguments. Change mode/display through Settings and observe live reload
-  without replacing that process. Return it to passive, close the owned CLI session and restore
-  original enablement/preferences; do not write JSON to create a passing observation.
+  conflicting standalone arguments. Establish an owned exit path before launch and restore original
+  enablement/preferences using the profile's state-dependent restoration order.
+  The separate reload requirement remains: Settings mode/display edits reach that same CLI process,
+  which stays resident in passive mode. **Known checklist conflict:** disabling integrated Awake
+  also disables those Settings controls; a running standalone instance does not enable them.
+  When this condition applies, record the reload assertion as FAIL (checklist), not as a runnable
+  sequence or a product failure. Do not enable the integrated instance or write JSON to manufacture
+  a passing reload result; retain the independently observed precedence result.
 
 ### Session and power transitions
 

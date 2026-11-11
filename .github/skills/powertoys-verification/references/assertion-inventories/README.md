@@ -6,7 +6,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 |---|---|---|---|
 | Advanced Paste | 1 | 29 | 32 |
 | Always On Top | 1 | 17 | 62 |
-| Awake | 1 | 17 | 50 |
+| Awake | 2 | 17 | 50 |
 | Color Picker | 2 | 17 | 25 |
 | Crop And Lock | 1 | 13 | 14 |
 | Environment Variables | 3 | 29 | 135 |
@@ -140,6 +140,8 @@ Awake retains the vague release-baseline exploration separately from concrete sh
 mode, tray, CLI and integration claims. Real lock/resume, power-source, policy, telemetry,
 OS-servicing and failure-injection conditions remain conditional, not silently optional.
 An inventory is not proof that those fixtures or the profile are execution-ready.
+Revision 2 clarifies the disabled-Settings reload conflict and its cleanup prerequisite;
+all 50 child IDs and expectations remain unchanged. Earlier archives retain revision 1.
 
 The thin template rejects different run-local Items for all 20 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.

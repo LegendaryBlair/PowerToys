@@ -5,12 +5,12 @@
 | Fact | Value |
 |---|---|
 | Module / source | `Awake`; `src\modules\awake` |
-| Runtime | `PowerToys.Awake.exe` beside the actual installed Runner; native notification icon/menu, managed background power-request thread |
-| Settings UI | WinUI `PowerToys.Settings.exe`; navigation `AwakeNavItem`, under `SystemToolsNavItem` when collapsed |
-| Preferences | `%LOCALAPPDATA%\Microsoft\PowerToys\Awake\settings.json`; general enablement is `enabled.Awake` in the parent `settings.json` |
-| Lifecycle | Resident when enabled, including passive mode; disabling removes the runtime. Integrated and standalone instances share a singleton mutex |
-| Entry distinction | Settings and notification icon configure integrated Awake. Standalone CLI uses arguments; `--use-pt-config` instead watches saved preferences. There is no module activation hotkey |
-| Exit signal | `Local\PowerToysAwakeExitEvent-c0d5e305-35fc-4fb5-83ec-f6070cfaf7fe` is shutdown, not activation. Do not signal a borrowed integrated instance to create a CLI fixture |
+| Runtime | `PowerToys.Awake.exe` beside installed Runner; native tray menu, managed power-request thread |
+| Settings UI | WinUI `PowerToys.Settings.exe`; `AwakeNavItem` under `SystemToolsNavItem` |
+| Preferences | `%LOCALAPPDATA%\Microsoft\PowerToys\Awake\settings.json`; parent `settings.json`: `enabled.Awake` |
+| Lifecycle | Enabled: resident even when passive. Disabled: exits. Integrated and standalone share a singleton mutex |
+| Entry distinction | Integrated: Settings/tray. Standalone: arguments, or `--use-pt-config` to watch preferences. No activation hotkey |
+| Exit signal | `Local\PowerToysAwakeExitEvent-c0d5e305-35fc-4fb5-83ec-f6070cfaf7fe`: shutdown only; never use on borrowed integrated Awake to create a CLI fixture |
 
 Discovery-stage guidance, not acceptance. Use the [checklist](../release-checklist/awake.md)
 and [inventory](../assertion-inventories/awake.json); source-derived routes still need live confirmation.
@@ -22,79 +22,82 @@ Complete [preflight](../pre-flight.md) and [preservation](#fixtures-and-restorat
 
 | Intent | Route / destination |
 |---|---|
-| Settings | Invoke `AwakeNavItem`, expanding System Tools if needed; arrive at enabled/disabled Settings |
-| Notification area | Physically click the actual Awake icon; inspect its menu, not Runner's |
-| CLI | Disable integrated Awake and verify absence before an owned resident CLI launch; help/error parsing does not require disabling |
-| Command Palette | Preserve palette/provider state, then use the shipped PowerToys extension's Awake commands |
+| Settings | Invoke `AwakeNavItem`; expand System Tools if needed |
+| Notification area | Physically click Awake's icon, not Runner's |
+| CLI | Disable integrated Awake and confirm absence before resident CLI launch; help/error parsing needs no disable |
+| Command Palette | Preserve palette/provider state; use shipped PowerToys extension commands |
 
 ## UI state-transition map
 
-Settings can coexist with tray/console surfaces. `Settings / enabled` includes all four modes;
-`Active integrated` excludes passive. Landmarks establish surfaces, not effective power requests.
+Settings and tray/console surfaces can coexist. Landmarks do not prove effective power requests.
 
 | Current state | Trigger / condition | Next state | State landmarks |
 |---|---|---|---|
-| Settings / disabled | Enable switch, policy permits | Settings / enabled | Enabled behavior controls and resident Awake process |
-| Settings / enabled | Disable switch | Settings / disabled | Behavior controls disabled; resident process exits |
-| Settings / enabled | Select passive | Passive integrated | Mode selector; screen control disabled; no duration/date controls |
-| Settings / enabled | Select indefinite | Indefinite integrated | Mode selector and usable screen control |
-| Settings / enabled | Select interval | Timed integrated | Hours and Minutes edits inside interval card |
-| Settings / enabled | Select expiration | Expiration integrated | Date/time picker cards in expiration expander |
-| Timed integrated | Countdown completes | Passive integrated | Selector changes to passive; process remains resident |
-| Expiration integrated | Deadline completes | Passive integrated | Selector changes to passive; process remains resident |
-| Settings / enabled | Click real notification icon | Integrated tray menu | Awake-owned `#32768`; screen row unavailable in passive |
-| Integrated tray menu | Select a mode or dismiss with guarded Escape | Settings / enabled | Native menu gone; Settings remains available |
-| No Awake process | Owned standalone launch, valid arguments | Standalone active | Owned process and mode-dependent console/tray surface |
-| Standalone active | Timer/deadline/target exits, or user-facing Exit | No Awake process | Exact process generation gone |
+| Settings / disabled | Enable, policy permits | Settings / enabled | Usable behavior controls; resident process |
+| Settings / enabled | Disable | Settings / disabled | Disabled behavior controls; process exits |
+| Settings / enabled | Select passive | Passive integrated | Screen disabled; duration/date hidden |
+| Settings / enabled | Select indefinite | Indefinite integrated | Usable mode/screen controls |
+| Settings / enabled | Select interval | Timed integrated | Hours/Minutes card |
+| Settings / enabled | Select expiration | Expiration integrated | Date/time picker cards |
+| Timed integrated | Countdown completes | Passive integrated | Passive selector; process stays resident |
+| Expiration integrated | Deadline completes | Passive integrated | Passive selector; process stays resident |
+| Settings / enabled | Click Awake icon | Integrated tray menu | Awake-owned `#32768`; screen disabled when passive |
+| Integrated tray menu | Select mode / guarded Escape | Settings / enabled | Menu absent |
+| No Awake process | Owned valid CLI launch | Standalone active | Owned process; mode-dependent console/tray |
+| Standalone active | Timer/deadline/target ends or user Exit | No Awake process | Exact generation gone |
 
 ## Control locator and interaction index
 
-Use [shared helpers](../helper-workflow.md), exact HWNDs and fresh selectors. Rediscover localized
-Names; `x:Uid` is not an AutomationId. Persistence does not prove runtime effect.
+Use [shared helpers](../helper-workflow.md), exact HWNDs and fresh localized selectors.
+`x:Uid` is not an AutomationId; persistence is not runtime evidence.
 
 | Interaction | UI state & scope | Control locator | How to interact |
 |---|---|---|---|
-| Navigate | Borrowed main Settings | `AutomationId=AwakeNavItem`; parent `SystemToolsNavItem` | Invoke rail; wait for `AwakeEnableSettingsCard` |
-| Enable/disable | Awake page, no open menu | `ClassName=ToggleSwitch`, `Name=Awake`, owner `AwakeEnableSettingsCard` | Explicit Toggle on/off; use Resident lifecycle adapter and fresh process identity |
+| Navigate | Preserved main Settings | `AutomationId=AwakeNavItem`; parent `SystemToolsNavItem` | Invoke; wait for `AwakeEnableSettingsCard` |
+| Enable/disable | Awake page; menus closed | `ClassName=ToggleSwitch`, Name `Awake`, within `AwakeEnableSettingsCard` | Explicit on/off; Resident lifecycle adapter and fresh identity |
 | Select mode | Enabled Awake page | `ControlType=ComboBox`, `Name=Mode`, owner `AwakeModeSettingsCard` | `Select-PtComboBoxItem`: `-Hwnd`, `-ControlName Mode`, `-WithinAutomationId AwakeModeSettingsCard`, `-ItemName` from live options |
-| Change display | Enabled non-passive mode | `ClassName=ToggleSwitch`, `Name=Keep screen on` | Scoped CLI invoke with `--action toggle-on` / `toggle-off`; reread state |
-| Edit interval | Timed integrated | `ControlType=Edit`, Names `Hours` / `Minutes`, owner `AwakeIntervalSettingsCard` | SetValue, then focus the other edit to commit; verify persistence |
-| Open picker | Expiration integrated; rollback proven | Owners `AwakeExpirationSettingsExpanderDate` / `AwakeExpirationSettingsExpanderTime`; unique child `AutomationId=FlyoutButton` | Inspect owner, invoke button and rediscover popup |
-| Commit picker | Owned date/time popup | `YearLoopingSelector` / `HourLoopingSelector`, descendant `ClassName=LoopingSelectorItem`; `AcceptButton` | Select, verify IsSelected, accept; discover day/month/minute parts. Source/test-derived route needs live confirmation |
-| Find tray icon | Primary taskbar or owned new overflow | `ControlType=Button`, Name starts `PowerToys Awake`; `Shell_TrayWnd` / `TopLevelWindowForOverflowXamlIsland` | `Find-PtRunnerTrayControl` without `-RunnerIcon`; open observed chevron only if needed |
-| Open tray menu | Visible unoccluded icon | Exact icon Name/owner, current Awake generation | `Invoke-PtRunnerTrayRightClick` or scoped CLI left click; wait for Awake-owned `#32768` |
-| Operate tray row | Awake menu/submenu | `ControlType=MenuItem`, actual caption | Invoke supported pattern without focusing popup; rediscover interval submenu. No WM_COMMAND substitution |
-| Dismiss menu | Run-opened menu; exact current foreground belongs to the same Awake generation | Current foreground HWND plus owned visible `#32768` menu | Guard both identities and recheck the foreground HWND immediately before `Send-PtChord -Key 0x1B`; do not activate the hidden owner. Verify menu absence, close only owned overflow, then restore pointer/foreground |
-| Run CLI | Owned terminal; resident Awake absent | Exact installed executable, documented arguments | Preserve visible console text, stdout and exit status separately |
-| Read requests | Controlled baseline/active states | Native power-information query | `Get-PtAwakePowerObservation` with optional `-ProcessIdentity` from `Get-PtLifecycleProcessProbe` |
-| Use extension | Shipped PowerToys CmdPal page | Actual Awake Settings/status/mode commands | Invoke, refresh status, compare Settings/runtime; no direct service/JSON substitute |
+| Change display | Enabled, non-passive | `ClassName=ToggleSwitch`, Name `Keep screen on` | Scoped `--action toggle-on` / `toggle-off`; reread |
+| Edit interval | Timed integrated | `AwakeIntervalSettingsCard`; resolve NumberBox edits by Hours/Minutes labels | Supported SetValue; focus other edit to commit. Resolve numeric readback separately |
+| Open picker | Expiration; rollback proven | `AwakeExpirationSettingsExpanderDate` / `AwakeExpirationSettingsExpanderTime`; unique `FlyoutButton` AutomationId | Invoke; rediscover popup |
+| Commit picker | Owned date/time popup | `YearLoopingSelector` / `HourLoopingSelector`, `LoopingSelectorItem` class; `AcceptButton` | Discover day/month/minute parts; select, verify IsSelected, accept. Source-derived, not live-confirmed |
+| Find tray icon | Taskbar / owned overflow | `ControlType=Button`, Name starts `PowerToys Awake`; `Shell_TrayWnd` / `TopLevelWindowForOverflowXamlIsland` | `Find-PtRunnerTrayControl` without `-RunnerIcon`; chevron only if needed |
+| Open tray menu | Visible unoccluded icon | Exact Name/owner and Awake generation | `Invoke-PtRunnerTrayRightClick` / scoped left click; await owned `#32768` |
+| Operate tray row | Awake menu/submenu | `ControlType=MenuItem` and current caption | Guarded physical click below; observed native Invoke failed. Rediscover submenu; no WM_COMMAND |
+| Dismiss menu | Run-opened menu; same-generation foreground | Exact foreground HWND and owned visible `#32768` | Guard both; recheck foreground before `Send-PtChord -Key 0x1B`. Never activate hidden owner. Verify absence; close owned overflow; restore desktop |
+| Run CLI | Resident singleton absent; text needs readable owned terminal | Installed executable and actual token | Distinguish direct/indirect tracking; see fixture limits |
+| Read requests | Controlled inactive/active states | Native power query | `Get-PtAwakePowerObservation -ProcessIdentity` for live Awake; omit only for established absence |
+| Use extension | PowerToys CmdPal page | Awake Settings/status/mode commands | Invoke, refresh, compare Settings/runtime; no service/JSON substitute |
 
 ### Read-out notes
 
 - `Read-PtSharedFileText` preserves writer sharing. Plain fields under `properties` are `mode`,
   `keepDisplayOn`, `intervalHours`, `intervalMinutes`, `expirationDateTime`, `customTrayTimes`;
   there are no `.value` wrappers. Modes: passive 0, indefinite 1, timed 2, expiration 3.
-- Tray text is advertised state. The helper's flags are **system-wide**, not process-attributed.
-  Compare controlled inactive/active states; unrelated requests invalidate attribution.
-- `powercfg /query` compares the power plan. `/requests` requires elevation. Neither UI nor kernel
-  flags prove physical sleep/display prevention.
-- Timestamp duration commit, display toggle and completion independently. Keep Settings and tray
-  routes distinct; never reset the clock after toggling. Integrated expiry stays resident.
-- Scope captures to owned/module surfaces. Menus need passive capture (`-WindowIdentity`).
-  Check spinner popups/update notifications for occlusion; images remain unaccepted candidates.
+- Tray text advertises state; flags are **system-wide**. Controlled inactive/active differences,
+  not unrelated requests, support attribution. Neither proves physical sleep/display prevention.
+- `powercfg /query` compares the power plan; `/requests` needs elevation.
+- Timestamp commit/toggle/completion separately; do not reset the clock after toggling.
+  Keep Settings/tray paths distinct. Integrated expiry stays resident.
+- Capture scoped surfaces, menus passively (`-WindowIdentity`); check occlusion.
+  Images are evidence candidates, not accepted visual references.
+- An `Edit Hours`/`Minutes` numeric query can return Missing despite successful editing.
+  Preserve that error; fresh readable Settings pixels plus file/runtime observations can establish
+  the displayed duration, not a successful UIA read or an unperformed edit.
 
 ## Troubleshooting
 
 | Symptom / condition | Diagnose / recover | Interpretation boundary |
 |---|---|---|
-| CLI exits immediately | Check resident singleton; disable integrated Awake through Settings | Duplicate-instance rejection is not mode evidence |
-| Menu disappears / hidden-target refusal | Native menus retain a hidden foreground owner. Use the same-generation/exact-HWND guarded Escape path above; focusing Settings is not a reliable dismissal | Do not activate popup/hidden owner or send input after the guard changes |
-| Screen toggle moves deadline | Retain commit/toggle/completion times; compare untouched countdown | Eventual expiry does not prove deadline preservation |
-| File restored but UI/runtime differs | Restore UI values first, then guarded bytes; reobserve cache | File equality alone is insufficient; no borrowed-window close/restart loop |
-| Picker cannot represent original seconds/offset | Prove exact file/cache rollback before editing | Missing rollback is Author work, not permission to normalize data |
-| Passive global flags remain set | Inspect independent baseline and other request owners where permitted | No process attribution from global flags alone |
-| Lock/resume/hardware unavailable | Retain condition and recovery prerequisites; continue ordinary cases | Do not lock/suspend/detach the shared desktop |
-| Extension/provider lifetime unclear | Inspect installation, route and ownership before activation | No toast-only PASS or automatic CmdPal recycling |
+| CLI exits immediately | Check singleton; disable integrated through Settings | Duplicate rejection is not mode evidence |
+| Native menu Invoke fails | Resolve fresh row bounds; verify menu/foreground generation and native hit-test to menu. Recheck identities, bounds, pointer, hit-test and held buttons before down/up; release in `finally` | Proven integrated row/submenu path; no hidden-owner activation or stale coordinates |
+| Menu / hidden-target refusal | Hidden owner retains foreground; use guarded Escape above, not Settings focus | Stop input if exact identity/foreground changes |
+| Config CLI controls disabled | Behavior binds to `ViewModel.IsEnabled`; standalone cannot enable it | Known checklist reload conflict; no JSON/singleton bypass |
+| Screen toggle moves deadline | Compare recorded commit/toggle/completion with untouched countdown | Eventual expiry is insufficient |
+| Files match but UI differs | State-dependent UI restoration below, then guarded bytes/cache readback | No borrowed-window restart loop |
+| Picker loses seconds/offset | Prove exact file/cache rollback before editing | Missing restoration support; do not normalize originals |
+| Passive flags remain set | Check independent baseline/other owners where permitted | Global flags are not per-process |
+| Missing lock/resume/hardware | Preserve conditions; continue independent cases | Do not lock/suspend/detach shared desktop |
+| Unknown provider lifetime | Establish installation/ownership before activation | No toast-only PASS or CmdPal recycling |
 
 ## Fixtures and restoration
 
@@ -102,13 +105,13 @@ Names; `x:Uid` is not an AutomationId. Persistence does not prove runtime effect
 
 | Fixture / resource | When needed | Ownership & baseline | Cleanup / restore | Verification |
 |---|---|---|---|---|
-| Settings ResourcePlan | Navigation | Borrowed HWND; original page/expansion/scroll/placement | Shared Settings adapter; never close borrowed app | Fresh final UI comparison |
-| Awake file snapshot | Preference edits | Run-private original bytes; attributed expected post-state | UI restoration, then guarded `Restore-PtFileSnapshot -ExpectedState` | Original bytes and UI/cache/runtime readback |
-| General file / lifecycle snapshot | Enablement, CLI | Original file and enabled map; unrelated values preserved | Restore original Awake enablement; reject unexplained changes | Original enabled map and declared byte/semantic comparison |
-| Desktop / tray popup | Physical input | Desktop snapshot; initially absent popup/overflow | Dismiss only owned popup; pointer before foreground | Menu absent; desktop matches |
-| Owned CLI / PID fixture | Console cases | `Start-PtOwnedProcess` or activation receipt; all siblings | User-facing close/natural exit, checked by `Stop-PtOwnedProcess` | Exact owned generations gone |
-| Power plan / requests | Runtime | Read-only plan and differential baseline | End owned requests; no timeout changes | Plan unchanged; original active state restored |
-| Policy/diagnostic/hardware fixture | Conditional cases | Authorized originals and independent recovery | Approved exact rollback | Original state independently observed |
+| Settings ResourcePlan | Navigation | Original ownership/page/expansion/scroll/placement | Shared adapter; never close borrowed app | Fresh UI comparison |
+| Awake snapshot | Preference edits | Private bytes; attributed post-state | UI, then `Restore-PtFileSnapshot -ExpectedState` | Bytes and UI/cache/runtime |
+| General/lifecycle | Enablement, CLI | Original file/enabled map | Restore Awake only; reject unrelated changes | Original map and declared file comparison |
+| Desktop/popups | Input | Original desktop; absent popup/overflow | Owned popups only; pointer before foreground | Absence and desktop match |
+| Owned CLI/PID | CLI | Direct record or supported indirect scope; siblings | User exit/natural exit; `Stop-PtOwnedProcess` confirms | Owned generations gone; integrated restored |
+| Plan/requests | Runtime | Read-only plan/differential baseline | End owned requests; no timeout writes | Original plan/active state |
+| Conditional fixtures | Policy/diagnostics/hardware | Authorized originals; independent recovery | Exact approved rollback | Independent comparison |
 
 ### Helper boundaries
 
@@ -118,12 +121,27 @@ driver/restorer; its regression is `scripts\tests\Test-PtAwake.ps1`.
 Existing-file rollback cannot restore absence: use [directory/selected-file preservation](../directory-snapshots.md)
 instead of pre-creating files. Include indirect startup writes; keep backups private and do not roll back logs.
 
+Current CLI fixture limits:
+- `Start-PtOwnedProcess` direct tracking does not establish parent-shell activation.
+  `Invoke-PtOwnedProcessActivation` scopes require original generations to survive and reject
+  untracked replacements, conflicting with integrated disable/restore. Parent binding needs a
+  supported lifecycle composition; never delete scopes or rewrite baselines.
+- Visible help/error assertions require an owned readable console frontend, not a zero-size
+  `PseudoConsoleWindow` or redirected text. Headless lifetime observations cannot discharge them.
+- Record the standalone token. Integrated tray success does not establish standalone Exit:
+  elevated standalone menu entry remained unconfirmed, and non-elevated behavior was not tested.
+  Exact-owned exit-event cleanup is not a passing user-facing Exit assertion.
+
 ### Restoration order
 
 1. Release input, dismiss owned popups and settle drafts.
-2. End owned CLI/target processes; restore original duration/display/mode through Settings.
-3. Normalize only attributed file changes with the guard; verify timestamp precision and cache.
-4. Restore original enablement, account for startup writes, then compare files/runtime again.
+2. End owned CLI/target processes and verify singleton absence before re-enabling integrated Awake.
+3. Restore changed preferences through usable Settings controls. If disabled, first restore original
+   enablement or use explicitly planned temporary enablement. If neither is permitted, reject the
+   preference-mutating case before it starts. Unchanged preferences need no temporary enablement.
+4. Restore the original enabled flag after UI edits; account for startup/IPC writes, then normalize
+   only attributed file changes with the guard. Verify bytes, timestamp precision and live cache/
+   effective state (or process absence when originally disabled); file equality alone is insufficient.
 5. Restore borrowed Settings and pointer/foreground; complete resource comparisons. Retain all failures.
 
 ### Restoration verification
@@ -136,7 +154,9 @@ Retain conflicts and recovery copies; never turn a helper return count into rest
 
 - [Awake checklist](../release-checklist/awake.md) and [assertion inventory](../assertion-inventories/awake.json).
 - [Official Awake usage](https://learn.microsoft.com/windows/powertoys/awake).
-- Source symbols: `Awake.Program.BuildRootCommand` / `ProcessSettings`,
+- Source: `Awake.Program.BuildRootCommand` / `ProcessSettings`,
   `Awake.Core.Manager.SetTimedKeepAwake` / `HandleTimerCompletion`,
-  `Awake.Core.TrayHelper`, and `AwakePage.Settings_Changed`.
-  Versioned source, UI-test reuse decisions and actual execution identities belong in the Author/run inputs.
+  `Awake.Core.TrayHelper`, `AwakePage.Settings_Changed`; freeze source/build identities per run.
+- Disabled controls: `src\settings-ui\Settings.UI\SettingsXAML\Views\AwakePage.xaml`,
+  Behavior `SettingsGroup.IsEnabled`. Process scopes: `scripts\pt-session-safety.ps1`,
+  `Invoke-PtOwnedProcessActivation` and `Complete-PtResourceSession`.
