@@ -41,6 +41,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 | ZoomIt | `zoomit.md` | ✅ written 2026-08-19 (hosted events, registry-backed settings, recording flows, input-blocking overlays, and hardware/drag constraints) |
 | Crop And Lock | `crop-and-lock.md` | ✅ written 2026-08-19 (mode events, selector lifecycle, shortcut persistence, crop creation, and real-drag constraints) |
 | Quick Accent | `quick-accent.md` | Held-letter input, character-set drafts, toolbar/guide observation and usage-history preservation |
+| Registry Preview | `registry-preview.md` | Discovery-stage classic-verb/editor profile, 19 scenarios and 39 assertions; runtime tree locator and baseline-relative cache/placement cleanup. Full-inventory execution and external-document/conditional restoration remain separate readiness requirements |
 | Keyboard Manager | `keyboard-manager.md` | New/classic editor operating map and dual-store restoration; ordinary input fixture readiness is required before remapping claims |
 | Power Display | `power-display.md` | Settings/entry and WMI/owned-profile recipes, identity-safe read adapters and module condition tables; Light Switch/startup/theme recipes still require fresh live confirmation and specialist fixtures remain conditional |
 | (other modules to be added as we encounter sign-off needs) | — | — |
