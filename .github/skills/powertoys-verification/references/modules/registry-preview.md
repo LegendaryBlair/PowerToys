@@ -72,14 +72,14 @@ supported patterns; never reuse a runtime slug after a tree change.
 | Toggle module | Module Settings card | Parent `RegistryPreviewEnableRegistryPreview`; toggle Name Registry Preview | Read Toggle pattern, change only when needed, read general enablement separately. |
 | Launch editor | Enabled Settings page | AutomationId `RegistryPreviewLaunchButtonControl` | Invoke; resolve the new process/window. |
 | Toggle default app | Enabled Settings page | Parent `RegistryPreviewDefaultRegApp`; named default-app toggle | Use Toggle pattern; distinguish registration from effective handler. |
-| Open file | `commandBar` | Button AutomationId `openButton` | Invoke; resolve owned file dialog. |
-| Reload file | `commandBar` | Button AutomationId `refreshButton` | Invoke once; handle the actual dirty confirmation. |
-| Save | `commandBar`, dirty editor | Button AutomationId `saveButton` | Invoke; handle filename if needed, then independently read disk. |
-| Save a copy | `commandBar` | Button AutomationId `saveAsButton` | Invoke and select an owned destination; reject unowned overwrite. |
+| Open file | `commandBar` | Button AutomationId `openButton` | Physically click through the scoped CLI; observe the owned native file dialog. Synchronous UIA Invoke can remain blocked inside its modal handler. |
+| Reload file | `commandBar` | Button AutomationId `refreshButton` | Click once; handle the actual dirty confirmation. |
+| Save | `commandBar`, dirty editor | Button AutomationId `saveButton` | Click; handle filename if needed, then independently read disk. |
+| Save a copy | `commandBar` | Button AutomationId `saveAsButton` | Physically click, then complete the owned native dialog; reject unowned overwrite. |
 | Edit externally | Saved owned file | Button AutomationId `editButton` | Invoke Edit verb only after establishing external-document/tab preservation. |
-| Type in Monaco | WebView initialized | AutomationId `Browser` when exposed; current editor descendants/bounds | Guard foreground, focus actual editor, use physical text/chords. Preserve clipboard if choosing paste. |
+| Type in Monaco | WebView initialized | AutomationId `Browser` when exposed; current editor descendants/bounds | Guard foreground and paste bulk fixture text through the preserved clipboard. Use small physical edits for typing claims; observe tree/value changes before saving. Do not infer delivery from queued Unicode input. |
 | Select key | Right-hand Tree | AutomationId `ListControl`, ClassName `ListView`; exact child Text name | Require unique visible leaf; click fresh bounds or invoke its TreeItem's supported action. Expand only observed collapsed ancestors. |
-| Enter file path | Owned `#32770` dialog | Freshly inspect filename Edit/ComboBox and Open/Save Button | Set filename and confirm; keyboard entry additionally needs exact foreground. |
+| Enter file path | Owned `#32770` dialog | Exact PID/HWND; the common dialog initially focuses its filename field | Guard that HWND, use Ctrl+A, preserved-clipboard Ctrl+V and Enter, then observe dialog closure and the actual destination. Do not assume UIA IDs `1148`/`2` are exposed. |
 | Import saved file | Reviewed same-user owned fixture | Button AutomationId `writeButton` | Invoke only after registry/consent preconditions; handle that specific import prompt. |
 | Close editor | Owned clean window | Exact identity plus registered native siblings | Compose `Stop-PtOwnedProcess` and `Close-PtTrackedWindow`; handle only owned dirty-document prompts. |
 
@@ -107,6 +107,7 @@ supported patterns; never reuse a runtime slug after a tree change.
 | Default app on, another handler selected | Compare registration with original effective default/UserChoice. | Retain the checklist conflict; registration alone cannot satisfy default-open. |
 | Edit reuses Notepad | Preserve existing tabs/selection/geometry and identify the newly opened document. | Launcher PID is not tab ownership; no blanket close. |
 | Close leaves modal/cache writers | Inspect owned identities; resolve only the owned draft, then observe exit. | No process-name killing or cache removal with live writers. |
+| Open/Save invocation times out after a picker appears | Stop main-window queries. Cancel the exact owned picker with guarded Escape and verify closure; use physical button input on the next authorized attempt. | A blocking provider can make unrelated main-window UIA queries stall. Do not repeat them or capture the dialog's uncontrolled default folder. |
 | Import requires different credentials | Verify user/token and HKCU destination before consent. | Do not switch user or infer authorization from an elevation prompt. |
 
 ## Fixtures and restoration
@@ -117,7 +118,7 @@ supported patterns; never reuse a runtime slug after a tree change.
 |---|---|---|---|---|
 | `.reg` and Save-as files | File/menu cases | Collision-checked owned directory, known bytes/absence | Shared directory rollback, explicit relative paths, after users close | Original file set/bytes/existence |
 | Editor and siblings | Launch | Declare exact Process resource; track indirect activation; reject borrowed singleton | Shared normal owned-window/process close | Exact original process gone; borrowed windows remain |
-| Settings/placement files | Launch/settings | `Get-PtFileSetSnapshot` for selected filenames; private bytes/absence | Quiesce editor; guarded attributed placement rollback; UI restoration for settings | Selected byte baseline and original option values |
+| Settings/placement files | Launch/settings | `New-PtRegistryPreviewFileState` persists private original bytes/absence before launch | Quiesce editor, persist its attributed post-state, then `Restore-PtRegistryPreviewFiles`; settings remain UI-restored | Selected byte baseline; private original hash stays unchanged |
 | Monaco cache | Launch | Snapshot exact root before activation; establish writer absence | Three-way rollback of attributed paths after all cache writers exit | Original bytes/file set/existence; conflicts explicit |
 | Settings/Welcome/palette | Their entry checks | Original logical state, geometry, query/history/pins and providers as affected | Shared Settings adapter; separately proven Welcome/palette rollback | Fresh logical comparison after final action |
 | Explorer | Real menus | `New-PtExplorerFixture` receipt and desktop baseline | Remove owned files; restore pointer before `Remove-PtExplorerFixture` | Exact window/folder absent; original desktop |
@@ -134,6 +135,21 @@ directory snapshots preserve absence but not ACLs, streams or timestamps.
 
 The Notepad fixture adapter owns its generated `.txt` document. Do not fabricate a receipt
 to adopt a `.reg` tab opened by Edit; establish its tab-specific preservation first.
+
+`scripts\pt-registry-preview-state.ps1` composes the shared selected-file adapter:
+`New-PtRegistryPreviewFileState -ModuleDirectory $moduleDirectory -PrivateDirectory $privateDirectory`
+returns a receipt path. Keep that path durably outside the report's public evidence.
+After the declared editor writer is quiescent and its writes attributable, supply the
+selected-file snapshot to `Set-PtRegistryPreviewExpectedFiles -ReceiptPath $receiptPath -ExpectedState $after`.
+`Read-PtRegistryPreviewFileState -ReceiptPath $receiptPath` validates private snapshots;
+`Restore-PtRegistryPreviewFiles -ReceiptPath $receiptPath` restores placement only and
+reports unrelated settings changes. Never publish the returned private original/expected
+payloads. This does not preserve the Monaco directory, Settings UI or clipboard for the caller.
+
+Persist cache/fixture originals and their hashes privately before activation too; an
+in-memory snapshot cannot survive a stopped controller. Keep the clipboard keeper alive
+until verified restoration. Mark synthetic clipboard writes as excluded from Windows
+history/cloud synchronization; do not clear history or disclose its existing contents.
 
 ### Restoration order
 
