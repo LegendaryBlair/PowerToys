@@ -20,6 +20,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | PowerRename | 2 | 16 | 17 |
 | PowerToys Settings | 4 | 25 | 50 |
 | Quick Accent | 2 | 18 | 57 |
+| Registry Preview | 1 | 19 | 39 |
 | Shortcut Guide | 3 | 19 | 96 |
 | Text Extractor | 1 | 17 | 45 |
 | Workspaces | 2 | 38 | 72 |
@@ -143,7 +144,14 @@ An inventory is not proof that those fixtures or the profile are execution-ready
 Revision 2 clarifies the disabled-Settings reload conflict and its cleanup prerequisite;
 all 50 child IDs and expectations remain unchanged. Earlier archives retain revision 1.
 
-The thin template rejects different run-local Items for all 20 Scenario A modules
+Registry Preview retains the full editor/Settings release section, its Registry Editor
+export/import fixture and cross-cutting localization/diagnostic conditions. Command
+Palette, title/theme, clean-install and guarded-teardown claims are separate children.
+The effective-default association expectation is retained pending specification review;
+OpenWith registration alone cannot satisfy it. Conditional matrices and inventory
+availability do not establish execution readiness.
+
+The thin template rejects different run-local Items for all 21 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify

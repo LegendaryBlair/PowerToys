@@ -1,0 +1,141 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "58D8B7EA974A671315EC022D413A2FE23029B07A3B73D69D1CE76699F4DA4796",
+  "Items": [
+    {
+      "Id": "RP-FIXTURE",
+      "Assertions": [
+        { "Id": "RP-FIXTURE.key", "Description": "Create a collision-checked owned HKCU key through Registry Editor; independently observe SampleString as REG_SZ sample-value and SampleBinary as REG_BINARY bytes 01 02 03 04. Required same-user elevation/consent remains conditional." },
+        { "Id": "RP-FIXTURE.export", "Description": "Export that selected owned key through Registry Editor's context menu and verify the resulting .reg file contains only the intended key and both exact values." }
+      ]
+    },
+    {
+      "Id": "RP-EDIT",
+      "Assertions": [
+        { "Id": "RP-EDIT.live-tree", "Description": "Typing a changed leaf key and string value in the visible Monaco editor repopulates the visual tree before Save." },
+        { "Id": "RP-EDIT.save", "Description": "Save file persists the edited document at the original owned path with exact intended content." },
+        { "Id": "RP-EDIT.external-editor", "Description": "Edit file opens the saved owned file in its configured external editor, normally Notepad, whose displayed content matches the saved document." },
+        { "Id": "RP-EDIT.save-as", "Description": "Save file as creates a distinct owned destination with the edited content and switches Registry Preview to that destination." }
+      ]
+    },
+    {
+      "Id": "RP-RELOAD",
+      "Assertions": [
+        { "Id": "RP-RELOAD.editor", "Description": "After editing and saving the owned file externally, Reload from file updates the visible editor to the changed leaf key and string data. File preparation alone does not replace the external-editor action." },
+        { "Id": "RP-RELOAD.tree", "Description": "The same external edit/save and Reload from file operation replaces the visual tree with the externally saved key/data rather than stale content." }
+      ]
+    },
+    {
+      "Id": "RP-VALUES",
+      "Assertions": [
+        { "Id": "RP-VALUES.string", "Description": "Selecting the owned leaf key shows SampleString, REG_SZ and sample-value in the bottom-right data grid, not merely in the editor." },
+        { "Id": "RP-VALUES.binary", "Description": "Selecting the owned leaf key shows SampleBinary, REG_BINARY and 01 02 03 04 in the bottom-right data grid." }
+      ]
+    },
+    {
+      "Id": "RP-OPEN",
+      "Assertions": [
+        { "Id": "RP-OPEN.content", "Description": "Open file selects a different owned .reg file; the active filename, visible editor and visual tree all change to its distinct key and string data." }
+      ]
+    },
+    {
+      "Id": "RP-WRITE",
+      "Assertions": [
+        { "Id": "RP-WRITE.remove", "Description": "Delete the exported owned key manually in Registry Editor and independently verify absence before importing." },
+        { "Id": "RP-WRITE.string", "Description": "An authorized Write to Registry import of the reviewed saved fixture recreates SampleString with its exact REG_SZ data under only the owned same-user key." },
+        { "Id": "RP-WRITE.binary", "Description": "The same authorized import recreates SampleBinary with REG_BINARY kind and exact bytes 01 02 03 04; remove the test-created key afterward." }
+      ]
+    },
+    {
+      "Id": "RP-DISABLE",
+      "Assertions": [
+        { "Id": "RP-DISABLE.menu", "Description": "After disabling Registry Preview through Settings, Preview is absent from the real correctly populated classic .reg file context menu." },
+        { "Id": "RP-DISABLE.welcome", "Description": "Attempting launch from the module Welcome/OOBE page while disabled does not start Registry Preview." }
+      ]
+    },
+    {
+      "Id": "RP-ENABLE",
+      "Assertions": [
+        { "Id": "RP-ENABLE.menu", "Description": "After enabling Registry Preview through Settings, Preview is present in a fresh owned Explorer window's real classic .reg file context menu." },
+        { "Id": "RP-ENABLE.launch", "Description": "Invoking that Preview menu item opens Registry Preview with the selected owned file's key/content." }
+      ]
+    },
+    {
+      "Id": "RP-LAUNCH",
+      "Assertions": [
+        { "Id": "RP-LAUNCH.settings", "Description": "The enabled module's Settings launch control starts a usable Registry Preview editor." },
+        { "Id": "RP-LAUNCH.welcome", "Description": "The enabled module's Welcome/OOBE launch control independently starts a usable Registry Preview editor." }
+      ]
+    },
+    {
+      "Id": "RP-DEFAULT",
+      "Assertions": [
+        { "Id": "RP-DEFAULT.enabled", "Description": "Enabling Default app makes the owned .reg file's effective default open action launch Registry Preview. OpenWith registration alone is insufficient; retain any Windows UserChoice/specification conflict." },
+        { "Id": "RP-DEFAULT.disabled", "Description": "Disabling Default app restores Registry Editor as the effective .reg default. Preserve the original association; do not accept an import prompt or edit UserChoice to force the result." }
+      ]
+    },
+    {
+      "Id": "RP-STARTUP",
+      "Assertions": [
+        { "Id": "RP-STARTUP.blank", "Description": "On a build containing the title fixes, blank-editor startup remains usable with a nonempty native title and visible module icon." },
+        { "Id": "RP-STARTUP.file", "Description": "Owned-file startup remains usable with a nonempty native title containing the filename and a visible module icon." },
+        { "Id": "RP-STARTUP.cjk", "Description": "In an affected CJK Windows-language environment with PowerToys language Windows Default and the startup fix present, repeat blank/file startup and close without title-bar startup failure; record actual locale/elevation." }
+      ]
+    },
+    {
+      "Id": "RP-CLOSE",
+      "Assertions": [
+        { "Id": "RP-CLOSE.normal", "Description": "Normal closure of a clean owned editor exits its window/process without a crash." },
+        { "Id": "RP-CLOSE.fault", "Description": "On an authorized fault-injection build, missing placement state or a teardown exception does not escape the guarded closing handler as a WinRT fail-fast. Do not modify installed bits/state to induce it." }
+      ]
+    },
+    {
+      "Id": "RP-THEME",
+      "Assertions": [
+        { "Id": "RP-THEME.light", "Description": "On supported Windows with the preferred-theme change, switching to Light while Registry Preview is live leaves its caption-button glyphs visible and legible in the light theme." },
+        { "Id": "RP-THEME.dark", "Description": "Switching to Dark while that Registry Preview window is live leaves caption-button glyphs visible and legible in the dark theme; restore the original theme." }
+      ]
+    },
+    {
+      "Id": "RP-LOCALIZATION",
+      "Assertions": [
+        { "Id": "RP-LOCALIZATION.module", "Description": "In an installed authorized non-English Windows display language, Registry Preview command labels, tooltips and dialogs follow the selected language; English-only observation is insufficient." }
+      ]
+    },
+    {
+      "Id": "RP-CMDPAL",
+      "Assertions": [
+        { "Id": "RP-CMDPAL.launch", "Description": "On a build with the PowerToys Command Palette extension, its actual Open Registry Preview command starts the editor, rather than invoking a PowerToys Search apps shortcut." },
+        { "Id": "RP-CMDPAL.settings", "Description": "The extension's Registry Preview Settings command opens the correct Settings page independently of editor launch." },
+        { "Id": "RP-CMDPAL.disabled", "Description": "With Registry Preview disabled, its Command Palette launch command is unavailable while its Settings command remains available; preserve query/navigation/history/provider state." }
+      ]
+    },
+    {
+      "Id": "RP-CMDPAL-PIN",
+      "Assertions": [
+        { "Id": "RP-CMDPAL-PIN.launch", "Description": "On a build with stable command IDs, pin the Registry Preview launch command, reopen Command Palette and verify the pin remains usable and launches the editor; restore original pin state/order." },
+        { "Id": "RP-CMDPAL-PIN.settings", "Description": "Independently pin the Registry Preview Settings command, reopen Command Palette and verify the pin remains usable and opens the correct page; restore original pin state/order." }
+      ]
+    },
+    {
+      "Id": "RP-CMDPAL-LOCALIZATION",
+      "Assertions": [
+        { "Id": "RP-CMDPAL-LOCALIZATION.labels", "Description": "In a supported non-English language with the localized extension, Registry Preview launch title/subtitle and Settings subtitle use expected translations; preserve palette/language state." }
+      ]
+    },
+    {
+      "Id": "RP-FIRST-RUN",
+      "Assertions": [
+        { "Id": "RP-FIRST-RUN.runner", "Description": "On an authorized clean installation containing the default-enablement fix, observe first Runner startup before Settings writes: Registry Preview remains disabled without transient activation." },
+        { "Id": "RP-FIRST-RUN.settings", "Description": "Opening Settings on that fresh installation retains Registry Preview disabled, agreeing with Runner. Do not delete an existing user's settings to simulate the condition." }
+      ]
+    },
+    {
+      "Id": "RP-TELEMETRY",
+      "Assertions": [
+        { "Id": "RP-TELEMETRY.events", "Description": "With authorized Diagnostic data/Enable viewing set before the required PowerToys restart, Diagnostic data viewer contains Registry Preview event XML corresponding to the recorded actions; protect unrelated payloads and restore consent/viewing state." }
+      ]
+    }
+  ]
+}

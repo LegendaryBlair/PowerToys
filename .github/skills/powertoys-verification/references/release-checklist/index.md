@@ -23,6 +23,7 @@ One file per module; a verification run loads only its module's file.
 | PowerRename | 16 / 17 | `power-rename.md` |
 | PowerToys Settings | 25 / 50 | `settings.md` |
 | Quick Accent | 18 / 57 | `quick-accent.md` |
+| Registry Preview | 19 / 39 | `registry-preview.md` |
 | Shortcut Guide | 19 / 96 | `shortcut-guide.md` |
 | Text Extractor | 17 / 45 | `text-extractor.md` |
 | Workspaces | 38 / 72 | `workspaces.md` |
