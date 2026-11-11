@@ -46,6 +46,7 @@ specific checklist.
 | File | Purpose |
 |---|---|
 | `scripts/pt-file-io.ps1` | Shared live-file reads that permit product read/write/delete; no automatic retries or default JSON. |
+| `scripts/pt-awake.ps1` | Read-only system-wide execution-state observation with optional Awake process-generation guards; no process-specific attribution, power mutation or physical sleep claim. |
 | `scripts/pt-always-on-top.ps1` | Read-only identity-checked pin/topmost/layered-alpha, physical frame, virtual-desktop and Game Mode observations. Does not drive the module or prove rendered border/audio behavior. |
 | `scripts/pt-file-set-snapshot.ps1` | Bounded direct-child file snapshots and ownership-guarded restoration, including absence, without reading unrelated live logs; see [selected-file preservation](references/directory-snapshots.md#selected-file-preservation). |
 | `scripts/pt-text-extractor-state.ps1` | Private durable OCR originals, declared preference writes, exact file rollback and recreated-Settings cache writeback; see [Text Extractor state boundaries](references/modules/text-extractor.md#helper-boundaries). |
@@ -128,7 +129,7 @@ variants and every specified validation-matrix row remain required.
 Every other supplied Scenario A checklist also has a matching frozen inventory. Load it
 with `Import-PtAssertionInventory`, retain its `Items` unchanged and record both inputs,
 including when using the generic manual bootstrap. The template enforces these definitions
-for all 19 modules; only the five aligned profiles above require its resource-plan adapter.
+for all 20 modules; only the five aligned profiles above require its resource-plan adapter.
 An inventory is a coverage contract, not proof of complete execution/restoration support.
 
 ```powershell
