@@ -15,6 +15,7 @@ One file per module; a verification run loads only its module's file.
 | Environment Variables | 29 / 135 | `environment-variables.md` |
 | FancyZones | 35 / 171 | `fancyzones.md` |
 | File Locksmith | 10 / 10 | `file-locksmith.md` |
+| Hosts File Editor | 21 / 60 | `hosts-file-editor.md` |
 | Image Resizer | 12 / 18 | `image-resizer.md` |
 | Keyboard Manager | 24 / 135 | `keyboard-manager.md` |
 | New+ | 9 / 9 | `new-plus.md` |
