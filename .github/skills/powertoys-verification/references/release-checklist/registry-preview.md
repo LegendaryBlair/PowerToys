@@ -111,10 +111,11 @@
 
 - [ ] **Caption buttons follow the theme** [ID: RP-THEME] [ADMIN: NO]
   On a supported Windows version and build containing the preferred-title-bar-theme
-  change, change the app theme to Light and then Dark while an owned Registry
+  change, change Windows default app mode to Light and then Dark while an owned Registry
   Preview window is live. Observe visible, legible caption-button glyphs in each
   resulting theme; a reopened window alone does not prove the live change. Restore
-  the original theme and verify the borrowed Settings state.
+  the original Windows app mode and verify the borrowed Windows Settings state.
+  PowerToys Settings' own theme is not a substitute.
 
 - [ ] **Localized module UI** [ID: RP-LOCALIZATION] [ADMIN: NO]
   With an installed, authorized non-English Windows display language, open Registry

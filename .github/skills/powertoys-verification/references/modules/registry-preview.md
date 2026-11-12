@@ -2,113 +2,147 @@
 
 ## Module facts
 
+**Discovery-stage, not full-inventory execution-ready.** Explorer classic-menu, live
+Windows-theme and CmdPal preservation/interaction paths still require confirmation.
+Proven Regedit popup behavior does not establish Explorer behavior. Locale, first-run,
+fault and diagnostics conditions remain required, not optional.
+
 | Field | Value |
 |---|---|
-| Module key | `RegistryPreview` |
-| Editor | Installed `WinUI3Apps\PowerToys.RegistryPreview.exe`; WinUI 3 plus WebView2/Monaco |
+| Module / UI | `RegistryPreview`; WinUI 3 and WebView2/Monaco |
+| Executable | Installed `WinUI3Apps\PowerToys.RegistryPreview.exe` |
 | Data | `%LOCALAPPDATA%\Microsoft\PowerToys\RegistryPreview\settings.json` and `app-placement.json` |
 | Cache | `%USERPROFILE%\AppData\LocalLow\Microsoft\PowerToys\RegistryPreview-Temp` |
-| Enablement | General `enabled.RegistryPreview`; separate from module `properties.default_reg_app` |
-| Event | `RegistryPreview.Trigger` in the shared catalog |
-| File entry | Quoted file argument; classic Classes `regfile\shell\preview\command`, not a packaged `IExplorerCommand` |
-| Window | Rediscover `WinUIDesktopWin32WindowClass` under the exact editor PID/start-time/path; titles change with the file |
+| Settings | General `enabled.RegistryPreview`; module `properties.default_reg_app` is a plain Boolean |
+| Identity | Rediscover `WinUIDesktopWin32WindowClass` under the exact editor image/PID/start time; title changes with file |
 
 ## Entry paths
 
-Preserve resources before activation; an existing editor remains borrowed.
-See [restoration](#fixtures-and-restoration).
+Preserve [originals and ownership](#fixtures-and-restoration) before activation.
+Record controller, Runner, editor and fixture integrity separately: elevated-shell
+launch is not medium-integrity coverage. Existing windows/processes remain borrowed.
 
 | Intent | Entry |
 |---|---|
-| Menu presence/launch | New owned Explorer, select the owned `.reg` file, open its real classic menu (Show more options on Windows 11), then invoke the observed Preview caption. Verify menu type and selection, not registration alone. |
-| File behavior | `Get-PtShellVerbs -Path $file` on the owned file; require one Preview caption before invocation. This classic-verb route does not prove visible menu presence. |
-| Settings launch | Preserve Settings, reveal Advanced / `RegistryPreviewNavItem`, then invoke `RegistryPreviewLaunchButtonControl` while enabled. |
-| Welcome/OOBE | Preserve the original page/window. Inspect its navigation for Registry Preview and its local launch action; observe a newly activated editor. Do not replace this route with Settings launch. |
-| Downstream activation | `Invoke-PtSharedEvent -Name 'RegistryPreview.Trigger'` with the intended enabled Runner/consumer; track the resulting process with `Invoke-PtOwnedProcessActivation`. |
-| Command Palette | Use the actual PowerToys extension commands, not a Search apps shortcut. Preserve query/navigation, pins/history and provider lifetime first. |
-
-Record automation, Runner, editor and foreground-fixture integrity separately. Launching
-the executable directly from an elevated shell is not ordinary medium-integrity coverage.
+| Explorer menu | Owned file/window and populated classic Preview menu; `regfile\shell\preview\command`, not packaged `IExplorerCommand`. |
+| File behavior | Observed Preview verb or quoted owned-file argument; not menu-presence evidence. |
+| Settings | Preserved main window; Advanced / `RegistryPreviewNavItem`. |
+| Welcome | `OOBENavItem`; identify the new secondary window, select its Registry Preview ListItem. |
+| Downstream activation | `RegistryPreview.Trigger` through `Invoke-PtSharedEvent`; declared `Invoke-PtOwnedProcessActivation` tracking. |
+| CmdPal | Actual PowerToys extension, not Search apps; requires the preservation baseline below. |
 
 ## UI state-transition map
 
-Settings, Welcome and palette windows can coexist independently with the editor.
-Observe arrival; this is a route index, not a fixed test order.
+Independent Settings, Welcome, Regedit and palette windows can coexist. Editor below
+means blank or clean file; Dirty editor has unsaved changes. Observe arrival.
 
 | Current state | Trigger / condition | Next state | State landmarks |
 |---|---|---|---|
-| No owned editor | Enabled launch without file | Blank editor | Title, `commandBar`, loading/content surface |
-| No owned editor | Preview owned file | File editor | Filename title, tree and editor |
-| Blank editor | Open button | File dialog | Editor-owned `#32770` |
-| File editor | Open or Save as button | File dialog | Filename field, Open/Save and Cancel |
-| File dialog | Successful file selection/save | File editor | Dialog closes; active filename |
-| File dialog | Cancel; opened from Blank editor | Blank editor | No file selected |
-| File dialog | Cancel; opened from File editor | File editor | Original active file remains |
-| File dialog | Cancel; opened from Dirty editor | Dirty editor | Original draft remains |
-| File editor | Type in Monaco | Dirty editor | Save enabled |
-| Dirty editor | Successful Save | File editor | Save disabled |
-| File editor | Reload after external save | File editor | Same host, refreshed content |
-| Dirty editor | Reload | Reload confirmation | Reload/Cancel actions |
-| Reload confirmation | Cancel | Dirty editor | Draft retained |
-| Reload confirmation | Confirm reload | File editor | Normal editor controls return |
-| Dirty editor | Close | Save confirmation | Save / Don't save / Cancel |
-| Save confirmation | Cancel | Dirty editor | Owned editor remains |
-| Save confirmation | Save existing file succeeds | No owned editor | Original HWND/process disappears |
-| Save confirmation | Don't save owned edits | No owned editor | Original HWND/process disappears |
-| File editor | Normal close | No owned editor | Original HWND/process disappears |
-| File editor | Authorized Write to Registry | Import prompt | Same-user Registry Editor confirmation; possible UAC |
+| No owned editor | Enabled launch, with/without file | Editor | Title, `commandBar`, content |
+| Editor | Open or Save as | File dialog | Owned `#32770`, filename |
+| File dialog | Commit | Editor | Dialog closed, active filename |
+| File dialog | Cancel from clean origin | Editor | Original file/blank state |
+| File dialog | Cancel from dirty origin | Dirty editor | Original draft |
+| Editor | Type | Dirty editor | Save enabled |
+| Dirty editor | Save succeeds | Editor | Save disabled |
+| Editor | Reload external save | Editor | Same host/content surfaces |
+| Dirty editor | Reload or Close | Confirmation | Operation-specific actions |
+| Confirmation | Cancel | Dirty editor | Draft retained |
+| Confirmation | Confirm reload | Editor | Editor controls |
+| Confirmation | Save existing file, completing Close | No owned editor | Window/process exits |
+| Confirmation | Discard owned draft, completing Close | No owned editor | Window/process exits |
+| Editor | Normal close | No owned editor | Window/process exits |
+| Owned Regedit key | Key context menu | Key popup | Fresh visible `#32768` |
+| Key popup | Export | Export dialog | Selected branch, filename |
+| Editor | Authorized Write | Import prompt | Same-user Regedit, specific file |
+| Import prompt | Authorized Yes | Import result | Same-generation result dialog |
 
-Dirty Open/Write/Save can require additional save/filename dialogs. Inspect the actual
-modal; cancellation is not a successful file operation.
+Dirty Open/Write/Save may add save/filename dialogs; inspect rather than bypass them.
 
 ## Control locator and interaction index
 
-Use `Invoke-PtWinApp` with the exact current HWND. Query unique typed targets and their
-supported patterns; never reuse a runtime slug after a tree change.
+Use current identities with `Invoke-PtWinApp`; re-resolve after navigation/lifecycle
+changes. IDs below are AutomationIds, not resource keys or reusable runtime slugs.
 
 | Interaction | UI state & scope | Control locator | How to interact |
 |---|---|---|---|
-| Navigate Settings | Borrowed navigation rail | AutomationId `RegistryPreviewNavItem`, within `AdvancedNavItem` when collapsed | Reveal the parent; select/invoke the item and observe the module card. |
-| Toggle module | Module Settings card | Parent `RegistryPreviewEnableRegistryPreview`; toggle Name Registry Preview | Read Toggle pattern, change only when needed, read general enablement separately. |
-| Launch editor | Enabled Settings page | AutomationId `RegistryPreviewLaunchButtonControl` | Invoke; resolve the new process/window. |
-| Toggle default app | Enabled Settings page | Parent `RegistryPreviewDefaultRegApp`; named default-app toggle | Use Toggle pattern; distinguish registration from effective handler. |
-| Open file | `commandBar` | Button AutomationId `openButton` | Physically click through the scoped CLI; observe the owned native file dialog. Synchronous UIA Invoke can remain blocked inside its modal handler. |
-| Reload file | `commandBar` | Button AutomationId `refreshButton` | Click once; handle the actual dirty confirmation. |
-| Save | `commandBar`, dirty editor | Button AutomationId `saveButton` | Click; handle filename if needed, then independently read disk. |
-| Save a copy | `commandBar` | Button AutomationId `saveAsButton` | Physically click, then complete the owned native dialog; reject unowned overwrite. |
-| Edit externally | Saved owned file | Button AutomationId `editButton` | Invoke Edit verb only after establishing external-document/tab preservation. |
-| Type in Monaco | WebView initialized | AutomationId `Browser` when exposed; current editor descendants/bounds | Guard foreground and paste bulk fixture text through the preserved clipboard. Use small physical edits for typing claims; observe tree/value changes before saving. Do not infer delivery from queued Unicode input. |
-| Select key | Right-hand Tree | AutomationId `ListControl`, ClassName `ListView`; exact child Text name | Require unique visible leaf; click fresh bounds or invoke its TreeItem's supported action. Expand only observed collapsed ancestors. |
-| Enter file path | Owned `#32770` dialog | Exact PID/HWND; the common dialog initially focuses its filename field | Guard that HWND, use Ctrl+A, preserved-clipboard Ctrl+V and Enter, then observe dialog closure and the actual destination. Do not assume UIA IDs `1148`/`2` are exposed. |
-| Import saved file | Reviewed same-user owned fixture | Button AutomationId `writeButton` | Invoke only after registry/consent preconditions; handle that specific import prompt. |
-| Close editor | Owned clean window | Exact identity plus registered native siblings | Compose `Stop-PtOwnedProcess` and `Close-PtTrackedWindow`; handle only owned dirty-document prompts. |
+| Navigate Settings | Main rail | `RegistryPreviewNavItem` under `AdvancedNavItem` | Reveal/select. |
+| Toggle module | `RegistryPreviewEnableRegistryPreview` | Toggle Name Registry Preview | Toggle; compare UI/config. |
+| Settings launch | Enabled page | `RegistryPreviewLaunchButtonControl` | Invoke; track editor. |
+| Welcome launch | Module page | Button `LaunchButton` | Read `IsEnabled`, physically target, observe process. |
+| Default app | `RegistryPreviewDefaultRegApp` | Named toggle | Toggle; compare registration/effective default. |
+| Open | `commandBar` | Button `openButton` | Physical click; owned picker. |
+| Save as | `commandBar` | Button `saveAsButton` | Physical click; no unowned overwrite. |
+| Reload | `commandBar` | Button `refreshButton` | Click; resolve dirty confirmation. |
+| Save | Dirty editor | Button `saveButton` | Click; resolve filename; read disk. |
+| Edit externally | Saved owned file | Button `editButton` | Physical click; preserved document below. |
+| Edit Monaco | Realized WebView | `Browser`; fresh editor bounds | Guarded clipboard paste, small physical edits. |
+| Select key | Right-hand Tree | `ListControl`, Class `ListView`; unique child Text | Click visible leaf; expand observed ancestors. |
+| Enter path | Owned `#32770` | Observed filename field | Guarded Ctrl+A/Ctrl+V/Enter; verify destination. |
+| Export | Regedit popup | MenuItem Export, fresh `#32768` | Inspect; supported action/access key. |
+| Delete key | Exact owned address/selection | Tree `1`, Class `SysTreeView32` | Focus/Delete; specific confirmation; verify absence. |
+| Import | Reviewed export; key absent | Button `writeButton` | Physical click; exact-file confirmation. |
+| Close | Owned window/siblings | Tracked identities | `Stop-PtOwnedProcess` / `Close-PtTrackedWindow`. |
+
+### Regedit export and import
+
+Verify the selected owned key/address and capture existing menu identities before
+right-clicking. Resolve exactly one new visible `#32768` with `Get-PtNativeWindow`,
+bound to the current Regedit image/PID/start time; validate with `Get-PtWindowIdentity`.
+Inspect Export under **that popup HWND**, not the main-window UIA scope. Stale/ambiguous
+scope is not command absence and does not authorize another gesture.
+
+Read the export dialog's selected-branch radio state and exact HKCU branch before saving
+to an absent owned path. Review the complete file: header, sole intended key, value
+kinds/data and no unrelated commands; retain its hash. Manually delete that selected
+key through Regedit and independently establish absence before import.
+
+Close only fixture-owned Regedit before tracking Write's new process; never adopt an
+existing singleton. Verify generation, same user and exact saved-file argument with
+Windows argument parsing, not quote-substring assumptions. Confirm only that authorized
+file's import, observe success and independently read imported kinds/data. Extra
+credentials/secure-desktop consent block that step, not independent work; no automatic
+elevation/account switch. Generated files, `reg import` and cleanup deletion do not
+replace the original UI workflow.
+
+### External editor and Welcome
+
+Before Edit, privately preserve windows, tab identities/order/selection and placement.
+Identify the owned document by path/token and tab runtime identity, not launcher PID.
+Select it, compare displayed/saved content, then edit/save in the external editor.
+Reread disk before Reload; inspect Monaco and tree separately. Normalize Notepad
+TextPattern CR-only line endings only for comparison. Close only the owned tab and
+restore borrowed state; defer editors lacking preservation.
+
+Re-enter Welcome's module page after enablement changes; `LaunchButton` refreshes on
+navigation. Preserve a borrowed page or prove secondary-window ownership. Keep main
+Settings visible during owned Welcome close, then restore its visibility/placement
+and verify the original main identity survives.
 
 ### Read-out notes
 
-- `treeView` is a XAML name, not the observed runtime locator. TreeItems may share a CLR
-  type name; use the child label scoped under `ListControl`, not the first TreeItem.
-- Read `dataGrid` after key selection. Name/type/data there are independent of Monaco text.
-- A populated tree can precede `Browser`: a Busy ring may still occupy the editor.
-  Wait for actual content before typing; a launch or fixed sleep is not readiness.
-- `Read-PtSharedFileText` permits live writers. Declare encoding/newline comparison;
-  saved bytes, visible editor, tree and filename are separate observations.
-- The module's `properties.default_reg_app` is a Boolean, without `.value`.
-  OpenWith/ProgID registration does not override Windows UserChoice.
-- Capture owned content only. Native rectangles can include surrounding shadow margins;
-  use a scoped capture and inspect pixels/identity/geometry before accepting evidence.
+- Runtime `ListControl` differs from XAML `treeView`; `dataGrid` is independent of Monaco.
+  Wait for `Browser`, not merely the tree. Use `Read-PtSharedFileText` for live files.
+  Bytes, visible text, tree and filename are separate; inspect capture pixels for occlusion.
+- Query effective `.reg` association (for example `AssocQueryString`) and exercise actual
+  default Open separately from registration. Both routes were observed with **no UserChoice
+  override**; this proves neither an existing-override case nor a general defect. Never
+  edit UserChoice or accept an association-only import prompt to force an outcome.
+- Live caption checks change **Windows default app mode**, not PowerToys Settings' own
+  theme. Its reversible Windows Settings path still needs confirmation; static pixels
+  or a reopened editor do not prove a live transition.
 
 ## Troubleshooting
 
 | Symptom / condition | Diagnose / recover | Interpretation boundary |
 |---|---|---|
-| Visible keys but `treeView` search misses | Inspect current Tree / `ListControl`; scope the leaf there. | Locator mismatch is not missing product data. |
-| Tree ready, Browser absent | Observe Busy/WebView initialization with a bound, then a grounded input path. | Do not delete existing cache or restart until green. |
-| Preview missing | Check selected `.reg`, enablement and classic menu; establish a populated file menu for absence claims. | Other modules' packaged-menu advice does not apply. |
-| Default app on, another handler selected | Compare registration with original effective default/UserChoice. | Retain the checklist conflict; registration alone cannot satisfy default-open. |
-| Edit reuses Notepad | Preserve existing tabs/selection/geometry and identify the newly opened document. | Launcher PID is not tab ownership; no blanket close. |
-| Close leaves modal/cache writers | Inspect owned identities; resolve only the owned draft, then observe exit. | No process-name killing or cache removal with live writers. |
-| Open/Save invocation times out after a picker appears | Stop main-window queries. Cancel the exact owned picker with guarded Escape and verify closure; use physical button input on the next authorized attempt. | A blocking provider can make unrelated main-window UIA queries stall. Do not repeat them or capture the dialog's uncontrolled default folder. |
-| Import requires different credentials | Verify user/token and HKCU destination before consent. | Do not switch user or infer authorization from an elevation prompt. |
+| Browser absent | Bound readiness observation. | No cache deletion/restart until green. |
+| Export lookup empty | Revalidate popup scope above. | No absence claim from main HWND. |
+| Explorer menu unobserved | Establish selection, foreground, populated classic menu. | Preserve repair limits; no Regedit-fix transplantation. |
+| Default on, other handler | Compare registration/default/UserChoice. | No registration-only PASS. |
+| Open/Save Invoke stalls | Cancel owned picker, verify closure; physical click on authorized retry. | No repeated Invoke or uncontrolled folder capture. |
+| CmdPal hidden/cloaked | Preserve query/navigation before activation. | No provider recycling or disk-only restoration. |
+| Consent unavailable | Verify owned prompt/file/user. | No secure-desktop bypass/account switch. |
 
 ## Fixtures and restoration
 
@@ -116,62 +150,72 @@ supported patterns; never reuse a runtime slug after a tree change.
 
 | Fixture / resource | When needed | Ownership & baseline | Cleanup / restore | Verification |
 |---|---|---|---|---|
-| `.reg` and Save-as files | File/menu cases | Collision-checked owned directory, known bytes/absence | Shared directory rollback, explicit relative paths, after users close | Original file set/bytes/existence |
-| Editor and siblings | Launch | Declare exact Process resource; track indirect activation; reject borrowed singleton | Shared normal owned-window/process close | Exact original process gone; borrowed windows remain |
-| Settings/placement files | Launch/settings | `New-PtRegistryPreviewFileState` persists private original bytes/absence before launch | Quiesce editor, persist its attributed post-state, then `Restore-PtRegistryPreviewFiles`; settings remain UI-restored | Selected byte baseline; private original hash stays unchanged |
-| Monaco cache | Launch | Snapshot exact root before activation; establish writer absence | Three-way rollback of attributed paths after all cache writers exit | Original bytes/file set/existence; conflicts explicit |
-| Settings/Welcome/palette | Their entry checks | Original logical state, geometry, query/history/pins and providers as affected | Shared Settings adapter; separately proven Welcome/palette rollback | Fresh logical comparison after final action |
-| Explorer | Real menus | `New-PtExplorerFixture` receipt and desktop baseline | Remove owned files; restore pointer before `Remove-PtExplorerFixture` | Exact window/folder absent; original desktop |
-| Registry Editor/key | Export/import | Same-user unique key; original Regedit UI/LastKey/placement, kinds/absence | Close only owned Regedit; restore selected values; remove only owned new key | Exact registry/UI baseline |
-| Association | Default-app case | Affected Classes values and original effective handler | Restore original option via Settings; never write UserChoice | Registration and handler independently |
-| Clipboard | Paste/copy only | Shared keeper before writes; private formats | Restore before writer/provider release | Shared receipt, no disclosed payload |
+| Files/editor/cache | File operations | Private snapshots; owned process/siblings | Quiesce; attributed rollback | Bytes/set/absence, exits |
+| Settings/placement | Startup/settings | Durable originals/post-state | Placement adapter; UI-first settings restore | Live values, bytes |
+| External editor | Edit/reload | Owned document; original tabs/placement | Close owned tab; restore borrowed state | Identities/order/selection |
+| Settings/Welcome | Entry | Main snapshot; secondary ownership | Restore page/state; main visible during Welcome close | Original identity/state |
+| Explorer | Menu | `New-PtExplorerFixture`; desktop baseline | Pointer before `Remove-PtExplorerFixture` | Owned window/folder absent |
+| Regedit/key/preferences | Export/import | Same-user ownership; selected kinds/absence/containers | Close; guarded key/preferences restore | Exact baseline |
+| Association | Default app | Selected HKCU Classes/ProgID/OpenWith and intermediate-key absence; effective default/UserChoice | Original UI value; attributed registry restore | Kinds/absence, handler |
+| CmdPal/provider | Palette | Query/navigation/history, pins/order, provider lifetime | Proven live-state restoration before driving | Disk alone insufficient |
+| Clipboard | Paste/copy | Shared keeper, private formats | Restore before writer/provider release | Payload-free receipt |
+| Windows app mode | Theme | Mode; borrowed Windows Settings state | Proven reversible UI required | Mode/page/window |
 
 ### Helper boundaries
 
-Use the existing [template/recorder](../recording-workflow.md), [session adapters](../session-safety.md),
-[owned fixtures](../owned-fixtures.md) and [directory snapshots](../directory-snapshots.md).
-A snapshot does not confer ownership. File-set snapshots need an existing parent;
-directory snapshots preserve absence but not ACLs, streams or timestamps.
+Reuse [session](../session-safety.md), [owned-fixture](../owned-fixtures.md) and
+[file/directory](../directory-snapshots.md) contracts; persist private originals before
+mutation. Notepad `.txt` fixture receipts cannot adopt Edit-opened `.reg` tabs.
+Clipboard writes need the keeper and history/cloud exclusion formats.
 
-The Notepad fixture adapter owns its generated `.txt` document. Do not fabricate a receipt
-to adopt a `.reg` tab opened by Edit; establish its tab-specific preservation first.
+`pt-registry-preview-state.ps1` **restores placement only**. Capture with
+`New-PtRegistryPreviewFileState` using the resolved module directory and owned private
+directory; retain its receipt privately. `Read-PtRegistryPreviewFileState` validates it.
+After attributed writes quiesce, pass the receipt/post-state to
+`Set-PtRegistryPreviewExpectedFiles`, then `Restore-PtRegistryPreviewFiles`.
+Success does **not** restore settings.json, Settings UI, association, cache or clipboard;
+unrelated settings differences are preserved/reported.
 
-`scripts\pt-registry-preview-state.ps1` composes the shared selected-file adapter:
-`New-PtRegistryPreviewFileState -ModuleDirectory $moduleDirectory -PrivateDirectory $privateDirectory`
-returns a receipt path. Keep that path durably outside the report's public evidence.
-After the declared editor writer is quiescent and its writes attributable, supply the
-selected-file snapshot to `Set-PtRegistryPreviewExpectedFiles -ReceiptPath $receiptPath -ExpectedState $after`.
-`Read-PtRegistryPreviewFileState -ReceiptPath $receiptPath` validates private snapshots;
-`Restore-PtRegistryPreviewFiles -ReceiptPath $receiptPath` restores placement only and
-reports unrelated settings changes. Never publish the returned private original/expected
-payloads. This does not preserve the Monaco directory, Settings UI or clipboard for the caller.
+Before owned Regedit startup, snapshot selected values/kinds/absence under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Applets\Regedit` (`LastKey`, `View`,
+`FindFlags`) and relevant containers. Remove a newly created empty `Favorites` only
+when original absence, test ownership and current emptiness are established.
+Unexpected contents are conflicts, not permission to delete the preference tree.
 
-Persist cache/fixture originals and their hashes privately before activation too; an
-in-memory snapshot cannot survive a stopped controller. Keep the clipboard keeper alive
-until verified restoration. Mark synthetic clipboard writes as excluded from Windows
-history/cloud synchronization; do not clear history or disclose its existing contents.
+Restore the original default-app value through the real UI before settings.json byte
+rollback. An observed UI write normalized version `1` to `1.0`; this is **not** permission
+to normalize arbitrary user files. For attributed writes, use `Restore-PtFileSetSnapshot`
+with immutable original, expected owned post-state and explicit owned filename after
+final UI writes. Never relabel concurrent data as owned; verify live state separately.
 
 ### Restoration order
 
-1. Release owned input; restore clipboard before releasing its writer/provider.
-2. Resolve owned drafts/modals, close owned editor/companions normally, and observe cache
-   writer exit. Restore pointer before closing the last owned interaction window.
-3. Roll back attributed placement/cache/files against original and expected snapshots.
-   Preserve unknown concurrent changes; remove only owned new data.
-4. Restore original module/default-app/theme values via UI, then borrowed logical/window
-   state. Close owned Explorer with its adapter, restore foreground, and compare afterward.
+1. Release input; restore clipboard before writer/provider release.
+2. Resolve owned drafts/modals and close owned editors/tabs/Regedit; restore borrowed
+   tabs. Keep main Settings visible during owned Welcome closure. Restore pointer before
+   owned Explorer closure; establish cache-writer exit.
+3. Restore original module/default-app values and authorized, preservable Windows app mode
+   through UI, then borrowed Settings navigation/placement. Finish UI/startup writes and
+   verify live values **before** byte rollback.
+4. With writers quiescent, restore owned keys, selected Regedit preferences/containers and
+   attributed association values. Guard placement, owned settings serialization and
+   cache/file rollback against original and expected state; preserve concurrent changes.
+5. Restore foreground/pointer/layout; compare live state, files and effective association
+   separately. Any further write-producing observation precedes final comparisons.
 
 ### Restoration verification
 
-Require separate receipts for files/cache, owned process/window absence, changed registry/
-association values, borrowed UI and desktop. Snapshot/helper success alone is not complete
-restoration. Missing preservation blocks dependent mutations, not independent safe checks.
+Compare live settings, exact files/cache, registry kinds/absence, effective default,
+owned exits and borrowed UI/desktop separately. Preserve concurrent changes and historical
+failures. CmdPal file backup is not live query/navigation/history/pin/provider restoration;
+unsupported preservation blocks dependent work without waiving conditional coverage.
 
 ## References
 
 - [Checklist](../release-checklist/registry-preview.md) and [assertions](../assertion-inventories/registry-preview.json).
-- [UI observations](../ui-observations.md), [classic menus](../explorer-context-menu-flow.md),
-  and [Command Palette boundaries](command-palette.md).
+- [Recorder](../recording-workflow.md), [UI observations](../ui-observations.md),
+  [classic menus](../explorer-context-menu-flow.md), [CmdPal boundaries](command-palette.md).
 
-No accepted visual reference is supplied. Discovery provenance and actual coverage remain
-in the Author record/run archive, not a reusable success stamp.
+No accepted visual reference is supplied. Immutable archives retain actual coverage;
+documentation maintenance does not complete R1, certify independent reproducibility or
+grant release signoff.

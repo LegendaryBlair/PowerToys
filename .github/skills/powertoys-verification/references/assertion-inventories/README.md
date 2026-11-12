@@ -20,7 +20,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | PowerRename | 2 | 16 | 17 |
 | PowerToys Settings | 4 | 25 | 50 |
 | Quick Accent | 2 | 18 | 57 |
-| Registry Preview | 1 | 19 | 39 |
+| Registry Preview | 2 | 19 | 39 |
 | Shortcut Guide | 3 | 19 | 96 |
 | Text Extractor | 1 | 17 | 45 |
 | Workspaces | 2 | 38 | 72 |
@@ -150,6 +150,11 @@ Palette, title/theme, clean-install and guarded-teardown claims are separate chi
 The effective-default association expectation is retained pending specification review;
 OpenWith registration alone cannot satisfy it. Conditional matrices and inventory
 availability do not establish execution readiness.
+Revision 2 clarifies that the live caption-button check changes Windows default app mode,
+not PowerToys Settings' own theme. All 19 scenario IDs, 39 child IDs, descriptions and
+memberships remain unchanged, including effective-default and conditional expectations.
+The updated source hash applies only to new inputs; historical revision-1 inventories,
+reports and cumulative results are not rewritten or rescored.
 
 The thin template rejects different run-local Items for all 21 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
