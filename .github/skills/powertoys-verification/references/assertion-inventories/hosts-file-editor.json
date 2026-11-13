@@ -1,0 +1,193 @@
+{
+  "Schema": "PtAssertionInventory.v1",
+  "Revision": 1,
+  "SourceSha256": "EE1A69126783CB80D5DD389C18CEE42B4D752301096ADAB7BF39E3F2495EE496",
+  "Items": [
+    {
+      "Id": "HFE-LAUNCH",
+      "Sources": ["baseline:623", "baseline:632-633"],
+      "Assertions": [
+        {"Id": "HFE-LAUNCH.standard", "Description": "With Open as administrator off and a medium-integrity Runner, the actual Settings launch opens a usable non-elevated editor; an owned synthetic save shows the non-admin error and leaves hosts bytes unchanged."},
+        {"Id": "HFE-LAUNCH.elevated", "Description": "With Open as administrator on, no borrowed editor and authorized secure-desktop consent where required, actual Settings launch creates an elevated editor that can save the synthetic entry. Event delivery or direct elevated launch is not this observation."}
+      ]
+    },
+    {
+      "Id": "HFE-WARNING",
+      "Sources": ["baseline:624-625", "baseline:634"],
+      "Assertions": [
+        {"Id": "HFE-WARNING.quit", "Description": "After enabling the startup warning through Settings, the warning appears and Quit closes the owned editor/process."},
+        {"Id": "HFE-WARNING.accept", "Description": "On a fresh launch with the warning enabled, Accept dismisses the warning while leaving a usable editor open."},
+        {"Id": "HFE-WARNING.off", "Description": "After turning the warning off through Settings, a fresh launch is usable without that warning; the original preference is restored."}
+      ]
+    },
+    {
+      "Id": "HFE-ENABLE",
+      "Sources": ["baseline:61-65", "PR:50897"],
+      "Assertions": [
+        {"Id": "HFE-ENABLE.off", "Description": "Disabling only Hosts through Settings persists the disabled state, disables its launch action and does not activate an editor."},
+        {"Id": "HFE-ENABLE.on", "Description": "Re-enabling Hosts through Settings persists the enabled state and its real launch action opens a usable editor."},
+        {"Id": "HFE-ENABLE.off-restart", "Description": "When all affected borrowed state can be preserved across an authorized full PowerToys restart, the disabled Hosts setting and inactive behavior survive that restart."},
+        {"Id": "HFE-ENABLE.on-restart", "Description": "When all affected borrowed state can be preserved across an authorized full PowerToys restart, the enabled Hosts setting and usable launch survive that restart."}
+      ]
+    },
+    {
+      "Id": "HFE-QUICKACCESS",
+      "Sources": ["baseline:67-71", "PR:43840", "PR:49527"],
+      "Assertions": [
+        {"Id": "HFE-QUICKACCESS.launch", "Description": "Opening the real tray Quick Access surface and invoking its enabled Hosts launcher entry opens the intended editor."},
+        {"Id": "HFE-QUICKACCESS.off", "Description": "Disabling Hosts through Quick Access removes its launcher entry and updates the already-open Hosts Settings page to disabled."},
+        {"Id": "HFE-QUICKACCESS.on", "Description": "Re-enabling Hosts through Quick Access restores its launcher entry and updates the already-open Hosts Settings page to enabled; original flyout state is preserved."}
+      ]
+    },
+    {
+      "Id": "HFE-ADD",
+      "Sources": ["baseline:625", "baseline:627", "PR:50741"],
+      "Assertions": [
+        {"Id": "HFE-ADD.row", "Description": "Creating a collision-checked tagged entry through the product dialog produces the correct address, hosts, comment and active state in its row without removing unrelated entries."},
+        {"Id": "HFE-ADD.file", "Description": "With an authorized elevated writer, the committed synthetic entry is independently observed in the actual hosts file with the requested mapping; unrelated mappings remain intact."},
+        {"Id": "HFE-ADD.external", "Description": "A safely owned real auto-refreshing text editor already open on the actual hosts file displays that synthetic committed mapping without manual reload. A private file read is insufficient."}
+      ]
+    },
+    {
+      "Id": "HFE-LIMIT",
+      "Sources": ["baseline:628", "existing-tests:HostModuleTests.TestTooManyHosts"],
+      "Assertions": [
+        {"Id": "HFE-LIMIT.nine", "Description": "A new-entry draft with a valid loopback address and exactly nine unique reserved-domain hostnames enables Add."},
+        {"Id": "HFE-LIMIT.ten", "Description": "Changing that draft to ten hostnames disables Add; Cancel leaves the hosts file unchanged."}
+      ]
+    },
+    {
+      "Id": "HFE-ACTIVE",
+      "Sources": ["baseline:626"],
+      "Assertions": [
+        {"Id": "HFE-ACTIVE.off", "Description": "With an elevated writer, toggling the owned row off shows it inactive and comments its mapping in the file without changing unrelated mappings."},
+        {"Id": "HFE-ACTIVE.on", "Description": "Toggling the owned row on shows it active and uncomments its mapping in the file without changing unrelated mappings."}
+      ]
+    },
+    {
+      "Id": "HFE-SPLIT",
+      "Sources": ["baseline:628", "PR:50741"],
+      "Assertions": [
+        {"Id": "HFE-SPLIT.rows", "Description": "After a guarded append of one tagged ten-host line and the product's external-change Reload, the UI contains exactly the nine-host and one-host split rows with every synthetic hostname retained."},
+        {"Id": "HFE-SPLIT.notice", "Description": "Loading that overlong line shows the too-many-hosts teaching tip/info message. Restoring the file is followed by separate live-cache reload verification."}
+      ]
+    },
+    {
+      "Id": "HFE-FILTER",
+      "Sources": ["baseline:629"],
+      "Assertions": [
+        {"Id": "HFE-FILTER.address", "Description": "The address filter finds the intended owned row among distinguishable prepared entries, without claiming preparation as product filtering."},
+        {"Id": "HFE-FILTER.hosts", "Description": "The hostname filter finds the intended owned row among distinguishable prepared entries."},
+        {"Id": "HFE-FILTER.comment", "Description": "The comment filter finds the intended owned row among distinguishable prepared entries."},
+        {"Id": "HFE-FILTER.none", "Description": "A collision-checked nonmatching filter query yields the product's no-matching-entries state."},
+        {"Id": "HFE-FILTER.clear", "Description": "Clear filters returns the original visible entry set, retaining all unrelated entries."}
+      ]
+    },
+    {
+      "Id": "HFE-OPEN",
+      "Sources": ["baseline:630", "PR:46194"],
+      "Assertions": [
+        {"Id": "HFE-OPEN.document", "Description": "The actual Open hosts file control opens the actual hosts document in Windows Notepad on builds containing #46194; older builds use the configured default editor. The resulting document/tab and pre-existing editor sessions are preserved."}
+      ]
+    },
+    {
+      "Id": "HFE-ADDITIONAL",
+      "Sources": ["baseline:635"],
+      "Assertions": [
+        {"Id": "HFE-ADDITIONAL.top", "Description": "Selecting Top through Settings persists the choice, and committing preserved original additional content plus a tagged comment through the editor places that comment before the synthetic mapping in the file."},
+        {"Id": "HFE-ADDITIONAL.bottom", "Description": "Selecting Bottom through Settings persists the choice, and an actual editor commit places the tagged comment after the synthetic mapping; original content and preference are restored."}
+      ]
+    },
+    {
+      "Id": "HFE-BACKUP",
+      "Sources": ["baseline:636-637", "existing-tests:BackupManagerTest"],
+      "Assertions": [
+        {"Id": "HFE-BACKUP.first", "Description": "After selecting a fresh owned backup folder through Settings and enabling backup, the first edit in a fresh elevated editor creates a backup there containing the exact pre-edit hosts bytes."},
+        {"Id": "HFE-BACKUP.once", "Description": "A second edit in the same editor process creates no second backup."},
+        {"Id": "HFE-BACKUP.off", "Description": "With backup disabled through Settings, the first edit in a fresh elevated editor creates no backup; original backup preferences and files are preserved."}
+      ]
+    },
+    {
+      "Id": "HFE-RETENTION",
+      "Sources": ["baseline:636-637", "existing-tests:BackupManagerTest"],
+      "Assertions": [
+        {"Id": "HFE-RETENTION.never", "Description": "With an isolated selected folder containing only owned synthetic backup fixtures and a sentinel, Never selected through Settings retains every fixture after elevated editor startup."},
+        {"Id": "HFE-RETENTION.count", "Description": "Count-based retention selected through Settings retains exactly the configured newest count of owned backups and leaves the non-backup sentinel unchanged after elevated startup."},
+        {"Id": "HFE-RETENTION.age", "Description": "Age-and-count retention selected through Settings removes only expired owned backups beyond the protected newest count; recent backups, protected newest backups and the non-backup sentinel survive elevated startup."}
+      ]
+    },
+    {
+      "Id": "HFE-TITLE",
+      "Sources": ["PR:45532", "PR:49069", "PR:50027"],
+      "Assertions": [
+        {"Id": "HFE-TITLE.standard", "Description": "An ordinary editor starts with a nonempty appropriate title and remains usable without a title-bar startup crash."},
+        {"Id": "HFE-TITLE.elevated", "Description": "An elevated editor starts with the appropriate nonempty administrator title and remains usable without a title-bar startup crash."},
+        {"Id": "HFE-TITLE.cjk-standard", "Description": "In an affected installed CJK Windows display language with PowerToys language set to Windows Default, ordinary editor startup remains usable with a nonempty appropriate title."},
+        {"Id": "HFE-TITLE.cjk-elevated", "Description": "In an affected installed CJK Windows display language with PowerToys language set to Windows Default and authorized elevation, elevated editor startup remains usable with a nonempty appropriate title."}
+      ]
+    },
+    {
+      "Id": "HFE-THEME",
+      "Sources": ["PR:49786"],
+      "Assertions": [
+        {"Id": "HFE-THEME.light", "Description": "On supported Windows, selecting Light default app mode through Windows Settings while the editor is live produces visible, legible caption-button glyphs; a reopen or PowerToys-only theme change is not equivalent."},
+        {"Id": "HFE-THEME.dark", "Description": "Selecting Dark Windows default app mode while the same editor is live produces visible, legible caption-button glyphs, followed by verified original app-mode and Windows Settings restoration."}
+      ]
+    },
+    {
+      "Id": "HFE-LOCALIZATION",
+      "Sources": ["baseline:31-32", "baseline:44", "PR:44520"],
+      "Assertions": [
+        {"Id": "HFE-LOCALIZATION.editor", "Description": "With an installed authorized non-English Windows display language, Hosts command labels, warning, tooltips and dialogs follow that language; English-only observations do not satisfy this condition."},
+        {"Id": "HFE-LOCALIZATION.extension", "Description": "With an authorized supported non-English language and the localized PowerToys extension, Hosts ordinary/admin launch titles and subtitles and the Settings subtitle show the expected translations."}
+      ]
+    },
+    {
+      "Id": "HFE-CMDPAL",
+      "Sources": ["PR:44006", "PR:50935"],
+      "Assertions": [
+        {"Id": "HFE-CMDPAL.open", "Description": "Invoking ordinary Hosts launch in the actual PowerToys Command Palette extension opens the intended ordinary editor, not an app-search shortcut or a directly signaled event."},
+        {"Id": "HFE-CMDPAL.admin", "Description": "Invoking the extension's administrator launch with authorized consent creates the intended elevated editor; event delivery alone is insufficient."},
+        {"Id": "HFE-CMDPAL.settings", "Description": "The extension's Hosts Settings command lands on the actual Hosts Settings page."},
+        {"Id": "HFE-CMDPAL.disabled", "Description": "When Hosts is disabled, both extension launch commands are unavailable while the Hosts Settings command remains available."},
+        {"Id": "HFE-CMDPAL.admin-shortcut", "Description": "On a build containing #50935, pressing Ctrl+Shift+Enter on the selected ordinary Hosts launch command invokes its administrator action and reaches an elevated editor with authorized consent; menu invocation is a separate path."}
+      ]
+    },
+    {
+      "Id": "HFE-CMDPAL-CUSTOM",
+      "Sources": ["PR:45840", "PR:50047"],
+      "Assertions": [
+        {"Id": "HFE-CMDPAL-CUSTOM.pin-open", "Description": "Pinning the ordinary Hosts launch command survives reopening Command Palette and that pin still launches the intended editor; original pin state/order is restored."},
+        {"Id": "HFE-CMDPAL-CUSTOM.pin-admin", "Description": "Pinning the administrator Hosts launch command survives reopening and remains independently usable with authorized elevation consent; original pin state/order is restored."},
+        {"Id": "HFE-CMDPAL-CUSTOM.pin-settings", "Description": "Pinning Hosts Settings survives reopening and remains independently usable at the correct page; original pin state/order is restored."},
+        {"Id": "HFE-CMDPAL-CUSTOM.fallback", "Description": "Changing only ordinary Hosts launch's fallback setting persists across reopening extension settings without changing administrator launch or Hosts Settings fallback preferences; original preferences are restored."}
+      ]
+    },
+    {
+      "Id": "HFE-FIRST-RUN",
+      "Sources": ["PR:47144"],
+      "Assertions": [
+        {"Id": "HFE-FIRST-RUN.disabled", "Description": "An authorized clean-install fixture containing #47144 leaves Hosts disabled from first Runner startup through first Settings persistence without transient activation; existing settings must not be deleted to simulate this fixture."}
+      ]
+    },
+    {
+      "Id": "HFE-SETTINGS-SAFETY",
+      "Sources": ["PR:50018", "PR:50897", "PR:51115"],
+      "Assertions": [
+        {"Id": "HFE-SETTINGS-SAFETY.update", "Description": "Actual Check for updates, without installing, leaves the explicit Hosts enabled preference unchanged before cleanup."},
+        {"Id": "HFE-SETTINGS-SAFETY.status", "Description": "With authorized diagnostic/backup-status fixtures, read-only status refreshes leave Hosts enablement unchanged rather than submitting cached general settings."},
+        {"Id": "HFE-SETTINGS-SAFETY.startup", "Description": "In an isolated authorized lifecycle fixture, an early Settings request observes fully initialized Hosts enablement rather than persisting a partial startup state."},
+        {"Id": "HFE-SETTINGS-SAFETY.load-failure", "Description": "In an isolated authorized module-load-failure fixture, Hosts' explicit enabled setting survives the missing runtime module and is available when it loads again; installed binaries are not renamed in the shared run."},
+        {"Id": "HFE-SETTINGS-SAFETY.missing-key", "Description": "In an isolated authorized originally-missing-enabled-key fixture, changing Hosts enablement through real Settings persists the requested state; existing general settings are not damaged to manufacture absence."},
+        {"Id": "HFE-SETTINGS-SAFETY.shutdown", "Description": "In an authorized Windows shutdown/restart fixture, the Hosts preference and valid general settings survive without the exit-time wipe; do not reboot the shared desktop."}
+      ]
+    },
+    {
+      "Id": "HFE-TELEMETRY",
+      "Sources": ["baseline:1-5"],
+      "Assertions": [
+        {"Id": "HFE-TELEMETRY.events", "Description": "With Diagnostic data and Enable viewing authorized and enabled before the required PowerToys restart, the actual Diagnostic data viewer contains Hosts event XML corresponding to the recorded actions; consent/viewing state is restored and unrelated payloads stay private."}
+      ]
+    }
+  ]
+}

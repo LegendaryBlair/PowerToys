@@ -34,6 +34,7 @@ Some flows are common to several modules and live in their own top-level docs (n
 | Color Picker | `color-picker.md` | Shared WIP harness baseline; WinUI profile and 25-assertion checklist migrated from the Color Picker branch |
 | Environment Variables | `environment-variables.md` | Shared WIP harness, private restoration helper and functional 29-scenario checklist with frozen assertion IDs |
 | FancyZones | `fancyzones.md` | 35-scenario/171-assertion operating guide; shared-fixture flows, scoped input/capture, persistence and dependency-ordered recovery. Full-inventory confirmation remains required |
+| Hosts File Editor | `hosts-file-editor.md` | Discovery-stage operating profile; 21 scenarios and 60 assertions. Private conflict-guarded hosts preservation, actual modal/row scopes and independent file/UI observations; conditional integrations need their own readiness evidence |
 | Workspaces | `workspaces.md` | ✅ written 2026-08-12 (bottom-up automation profile plus an embedded top-down human workflow and sanitized visual landmarks) |
 | PowerToys Settings | `settings.md` | Aligned operating-profile format: scoped main/secondary/Quick Access controls, hide-versus-exit lifecycle and explicit restoration/fixture boundaries; empty-shortcut, classic-picker and specialist-observer support still needs acceptance |
 | Shortcut Guide | `shortcut-guide.md` | ✅ written 2026-08-21 (app-aware manifests, Windows-key modes, overlay lifecycle, search/pinning, localization and CmdPal traps) |

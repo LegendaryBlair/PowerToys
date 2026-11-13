@@ -12,6 +12,7 @@ Every supplied module checklist has a reviewed, versioned Scenario A inventory:
 | Environment Variables | 3 | 29 | 135 |
 | FancyZones | 2 | 35 | 171 |
 | File Locksmith | 2 | 10 | 10 |
+| Hosts File Editor | 1 | 21 | 60 |
 | Image Resizer | 1 | 12 | 18 |
 | Keyboard Manager | 2 | 24 | 135 |
 | New+ | 1 | 9 | 9 |
@@ -156,7 +157,13 @@ memberships remain unchanged, including effective-default and conditional expect
 The updated source hash applies only to new inputs; historical revision-1 inventories,
 reports and cumulative results are not rewritten or rescored.
 
-The thin template rejects different run-local Items for all 21 Scenario A modules
+Hosts File Editor retains live-file and external-editor observations separately,
+ordinary/elevated entry paths, startup warning choices, filtering, additional content
+and isolated backup-retention policies. Command Palette, language, startup and shared
+Settings conditions remain explicit. Its inventory does not grant permission to replace
+the system hosts file, weaken permissions or modify unrelated mappings/backups.
+
+The thin template rejects different run-local Items for all 22 Scenario A modules
 and snapshots both source files. Direct recorder callers must record both as inputs too.
 Only Color Picker, Workspaces, Shortcut Guide, Environment Variables and Quick Accent currently require
 the aligned `ResourcePlan`/`CleanupPlan` integration. Adding an inventory does not certify

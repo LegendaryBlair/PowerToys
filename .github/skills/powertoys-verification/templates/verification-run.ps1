@@ -50,6 +50,7 @@ $inventoryKey=switch($Module.Replace(' ','').ToLowerInvariant()){
     'fancyzones'{'fancyzones'} 'fz'{'fancyzones'}
     'textextractor'{'text-extractor'} 'powerocr'{'text-extractor'}
     'registrypreview'{'registry-preview'}
+    'hosts'{'hosts-file-editor'} 'hostsfileeditor'{'hosts-file-editor'}
 }
 $profileKey=if($inventoryKey -in 'color-picker','workspaces','shortcut-guide','environment-variables','quick-accent'){$inventoryKey}
 if($Scenario -eq 'A' -and $profileKey -and (-not $ResourcePlan -or $Cleanup)){
