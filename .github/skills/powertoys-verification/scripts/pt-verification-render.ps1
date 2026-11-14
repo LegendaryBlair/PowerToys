@@ -36,9 +36,10 @@ function ConvertTo-PtVerificationSummary {
     }
     function Evidence-Links($Evidence) {
         $files = @($Evidence | Where-Object { $null -ne $_ })
-        $ordered = @($files | Where-Object Kind -eq 'Screenshot') + @($files | Where-Object Kind -ne 'Screenshot')
-        if ($ordered.Count -gt 1 -and $ordered[0].Kind -eq 'Screenshot') {
-            $other = @($files | Where-Object Kind -ne 'Screenshot' | Select-Object -First 1)
+        $ordered = @($files | Where-Object Kind -eq 'Video') + @($files | Where-Object Kind -eq 'Screenshot') +
+            @($files | Where-Object Kind -notin 'Screenshot','Video')
+        if ($ordered.Count -gt 1 -and $ordered[0].Kind -in 'Screenshot','Video') {
+            $other = @($files | Where-Object Kind -notin 'Screenshot','Video' | Select-Object -First 1)
             if ($other.Count) { $ordered = @($ordered[0], $other[0]) }
         }
         $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -48,6 +49,7 @@ function ConvertTo-PtVerificationSummary {
                 if (-not $seen.Add($file.Path)) { continue }
                 $label = switch ($file.Kind) {
                     'Screenshot' { 'Screenshot' }
+                    'Video' { 'Video' }
                     'Restoration' { 'Restoration receipt' }
                     'Source' { 'Source' }
                     default { 'Evidence' }
