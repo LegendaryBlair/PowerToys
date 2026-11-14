@@ -42,6 +42,9 @@ function Invoke-PtVerificationReportAcceptance {
     [IO.File]::WriteAllText($fixture, "SYNTHETIC OFFLINE OBSERVATION ONLY`n$unicode")
     $png = "$Workspace\synthetic.png"
     [IO.File]::WriteAllBytes($png, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII='))
+    # One-second, two-frame blue fixture; tests need no encoder or desktop.
+    $mp4 = "$Workspace\synthetic.mp4"
+    [IO.File]::WriteAllBytes($mp4, [Convert]::FromBase64String('AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMwbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlt0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAHTbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABfm1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAT5zdGJsAAAAvnN0c2QAAAAAAAAAAQAAAK5hdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFExhdmM2My4xLjEwMiBsaWJ4MjY0AAAAAAAAAAAAAAAAGP//AAAANGF2Y0MBZAAK/+EAF2dkAAqs2V7ARAAAAwAEAAADABA8SJZYAQAGaOvjyyLA/fj4AAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAABa4AAAAAAAAABhzdHRzAAAAAAAAAAEAAAACAAAgAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAACAAAAAQAAABxzdHN6AAAAAAAAAAAAAAACAAACywAAAAwAAAAUc3RjbwAAAAAAAAABAAADYAAAAGF1ZHRhAAAAWW1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALGlsc3QAAAAkqXRvbwAAABxkYXRhAAAAAQAAAABMYXZmNjMuMS4xMDIAAAAIZnJlZQAAAt9tZGF0AAACrQYF//+p3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSByMzIyMyAwNDgwY2IwIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTIgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAAWZYiEABT//uzafgU3DFb59dMhveABgQAAAAhBmiFsQS/+4A=='))
     $inputs = @(
         @{ Name = 'skill.txt'; Role = 'Skill'; Path = $source }
         @{ Name = 'profile.txt'; Role = 'Profile'; Path = $source }
@@ -451,7 +454,7 @@ Invoke-PtVerificationStep `$attempt -Name interruption -Command '[Environment]::
         Require ($state.Items[0].Verdict -eq 'BLOCKED') 'Native exit code implied a product verdict'
     }
 
-    Check 'Successful finalization requires explicit cleanup; missing screenshots and cleanup failures withhold' {
+    Check 'Successful finalization requires explicit cleanup; missing visual evidence and cleanup failures withhold' {
         $run = NewRun 'approved' @((Item 'L1' $true))
         Preflight $run
         $a = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name pass
@@ -474,9 +477,112 @@ Invoke-PtVerificationStep `$attempt -Name interruption -Command '[Environment]::
         Complete-PtVerificationItem $run L1 -Reason observed
         Cleanup $run 'FAIL'
         $state = Get-Content (Complete-PtVerificationRun $run -NoFriction).Results -Raw | ConvertFrom-Json
-        Require ($state.Items[0].Verdict -eq 'BLOCKED') 'Visible item passed without screenshot'
+        Require ($state.Items[0].Verdict -eq 'BLOCKED') 'Visible item passed without screenshot or video'
         Require ($state.Signoff -eq 'WITHHELD') 'Cleanup failure approved'
         Require (@($state.SignoffReasons | Where-Object { $_ -match 'cleanup failed' }).Count -eq 1) 'Cleanup failure hidden'
+    }
+
+    Check 'Video-only Normal evidence passes and bundled frame paths survive relocation with integrity coverage' {
+        $bundleSource = "$Workspace\capture.frames"
+        [IO.Directory]::CreateDirectory("$bundleSource\frames") | Out-Null
+        [IO.Directory]::CreateDirectory("$bundleSource\thumbnails") | Out-Null
+        [IO.Directory]::CreateDirectory("$bundleSource\empty") | Out-Null
+        [IO.File]::Copy($png, "$bundleSource\frames\frame-000001.png")
+        [IO.File]::Copy($png, "$bundleSource\thumbnails\frame-000001.png")
+        [IO.File]::WriteAllText("$bundleSource\frames.ndjson", '{"file":"frames/frame-000001.png","elapsedMs":500}')
+        [IO.File]::WriteAllText("$bundleSource\manifest.json", '{"frames":{"index":"frames.ndjson"}}')
+        $run = NewRun 'video-only' @((Item L1 $true))
+        Preflight $run
+        $a = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Synthetic video observation'
+        $media = Invoke-PtVerificationStep $a -Name 'Import synthetic media' -Command 'Import a finalized fixture and its relative frame bundle' -Action {
+            $video = Add-PtVerificationArtifact $a $mp4 Video 'Synthetic blue clip, not a product recording' -Synthetic
+            $bundle = Add-PtVerificationArtifactBundle $a $bundleSource take.frames 'Synthetic frame bundle' -Synthetic
+            [pscustomobject]@{Video=$video;Bundle=$bundle}
+        }
+        foreach ($id in 'opens','content') {
+            Add-PtVerificationAssertion $a $id PASS synthetic 'Explicit offline fixture observation' -Evidence @($media.Video)
+        }
+        Stop-PtVerificationAttempt $a -Reason observed
+        Complete-PtVerificationItem $run L1 -Reason 'Video-only fixture reviewed'
+        Cleanup $run
+        $export = Complete-PtVerificationRun $run -NoFriction
+        Require ($export.Signoff -eq 'APPROVED') 'Video-only visible evidence did not pass'
+        Require (@((Get-PtReportState $run).References | Where-Object Kind -eq 'Screenshot').Count -eq 0) 'Test accidentally relied on a screenshot'
+        Require ([IO.File]::ReadAllText($export.Report).Contains('[Video (synthetic)]')) 'Compact report hid the video'
+        Require ([IO.File]::ReadAllText($export.Details).Contains('video:')) 'Details omitted the video label'
+        Require ($media.Bundle.Files.Count -eq 4) 'Bundle did not register every file'
+        $movedPath = "$Workspace\video-relocated"
+        Move-Item -LiteralPath $run.Workspace -Destination $movedPath
+        Require (Test-PtVerificationArchive $movedPath).Valid 'Relocated video archive failed'
+        $moved = Open-PtVerificationRun $movedPath
+        $bundlePath = Resolve-PtReportPath $moved $media.Bundle.Path
+        $index = ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$bundlePath\frames.ndjson"))
+        $frame = Join-Path $bundlePath $index.file.Replace('/', '\')
+        Require ([IO.File]::Exists($frame) -and [IO.Directory]::Exists("$bundlePath\empty")) 'Bundle internal paths were flattened'
+        Require ([IO.File]::Exists("$bundlePath\thumbnails\frame-000001.png")) 'Equal basenames in different directories collided'
+        $manifest = ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$movedPath\artifact-manifest.json"))
+        Require ([IO.Path]::GetRelativePath($movedPath, $frame) -cin $manifest.Files.Path) 'Playback frame is outside the archive manifest'
+        Require ((Get-FileHash "$bundlePath\frames.ndjson").Hash -ceq (Get-FileHash "$bundleSource\frames.ndjson").Hash) 'Bundle index was rewritten'
+        [IO.File]::AppendAllText($frame, 'tamper')
+        Reject { Test-PtVerificationArchive $movedPath } 'Changed evidence'
+    }
+
+    Check 'Invalid recordings and unsafe or oversized bundles are rejected' {
+        $run = NewRun 'invalid-media'
+        $a = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name validation
+        Reject { Add-PtVerificationArtifact $a $fixture Video 'Not a video' } 'MP4'
+        $truncated = "$Workspace\truncated.mp4"
+        $bytes = [IO.File]::ReadAllBytes($mp4)
+        [IO.File]::WriteAllBytes($truncated, $bytes[0..31])
+        Reject { Add-PtVerificationArtifact $a $truncated Video 'No finalized movie' } 'finalized MP4'
+        [IO.File]::WriteAllBytes($truncated, $bytes[0..($bytes.Length - 3)])
+        Reject { Add-PtVerificationArtifact $a $truncated Video 'Truncated media payload' } 'MP4 box size'
+        Reject { Add-PtVerificationArtifactBundle $a "$Workspace\capture.frames" '..\escape' fixture } 'Unsafe'
+        Reject { Add-PtVerificationArtifactBundle $a "$Workspace\capture.frames" frames fixture -MaxFiles 1 } 'limit'
+        Reject { Add-PtVerificationArtifactBundle $a "$Workspace\capture.frames" frames fixture -MaxBytes 1 } 'limit'
+        Reject { Add-PtVerificationArtifactBundle $a $run.Workspace recursive fixture } 'inside its source'
+    }
+
+    Check 'Video evidence retains Normal origin, producing-step and synthetic-data restrictions' {
+        foreach ($mode in 'history','no-step','generic-evidence','synthetic-product') {
+            $run = if ($mode -eq 'synthetic-product') {
+                New-PtVerificationRun -Workspace "$Workspace\video-$mode" -Module 'Offline gate fixture' -Bits 'Synthetic only' `
+                    -Scenario B -Items @((Item L1 $true)) -Inputs $inputs
+            } else { NewRun "video-$mode" @((Item L1 $true)) }
+            Preflight $run
+            if ($mode -eq 'history') {
+                $diagnostic = Start-PtVerificationAttempt $run -ItemId L1 -Kind Diagnostic -Name 'Historical fixture'
+                $old = Invoke-PtVerificationStep $diagnostic -Name imported -Command 'Synthetic diagnostic video' -Action {
+                    Add-PtVerificationArtifact $diagnostic $mp4 Video fixture -Synthetic
+                }
+                Stop-PtVerificationAttempt $diagnostic -Reason done
+            }
+            $a = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Gate observation'
+            if ($mode -eq 'history') {
+                $proof = Add-PtVerificationArtifact $a (Resolve-PtReportPath $run $old.Path) Video fixture -Synthetic
+            } elseif ($mode -eq 'no-step') {
+                $proof = Add-PtVerificationArtifact $a $mp4 Video fixture -Synthetic
+            } else {
+                $kind = if ($mode -eq 'generic-evidence') { 'Evidence' } else { 'Video' }
+                $proof = Invoke-PtVerificationStep $a -Name imported -Command 'Synthetic media evidence' -Action {
+                    Add-PtVerificationArtifact $a $mp4 $kind fixture -Synthetic
+                }
+            }
+            Invoke-PtVerificationStep $a -Name observation -Command 'Observe offline fixture' -Action { 'fixture' } | Out-Null
+            if ($mode -eq 'history') {
+                Reject { Add-PtVerificationAssertion $a opens PASS synthetic 'Historical video only' -Evidence @($proof) } 'Cross-attempt references'
+                $fresh = Add-PtVerificationArtifact $a $fixture Evidence 'Fresh nonvisual observation' -Synthetic
+                $proof = @($proof, $fresh)
+            }
+            foreach ($id in 'opens','content') {
+                Add-PtVerificationAssertion $a $id PASS synthetic 'Explicit offline observation' -Evidence @($proof)
+            }
+            Stop-PtVerificationAttempt $a -Reason done
+            Complete-PtVerificationItem $run L1 -Reason 'Gate fixture reviewed'
+            Cleanup $run
+            $export = Complete-PtVerificationRun $run -NoFriction
+            Require ($export.Signoff -eq 'WITHHELD' -and (Get-PtReportState $run).Items[0].Verdict -eq 'BLOCKED') "Video bypassed $mode restriction"
+        }
     }
 
     Check 'Cleanup retry requires its own restoration evidence, not an earlier PASS receipt' {

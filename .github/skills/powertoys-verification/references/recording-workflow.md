@@ -251,6 +251,7 @@ that return objects are noted below; mutation-only functions emit no success out
 | `Reopen-PtVerificationItem -Run -ItemId -Reason` | Reopens only one completed item in an unsealed run; does not erase observations or failures. |
 | `Invalidate-PtVerificationAssertion -Attempt -Sequence -Cause -Reason -Evidence` | Marks an earlier same-item judgment invalid with fresh Normal evidence; cause is InvalidObservation or IncorrectJudgment. Does not assign replacement PASS. |
 | `Add-PtVerificationRestoration -Attempt -Verdict -Reason [-Evidence]` | Only a Normal Cleanup context can record restoration. PASS requires fresh registered `Restoration` evidence. Final acceptance uses the latest complete cleanup scope; historical failures remain visible. |
+| `Add-PtVerificationArtifactBundle -Attempt -Path -Name -Description [-StepId] [-Synthetic] [-MaxFiles] [-MaxBytes]` | Copies a quiescent directory under one unique run-owned root, preserving internal paths and registering every file as `Evidence`. Returns `Path` (canonical run-relative root) and `Files`; use those paths, not the unregistered source tree. Unsafe names/links and limit violations are rejected, not renamed. |
 | `Export-PtVerificationReport -Run` | Writes uniquely named compact report/full details/results/manifest/journal snapshot without completing the run. Returns Report, Details, Results, Manifest and Signoff. |
 | `Complete-PtVerificationRun -Run -Retrospective` / `-NoFriction` | Validates evidence, explicitly ends the run, writes `report.md`, `details.md`, `results.json`, `artifact-manifest.json`; returns export paths and Signoff. May finalize a **WITHHELD** run. |
 | `Export-PtVerificationReport -Run -Final` | Final export only after recorded completion; refuses to overwrite any final file. Useful if completion was recorded but no final files were written. |
@@ -363,8 +364,8 @@ attempt and attached to the observation. It is not another product judgment. Pre
 original single tree over a flattened array whose nodes still contain nested children.
 Old archived observations are read unchanged; this limit applies only to new writes.
 
-Allocate screenshot destinations before capture. Register evidence immediately, never
-overwrite a sealed artifact. A screenshot must be associated with its producing step:
+Allocate screenshot/video destinations before capture. Register finalized evidence immediately,
+never overwrite a sealed artifact. Visual evidence must be associated with its producing step:
 registration inside an action uses that step automatically; registration afterward uses
 the attempt's `LastStepId` explicitly.
 
@@ -412,9 +413,19 @@ Complete-PtVerificationItem -Run $run -ItemId L1 -Reason 'Partial coverage; cann
 ```
 
 PASS requires explicit evidence; user-visible PASS additionally requires a Normal-path
-PNG/JPEG reference attached to a completed producing step and a PASS observation.
-Image header checks reject text masquerading as screenshots, but do not analyze pixels:
-the verifier still owns the behavioral judgment. Use `-Synthetic` for generated fixtures.
+`Screenshot` (PNG/JPEG) or `Video` (finalized MP4) reference attached to a completed producing
+step and a PASS observation. Video alone is sufficient; an extra still is not mandatory.
+Image header and MP4 box checks reject malformed containers, but do not decode media or
+judge behavior. Review playback, actual frames, timing and independent observations.
+Use `-Synthetic` for generated fixtures; synthetic and history-only media cannot establish
+fresh product coverage. Existing MP4s registered only as `Evidence` are not retroactively relabeled.
+See [PR visual evidence](visual-evidence.md) for a video/bundle registration example.
+
+Frame bundles must retain directory relationships. Use `Add-PtVerificationArtifactBundle`
+after the recorder finishes, then validate index references against its returned `Files`.
+Each file at the returned `Path` is covered by ordinary archive hashing, including after a move.
+The helper preserves bytes and paths; it does not interpret arbitrary manifests or validate
+their semantic references. Do not individually import a bundle into unrelated filename aliases.
 Synthetic images cannot satisfy a user-visible product PASS; they only exercise that gate
 in `InfrastructureAcceptance`, conspicuously labeled as **not product signoff**.
 
@@ -477,7 +488,7 @@ evidence explaining why the old observation was invalid, then use
 and reason. All original data/judgments and the correction remain in the journal/details.
 Invalidation never grants PASS or revives an older PASS for the corrected assertion:
 record its replacement Normal observation/judgment. Unrelated valid assertions keep their
-results; the item must still satisfy every assertion and its screenshot gate.
+results; the item must still satisfy every assertion and its screenshot-or-video gate.
 Diagnostic evidence, another item's evidence and
 ReferenceOnly imports cannot justify invalidation. Do not misuse InvalidObservation to
 discard an inconvenient real failure; inspect the original observation against the correction

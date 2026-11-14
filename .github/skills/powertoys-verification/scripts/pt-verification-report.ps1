@@ -475,19 +475,54 @@ function ConvertTo-PtReportArtifactName {
     $alias
 }
 
+function Assert-PtReportVideo {
+    param([Parameter(Mandatory)][string]$Path)
+    # Check finalized MP4 container structure, not decoded frames or product behavior.
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    $reader = [IO.BinaryReader]::new($stream)
+    try {
+        $found = @{}
+        while ($stream.Position -lt $stream.Length) {
+            $remaining = $stream.Length - $stream.Position
+            if ($remaining -lt 8) { throw 'Video evidence has a truncated MP4 box.' }
+            $bytes = $reader.ReadBytes(4)
+            [Array]::Reverse($bytes)
+            [uint64]$size = [BitConverter]::ToUInt32($bytes, 0)
+            $type = [Text.Encoding]::ASCII.GetString($reader.ReadBytes(4))
+            $header = 8
+            if ($size -eq 1) {
+                if ($remaining -lt 16) { throw 'Video evidence has a truncated MP4 extended size.' }
+                $bytes = $reader.ReadBytes(8)
+                [Array]::Reverse($bytes)
+                $size = [BitConverter]::ToUInt64($bytes, 0)
+                $header = 16
+            } elseif ($size -eq 0) { $size = [uint64]$remaining }
+            if ($size -lt $header -or $size -gt [uint64]$remaining) {
+                throw 'Video evidence has an invalid MP4 box size.'
+            }
+            if ($type -eq 'ftyp' -and $size -ge ($header + 8)) { $found.ftyp = $true }
+            if ($type -in 'moov','mdat' -and $size -gt $header) { $found[$type] = $true }
+            $stream.Position += [long]($size - $header)
+        }
+        if (-not ($found.ftyp -and $found.moov -and $found.mdat)) {
+            throw 'Video evidence must be a finalized MP4 with ftyp, moov and nonempty mdat boxes.'
+        }
+    } finally { $reader.Dispose() }
+}
+
 function Add-PtVerificationArtifact {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]$Attempt,
         [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)][ValidateSet('Evidence','Screenshot','Restoration')][string]$Kind,
+        [Parameter(Mandatory)][ValidateSet('Evidence','Screenshot','Video','Restoration')][string]$Kind,
         [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Description,
         [string]$StepId = '',
         [switch]$Synthetic,
         [string]$Name
     )
     Assert-PtReportAttempt $Attempt
-    $Kind = switch ($Kind) { 'Evidence' { 'Evidence' }; 'Screenshot' { 'Screenshot' }; default { 'Restoration' } }
+    $Kind = switch ($Kind) { 'Evidence' { 'Evidence' }; 'Screenshot' { 'Screenshot' }; 'Video' { 'Video' }; default { 'Restoration' } }
     Assert-PtReportNoLink $Path
     if (-not [IO.File]::Exists($Path)) { throw "Missing evidence file: $Path" }
     $full = [IO.Path]::GetFullPath($Path)
@@ -541,12 +576,86 @@ function Add-PtVerificationArtifact {
         $jpeg = $bytes.Length -ge 4 -and $bytes[0] -eq 255 -and $bytes[1] -eq 216 -and $bytes[-2] -eq 255 -and $bytes[-1] -eq 217
         if (-not ($png -or $jpeg)) { throw 'Screenshot evidence must be a PNG or JPEG, not a renamed text file.' }
     }
+    if ($Kind -eq 'Video') { Assert-PtReportVideo -Path (Resolve-PtReportPath $Attempt.Run $relative) }
     if (-not $StepId -and $Attempt.StepStack.Count) { $StepId = $Attempt.StepStack[-1] }
     if ($StepId -and -not @($events | Where-Object {
         $_.Type -eq 'StepStarted' -and $_.StepId -ceq $StepId -and $_.AttemptId -ceq $Attempt.Id
     }).Count) { throw 'Artifact StepId must identify a recorded step in this attempt.' }
     Add-PtReportEvent $Attempt.Run 'ArtifactAdded' @{ File = $reference; SourcePath = $full } $Attempt $stepId
     $reference
+}
+
+function Add-PtVerificationArtifactBundle {
+    <#
+    .SYNOPSIS
+    Import a quiescent evidence directory without flattening its internal relative paths.
+    .NOTES
+    Returns the canonical run-relative Path and individually registered Files.
+    Use that Path in review links; the original source directory is not the registered bundle.
+    All members are Evidence. Register a recording separately as Video when it proves visible behavior.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Attempt,
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Description,
+        [string]$StepId = '',
+        [switch]$Synthetic,
+        [ValidateRange(1,100000)][int]$MaxFiles = 10000,
+        [ValidateRange(1,10737418240)][long]$MaxBytes = 1GB
+    )
+    Assert-PtReportAttempt $Attempt
+    Assert-PtReportName $Name
+    Assert-PtReportNoLink $Path
+    $source = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    if (-not [IO.Directory]::Exists($source)) { throw 'Artifact bundle requires an existing directory.' }
+    $root = "attempts\$($Attempt.Id)\$([Guid]::NewGuid().ToString('N'))-$Name"
+    $destination = Resolve-PtReportPath $Attempt.Run $root
+    if ($destination.StartsWith($source + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Artifact bundle destination cannot be inside its source.'
+    }
+    if (-not $StepId -and $Attempt.StepStack.Count) { $StepId = $Attempt.StepStack[-1] }
+    if ($StepId -and -not @(Read-PtReportEvents $Attempt.Run | Where-Object {
+        $_.Type -eq 'StepStarted' -and $_.StepId -ceq $StepId -and $_.AttemptId -ceq $Attempt.Id
+    }).Count) { throw 'Artifact StepId must identify a recorded step in this attempt.' }
+    $members = [Collections.Generic.List[object]]::new()
+    $directories = [Collections.Generic.List[string]]::new()
+    $queue = [Collections.Generic.Queue[string]]::new()
+    $queue.Enqueue($source)
+    $total = 0L
+    while ($queue.Count) {
+        foreach ($entry in [IO.Directory]::EnumerateFileSystemEntries($queue.Dequeue())) {
+            Assert-PtReportNoLink $entry
+            $relative = [IO.Path]::GetRelativePath($source, $entry)
+            $target = Resolve-PtReportPath $Attempt.Run "$root\$relative"
+            if ([IO.Directory]::Exists($entry)) {
+                $directories.Add($target)
+                $queue.Enqueue($entry)
+            } else {
+                $total += ([IO.FileInfo]$entry).Length
+                if ($members.Count -ge $MaxFiles -or $total -gt $MaxBytes) { throw 'Artifact bundle exceeds its file/byte limit.' }
+                $members.Add([pscustomobject]@{ Source = $entry; Relative = "$root\$relative"
+                    Target = $target; Sha256 = (Get-FileHash -LiteralPath $entry -Algorithm SHA256).Hash })
+            }
+        }
+    }
+    if (-not $members.Count) { throw 'Artifact bundle requires at least one file.' }
+    if (Test-Path -LiteralPath $destination) { throw 'Artifact bundle destination already exists.' }
+    [IO.Directory]::CreateDirectory($destination) | Out-Null
+    foreach ($directory in $directories) { [IO.Directory]::CreateDirectory($directory) | Out-Null }
+    foreach ($member in $members) {
+        Add-PtReportEvent $Attempt.Run 'ArtifactReserved' @{ Path = $member.Relative } $Attempt
+        Assert-PtReportNoLink $member.Source
+        $bytes = [IO.File]::ReadAllBytes($member.Source)
+        if ((Get-PtReportHash $bytes) -cne $member.Sha256) { throw 'Artifact bundle source changed during import.' }
+        Write-PtReportFile $member.Target $bytes
+    }
+    $files = @(foreach ($member in $members) {
+        Add-PtVerificationArtifact -Attempt $Attempt -Path $member.Target -Kind Evidence `
+            -Description $Description -StepId $StepId -Synthetic:$Synthetic
+    })
+    [pscustomobject]@{ Path = $root; Files = $files }
 }
 
 function Assert-PtReportEvidence {
@@ -1177,12 +1286,12 @@ function ConvertTo-PtReportState {
             $itemSteps = @($steps | Where-Object ItemId -CEQ $item.Id)
             $currentSteps = @($itemSteps | Where-Object AttemptId -CIn $latestIds)
             $unfinished = @($attempts | Where-Object { $_.ItemId -ceq $item.Id -and -not $_.Complete })
-            $capturedScreenshots = @($events | Where-Object {
-                $_.Type -eq 'ArtifactAdded' -and $_.Data.File.Kind -eq 'Screenshot' -and $_.AttemptId -cin $normalIds -and
+            $capturedVisuals = @($events | Where-Object {
+                $_.Type -eq 'ArtifactAdded' -and $_.Data.File.Kind -in 'Screenshot','Video' -and $_.AttemptId -cin $normalIds -and
                 $_.StepId -cin @($itemSteps | Where-Object Status -eq 'Completed' | ForEach-Object Id)
             } | ForEach-Object { $_.Data.File.Path })
-            $screenshot = @($effectiveNormal | Where-Object { $_.Data.Verdict -eq 'PASS' } | ForEach-Object { $_.Data.Evidence } |
-                Where-Object { $_.Kind -eq 'Screenshot' -and $_.Path -cin $capturedScreenshots -and
+            $visual = @($effectiveNormal | Where-Object { $_.Data.Verdict -eq 'PASS' } | ForEach-Object { $_.Data.Evidence } |
+                Where-Object { $_.Kind -in 'Screenshot','Video' -and $_.Path -cin $capturedVisuals -and
                     -not $_.ReferenceOnly -and (-not $_.Synthetic -or $metadata.Scenario -eq 'InfrastructureAcceptance') })
             $verdict = 'BLOCKED'
             $category = 'BLK-INCOMPLETE'
@@ -1193,7 +1302,7 @@ function ConvertTo-PtReportState {
             if (@($currentSteps | Where-Object Status -ne 'Completed').Count) { $issues.Add('Latest Normal attempt has step errors/incomplete execution; infrastructure is not a product verdict.') }
             if (-not $currentSteps.Count) { $issues.Add('No Normal command/probe step was recorded.') }
             if ($missing.Count) { $issues.Add('Subassertions are failed, blocked or NOT-OBSERVED: ' + ($missing.Id -join ', ')) }
-            if ($item.UserVisible -and -not $screenshot.Count) { $issues.Add('Missing Normal-path screenshot evidence for user-visible behavior.') }
+            if ($item.UserVisible -and -not $visual.Count) { $issues.Add('Missing Normal-path screenshot or video evidence for user-visible behavior.') }
             if ($failures.Count) {
                 $verdict = 'FAIL'
                 $category = if (@($failures | Where-Object { $_.Data.Category -eq 'product' }).Count) { 'product' } else { $failures[0].Data.Category }
@@ -1411,7 +1520,7 @@ function Add-PtReportStepTable {
         } else { "<code>$(ConvertTo-PtReportCell $step.Command)</code><br>copy/paste: $(Format-PtReportLink $commandFile)" }
         if ($step.ScriptFile) { $command += "<br>executed from: <code>$(ConvertTo-PtReportCell $step.ScriptFile)</code>" }
         $files = @($step.Outputs) + @($State.Events | Where-Object { $_.Type -eq 'ArtifactAdded' -and $_.StepId -ceq $step.Id } | ForEach-Object { $_.Data.File })
-        $links = @($files | ForEach-Object { "$(if ($_.Kind -eq 'Screenshot') { 'screenshot: ' })$(Format-PtReportLink $_)" }) -join '<br>'
+        $links = @($files | ForEach-Object { "$(switch ($_.Kind) { 'Screenshot' { 'screenshot: ' }; 'Video' { 'video: ' } })$(Format-PtReportLink $_)" }) -join '<br>'
         $errorText = if ($step.Error) { '<br>Infrastructure error: ' + (ConvertTo-PtReportCell $step.Error.Message) } else { '' }
         $Lines.Add("| $number | $(ConvertTo-PtReportCell $step.Name)<br>attempt: $($step.AttemptId)<br>phase: $($step.Phase) | $command | **$($step.Status)**; start: $($step.Start); end: $($step.End); ms: $($step.DurationMs)<br>$links$errorText |")
     }

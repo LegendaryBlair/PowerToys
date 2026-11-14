@@ -141,10 +141,12 @@ recorder for UI actions, native/CLI probes and observations. There is no minimum
 count: four discovery calls do not prove a behavior, and a valid composed helper need not be split
 into artificial steps.
 
-For `UserVisible=true` items, retain Normal-path screenshot evidence as required by the
-[reporting contract](../reporting-format.md). Readback proves the requested property; pixels prove
-rendered content, not input delivery or persistence. A UI path left unexecuted is not validated
-merely because its source was reviewed.
+For `UserVisible=true` items, retain Normal-path `Screenshot` or `Video` evidence as required by
+the [reporting contract](../reporting-format.md). A reviewed recording can satisfy this requirement
+without an additional screenshot. Read [PR visual evidence](../visual-evidence.md) for media
+registration, frame-bundle paths, timing and separate private/redacted-delivery integrity.
+Readback proves the requested property; pixels prove rendered content, not input delivery or
+persistence. A UI path left unexecuted is not validated merely because its source was reviewed.
 
 ---
 

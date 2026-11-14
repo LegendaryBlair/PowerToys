@@ -303,6 +303,10 @@ in [recording-workflow.md](references/recording-workflow.md), rather than writin
 per run. This includes mandatory **§G Retrospective**, with source, severity, cost and a concrete
 fix for every friction, or an explicit `Everything was smooth — no friction encountered.`
 
+For visual PR claims, use [PR visual evidence](references/visual-evidence.md): a reviewed Normal
+`Video` can replace a screenshot, frame bundles retain their relative paths, and sanitized
+delivery copies have separate integrity records from the immutable private archive.
+
 Every executing agent must also produce the
 [agent-origin execution statistics](references/reporting-format.md#agent-origin-execution-statistics):
 after Task 1 (verification plus cleanup), extract a fixed event/time range from its own

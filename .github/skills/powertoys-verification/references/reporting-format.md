@@ -33,7 +33,7 @@ The exporter writes both views from the same recorded state:
   blockers, all item descriptions, and every registered child's expected description, actual
   reason and verdict. Every newly registered assertion needs an outcome; there is no
   optional/required choice. Keep **NOT-OBSERVED** visible even under a **FAIL** item.
-  Show at most two decisive evidence links per child, preferring a screenshot then other
+  Show at most two decisive evidence links per child, preferring a video or screenshot then other
   evidence, with short labels rather than repeated GUID-heavy directory names. Link each
   item to its full trace for exact commands, all evidence and historical observations.
   Link current assertion results to their Normal judgment/observation sequence; partial
@@ -171,12 +171,12 @@ The compact view follows the contract above and links to these sections.
 ## §C — Required rules for step tables in details.md
 
 1. **Every `winapp ui ...` command goes in the "winapp / probe commands" cell, verbatim, in backticks**, including `-w <hwnd>` / `-a <appId>` arguments and full selector strings. Reviewers will paste these into their own shell to reproduce.
-2. **Every screenshot path goes in the "Evidence" cell** of the step that produced it, formatted as `screenshot: artifacts/L<line>/step-NN-<name>.png`. Never embed screenshots as `![...](...)` in the table body (breaks GitHub markdown rendering inside cells); just give the path.
+2. **Every visual-evidence path goes in the "Evidence" cell** of its producing step, formatted as `screenshot: artifacts/L<line>/step-NN-<name>.png` or `video: artifacts/L<line>/step-NN-<name>.mp4`. Use links, not embedded media inside table cells.
 3. **If a step has multiple commands**, separate them in the same cell with `<br>` so they render as one cell with multiple lines.
 4. **PowerShell scriptlets > 3 lines**: write them to a separate `.ps1` in the artifacts folder and reference as ``script: `artifacts/L<line>/step-NN.ps1` `` in the cell. Keep the table cell to 1-3 lines.
 5. **`—` (em dash) is allowed for non-CLI steps** like "Read sign-off entry + diff", "Create validation folder", "Cleanup notepad". Don't fabricate a command for steps that were purely cognitive or file-system level.
 6. **Numbered steps must be contiguous** (1, 2, 3, ...). Don't skip numbers.
-7. **At least one screenshot per PASS item if the item is a user-visible behavioral test**. Schema-only assertions (settings.json key check) don't need screenshots; behavioral tests (popup shown, dialog appeared, theme switched) do.
+7. **At least one screenshot or video per PASS item if the item is a user-visible behavioral test**. A finalized MP4 registered as `Video` can satisfy the visual-evidence gate without a screenshot. It must belong to a completed Normal producing step and support the reviewed PASS observation; history-only or synthetic product evidence does not qualify. Schema-only assertions need no visual evidence. Container validation is not playback, privacy or behavioral validation; see [PR visual evidence](visual-evidence.md).
 
 ### Recorded-report rules
 
