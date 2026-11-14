@@ -3,6 +3,9 @@
 #include "MaintenanceContract.h"
 #include "..\..\..\src\common\ProtectedStorage\ProtectedStorage.Lifecycle\StorageInitialization.h"
 #include "..\..\..\src\common\ProtectedStorage\ProtectedStorage.Lifecycle\ProfileCleanup.h"
+#include "..\..\..\src\common\ProtectedStorage\ProtectedStorage.Lifecycle\ArtifactCleanup.h"
+#include "..\..\..\src\common\ProtectedStorage\ProtectedStorage.Setup\SourceCleanup.h"
+#include "..\..\..\src\common\ProtectedStorage\ProtectedStorage.Common\UpdatePayloadCleanup.h"
 #include "..\..\..\src\common\ProtectedStorage\ProtectedStorage.MsiAction\PayloadCleanup.h"
 #include <commctrl.h>
 #include <IBootstrapperApplication.h>
@@ -16,6 +19,8 @@
 #include <random>
 
 std::optional<int> RunProfileCleanupLiveTests(int argc, wchar_t** argv);
+unsigned RunArtifactCleanupTests();
+std::optional<int> RunArtifactCleanupLiveTests(int argc, wchar_t** argv);
 
 namespace
 {
@@ -579,6 +584,7 @@ int wmain(int argc, wchar_t** argv)
     try
     {
         if (const auto live = RunProfileCleanupLiveTests(argc, argv)) return *live;
+        if (const auto live = RunArtifactCleanupLiveTests(argc, argv)) return *live;
         if (argc != 1) throw failure("unsupported installer test arguments", ERROR_BAD_ARGUMENTS);
         BootstrapperPlanTests();
         BootstrapperCallbackTests();
@@ -589,6 +595,7 @@ int wmain(int argc, wchar_t** argv)
         LoaderPolicyTests();
         PayloadCleanupTests();
         ProfileCleanupTests();
+        checks += RunArtifactCleanupTests();
         ParserFuzzTests();
         StorageIndexTests();
         std::cout << "PASS " << checks << " installer contract checks; no services, profiles, accounts or MSI registrations changed.\n";

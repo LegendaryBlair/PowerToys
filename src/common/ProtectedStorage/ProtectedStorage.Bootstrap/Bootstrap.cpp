@@ -2,6 +2,7 @@
 #include "ServiceHealth.h"
 #include "MaintenanceAuthority.h"
 #include "Authentication.h"
+#include "UpdatePayloadCleanup.h"
 #include <algorithm>
 #include <iostream>
 #include <memory>
@@ -311,6 +312,27 @@ namespace
         Handle activate, lock;
         Child updater;
     };
+    void CleanupCompletedUpdates(const Paths& paths)
+    {
+        const auto deadline = GetTickCount64() + 1000;
+        DWORD error = ERROR_SUCCESS;
+        do
+        {
+            try
+            {
+                auto lease = paths.Lock();
+                error = TrimCompletedUpdates(paths.data, paths.owner, paths.va);
+            }
+            catch (const Error& failure) { error = failure.code; }
+            if (error != ERROR_SHARING_VIOLATION && error != ERROR_LOCK_VIOLATION) break;
+            Sleep(50);
+        } while (GetTickCount64() < deadline);
+        const auto pending = paths.data + L"\\payload-cleanup-pending.txt";
+        if (error)
+            ReplaceText(pending, "nativeError=" + std::to_string(error) + "\nretry=next-maintenance-or-uninstall\n");
+        else if (!DeleteFileW(pending.c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND)
+            Fail("retire update cleanup hint");
+    }
     void CheckUpdater(const Paths& paths, const std::wstring& transaction, const std::wstring& operation)
     {
         auto gate = TransactionGate(transaction);
@@ -537,6 +559,7 @@ namespace
             std::vector<Handle> transactionProof;
             std::string response;
             Request request{};
+            bool cleanupCompletedUpdates = false;
             try
             {
                 Require(BoundedIo(pipe.get(), false, &request, sizeof(request), serviceStop) == sizeof(request), "request size mismatch");
@@ -596,7 +619,10 @@ namespace
                             response = pending.response;
                         }
                         else
+                        {
                             response = MsiDispatch(paths, request.command, request.operation);
+                            cleanupCompletedUpdates = true;
+                        }
                     }
                     catch (const std::exception& failure)
                     {
@@ -632,6 +658,11 @@ namespace
                 OutputDebugStringA(lastResponseError.c_str());
             }
             DisconnectNamedPipe(pipe.get());
+            if (cleanupCompletedUpdates)
+            {
+                try { CleanupCompletedUpdates(paths); }
+                catch (const std::exception& failure) { OutputDebugStringA(failure.what()); }
+            }
         }
     }
     void WINAPI ServiceMain(DWORD, LPWSTR*)

@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 #include "SetupSupport.h"
 #include "MaintenanceContract.h"
+#include "SourceCleanup.h"
 #include <shellapi.h>
 
 namespace
@@ -425,7 +426,7 @@ namespace
             throw PowerToysProtectedStorage::failure("authorized finalization pending; owner MSI result already recorded", WAIT_TIMEOUT);
         DWORD helperResult = 0;
         PowerToysProtectedStorage::check(GetExitCodeProcess(helper.value, &helperResult) != FALSE, "authorized finalization result");
-        maintenanceDiagnosticsRetained = true;
+        maintenanceDiagnosticsRetained = !setup::success(helperResult);
         if (!setup::success(helperResult))
             PowerToysProtectedStorage::result(helperResult, "authorized protected finalization failed");
         return setup::success(msiResult) && helperResult == ERROR_SUCCESS_REBOOT_REQUIRED ? helperResult : msiResult;
@@ -519,6 +520,8 @@ int Execute(const PowerToysProtectedStorage::Maintenance::Request& request)
         }
         return static_cast<int>(configure(L"upgrade", products.empty() ? L"" : selected(products).code));
     }
+    if (request.verb == L"remove" && products.empty() && !instance && retained_instance(owner))
+        return ERROR_SUCCESS;
     const auto current = selected(products);
     if (current.release > PowerToysProtectedStorage::Maintenance::ReleaseNumber(product::version))
         throw PowerToysProtectedStorage::failure("maintenance requires this or a newer signed release", ERROR_PRODUCT_VERSION);
@@ -564,7 +567,18 @@ int wmain(int argc, wchar_t** argv)
             const auto stage = product::stage_root() / (std::wstring(product::setupPrefix) + setup::unique_id());
             setup::new_directory(stage, system_acl());
             product::write_new(stage / L"ProvisionBroker.exe", product::resource(101), system_acl());
-            return static_cast<int>(setup::fixed_machine_child(stage / L"ProvisionBroker.exe", L"--machine-remove"));
+            const auto code = setup::fixed_machine_child(stage / L"ProvisionBroker.exe", L"--machine-remove");
+            if (setup::success(code))
+            {
+                try
+                {
+                    PowerToys::ProtectedStorage::ArtifactFiles::RemoveFlatDirectory(stage, L"", [](const std::wstring& leaf) {
+                        return leaf == L"ProvisionBroker.exe" || leaf == L"Provisioner.exe" || leaf == L"Carrier.msi";
+                    });
+                }
+                catch (const std::exception&) { return ERROR_SUCCESS_REBOOT_REQUIRED; }
+            }
+            return static_cast<int>(code);
         }
         if (argc == 6 && std::wstring(argv[1]) == L"--authorize")
         {
@@ -628,6 +642,20 @@ int wmain(int argc, wchar_t** argv)
                 if (!confirmed.empty()) throw failure("removal registration outcome requires reconciliation", ERROR_INVALID_STATE);
                 observedProductCode.clear();
                 observedVersion.clear();
+                const auto cleanup = SourceCleanup::RetireUninstalled(
+                    product::known_folder(FOLDERID_LocalAppData) / product::name / L"Sources", owner);
+                maintenanceCleanupPending = maintenanceCleanupPending || cleanup != ERROR_SUCCESS ||
+                    setup::exists(product::state_root() / L"Installer" / owner / L"artifact-cleanup-pending");
+                const auto hint = journalRoot / L"source-cleanup-pending.txt";
+                if (cleanup != ERROR_SUCCESS)
+                {
+                    std::ofstream pending(hint, std::ios::trunc);
+                    pending << "nativeError=" << cleanup << "\nretry=remove\n";
+                    if (!pending) throw failure("persist source cleanup failure", ERROR_WRITE_FAULT);
+                    maintenanceDiagnosticsRetained = true;
+                }
+                else if (!DeleteFileW(hint.c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND)
+                    maintenanceCleanupPending = true;
             }
             else
             {
@@ -653,7 +681,8 @@ int wmain(int argc, wchar_t** argv)
             (request.verb == L"sync" ? syncState : request.verb == L"remove" ? L"Removed" : L"Ready") : L"Failed";
         if (request.verb == L"sync" && state == L"NotProvisioned")
             retained = setup::exists(product::state_root() / L"Installer" / owner / L"retained");
-        retained = retained || (request.verb == L"remove" && request.removal == RemovalMode::KeepData && setup::success(result));
+        retained = retained || (request.verb == L"remove" && setup::success(result) &&
+            setup::exists(product::state_root() / L"Installer" / owner / L"retained"));
         std::ofstream completed(receipt, std::ios::trunc);
         completed << "1 " << ToUtf8(request.verb) << " " << ToUtf8(product::code) << " " << result << "\n";
         if (!completed) throw failure("persist maintenance result", ERROR_WRITE_FAULT);

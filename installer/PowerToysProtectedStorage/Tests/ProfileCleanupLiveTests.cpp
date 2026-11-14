@@ -233,6 +233,19 @@ std::optional<int> RunProfileCleanupLiveTests(int argc, wchar_t** argv)
         cleanup::WriteRequest(context, operation, *profile);
         cleanup::Pending(context, operation, ERROR_SHARING_VIOLATION);
         cleanup::Schedule(context.Stage(operation), testOwner, operation);
+        auto script = cleanup::TaskScript(testOwner, operation);
+        const auto ending = script.rfind(L")\r\n");
+        Require(ending != std::wstring::npos, "deferred fixture cleanup script footer");
+        script.insert(ending, L"if errorlevel 1 exit /b 1\r\n"
+                              L"del /q " +
+                                  cleanup::QuoteCommandPath(context.record / L"profile-maintenance.lock") + L"\r\n"
+                                                                                                            L"rmdir " +
+                                  cleanup::QuoteCommandPath(context.record) + L"\r\n"
+                                                                              L"rmdir " +
+                                  cleanup::QuoteCommandPath(root / L"Installer") + L"\r\n"
+                                                                                   L"rmdir " +
+                                  cleanup::QuoteCommandPath(root) + L"\r\n");
+        cleanup::WriteText(context.Stage(operation).parent_path() / (operation + L".cmd"), script);
         std::wcout << L"deferredProbe=" << service << L"\noperation=" << operation << L"\nfixture=" << root << L"\n";
         return 0;
     }

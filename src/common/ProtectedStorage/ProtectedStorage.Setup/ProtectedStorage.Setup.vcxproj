@@ -6,7 +6,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <Import Project="Installer.props" />
   <PropertyGroup><TargetName>PowerToys.ProtectedStorageSetup</TargetName></PropertyGroup>
-  <ItemGroup><ClCompile Include="Setup.cpp" /><ClInclude Include="Native.h" /><ClInclude Include="Product.h" /><ClInclude Include="SetupSupport.h" /><ClInclude Include="MaintenanceContract.h" /></ItemGroup>
+  <ItemGroup><ClCompile Include="Setup.cpp" /><ClInclude Include="Native.h" /><ClInclude Include="Product.h" /><ClInclude Include="SetupSupport.h" /><ClInclude Include="MaintenanceContract.h" /><ClInclude Include="SourceCleanup.h" /></ItemGroup>
   <ItemGroup><ResourceCompile Include="Setup.Version.rc" /></ItemGroup>
   <ItemGroup><ProjectReference Include="..\ProtectedStorage.Common\ProtectedStorage.Common.vcxproj"><Project>{918F71A9-BC92-481E-9501-769353CE45EB}</Project></ProjectReference></ItemGroup>
   <ItemGroup Condition="Exists('$(ProtectedStorageGeneratedDir)Setup.rc')"><ResourceCompile Include="$(ProtectedStorageGeneratedDir)Setup.rc" /></ItemGroup>

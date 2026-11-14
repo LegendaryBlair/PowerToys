@@ -4,6 +4,8 @@
 #include "MaintenanceContract.h"
 #include "StorageInitialization.h"
 #include "ProfileCleanup.h"
+#include "ArtifactCleanup.h"
+#include "..\ProtectedStorage.Common\UpdatePayloadCleanup.h"
 
 namespace
 {
@@ -259,6 +261,18 @@ namespace
             if (path_exists(ancestor)) validate_directory(ancestor);
         delete_tree(p.code);
         remove_empty(p.code.parent_path());
+        if (!plan.removeData)
+        {
+            const auto cleanup = PowerToys::ProtectedStorage::TrimCompletedUpdates(p.data.wstring(), p.owner, virtualSid);
+            if (cleanup != ERROR_SUCCESS)
+                PowerToysProtectedStorage::ProfileCleanup::WriteText(p.record / L"artifact-cleanup-pending",
+                    L"terminal-update-payloads\nnativeError=" + std::to_wstring(cleanup) + L"\n");
+            else
+            {
+                delete_file(p.record / L"artifact-cleanup-pending");
+                delete_file(p.data / L"payload-cleanup-pending.txt");
+            }
+        }
         if (plan.removeData) delete_tree(p.data);
         for (const auto* leaf : { L"active", L"pending-install", L"pending-remove", L"pending-repair", L"drain", L"service-created" })
             delete_file(p.record / leaf);
@@ -661,6 +675,8 @@ namespace
                         ownerResult.serviceStopped = service_state(service.value) == SERVICE_STOPPED;
                     }
                     ownerResult.codeRemoved = !path_exists(p.code);
+                    if (path_exists(p.record / L"artifact-cleanup-pending"))
+                        ownerResult.nativeErrors.push_back(ERROR_RETRY);
                 }
                 catch (const PowerToysProtectedStorage::failure& failure)
                 {
@@ -719,6 +735,8 @@ int wmain(int argc, wchar_t** argv)
         PowerToysProtectedStorage::initialize_process_security();
         PowerToysProtectedStorage::require_system();
         PowerToysProtectedStorage::Maintenance::VerifySignedFile(product::module_path());
+        if (argc == 4 && std::wstring(argv[1]) == L"retry-artifacts")
+            return static_cast<int>(PowerToysProtectedStorage::ArtifactCleanup::Run(argv[2], argv[3]));
         if (argc == 4 && std::wstring(argv[1]) == L"retry-profile")
         {
             const auto owner = PowerToysProtectedStorage::canonical_owner(argv[2]);

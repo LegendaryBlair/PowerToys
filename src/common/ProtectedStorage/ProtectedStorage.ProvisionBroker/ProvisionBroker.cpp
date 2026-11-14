@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 #include "SetupSupport.h"
 #include "MaintenanceContract.h"
+#include "..\ProtectedStorage.Lifecycle\ArtifactCleanup.h"
 
 namespace
 {
@@ -243,6 +244,24 @@ namespace
         {
             try { product::write_new_text(stage / (mode + L".result"), std::to_wstring(result)); }
             catch (const PowerToysProtectedStorage::failure& error) { result = error.code ? error.code : ERROR_WRITE_FAULT; }
+        }
+        if (setup::success(result) && setup::exists(stage / L"finalized"))
+        {
+            try
+            {
+                PowerToysProtectedStorage::ArtifactCleanup::QueueCompleted(stage, read_text(stage / L"owner.txt"), stage / L"Provisioner.exe");
+            }
+            catch (const std::exception& error)
+            {
+                std::cerr << "completed stage retirement pending: " << error.what() << "\n";
+                result = ERROR_SUCCESS_REBOOT_REQUIRED;
+                try
+                {
+                    PowerToysProtectedStorage::ProfileCleanup::WriteText(stage / L"artifact-cleanup-pending", L"retry-on-next-authorized-maintenance\n");
+                    PowerToysProtectedStorage::ProfileCleanup::WriteText(stage / (mode + L".result"), std::to_wstring(result));
+                }
+                catch (const std::exception&) {}
+            }
         }
         status.dwCurrentState = SERVICE_STOPPED;
         status.dwWin32ExitCode = result;
