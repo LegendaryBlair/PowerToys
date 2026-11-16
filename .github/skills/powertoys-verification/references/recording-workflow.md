@@ -125,6 +125,28 @@ confirmed-included changes; otherwise a fresh worktree and the existing minimum 
 without introducing a VM dependency. Baseline non-reproduction does not gate subsequent target
 checks; retain its separate identity/evidence and report the limitation without fabricating a fix.
 Do not import baseline observations as Normal-path proof of the target build.
+Use the [scripted baseline lifecycle](baseline-installation.md) for authorized release
+replacement, with private state adapters before mutation. Record its sanitized selection,
+installation, reproduction and recovery outcomes separately; unsafe partial recovery
+gates dependent mutations, not report generation.
+
+### Video ranges and unused reservations
+
+`Add-PtVerificationObservation` and `Add-PtVerificationAssertion` accept optional
+`-MediaRanges @(@{Path=$video.Path;Label='After';StartSeconds=2.0;EndSeconds=8.5})`.
+The referenced `Video` must be in `-Evidence`, and the finite interval must be within
+its measured MP4 duration. Judgments using `-ObservationSequence` inherit the ranges.
+Many assertions can share a video/interval; one assertion can have several labeled
+intervals. Incremental review exposes `MediaRanges`, and exports retain all explicit
+cue links rather than applying the ordinary two-evidence-link cap to them.
+
+After the producing steps/workers stop, use
+`Reject-PtVerificationArtifact -Attempt $attempt -Path $unusedPath -Reason $reason`
+for a reserved path whose file was never produced or was already safely removed.
+Add `-RemoveFile` only to remove that exact unused reserved file. This records
+append-only rejection history; it cannot remove registered evidence, hide errors or
+erase product judgments. Rejected outputs no longer count as pending reservations;
+unexplained reservations still hold signoff. See the [capture lifecycle](visual-evidence.md#explicitly-reject-an-unused-take).
 
 ### Recorded case and review
 

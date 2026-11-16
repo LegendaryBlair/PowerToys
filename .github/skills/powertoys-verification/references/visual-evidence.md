@@ -53,6 +53,15 @@ Keep newly discovered locators and narrowly scoped adapters with the run. Do not
 profiles or promote helpers as a side effect of verification; maintenance needs its
 own scope.
 
+### Map assertions to demonstrations, not to video counts
+
+Group assertions sharing setup/actions into a logical flow. Preserve every assertion ID
+and independent outcome; do not impose one clip per assertion or a fixed assertion quota.
+More than ten assertions may share a small number of videos. One assertion can link to
+multiple ranges (for example before and after), and several assertions can share a range.
+Use labeled `MediaRanges` on observations; reviewed judgments inherit those mappings.
+Labels identify the action/result and side, not just "video 1".
+
 ## 2. Establish genuine comparison conditions
 
 - Declare `BITS` before driving. Use installed bits only when inclusion of the change
@@ -65,6 +74,10 @@ own scope.
 - For a before/after claim, run a genuine relevant pre-fix revision and the PR
   revision. Never simulate the old behavior, relabel an unrelated screenshot, or
   present two settings on the same build as two revisions.
+- Resolve an explicit baseline or the relevant latest stable/main-line dev preview.
+  If absent, use the [baseline installation script](baseline-installation.md), not
+  handwritten installer commands or an unrelated already-installed release.
+  Verify actual consumers after each transition; installation success is not runtime proof.
 - For a bugfix, establish that the baseline contradicts the valid expectation and
   the PR satisfies it. Different-looking pictures alone prove neither. For an
   intentional UI change, compare against the requested new behavior instead.
@@ -278,8 +291,20 @@ foreach ($line in [IO.File]::ReadAllLines((Join-Path $canonicalRoot 'frames.ndjs
     }
 }
 $sequence = Add-PtVerificationObservation -Attempt $attempt -AssertionId $assertionId `
-    -Actual $actualObservation -Evidence (@($video) + $bundle.Files)
+    -Actual $actualObservation -Evidence (@($video) + $bundle.Files) `
+    -MediaRanges @(@{
+        Path = $video.Path; Label = 'After: action and settled result'
+        StartSeconds = 2.0; EndSeconds = 8.5
+    })
 ```
+
+Use actual times within this clip, not the sample values above. The recorder requires
+finite `0 <= StartSeconds < EndSeconds <= measured MP4 duration` and a registered
+`Video` in the same observation's evidence. It stores the measured duration and renders
+portable links such as `clip.mp4#t=2,8.5`; players lacking fragment support still show
+the labeled interval. Optional ranges preserve legacy archives without fabricated cues.
+Add a second before range only when that evidence is genuinely from the baseline;
+cross-attempt references still cannot establish fresh target PASS by themselves.
 
 The bundle helper creates a unique canonical root while retaining every internal directory
 and filename, including `frames.ndjson` references. Use its returned `Path` in local media
@@ -291,6 +316,29 @@ Validate the recording manifest's status/counts and its frame-index relationship
 96 samples can reference six stored images and are not 96 distinct product states.
 Review the observation before assigning a verdict. Do not relabel sealed legacy MP4
 `Evidence` references or import old captures as fresh Normal observations.
+
+### Explicitly reject an unused take
+
+Wait for the recorder and all producing steps to finish. For an unused reserved output
+that will not become evidence, record the disposition instead of leaving an unexplained
+pending reservation:
+
+```powershell
+Reject-PtVerificationArtifact -Attempt $attempt -Path $videoPath `
+    -Reason 'Unrelated window occluded the capture; take not used' -RemoveFile
+```
+
+The attempt may already be stopped. This deletes only that exact reserved file and
+retains its reason and, if present, original size/hash in append-only history. Never
+register privacy-unsafe pixels just to satisfy the artifact gate. Separately remove
+only the specifically owned, unregistered frame outputs after inspecting their scope;
+the rejection helper never recursively deletes a frame directory.
+
+Registered evidence cannot be rejected or deleted through this API. Rejected paths
+cannot become evidence later, and reappearing files fail archive validation. Unresolved
+reservations still withhold signoff. Rejection neither erases producing-step errors nor
+invalidates a product FAIL; it only closes an explicitly unused output obligation.
+Do not rewrite sealed older reports to retroactively hide their reservations.
 
 Release injected keys/buttons, finish recording, close owned UI normally, quiesce
 writers, restore only attributed changes and independently compare originals.
@@ -320,6 +368,11 @@ document its absence; do not fabricate a comparison.
 
 - Use readable captions, a visible pointer/action cue and enough time to inspect results.
   Usually a short focused clip is better than a long recording of setup.
+- Prefer genuine baseline failure plus matched target success for reproducible bugs.
+  Keep non-reproduction/acquisition limitations explicit in after-only videos.
+  Duration follows the meaningful actions and reading time, not an assertion count
+  or universal 35-second limit. Remove redundant setup/closing slides before speeding
+  up actions; a held result can be the conclusion without an extra "all good" slide.
 - Keep framing and scale matched. Show the final outcome, not only a successful click.
 - Label annotations, expected-region outlines, fixture backdrops and intentional crops.
   Never crop away a failure or redraw product UI as if it were captured.

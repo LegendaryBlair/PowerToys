@@ -50,6 +50,11 @@ new reporting system.
   does **not** apply to *your* build. It still applies to *unrelated* installed bits you didn't
   build. **Restore the machine to the shipped build when done** (Step 4b).
 
+For an authorized bug comparison, [scripted baseline preparation](../baseline-installation.md)
+may install/replace a complete official release before driving and restore the original afterward.
+This narrow preparation exception does not permit mid-capture changes, source overlays onto
+installed files or bypassing a Settings UI assertion; it does not apply to Scenario A.
+
 > A run that mutates the wrong `BITS` (sideloads when the code is already installed, or drives the
 > stale installed binary when validating unreleased code) is **invalid regardless of the verdict.**
 > Set `BITS` before the first drive command. Full forbidden/allowed list: `index.md` → bits contract
@@ -200,6 +205,10 @@ without an additional screenshot. Read [PR visual evidence](../visual-evidence.m
 registration, frame-bundle paths, timing and separate private/redacted-delivery integrity.
 Readback proves the requested property; pixels prove rendered content, not input delivery or
 persistence. A UI path left unexecuted is not validated merely because its source was reviewed.
+Group related assertions into a few understandable flows; map each assertion to the relevant
+registered video time ranges. Ten or more assertions do not require ten videos. One assertion
+can reference both before and after ranges, and one range can support multiple independently
+reviewed assertions.
 
 ---
 
@@ -268,9 +277,20 @@ installed singleton/handler as the PR build.
 
 ### Baseline comparison is not an execution gate
 
-For a fix, use a relevant baseline and matched inputs when practical. Keep its tested revision,
-conditions and observations distinct from the PR-target evidence; a much older installed build
-is not automatically a controlled base comparison. Do not revert the user's checkout to make one.
+For a fix, attempt a relevant baseline with matched inputs: an explicit version, otherwise the
+latest official stable release for stable/release fixes or official main-line dev preview for
+main-line fixes. Use `Resolve-PtBaselineRelease`, `New-PtBaselineInstallationPlan` and
+`Invoke-PtBaselineComparison` from the [baseline lifecycle](../baseline-installation.md).
+When the required version is absent, prepare it through this script, including uninstall/reinstall
+when necessary and authorized; do not silently use an unrelated installed version.
+The script freezes exact release/asset identities, caches verified rollback material and requires
+private state adapters before removal. It restores before target capture, or records the unsafe
+recovery boundary. Never revert the user's checkout to manufacture a baseline.
+
+Keep baseline revision, conditions and observations distinct from target evidence. If the bug is
+reproduced, include the genuine failure in the comparison video, not only the final restored frame.
+If the required package, permissions or preservation adapter is unavailable, record that baseline
+limitation and continue eligible after-fix capture and reporting.
 
 If the baseline does not reproduce the bug, record the attempted conditions and **continue the
 target flow**. Difficult reproduction is not a reason to block later safe checks, require another
@@ -308,7 +328,7 @@ plus the `exempt` list and (if `N > MAX_AUTO`) the un-scoped **queue** of PRs no
 Include a §G retrospective (run friction). For unattended runs, use the archive layout, review
 defaults and closeout in the [batch procedure](#unattended-batch-procedure).
 
-**Restore (Step 4b / build path only).** Normally close the exact owned build instances and wait for
+**Restore (Step 4b / build path and scripted baseline replacement).** Normally close the exact owned build instances and wait for
 their writers/providers to finish. Restore only attributed changes against the original baseline,
 including any authorized registration/package changes. If an installed instance was originally
 running, restore it using its captured launch target, session/token and declared logical UI state;
@@ -319,6 +339,8 @@ original installation readiness. Restarting the installed executable alone is no
 Keep replacement process identities and unresolved state explicit in the report. The shared
 same-installation restart/Settings adapters must not be used to claim a cross-build transition
 they do not support.
+Keep scripted installation recovery separate from baseline reproduction and target verdicts.
+An unresolved unsafe switch blocks only dependent mutations, never generation of the report.
 
 ---
 

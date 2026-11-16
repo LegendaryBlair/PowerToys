@@ -527,6 +527,131 @@ Invoke-PtVerificationStep `$attempt -Name interruption -Command '[Environment]::
         Reject { Test-PtVerificationArchive $movedPath } 'Changed evidence'
     }
 
+    Check 'Twelve assertions share before/after videos with validated portable time ranges' {
+        $item=Item 'FLOW' $true
+        $item.Assertions=@(1..12|ForEach-Object {@{Id="assert$_";Description="Observed condition $_"}})
+        $run=NewRun 'media-ranges' @($item)
+        Preflight $run
+        $a=Start-PtVerificationAttempt $run -ItemId FLOW -Kind Normal -Name 'One flow, twelve conditions'
+        $media=Invoke-PtVerificationStep $a -Name 'Capture fixtures' -Command 'Synthetic before and after videos' -Action {
+            @(
+                Add-PtVerificationArtifact $a $mp4 Video before -Name before.mp4 -Synthetic
+                Add-PtVerificationArtifact $a $mp4 Video after -Name after.mp4 -Synthetic
+            )
+        }
+        Require ((Get-PtReportVideoDuration $mp4) -eq 1) 'MP4 movie duration was not parsed'
+        . (Join-Path $PSScriptRoot '..\pt-verification-render.ps1')
+        $preciseLinks=ConvertTo-PtMediaRangeLinks @(@{Path='clip.mp4';Label='Fine interval';StartSeconds=0.0000001;EndSeconds=0.0000002})
+        Require ($preciseLinks.Contains('#t=0.0000001,0.0000002')) 'Media cue precision was rounded away or written in exponent notation'
+        $ranges=@(
+            @{Path=$media[0].Path;Label='Before [unsafe](url)';StartSeconds=0.1;EndSeconds=0.45},
+            @{Path=$media[1].Path;Label='After';StartSeconds=0.5;EndSeconds=0.9}
+        )
+        foreach($id in $item.Assertions.Id){
+            $sequence=Add-PtVerificationObservation $a -AssertionId $id -Actual 'Synthetic flow observation' -Evidence $media -MediaRanges $ranges
+            Add-PtVerificationAssertion $a -AssertionId $id -ObservationSequence $sequence -Verdict PASS -Category synthetic -Reason observed
+        }
+        foreach($invalid in @(
+            @{Path=$media[0].Path;Label='bad';StartSeconds=-1;EndSeconds=0.5},
+            @{Path=$media[0].Path;Label='bad';StartSeconds=0.5;EndSeconds=0.5},
+            @{Path=$media[0].Path;Label='bad';StartSeconds=0;EndSeconds=2},
+            @{Path=$media[0].Path;Label='bad';StartSeconds=[double]::NaN;EndSeconds=1},
+            @{Path=$media[0].Path;Label='bad';StartSeconds=0;EndSeconds=[double]::PositiveInfinity},
+            @{Path=$media[0].Path;Label='bad';StartSeconds='0';EndSeconds=1},
+            @{Path=$media[0].Path;Label='bad';StartSeconds=0;EndSeconds=1;DurationSeconds=2},
+            @{Path='other.mp4';Label='bad';StartSeconds=0;EndSeconds=1}
+        )){
+            Reject {Add-PtVerificationObservation $a assert1 'Invalid range' -Evidence $media -MediaRanges @($invalid)} 'Media'
+        }
+        $ranges[0].StartSeconds=0.2
+        $review=Get-PtVerificationReview $run
+        Require ($review.Items[0].Assertions.Count -eq 12) 'Assertion count was capped'
+        Require ($review.Items[0].Assertions[0].MediaRanges[0].StartSeconds -eq 0.1) 'Caller changed recorded ranges'
+        Stop-PtVerificationAttempt $a -Reason observed
+        Complete-PtVerificationItem $run FLOW -Reason 'All twelve observed'
+        Cleanup $run
+        $export=Complete-PtVerificationRun $run -NoFriction
+        Require ($export.Signoff -eq 'APPROVED') 'Mapped media lost Normal visual credit'
+        $report=[IO.File]::ReadAllText($export.Report)
+        Require ([regex]::Matches($report,'#t=0\.1,0\.45').Count -eq 12) 'Before time links were lost'
+        Require ([regex]::Matches($report,'#t=0\.5,0\.9').Count -eq 12) 'After time links were lost'
+        Require (-not $report.Contains('[unsafe](url)')) 'Media labels injected Markdown'
+        Require ([IO.File]::ReadAllText($export.Details).Contains('#t=0.1,0.45')) 'Detailed report lost ranges'
+        Move-Item $run.Workspace "$Workspace\media-ranges-moved"
+        Require (Test-PtVerificationArchive "$Workspace\media-ranges-moved").Valid 'Range links broke archive relocation'
+    }
+
+    Check 'Video duration handles version-one headers and rejects unknown/truncated metadata' {
+        function BigEndian($Value) {
+            $bytes=[BitConverter]::GetBytes($Value)
+            [Array]::Reverse($bytes)
+            ,$bytes
+        }
+        $path="$Workspace\duration-header-only.mp4"
+        $header=[byte[]](1,0,0,0)+[byte[]]::new(16)+(BigEndian ([uint32]1000))+(BigEndian ([uint64]5000))
+        $child=(BigEndian ([uint32](8+$header.Length)))+[Text.Encoding]::ASCII.GetBytes('mvhd')+$header
+        $bytes=(BigEndian ([uint32](8+$child.Length)))+[Text.Encoding]::ASCII.GetBytes('moov')+$child
+        [IO.File]::WriteAllBytes($path,$bytes)
+        Require ((Get-PtReportVideoDuration $path) -eq 5) '64-bit movie duration was not parsed'
+        $bytes[36]=0;$bytes[37]=0;$bytes[38]=0;$bytes[39]=0
+        [IO.File]::WriteAllBytes($path,$bytes)
+        Reject {Get-PtReportVideoDuration $path} 'unknown or empty'
+        [IO.File]::WriteAllBytes($path,$bytes[0..($bytes.Length-2)])
+        Reject {Get-PtReportVideoDuration $path} 'bounds'
+    }
+
+    Check 'Rejected unused reservations close without hiding history or permitting evidence deletion' {
+        $run=NewRun 'rejected-capture'
+        Preflight $run
+        $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Rejected take'
+        $unused=Invoke-PtVerificationStep $a -Name 'Produce rejected fixture' -Command 'Synthetic unsafe output only' -Action {
+            $path=New-PtVerificationArtifactPath $a rejected.png
+            Write-PtReportText $path 'Synthetic rejected pixels'
+            Reject {Reject-PtVerificationArtifact $a $path 'too early' -RemoveFile} 'Stop the producing'
+            $path
+        }
+        Stop-PtVerificationAttempt $a -Reason 'Producer stopped'
+        $a=Get-PtVerificationAttempt $run $a.Id
+        Reject {Reject-PtVerificationArtifact $a $unused 'unsafe'} 'RemoveFile'
+        $other=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Accepted take'
+        Reject {Reject-PtVerificationArtifact $other $unused 'wrong owner' -RemoveFile} 'exact reserved'
+        Reject-PtVerificationArtifact $a $unused 'Occluding private fixture; output deliberately rejected' -RemoveFile
+        Require (-not(Test-Path $unused)) 'Rejected file remained'
+        Reject {Reject-PtVerificationArtifact $a $unused 'repeat'} 'already rejected'
+        [IO.File]::WriteAllText($unused,'synthetic resurrection')
+        Reject {Add-PtVerificationArtifact $other $unused Evidence 'reused rejected output'} 'Rejected reservation'
+        Reject {Get-PtReportState $run} 'reappeared'
+        [IO.File]::Delete($unused)
+        $proof=Observe $other
+        Reject {Reject-PtVerificationArtifact $other (Resolve-PtReportPath $run $proof.Path) 'registered' -RemoveFile} 'Registered evidence'
+        $absent=New-PtVerificationArtifactPath $other never-created.png
+        Reject-PtVerificationArtifact $other $absent 'Recorder failed before creating pixels'
+        Stop-PtVerificationAttempt $other -Reason observed
+        Complete-PtVerificationItem $run L1 -Reason observed
+        Cleanup $run
+        $export=Complete-PtVerificationRun $run -NoFriction
+        Require ($export.Signoff -eq 'APPROVED') 'Explicit rejected outputs still blocked successful coverage'
+        Require ((Get-PtReportState $run).RejectedArtifacts.Count -eq 2) 'Rejection history disappeared'
+        Require ([IO.File]::ReadAllText($export.Details).Contains('Occluding private fixture')) 'Rejection reason missing'
+        Require (Test-PtVerificationArchive $run.Workspace).Valid 'Rejected-reservation archive invalid'
+        $failed=NewRun 'rejected-still-failed'
+        Preflight $failed
+        $a=Start-PtVerificationAttempt $failed -ItemId L1 -Kind Normal -Name 'Failure survives rejection'
+        $proof=Observe $a
+        Add-PtVerificationAssertion $a opens FAIL product 'Synthetic product-failure fixture' -Evidence @($proof)
+        $unused=New-PtVerificationArtifactPath $a unused.png
+        Reject-PtVerificationArtifact $a $unused 'Unused output, not a judgment correction'
+        Stop-PtVerificationAttempt $a -Reason 'Failure retained'
+        Complete-PtVerificationItem $failed L1 -Reason 'Observed failure'
+        Cleanup $failed
+        $failedExport=Complete-PtVerificationRun $failed -NoFriction
+        Require ($failedExport.Signoff -eq 'WITHHELD' -and (Get-PtReportState $failed).Items[0].Verdict -eq 'FAIL') 'Rejecting an output hid a product FAIL'
+        $pending=NewRun 'still-pending'
+        $a=Start-PtVerificationAttempt $pending -ItemId L1 -Kind Normal -Name pending
+        New-PtVerificationArtifactPath $a pending.png|Out-Null
+        Require ((Get-PtReportState $pending).SignoffReasons -contains 'Unregistered artifact reservations remain.') 'Unresolved reservation was ignored'
+    }
+
     Check 'Invalid recordings and unsafe or oversized bundles are rejected' {
         $run = NewRun 'invalid-media'
         $a = Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name validation

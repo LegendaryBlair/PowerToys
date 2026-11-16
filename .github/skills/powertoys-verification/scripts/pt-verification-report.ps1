@@ -457,6 +457,124 @@ function New-PtVerificationArtifactPath {
     Resolve-PtReportPath $Attempt.Run $relative
 }
 
+function Reject-PtVerificationArtifact {
+    <#
+    .SYNOPSIS
+    Close an unused reservation after its producer has stopped, retaining rejection history.
+    .NOTES
+    Never unregisters evidence or changes verdicts. RemoveFile deletes only the exact reserved
+    file, not a frame directory; callers must separately dispose of unregistered unsafe frames.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Attempt,[Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Reason,[switch]$RemoveFile)
+    Assert-PtReportAttempt $Attempt -AllowClosed
+    Assert-PtReportSummaryText $Reason 'Rejection reason'
+    $relative=if([IO.Path]::IsPathRooted($Path)){[IO.Path]::GetRelativePath($Attempt.Run.Workspace,$Path)}else{$Path}
+    $full=Resolve-PtReportPath $Attempt.Run $relative
+    $events=@(Read-PtReportEvents $Attempt.Run)
+    if($Attempt.StepStack.Count -or @($events|Where-Object {
+        $_.Type -eq 'StepStarted' -and $_.AttemptId -ceq $Attempt.Id -and
+        $_.StepId -cnotin @($events|Where-Object Type -EQ StepEnded|ForEach-Object StepId)
+    }).Count){throw 'Stop the producing steps before rejecting an artifact.'}
+    if(@($events|Where-Object {$_.Type -eq 'ArtifactReserved' -and $_.AttemptId -ceq $Attempt.Id -and $_.Data.Path -ceq $relative}).Count -ne 1){
+        throw 'Rejection requires this attempt''s exact reserved path.'
+    }
+    if(@($events|Where-Object {$_.Type -eq 'ArtifactAdded' -and $_.Data.File.Path -ceq $relative}).Count){throw 'Registered evidence cannot be rejected or deleted.'}
+    if(@($events|Where-Object {$_.Type -eq 'ArtifactRejected' -and $_.Data.Path -ceq $relative}).Count){throw 'Reservation already rejected.'}
+    if([IO.Directory]::Exists($full)){throw 'A reservation rejection cannot remove a directory.'}
+    $present=[IO.File]::Exists($full)
+    if($present -and -not $RemoveFile){throw 'Remove the rejected file or explicitly supply -RemoveFile after quiescing its producer.'}
+    $length=$null;$hash=$null
+    if($present){
+        $length=([IO.FileInfo]$full).Length
+        $hash=(Get-FileHash -LiteralPath $full).Hash
+        [IO.File]::Delete($full)
+    }
+    if([IO.File]::Exists($full)){throw 'Rejected output still exists; reservation remains unresolved.'}
+    Add-PtReportEvent $Attempt.Run 'ArtifactRejected' @{Path=$relative;Reason=$Reason;Removed=$present;Length=$length;Sha256=$hash} $Attempt
+}
+
+function Get-PtReportVideoDuration {
+    param([Parameter(Mandatory)][string]$Path)
+    $stream=[IO.File]::OpenRead($Path)
+    $reader=[IO.BinaryReader]::new($stream)
+    function Number([int]$Bytes) {
+        $value=$reader.ReadBytes($Bytes)
+        if($value.Length -ne $Bytes){throw 'Truncated MP4 duration metadata.'}
+        [Array]::Reverse($value)
+        if($Bytes -eq 4){[uint64][BitConverter]::ToUInt32($value,0)}else{[BitConverter]::ToUInt64($value,0)}
+    }
+    function Box([long]$End) {
+        $start=$stream.Position
+        if($End-$start -lt 8){throw 'Truncated MP4 box header.'}
+        $size=Number 4
+        $type=[Text.Encoding]::ASCII.GetString($reader.ReadBytes(4))
+        $header=8
+        if($size -eq 1){$size=Number 8;$header=16}elseif($size -eq 0){$size=[uint64]($End-$start)}
+        if($size -lt $header -or $size -gt [uint64]($End-$start)){throw 'Invalid MP4 box bounds.'}
+        [pscustomobject]@{Type=$type;End=$start+[long]$size}
+    }
+    try{
+        $durations=@(while($stream.Position -lt $stream.Length){
+            $top=Box $stream.Length
+            if($top.Type -eq 'moov'){
+                while($stream.Position -lt $top.End){
+                    $child=Box $top.End
+                    if($child.Type -eq 'mvhd'){
+                        $version=$reader.ReadByte()
+                        if($version -notin 0,1){throw 'Unsupported MP4 movie-header version.'}
+                        $skip=if($version -eq 1){19}else{11}
+                        $durationBytes=if($version -eq 1){8}else{4}
+                        if($child.End-$stream.Position -lt $skip+4+$durationBytes){throw 'Truncated MP4 movie header.'}
+                        $stream.Position+=$skip
+                        $scale=Number 4;$ticks=Number $durationBytes
+                        if(-not $scale -or -not $ticks -or $ticks -eq [uint64]::MaxValue -or
+                            ($version -eq 0 -and $ticks -eq [uint32]::MaxValue)){throw 'MP4 duration is unknown or empty.'}
+                        [double]$ticks/[double]$scale
+                    }
+                    $stream.Position=$child.End
+                }
+            }
+            $stream.Position=$top.End
+        })
+        if($durations.Count -ne 1){throw 'Video time ranges require one finalized MP4 movie duration.'}
+        $durations[0]
+    }finally{$reader.Dispose()}
+}
+
+function ConvertTo-PtReportMediaRanges {
+    param($Run,[object[]]$Evidence,[object[]]$MediaRanges)
+    $durations=@{}
+    foreach($range in $MediaRanges){
+        if($null -eq $range){throw 'Media range cannot be null.'}
+        $keys=if($range -is [Collections.IDictionary]){@($range.Keys)}else{@($range.PSObject.Properties.Name)}
+        if(@($keys|Where-Object {$_ -cnotin 'Path','Label','StartSeconds','EndSeconds','DurationSeconds'}).Count -or
+            @('Path','Label','StartSeconds','EndSeconds'|Where-Object {$_ -cnotin $keys}).Count){
+            throw 'Media ranges require Path, Label, StartSeconds and EndSeconds.'
+        }
+        if([string]::IsNullOrWhiteSpace([string]$range.Label)){throw 'Media range label is required.'}
+        Assert-PtReportSummaryText ([string]$range.Label) 'Media range label'
+        $video=@($Evidence|Where-Object {$_.Path -ceq $range.Path -and $_.Kind -eq 'Video'})
+        if($video.Count -ne 1){throw 'Media range must reference a Video in this observation''s evidence.'}
+        foreach($number in $range.StartSeconds,$range.EndSeconds){
+            if($null -eq $number -or [Type]::GetTypeCode($number.GetType()).ToString() -notin
+                'Byte','SByte','Int16','UInt16','Int32','UInt32','Int64','UInt64','Single','Double','Decimal' -or
+                [double]::IsNaN([double]$number) -or [double]::IsInfinity([double]$number)){throw 'Media times must be finite numbers.'}
+        }
+        if(-not $durations.ContainsKey($range.Path)){
+            $durations[$range.Path]=Get-PtReportVideoDuration (Resolve-PtReportPath $Run $range.Path)
+        }
+        $duration=$durations[$range.Path]
+        if($range.StartSeconds -lt 0 -or $range.EndSeconds -le $range.StartSeconds -or $range.EndSeconds -gt $duration){
+            throw 'Media range falls outside the video duration or has reversed/empty bounds.'
+        }
+        if('DurationSeconds' -cin $keys -and $range.DurationSeconds -ne $duration){throw 'Media duration differs from the registered video.'}
+        [pscustomobject]@{Path=$range.Path;Label=[string]$range.Label;StartSeconds=[double]$range.StartSeconds
+            EndSeconds=[double]$range.EndSeconds;DurationSeconds=$duration}
+    }
+}
+
 function ConvertTo-PtReportArtifactName {
     param([Parameter(Mandatory)][string]$Name)
     $alias = [regex]::Replace($Name, '[^A-Za-z0-9_.-]', '-')
@@ -530,6 +648,9 @@ function Add-PtVerificationArtifact {
     if ($PSBoundParameters.ContainsKey('Name')) { Assert-PtReportName $Name }
     $relative = [IO.Path]::GetRelativePath($Attempt.Run.Workspace, $full)
     $events = @(Read-PtReportEvents $Attempt.Run)
+    if(@($events|Where-Object {$_.Type -eq 'ArtifactRejected' -and $_.Data.Path -ceq $relative}).Count){
+        throw 'Rejected reservation cannot be registered or reused.'
+    }
     $priorImport = @($events | Where-Object {
         $_.Type -eq 'ArtifactAdded' -and $_.AttemptId -ceq $Attempt.Id -and $_.Data.SourcePath -ceq $full
     } | Select-Object -Last 1)
@@ -920,7 +1041,8 @@ function Add-PtVerificationAssertion {
         [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Category,
         [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Reason,
         [object[]]$Evidence = @(),
-        [long]$ObservationSequence = 0
+        [long]$ObservationSequence = 0,
+        [object[]]$MediaRanges = @()
     )
     Assert-PtReportSummaryText $Reason 'Reason'
     $Verdict = $Verdict.ToUpperInvariant()
@@ -938,16 +1060,21 @@ function Add-PtVerificationAssertion {
             throw 'Observation already reviewed; retain history and record a new observation for corrections.'
         }
         if (-not $Evidence.Count) { $Evidence = @($raw[0].Data.Evidence) }
+        if(-not $PSBoundParameters.ContainsKey('MediaRanges') -and $raw[0].Data.PSObject.Properties['MediaRanges']){
+            $MediaRanges=@($raw[0].Data.MediaRanges)
+        }
     }
     Assert-PtVerificationVerdictCategory $Verdict $Category
     if ($Verdict -eq 'PASS' -and -not $Evidence.Count) { throw 'PASS requires explicit observed evidence, not a successful command.' }
     Assert-PtReportEvidence $Attempt $Evidence
+    $ranges=@(ConvertTo-PtReportMediaRanges $Attempt.Run $Evidence $MediaRanges)
     if ($Verdict -eq 'PASS' -and -not @($Evidence | Where-Object { -not $_.ReferenceOnly }).Count) {
         throw 'Cross-attempt references cannot establish a fresh PASS; observe the Normal path in this attempt.'
     }
     Add-PtReportEvent $Attempt.Run 'AssertionObserved' @{
         AssertionId = $AssertionId; Verdict = $Verdict; Category = $Category; Reason = $Reason; Evidence = $Evidence
         ObservationSequence = $ObservationSequence
+        MediaRanges = $ranges
     } $Attempt
 }
 
@@ -965,13 +1092,14 @@ function Add-PtVerificationObservation {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Attempt, [Parameter(Mandatory)][string]$AssertionId,
         [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Actual, [object[]]$Evidence = @(),
-        [AllowNull()]$Detail)
+        [AllowNull()]$Detail,[object[]]$MediaRanges=@())
     Assert-PtReportAttempt $Attempt
     $metadata = ConvertFrom-PtReportJson ([IO.File]::ReadAllText((Join-Path $Attempt.Run.Workspace 'run.json')))
     $item = $metadata.Items | Where-Object Id -CEQ $Attempt.ItemId
     if (-not $item -or $AssertionId -cnotin @($item.Assertions.Id)) { throw "Unknown inventory assertion: $AssertionId" }
     if (Get-PtReportItemCompletion @(Read-PtReportEvents $Attempt.Run) $Attempt.ItemId) { throw 'Reopen the completed item before collecting observations.' }
     Assert-PtReportEvidence $Attempt $Evidence
+    $ranges=@(ConvertTo-PtReportMediaRanges $Attempt.Run $Evidence $MediaRanges)
     Assert-PtReportSummaryText $Actual 'Actual'
     if ($PSBoundParameters.ContainsKey('Detail')) {
         $text = if ($Detail -is [string]) { $Detail } else { ConvertTo-Json -InputObject $Detail -Depth 100 -WarningAction Stop }
@@ -980,7 +1108,7 @@ function Add-PtVerificationObservation {
         Write-PtReportText $path $text
         $Evidence = @($Evidence) + @(Add-PtVerificationArtifact $Attempt $path Evidence 'Complete observation detail; not embedded in the review summary')
     }
-    Add-PtReportEvent $Attempt.Run 'ObservationRecorded' @{ AssertionId = $AssertionId; Actual = $Actual; Evidence = $Evidence } $Attempt
+    Add-PtReportEvent $Attempt.Run 'ObservationRecorded' @{ AssertionId = $AssertionId; Actual = $Actual; Evidence = $Evidence; MediaRanges=$ranges } $Attempt
     $Attempt.Run.Sequence
 }
 
@@ -1189,8 +1317,26 @@ function ConvertTo-PtReportState {
             }
         }
     }
+    $rejections=@($events|Where-Object Type -EQ ArtifactRejected)
+    $rejectedPaths=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach($rejection in $rejections){
+        $path=$rejection.Data.Path
+        if(-not $rejectedPaths.Add($path) -or @($events|Where-Object {
+            $_.Type -eq 'ArtifactReserved' -and $_.AttemptId -ceq $rejection.AttemptId -and
+            $_.Data.Path -ceq $path -and $_.Sequence -lt $rejection.Sequence
+        }).Count -ne 1 -or @($events|Where-Object {$_.Type -eq 'ArtifactAdded' -and $_.Data.File.Path -ceq $path}).Count){
+            throw 'Invalid or conflicting artifact rejection history.'
+        }
+        if(-not $ForReview -and (Test-Path -LiteralPath (Resolve-PtReportPath $Run $path))){throw 'Rejected artifact reappeared on disk.'}
+    }
+    if(-not $ForReview){
+        foreach($event in $events|Where-Object {$_.Type -in 'ObservationRecorded','AssertionObserved' -and $_.Data.PSObject.Properties['MediaRanges']}){
+            ConvertTo-PtReportMediaRanges $Run $event.Data.Evidence @($event.Data.MediaRanges)|Out-Null
+        }
+    }
     $pendingArtifacts = @($events | Where-Object {
-        $_.Type -eq 'ArtifactReserved' -and $_.Data.Path -cnotin @($events | Where-Object Type -eq 'ArtifactAdded' | ForEach-Object { $_.Data.File.Path })
+        $_.Type -eq 'ArtifactReserved' -and -not $rejectedPaths.Contains($_.Data.Path) -and
+        $_.Data.Path -cnotin @($events | Where-Object Type -eq 'ArtifactAdded' | ForEach-Object { $_.Data.File.Path })
     })
     foreach ($pending in $(if (-not $ForReview) { $pendingArtifacts })) {
         if ([IO.File]::Exists((Resolve-PtReportPath $Run $pending.Data.Path))) {
@@ -1278,6 +1424,8 @@ function ConvertTo-PtReportState {
                         Category = $(if ($effective) { $effective.Data.Category } else { 'not-observed' })
                         Reason = $(if ($effective) { $effective.Data.Reason } elseif ($pending.Count) { "Latest Normal observation awaits review: $($pending[0].Sequence)." } else { 'No reviewed Normal-path observation was recorded.' })
                         Evidence = $(if ($effective) { @($effective.Data.Evidence) } elseif ($pending.Count) { @($pending[0].Data.Evidence) } else { @() })
+                        MediaRanges = $(if($effective -and $effective.Data.PSObject.Properties['MediaRanges']){@($effective.Data.MediaRanges)}
+                            elseif($pending.Count -and $pending[0].Data.PSObject.Properties['MediaRanges']){@($pending[0].Data.MediaRanges)}else{@()})
                     }
                 }
             )
@@ -1350,6 +1498,7 @@ function ConvertTo-PtReportState {
         SchemaVersion = 1; RunId = $Run.Id; Metadata = $metadata; Items = $items; Attempts = $attempts; Steps = $steps
         Restoration = $restoration; Events = $events; References = $references.ToArray()
         CurrentRestoration = $currentRestoration
+        RejectedArtifacts = $rejections
         HistoricalRestorationFailures = @($restoration | Where-Object { -not $effectiveAttempts.Contains($_.AttemptId) -and $_.Data.Verdict -ne 'PASS' })
         Signoff = $(if ($ForReview) { 'NOT-VALIDATED' } elseif ($problems.Count) { 'WITHHELD' } else { 'APPROVED' }); SignoffReasons = $problems.ToArray()
         Completion = $(if ($finished.Count) { $finished[-1].Data } else { $null })
@@ -1458,6 +1607,7 @@ function Get-PtVerificationReview {
                 Truncated=$observation.Data.Actual.Length -gt $MaxTextCharacters
                 EvidenceCount=@($observation.Data.Evidence).Count
                 Evidence=@($observation.Data.Evidence | Select-Object -First 2 Path,Kind,ReferenceOnly)
+                MediaRanges=$(if($observation.Data.PSObject.Properties['MediaRanges']){@($observation.Data.MediaRanges)}else{@()})
             }
         })
         [pscustomobject]@{
@@ -1472,6 +1622,7 @@ function Get-PtVerificationReview {
                     Truncated=$assertion.Reason.Length -gt $MaxTextCharacters
                     EvidenceCount=@($assertion.Evidence).Count
                     Evidence=@($assertion.Evidence | Select-Object -First 2 Path,Kind,ReferenceOnly)
+                    MediaRanges=@($assertion.MediaRanges)
                 }
             })
         }
@@ -1538,6 +1689,7 @@ function Export-PtVerificationReport {
     $manifestName = "${prefix}artifact-manifest.json"
     $journalName = if ($Final) { 'events.jsonl' } else { "${prefix}events.jsonl" }
     try {
+        if(-not(Get-Command ConvertTo-PtMediaRangeLinks -ErrorAction Ignore)){. "$PSScriptRoot\pt-verification-render.ps1"}
         foreach ($name in $reportName,$detailsName,$resultsName,$manifestName) {
             if ([IO.File]::Exists((Resolve-PtReportPath $Run $name))) { throw "Export would overwrite: $name" }
         }
@@ -1589,6 +1741,7 @@ function Export-PtVerificationReport {
             $lines.Add('|---|---|---|')
             foreach ($child in $item.Assertions) {
                 $links = @($child.Evidence | ForEach-Object { Format-PtReportLink $_ }) -join '<br>'
+                if($child.MediaRanges.Count){$links=(ConvertTo-PtMediaRangeLinks $child.MediaRanges)+'<br>'+$links}
                 $legacy = if ($child.Required -ceq $false) { 'Legacy metadata: Required=false. ' } else { '' }
                 $origin = if ($child.AttemptId) { "<br>Normal attempt: $($child.AttemptId); judgment: $($child.Sequence); observation: $($child.ObservationSequence)" } else { '' }
                 $lines.Add("| $($child.Id): $(ConvertTo-PtReportCell $child.Description) | **$($child.Verdict)** | $legacy$(ConvertTo-PtReportCell $child.Reason)$origin<br>$links |")
@@ -1600,6 +1753,7 @@ function Export-PtVerificationReport {
             }
             foreach ($raw in $item.RawObservations) {
                 $links = @($raw.Data.Evidence | ForEach-Object { Format-PtReportLink $_ }) -join '; '
+                if($raw.Data.PSObject.Properties['MediaRanges'] -and $raw.Data.MediaRanges.Count){$links=(ConvertTo-PtMediaRangeLinks $raw.Data.MediaRanges)+'; '+$links}
                 $lines.Add("- Raw observation $($raw.Sequence), $($raw.Data.AssertionId): $(ConvertTo-PtReportCell $raw.Data.Actual) $links")
             }
             foreach ($correction in $item.Corrections) {
@@ -1617,6 +1771,13 @@ function Export-PtVerificationReport {
         if (@($state.Attempts | Where-Object Phase -eq 'Diagnostic').Count) {
             Add-PtReportStepTable $lines @($state.Steps | Where-Object Phase -eq 'Diagnostic') $state
         } else { $lines.Add('No non-item diagnostic contexts recorded.') }
+        if($state.RejectedArtifacts.Count){
+            $lines.Add('')
+            $lines.Add('## Rejected artifact reservations')
+            foreach($rejection in $state.RejectedArtifacts){
+                $lines.Add("- Event $($rejection.Sequence), attempt $($rejection.AttemptId): $(ConvertTo-PtReportCell $rejection.Data.Path) - $(ConvertTo-PtReportCell $rejection.Data.Reason). Rejected output is absent; no product verdict was removed.")
+            }
+        }
         $lines.Add('')
         $lines.Add('## Cleanup performed')
         Add-PtReportStepTable $lines @($state.Steps | Where-Object Phase -eq 'Cleanup') $state

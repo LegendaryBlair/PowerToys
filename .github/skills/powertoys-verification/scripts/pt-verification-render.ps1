@@ -7,6 +7,32 @@ machine or artifacts, and returns one Markdown string without writing files or c
 .EXAMPLE
 ConvertTo-PtVerificationSummary -State $state -DetailsName details.md -ResultsName results.json -ManifestName artifact-manifest.json
 #>
+function ConvertTo-PtMediaRangeLinks {
+    param([object[]]$MediaRanges=@())
+    function MediaTime([double]$Value) {
+        if($Value -eq 0){return '0'}
+        $text=$Value.ToString('R',[Globalization.CultureInfo]::InvariantCulture)
+        if($text -notmatch '^(\d+)(?:\.(\d+))?[Ee]([+-]?\d+)$'){return $text}
+        $digits=$Matches[1]+$Matches[2]
+        $point=$Matches[1].Length+[int]$Matches[3]
+        if($point -le 0){return '0.'+('0'*(-$point))+$digits}
+        if($point -ge $digits.Length){return $digits+('0'*($point-$digits.Length))}
+        $digits.Insert($point,'.')
+    }
+    $links=@(foreach($range in $MediaRanges){
+        $start=[double]$range.StartSeconds;$end=[double]$range.EndSeconds
+        if([double]::IsNaN($start) -or [double]::IsInfinity($start) -or [double]::IsNaN($end) -or
+            [double]::IsInfinity($end) -or $start -lt 0 -or $end -le $start){throw 'Invalid media range bounds.'}
+        $from=MediaTime $start
+        $to=MediaTime $end
+        $label=[Net.WebUtility]::HtmlEncode([string]$range.Label)
+        $label=[regex]::Replace($label,'[\\|`*_\[\]!~#\r\n]',{param($m)'&#'+[int][char]$m.Value+';'})
+        $path=(([string]$range.Path).Replace('\','/') -split '/'|ForEach-Object {[Uri]::EscapeDataString($_)}) -join '/'
+        "[$label ($from-$to s)]($path#t=$from,$to)"
+    })
+    $links -join '; '
+}
+
 function ConvertTo-PtVerificationSummary {
     [CmdletBinding()]
     [OutputType([string])]
@@ -34,8 +60,15 @@ function ConvertTo-PtVerificationSummary {
         if ($Anchor) { $url += '#' + [Uri]::EscapeDataString($Anchor) }
         "[$(Escape-Text $Label)]($url)"
     }
-    function Evidence-Links($Evidence) {
+    function Evidence-Links($Evidence,$MediaRanges=@()) {
         $files = @($Evidence | Where-Object { $null -ne $_ })
+        $ranges=@($MediaRanges|Where-Object {$null -ne $_})
+        if($ranges.Count){
+            $links=ConvertTo-PtMediaRangeLinks $ranges
+            $other=@($files|Where-Object {$_.Path -cnotin $ranges.Path})
+            if($other.Count){$links+='; '+(Evidence-Links $other)}
+            return $links
+        }
         $ordered = @($files | Where-Object Kind -eq 'Video') + @($files | Where-Object Kind -eq 'Screenshot') +
             @($files | Where-Object Kind -notin 'Screenshot','Video')
         if ($ordered.Count -gt 1 -and $ordered[0].Kind -in 'Screenshot','Video') {
@@ -200,6 +233,8 @@ function ConvertTo-PtVerificationSummary {
     else { $lines.Add('None supplied.') }
     $lines.Add('')
     $lines.Add("**History**: $($attempts.Count) attempts; $(@($attempts | Where-Object Kind -eq 'Diagnostic').Count) diagnostic; $($corrections.Count) correction/invalidation events. $(Link 'Complete trace and history' $DetailsName). Diagnostic success does not replace Normal coverage.")
+    $rejected=@(Get-Field $State 'RejectedArtifacts'|Where-Object {$null -ne $_})
+    if($rejected.Count){$lines.Add("**Rejected outputs**: $($rejected.Count) explicitly closed reservations; rejection history remains in $(Link 'details' $DetailsName 'rejected-artifact-reservations').")}
     $operations=@(Get-Field $State 'Operations' | Where-Object {$null -ne $_})
     if($operations.Count){
         $lines.Add('')
@@ -356,7 +391,7 @@ function ConvertTo-PtVerificationSummary {
                 elseif ($observationSequence) { '<br>**Origin**: ' + (Link "Normal observation $observationSequence (awaiting review)" $DetailsName "item-$($item.Id)") }
                 else { '' }
             $expected = if ($null -ne $presentation) { $presentation.Assertions[$child.Id] } else { $child.Description }
-            $lines.Add("- **$(Escape-Text "$($item.Id)/$($child.Id)") - $(Escape-Text $child.Verdict)**. $legacy**Expected**: $(Escape-Text $expected)<br>**Actual / reason**: $(Escape-Text $child.Reason)<br>**Category**: $(Escape-Text $child.Category). $(Evidence-Links (Get-Field $child 'Evidence'))$origin")
+            $lines.Add("- **$(Escape-Text "$($item.Id)/$($child.Id)") - $(Escape-Text $child.Verdict)**. $legacy**Expected**: $(Escape-Text $expected)<br>**Actual / reason**: $(Escape-Text $child.Reason)<br>**Category**: $(Escape-Text $child.Category). $(Evidence-Links (Get-Field $child 'Evidence') (Get-Field $child 'MediaRanges'))$origin")
         }
         if (Get-Field $item 'Caveats') {
             $lines.Add('')

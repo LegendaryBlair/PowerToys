@@ -49,6 +49,7 @@ archival and draft-only publication defaults are defined there.
 
 | File | Purpose |
 |---|---|
+| `scripts/pt-baseline-installation.ps1` | Scenario B official baseline selection, guarded install/uninstall/restore and nonblocking target continuation; requires private state adapters and explicit installation authority. See [baseline lifecycle](references/baseline-installation.md). |
 | `scripts/pt-file-io.ps1` | Shared live-file reads that permit product read/write/delete; no automatic retries or default JSON. |
 | `scripts/pt-awake.ps1` | Read-only system-wide execution-state observation with optional Awake process-generation guards; no process-specific attribution, power mutation or physical sleep claim. |
 | `scripts/pt-always-on-top.ps1` | Read-only identity-checked pin/topmost/layered-alpha, physical frame, virtual-desktop and Game Mode observations. Does not drive the module or prove rendered border/audio behavior. |
@@ -291,7 +292,7 @@ Different failure reasons stay distinct because each drives a different remediat
 | `BLK-ENV` | This specific shell lacks a required condition (elevation, interactive desktop, or Explorer windows). For missing elevation, skip only admin-required coverage by default and continue non-admin checks; cite `references/pre-flight.md` and the elevation probe. For desktop/session obstacles, cite `references/environment-setup.md`. State the required environment for a rerun. |
 | `BLK-HARDWARE` | Needs hardware this session lacks — multi-monitor, 2 physical PCs (MWB), real camera / battery / game-mode, or live screen/device capture. State the specific shortfall in **Category**. |
 | `BLK-DRAG-REQUIRED` | The required drag cannot be delivered or independently observed through the available safe input routes. Record the concrete limitation; needing a drag alone is not a blocker. |
-| `BLK-DESTRUCTIVE` | Reboot, hibernate, install/uninstall, or mid-session AppX uninstall — would damage the run environment. |
+| `BLK-DESTRUCTIVE` | Unsafe reboot, hibernate, installation or registration changes. Authorized Scenario B comparison preparation uses the [guarded baseline lifecycle](references/baseline-installation.md); other unsafe mutations remain blocked. |
 | `BLK-VISUAL-RENDER` | The thing to verify is a rendered surface UIA can't see — WinUI3 islands, WebView2, or Explorer-side context-menu rendering/localization. Needs pixel/OCR or a manual eyeball. |
 | `BLK-OVERLAY-INPUT-BLOCK` | Overlay both blocks input and excludes itself from capture (`BlockInput` + `WDA_EXCLUDEFROMCAPTURE`, e.g. ZoomIt draw mode) — can neither drive nor screenshot it. |
 | `BLK-EXTERNAL-APP` | Needs a 3rd-party tool, a real API key, or a system locale change. |
@@ -310,6 +311,9 @@ fix for every friction, or an explicit `Everything was smooth — no friction en
 For visual PR claims, use [PR visual evidence](references/visual-evidence.md): a reviewed Normal
 `Video` can replace a screenshot, frame bundles retain their relative paths, and sanitized
 delivery copies have separate integrity records from the immutable private archive.
+Map many assertions to shared video time ranges rather than one video per assertion.
+For bugfixes, use the [scripted comparison baseline](references/baseline-installation.md);
+non-reproduction does not block safe target capture or reporting.
 
 Every executing agent must also produce the
 [agent-origin execution statistics](references/reporting-format.md#agent-origin-execution-statistics):

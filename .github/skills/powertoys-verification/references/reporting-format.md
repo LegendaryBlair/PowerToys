@@ -36,6 +36,9 @@ The exporter writes both views from the same recorded state:
   Show at most two decisive evidence links per child, preferring a video or screenshot then other
   evidence, with short labels rather than repeated GUID-heavy directory names. Link each
   item to its full trace for exact commands, all evidence and historical observations.
+  Explicit `MediaRanges` are an exception to the ordinary link cap: retain all labeled
+  before/after/action cue links (`video.mp4#t=start,end`) and supporting evidence.
+  Several assertions may share one clip; legacy observations need no invented ranges.
   Link current assertion results to their Normal judgment/observation sequence; partial
   attempts can contribute different assertions without hiding their origins.
   For recognized frozen checklist blocks, show the scenario title and setup/source notes,
@@ -49,6 +52,11 @@ The exporter writes both views from the same recorded state:
   cleanup and retrospective. Do not abbreviate this view to meet compact-report size limits.
   Full checklist source descriptions remain unchanged here and in `results.json`; compact
   presentation does not modify the inventory, source hash or recorded outcomes.
+
+Explicit rejected-take history appears in details and is counted in the compact view.
+It closes only unused artifact reservations, not errors, missing coverage or product
+failures. Baseline reproduction/acquisition and installation recovery remain separate
+from target assertion verdicts; after-only evidence must state its comparison limitation.
 - **`results.json`** and **`artifact-manifest.json`**: the structured record and
   integrity inventory. Mandatory integrity validation covers **both Markdown files**, results,
   the journal, input snapshots and every referenced artifact. The manifest records `DetailsPath`

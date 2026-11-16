@@ -62,6 +62,12 @@ provision a VM as a fallback. Deployment/state-preservation boundaries still app
   installed bits you didn't build. Restore the machine to the shipped build when done (see
   `pr-validation.md` Step 4b).
 
+**Scenario B preparation exception:** an authorized bug-comparison baseline may be installed
+or replaced through the [scripted baseline lifecycle](../baseline-installation.md), with
+verified rollback material and private state preservation. This is not an exception during
+capture: each selected installed artifact remains immutable, and no source-built file overlay,
+Settings-binding bypass or Scenario A installation is authorized by it.
+
 > A run that mutates the wrong `BITS` (sideloads when the code is already installed, or drives the
 > stale installed binary when validating unreleased code) is **invalid regardless of the verdict.**
 > Set `BITS` before the first drive command.
