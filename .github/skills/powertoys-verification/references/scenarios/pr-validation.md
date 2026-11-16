@@ -28,8 +28,8 @@ Resolve this from the PR and build provenance up front and **echo the answer in 
 > a fix ahead of the next release — PR #45242 was exactly this). Only drive the installed bits when
 > the code you're validating is genuinely in them.
 
-This is the default local route, not another environment-selection question. Use the existing
-worktree/build conventions and [build scripts](../../../../../tools/build/BUILD-GUIDELINES.md).
+This is the default local route, not another environment-selection question. Use the repository's
+[PrepareWorktree agent](../../../../agents/prepare-worktree.agent.md) for source and build preparation.
 Do not require or provision a VM. A missing hardware/privilege or unsafe registration condition
 blocks only its dependent checks; it does not justify adding a new environment dependency.
 
@@ -162,66 +162,25 @@ that has shipped, and for a release/hotfix sign-off where you're validating the 
 
 ### 2b — Build + sideload path (code not in the build under test)
 
-Build the minimum coherent local set: **runner + Settings + related module(s) + required
-dependencies**, using the existing essentials/targeted-build scripts below. Do not build the whole
-solution merely to populate unrelated modules. This route applies automatically when the PR is
-unmerged or the preinstalled artifact does not have confirmed coverage of its changes.
+Use [PrepareWorktree](../../../../agents/prepare-worktree.agent.md) from the verification engine's
+repository, not a different personal definition or one bundled in the PR under test. Pass the PR
+number, reviewed head or merge revision, repository/new worktree paths, platform/configuration,
+required product/test projects, evidence directory and existing preservation restrictions.
+For a Runner-based flow, request Runner, Settings, related modules and their runtime dependencies.
 
-Do not run `gh pr checkout` in the user's working directory before creating a worktree.
-`New-WorktreeFromBranch.ps1` reuses a worktree already bound to that branch; it does not guarantee
-a new isolated directory. For an open PR, fetch the reviewed head without switching the caller's
-branch, then create a new detached worktree:
+Invoke that agent when available; otherwise read and follow the same repository agent definition
+in the current session. It owns worktree creation, toolchain/restore, long-path handling, build
+commands and output verification. Do not maintain a second preparation recipe here.
 
-```powershell
-$repo = '<absolute existing repository path>'
-$worktree = '<new absolute worktree path>'
-$prNumber = [int]'<PR number>'
-$headSha = '<reviewed headRefOid from Step 1>'
-if (-not [IO.Path]::IsPathFullyQualified($repo) -or
-    -not [IO.Path]::IsPathFullyQualified($worktree) -or
-    (Test-Path -LiteralPath $worktree) -or $headSha -notmatch '^[0-9a-fA-F]{40}$') {
-    throw 'Supply an existing repository, a new absolute worktree path and the reviewed commit.'
-}
-git -C $repo fetch https://github.com/microsoft/PowerToys.git "pull/$prNumber/head"
-if ($LASTEXITCODE -ne 0) { throw 'PR fetch failed.' }
-$fetchedSha = git -C $repo rev-parse FETCH_HEAD
-if ($LASTEXITCODE -ne 0 -or $fetchedSha -cne $headSha) { throw 'PR head changed; review the new revision first.' }
-git -C $repo worktree add --detach $worktree $headSha
-if ($LASTEXITCODE -ne 0) { throw 'Worktree creation failed.' }
-git -C $worktree submodule update --init --recursive
-if ($LASTEXITCODE -ne 0) { throw 'Submodule initialization failed.' }
-```
+Record the agent definition with the engine inputs, and import its build summary, exact
+commands/logs and output identities into the existing recorder.
+Keep preparation evidence separate from runtime observations: a successful build is not a
+behavioral PASS. If required outputs remain unavailable, block only dependent checks with the
+concrete build/environment reason and continue independent verification.
 
-For a merged-but-unreleased PR, resolve and review the intended merge revision instead of assuming
-the PR head is the integrated result; create the same kind of detached worktree at that revision.
-
-**Before building**, inspect restore/build/post-build targets for registration, packaging or install
-side effects. A worktree isolates source, not the user's configuration or COM/MSIX registration.
-For example, `ImageResizerExt.vcxproj` enables `RegisterOutput`. Preserve affected state and use a
-supported no-registration build option or an explicitly authorized fixture before running such targets.
-If that boundary is not established, block the affected build rather than discover the effect afterward.
-
-Use the same explicit platform/configuration for essentials, the affected project and its dependencies.
-After reviewing the build side effects, run in one terminal:
-
-```powershell
-$platform = 'x64' # Select the intended supported architecture.
-$configuration = 'Release'
-$projectDirectory = Join-Path $worktree '<affected project directory>'
-$projectFile = Join-Path $projectDirectory '<actual project filename.csproj or .vcxproj>'
-if (-not (Test-Path -LiteralPath $projectFile -PathType Leaf)) { throw 'Affected project was not resolved.' }
-Set-Location -LiteralPath $projectDirectory
-& "$worktree\tools\build\build-essentials.cmd" -Platform $platform -Configuration $configuration
-if ($LASTEXITCODE -ne 0) { throw 'Essentials build failed; read its errors log.' }
-& "$worktree\tools\build\build.ps1" -Path $projectDirectory -Platform $platform -Configuration $configuration
-if ($LASTEXITCODE -ne 0) { throw 'Affected-project build failed; read its errors log.' }
-```
-
-Non-zero means failure: read `build.<config>.<platform>.errors.log` next to the project. Exit zero
-alone does not prove that the intended project was built: the wrapper also returns zero when no
-project is found. Check the actual build targets/logs and expected outputs for this revision,
-configuration and architecture before launch; do not adopt stale output from an earlier build.
-If the required toolchain or outputs are unavailable, record **BLOCKED (`BLK-ENV`)**, not PASS.
+The verifier retains responsibility for the selected `BITS`, preservation constraints and the
+deployment/restoration boundary below. Preparation does not authorize changing registrations,
+closing installed instances or launching the target.
 
 **Deploy only through a declared, restorable instance transition:**
 
