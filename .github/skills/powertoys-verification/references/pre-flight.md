@@ -192,18 +192,12 @@ files/registry values the case owned; never remove whole policy trees as a clean
    and rejects missing/changed evidence. Historical cleanup failures and the latest restoration
    receipts are shown separately; the overall signoff gate remains conservative.
    Use `Export-PtVerificationReport` for an interrupted/partial run; do not erase its failed steps.
-4. **Move the workspace to the sign-off archive**, only after validation succeeds:
-   ```powershell
-   $signoff = "$env:OneDrive\PowerToys\Module-Signoff"
-   New-Item -ItemType Directory -Path $signoff -Force | Out-Null
-   $final = Join-Path $signoff (Split-Path $workspace -Leaf)
-   if (Test-Path -LiteralPath $final) { throw 'Archive already exists; do not merge or overwrite.' }
-   Move-Item -LiteralPath $workspace -Destination $final -ErrorAction Stop
-   Test-PtVerificationArchive -Workspace $final
-   $report = Join-Path $final (Split-Path $export.Report -Leaf)
-   ```
-   Relative evidence paths remain valid after the move.
-5. **Print the FINAL report path** under `Module-Signoff`, not the temporary path.
+4. **Archive only after validation succeeds**, following
+   [SKILL.md Step 7](../SKILL.md#step-7--archive-the-workspace-to-the-sign-off-folder-do-this-last)
+   for the scenario-specific destination and archive validation. Never merge into or overwrite an
+   earlier archive. Preserve relative evidence paths; keep a live recovery workspace in place and
+   archive an immutable copy when moving it would break an unresolved obligation.
+5. **Print the archived report path or PR-batch index**, not only the temporary path.
 
 ## Hard rules
 

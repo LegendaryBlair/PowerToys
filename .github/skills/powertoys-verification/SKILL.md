@@ -26,6 +26,10 @@ Each item produces a PASS / FAIL / BLOCKED verdict with evidence. For **A** the 
 supplied; for **B** you derive it from the PR(s). The skill is the *how* — independent of any
 specific checklist.
 
+For unattended PR requests, use the [Scenario B batch procedure](references/scenarios/pr-validation.md#unattended-batch-procedure).
+PR numbers and unattended intent are sufficient; preparation, failure isolation, recovery handoff,
+archival and draft-only publication defaults are defined there.
+
 ## Required reads (in order)
 
 1. **`references/scenarios/index.md`** — **read FIRST**: the scenario router (A/B), the
@@ -389,12 +393,19 @@ When done, run state hygiene cleanup, write the report **including the §G retro
 
 ## Step 7 — Archive the workspace to the sign-off folder (do this LAST)
 
-The live run works out of `%TEMP%`, but the **final deliverable must live in the module sign-off archive** so reports persist and sync via OneDrive:
+The live run works out of `%TEMP%`, but final deliverables must persist outside the temporary
+workspace. Before the archive commands, set `$signoff` to the scenario's canonical destination:
+**Scenario A** uses the OneDrive `PowerToys\Module-Signoff` archive. **Scenario B** uses the
+caller's archive location or a new OneDrive
+`PowerToys\PR-Validation` batch directory, with separate canonical evidence and review material
+as defined in the [batch procedure](references/scenarios/pr-validation.md#unattended-batch-procedure).
+For B, set `$signoff` to the batch's private canonical destination,
+then validate the separate review delivery and its top-level index. Never move or delete a live
+workspace still required for unresolved recovery; preserve and validate an immutable copy instead.
 
 ```powershell
 # After the report is written AND the artifact-existence check passes:
 Test-PtVerificationArchive -Workspace $workspace
-$signoff = "$env:OneDrive\PowerToys\Module-Signoff"   # e.g. C:\Users\<you>\OneDrive - Microsoft\PowerToys\Module-Signoff
 New-Item -ItemType Directory -Path $signoff -Force | Out-Null
 $final = Join-Path $signoff (Split-Path $workspace -Leaf)
 if (Test-Path -LiteralPath $final) { throw 'Archive already exists; do not overwrite.' }
@@ -404,7 +415,8 @@ Test-PtVerificationArchive -Workspace $final
 Write-Host "Final report: $(Join-Path $final (Split-Path $export.Report -Leaf))"
 ```
 
-Print the **moved** report path (under `…\PowerToys\Module-Signoff\`) as the last line — never the `%TEMP%` path.
+Print the **archived** report path, or the Scenario B batch index, as the last line — never only
+the `%TEMP%` path. Keep any retained live recovery location explicit in the closeout.
 
 ## Invocation & placeholders
 

@@ -59,7 +59,8 @@ new reporting system.
 
 ## Step 0 — Acquire the PR set (discovery model)
 
-For a **single PR**, `N = 1` — skip straight to Step 1. For a **release / hotfix**, a full release
+For a **single PR**, `N = 1` — apply the unattended defaults below when requested, then go to Step 1.
+For a **release / hotfix**, a full release
 can carry ~100 PRs and a hotfix ~10–25; blindly looping 100 is the wrong default. Resolve the set
 with the **smallest, most explicit source available**, then apply the size gate.
 
@@ -70,6 +71,9 @@ with the **smallest, most explicit source available**, then apply the size gate.
 | **1. Explicit set** *(preferred)* | PR numbers, a sign-off doc, or a draft/published release whose notes list the PRs | Parse the PR numbers directly. For a release: `gh api repos/microsoft/PowerToys/releases/<id>` → extract `#NNNNN` from `.body`. |
 | **2. Discoverable source** | A milestone, a release tag, or a commit/tag range | `gh pr list --repo microsoft/PowerToys --search "milestone:0.X" --state merged --limit 200 --json number,title,labels,files` · or for a range: `git log <tagA>..<tagB> --oneline` then extract `(#NNNNN)` merge refs. |
 | **3. Caller defers entirely** | "verify the latest release" with no list | Resolve to a concrete release/milestone first (mode 1/2). If you cannot, **ask** rather than guess. |
+
+In unattended mode, do not wait for clarification of an unresolved PR set or scope. Record the
+missing input and stop that discovery step rather than guessing a release or adding replacement PRs.
 
 ### Size gate (the guardrail)
 
@@ -92,6 +96,55 @@ runtime validation still count against the batch-size gate even when their check
 Do not automatically exclude dependency, localization or installer changes: they can affect runtime
 loading, rendered text/layout or registration. Use the description, diff and affected behavior to
 choose the relevant evidence. UI claims still require the actual user route and its observation.
+
+### Unattended batch procedure
+
+An explicit request such as "validate PRs #A, #B and #C unattended" uses the defaults below.
+The caller need not repeat the build, evidence, restoration or publication instructions.
+Apply the same procedure to an unattended single-PR request.
+
+**Scope and defaults.** Assess every PR in the confirmed scope sequentially, in the supplied order.
+Derive checks from each PR's claims and directly affected regression risks; do not impose an
+assertion quota or expand into a full module checklist. Record the tested revision and CI
+provenance. Distinguish testing a PR head from validating its integration with the current base:
+merge conflicts alone do not prevent head-revision testing. Honor explicit caller CI requirements,
+but do not invent additional eligibility gates. Do not substitute other PRs without instruction.
+
+**Preparation and execution.** Use the repository-scoped
+[PrepareWorktree agent](../../../../agents/prepare-worktree.agent.md) for source and build
+preparation, and this skill for deployment, observation and restoration. Make reasonable reversible
+decisions within existing permissions without waiting for human input. Record permission denials
+and unavailable prerequisites; never bypass them. A failed or blocked check stops only dependent
+work. Continue independent checks and subsequent PRs, preserving the original failure evidence
+without turning verification into product or harness maintenance.
+
+**Shared state and recovery.** Before mutation, consult any supplied recovery handoff and the latest
+relevant batch closeout in the archive location for unresolved resource obligations. Verify the
+recorded identities and protect their processes, files and recovery material. Follow
+[independent-run safety](../session-safety.md#independent-runs-and-interrupted-work): do not adopt
+an earlier run's baseline, interpret missing processes as successful restoration, or attempt
+unrelated recovery. If resource readiness cannot be established, block only operations that
+depend on it. Carry unresolved obligations into the new batch's closeout with their source-report
+and recovery-record locations and protected resource identities; keep private payloads out of
+the handoff. These records inform preflight, not automatic rollback or permission to release resources.
+
+**Results and review.** Use the caller's archive location, or by default a new uniquely named batch
+directory beneath the resolved OneDrive `PowerToys\PR-Validation` folder. Preserve one report and
+evidence archive per PR and a top-level `index.html` accounting for every requested PR. Separate
+build outcomes, observed product behavior, coverage limitations and restoration status. Follow
+the [canonical/delivery contracts](../visual-evidence.md#8-archive-review-and-publish): keep private
+canonical evidence separately from sanitized review material and validate each with its own
+integrity records. Prepare local comment drafts only for supported findings or useful validation
+results. Publication, including comments, reviews and media uploads, requires separate human
+approval of the exact content; unattended validation never implies publication approval.
+
+**Closeout.** Restore attributed changes and verify the archived evidence before removing clean
+worktrees created by this batch. Preserve tested commit references, build evidence and unique
+driver sources; retain anything needed for unresolved recovery. Do not delete pre-existing
+worktrees. If a live workspace must remain for recovery, preserve an immutable archive copy without
+moving or deleting that workspace. Finish with the batch index, concise per-PR outcomes, draft
+locations, unresolved obligations and worktrees removed or retained. Report generation and archive
+integrity are not substitutes for successful product validation.
 
 ---
 
@@ -252,7 +305,8 @@ as a scoped limitation, not a blanket hold on unrelated target results or on pro
 
 **Roll-up** (multi-PR sets): top-level summary table — PR · Module · verdict · one-line evidence —
 plus the `exempt` list and (if `N > MAX_AUTO`) the un-scoped **queue** of PRs not yet verified.
-Include a §G retrospective (run friction).
+Include a §G retrospective (run friction). For unattended runs, use the archive layout, review
+defaults and closeout in the [batch procedure](#unattended-batch-procedure).
 
 **Restore (Step 4b / build path only).** Normally close the exact owned build instances and wait for
 their writers/providers to finish. Restore only attributed changes against the original baseline,
