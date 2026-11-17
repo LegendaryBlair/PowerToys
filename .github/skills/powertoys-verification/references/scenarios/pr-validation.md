@@ -193,22 +193,34 @@ separate maintenance tasks requiring explicit scope.
 
 ### Evidence for the claimed behavior
 
+Read [PR visual evidence](../visual-evidence.md) before runtime driving. **Video is a
+required default deliverable for changed visual/UX behavior**, not a later optional
+polish step. Freeze the [video plan](../recording-workflow.md#video-first-scenario-b-plan)
+from the PR description/diff, including all main changes and meaningful variants.
+Do not silently narrow the presentation to the most recently discussed feature.
+
 Exercise the claimed user action and independently observe its outcome; source inspection,
 command success and extra discovery calls do not substitute for that evidence. Use the existing
 recorder for UI actions, native/CLI probes and observations. There is no minimum winapp-command
 count: four discovery calls do not prove a behavior, and a valid composed helper need not be split
 into artificial steps.
 
-For `UserVisible=true` items, retain Normal-path `Screenshot` or `Video` evidence as required by
-the [reporting contract](../reporting-format.md). A reviewed recording can satisfy this requirement
-without an additional screenshot. Read [PR visual evidence](../visual-evidence.md) for media
-registration, frame-bundle paths, timing and separate private/redacted-delivery integrity.
+Record real navigation/actions/results for visual/UX flows, including static UI changes.
+Screenshots supplement the video; they do not satisfy the new Scenario B video gate alone.
+Declare a specific exemption for genuinely nonvisual work or an explicit caller exclusion.
+If capture is unsafe/unavailable, record its evidence-backed blocker instead of an exemption.
+Keep video coverage separate from product verdicts and continue independent checks/reporting.
+The [reporting contract](../reporting-format.md) retains the underlying Normal-evidence rules
+and adds the new-run video gate without rewriting old archives.
 Readback proves the requested property; pixels prove rendered content, not input delivery or
 persistence. A UI path left unexecuted is not validated merely because its source was reviewed.
 Group related assertions into a few understandable flows; map each assertion to the relevant
 registered video time ranges. Ten or more assertions do not require ten videos. One assertion
 can reference both before and after ranges, and one range can support multiple independently
 reviewed assertions.
+Check capture readiness before the meaningful actions and record during verification;
+do not finish cleanup and then discover that another live session is needed for a movie.
+Unchanged supporting steps must not displace a changed PR feature from a limited-duration clip.
 
 ---
 
@@ -322,6 +334,9 @@ and inspected outputs. Archive through the shared final wrap-up rather than over
 Use the [minimal Scenario B composition](../recording-workflow.md#minimal-scenario-b-composition)
 with PR-derived items, not the module's full Scenario A inventory. Include baseline non-reproduction
 as a scoped limitation, not a blanket hold on unrelated target results or on producing the report.
+Include the video coverage table: **Produced / Exempt / Blocked / Missing**, with assertion
+IDs, time-range links or explicit reasons. Unproduced required video withholds complete
+signoff but does not relabel an independently established product result as FAIL.
 
 **Roll-up** (multi-PR sets): top-level summary table — PR · Module · verdict · one-line evidence —
 plus the `exempt` list and (if `N > MAX_AUTO`) the un-scoped **queue** of PRs not yet verified.

@@ -241,6 +241,116 @@ function Assert-PtReportOpen {
     }
 }
 
+function ConvertTo-PtReportVideoPlan {
+    param([object[]]$Items,[object[]]$Plan)
+    if(-not $Plan.Count){throw 'Video plan must account for every inventory assertion.'}
+    $known=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach($item in $Items){foreach($child in $item.Assertions){[void]$known.Add("$($item.Id)/$($child.Id)")}}
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $normalized=@(foreach($flow in $Plan){
+        Assert-PtReportName $flow.Id
+        if(-not $ids.Add($flow.Id)){throw 'Video flow IDs must be unique.'}
+        if([string]::IsNullOrWhiteSpace($flow.Description) -or $flow.Requirement -cnotin 'Required','Exempt' -or
+            -not @($flow.Assertions).Count){throw 'Video flow requires Description, Requirement (Required/Exempt) and Assertions.'}
+        Assert-PtReportSummaryText $flow.Description 'Video flow description'
+        $reason=''
+        if($flow.Requirement -ceq 'Exempt'){
+            if([string]::IsNullOrWhiteSpace($flow.Reason)){throw 'Video exemption requires a concrete reason.'}
+            Assert-PtReportSummaryText $flow.Reason 'Video exemption reason'
+            $reason=[string]$flow.Reason
+        }
+        foreach($reference in $flow.Assertions){
+            if($reference -isnot [string] -or -not $known.Contains($reference)){throw "Unknown video-plan assertion: $reference"}
+            if(-not $seen.Add($reference)){throw "Duplicate video-plan assertion: $reference"}
+        }
+        [pscustomobject]@{Id=[string]$flow.Id;Description=[string]$flow.Description
+            Requirement=[string]$flow.Requirement;Reason=$reason;Assertions=@($flow.Assertions)}
+    })
+    if($seen.Count -ne $known.Count){throw 'Video plan omits inventory assertions; assign required coverage or a justified exemption.'}
+    $normalized
+}
+
+function Get-PtReportVideoCoverage {
+    # Pure projection shared by full validation and the incremental review cache.
+    param($Metadata,[object[]]$Items,[object[]]$Events)
+    if(-not $Metadata.PSObject.Properties['VideoPolicy']){return $null}
+    if($Metadata.Scenario -cne 'B' -or $Metadata.VideoPolicy.Version -ne 1){throw 'Unsupported PR video policy.'}
+    $plan=@(ConvertTo-PtReportVideoPlan $Metadata.Items $Metadata.VideoPolicy.Flows)
+    $normal=@($Events|Where-Object {$_.Type -eq 'AttemptStarted' -and $_.Data.Kind -eq 'Normal'}|ForEach-Object AttemptId)
+    $completed=@($Events|Where-Object {$_.Type -eq 'StepEnded' -and $_.Data.Status -eq 'Completed'}|ForEach-Object StepId)
+    $videos=@($Events|Where-Object {
+        $_.Type -eq 'ArtifactAdded' -and $_.Data.File.Kind -eq 'Video' -and
+        $_.AttemptId -cin $normal -and $_.StepId -cin $completed -and
+        -not $_.Data.File.ReferenceOnly -and -not $_.Data.File.Synthetic
+    }|ForEach-Object {$_.Data.File.Path})
+    $blockers=@($Events|Where-Object Type -EQ VideoBlocked)
+    foreach($blocker in $blockers){
+        if($blocker.Data.FlowId -cnotin @($plan|Where-Object Requirement -CEQ Required|ForEach-Object Id) -or
+            $blocker.AttemptId -cnotin $normal -or -not @($blocker.Data.Evidence).Count -or
+            -not @($blocker.Data.Evidence|Where-Object {-not $_.ReferenceOnly -and -not $_.Synthetic}).Count -or
+            [string]::IsNullOrWhiteSpace($blocker.Data.Reason) -or $blocker.Data.Category -ceq 'BLK-INCOMPLETE'){
+            throw 'Invalid video blocker history.'
+        }
+        Assert-PtVerificationVerdictCategory BLOCKED $blocker.Data.Category
+    }
+    $assertions=@{}
+    foreach($item in $Items){foreach($child in $item.Assertions){$assertions["$($item.Id)/$($child.Id)"]=$child}}
+    $flows=@(foreach($flow in $plan){
+        $covered=@();$missing=@();$ranges=@()
+        foreach($reference in $flow.Assertions){
+            $child=$assertions[$reference]
+            $qualified=@()
+            if($child -and $child.Verdict -in 'PASS','FAIL'){
+                $paths=@($child.Evidence|Where-Object {$_.Kind -eq 'Video' -and $_.Path -cin $videos -and -not $_.Synthetic}|ForEach-Object Path)
+                $qualified=@($child.MediaRanges|Where-Object {$null -ne $_ -and $_.Path -cin $paths})
+            }
+            if($qualified.Count){$covered+=@($reference);$ranges+=@($qualified)}else{$missing+=@($reference)}
+        }
+        $latest=@($blockers|Where-Object {$_.Data.FlowId -ceq $flow.Id}|Select-Object -Last 1)
+        $status='Missing';$reason='Required video/time-range coverage is missing.';$evidence=@()
+        if($flow.Requirement -ceq 'Exempt'){$status='Exempt';$reason=$flow.Reason;$missing=@()}
+        elseif(-not $missing.Count){$status='Produced';$reason='Every mapped assertion has reviewed Normal-capture video ranges.'}
+        elseif($latest.Count){$status='Blocked';$reason="$($latest[0].Data.Category): $($latest[0].Data.Reason)";$evidence=@($latest[0].Data.Evidence)}
+        [pscustomobject]@{Id=$flow.Id;Description=$flow.Description;Requirement=$flow.Requirement;Status=$status
+            Assertions=@($flow.Assertions);CoveredAssertions=@($covered);MissingAssertions=@($missing)
+            MediaRanges=@($ranges|Sort-Object Path,StartSeconds,EndSeconds,Label -Unique);Reason=$reason;Evidence=@($evidence)
+            BlockerSequence=$(if($latest.Count){$latest[0].Sequence}else{$null})}
+    })
+    [pscustomobject]@{PolicyVersion=1;Complete=(@($flows|Where-Object Status -In 'Missing','Blocked').Count -eq 0)
+        Flows=$flows;BlockerHistory=$blockers}
+}
+
+function Add-PtVerificationVideoBlocker {
+    <#
+    .SYNOPSIS
+    Record a genuine capture obstacle without changing product judgments or stopping independent work.
+    .NOTES
+    Requires a required flow in a new Scenario B plan, a Normal attempt and observed evidence.
+    Later complete video coverage supersedes the disposition but retains this event as history.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Attempt,[Parameter(Mandatory)][string]$FlowId,
+        [Parameter(Mandatory)][string]$Category,[Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Reason,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][object[]]$Evidence)
+    Assert-PtReportAttempt $Attempt -AllowClosed
+    if($Attempt.Kind -cne 'Normal'){throw 'Video blockers require a Normal observation attempt.'}
+    Assert-PtVerificationVerdictCategory BLOCKED $Category
+    if($Category -ceq 'BLK-INCOMPLETE'){throw 'Unfinished video work is Missing, not a capture blocker.'}
+    Assert-PtReportSummaryText $Reason 'Video blocker reason'
+    if([string]::IsNullOrWhiteSpace($Reason)){throw 'Video blocker reason cannot be blank.'}
+    $metadata=ConvertFrom-PtReportJson ([IO.File]::ReadAllText((Join-Path $Attempt.Run.Workspace 'run.json')))
+    if(-not $metadata.PSObject.Properties['VideoPolicy'] -or $metadata.VideoPolicy.Version -ne 1 -or
+        $metadata.Scenario -cne 'B' -or $FlowId -cnotin @($metadata.VideoPolicy.Flows|Where-Object Requirement -CEQ Required|ForEach-Object Id)){
+        throw 'Video blocker must identify a required flow in this run''s frozen plan.'
+    }
+    Assert-PtReportEvidence $Attempt $Evidence
+    if(-not @($Evidence|Where-Object {-not $_.ReferenceOnly -and -not $_.Synthetic}).Count){
+        throw 'Video blockers require fresh observed evidence, not only historical or synthetic references.'
+    }
+    Add-PtReportEvent $Attempt.Run 'VideoBlocked' @{FlowId=$FlowId;Category=$Category;Reason=$Reason;Evidence=@($Evidence)} $Attempt
+}
+
 function New-PtVerificationRun {
     [CmdletBinding()]
     param(
@@ -249,7 +359,8 @@ function New-PtVerificationRun {
         [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Bits,
         [Parameter(Mandatory)][ValidateSet('A','B','InfrastructureAcceptance')][string]$Scenario,
         [Parameter(Mandatory)][object[]]$Items,
-        [Parameter(Mandatory)][object[]]$Inputs
+        [Parameter(Mandatory)][object[]]$Inputs,
+        [object[]]$VideoPlan
     )
     $Scenario = switch ($Scenario) { 'A' { 'A' }; 'B' { 'B' }; default { 'InfrastructureAcceptance' } }
     $root = [IO.Path]::GetFullPath($Workspace).TrimEnd('\')
@@ -281,6 +392,17 @@ function New-PtVerificationRun {
                 }
             }
         }
+    }
+    $videoPolicy=$null
+    if($PSBoundParameters.ContainsKey('VideoPlan') -and $Scenario -ne 'B'){throw 'VideoPlan applies only to new Scenario B runs.'}
+    if($Scenario -eq 'B'){
+        if(-not $PSBoundParameters.ContainsKey('VideoPlan')){
+            $VideoPlan=@(foreach($item in $Items){
+                @{Id=$item.Id;Description="Video coverage for $($item.Id)";Requirement='Required'
+                    Assertions=@($item.Assertions|ForEach-Object {"$($item.Id)/$($_.Id)"})}
+            })
+        }
+        $videoPolicy=[pscustomobject]@{Version=1;Flows=@(ConvertTo-PtReportVideoPlan $Items $VideoPlan)}
     }
     $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($inputFile in $Inputs) {
@@ -314,6 +436,7 @@ function New-PtVerificationRun {
         SchemaVersion = 1; RunId = $run.Id; Module = $Module; Bits = $Bits; Scenario = $Scenario
         Created = [DateTimeOffset]::UtcNow.ToString('o'); Items = $Items; Inputs = $snapshots
     }
+    if($videoPolicy){$metadata.VideoPolicy=$videoPolicy}
     Write-PtReportText (Join-Path $root 'run.json') (ConvertTo-Json -InputObject $metadata -Depth 30)
     Write-PtReportText (Join-Path $root 'events.jsonl') ''
     Add-PtReportEvent $run 'RunStarted' @{ Metadata = Get-PtReportFileReference $run 'run.json' 'Inventory' 'Verbatim run inventory and inputs' }
@@ -1302,7 +1425,7 @@ function ConvertTo-PtReportState {
             'ArtifactAdded' { $references.Add($event.Data.File) }
             'StepStarted' { foreach ($file in $event.Data.Sources) { $references.Add($file) } }
             'StepEnded' { foreach ($file in $event.Data.Files) { $references.Add($file) } }
-            { $_ -in 'AssertionObserved','RestorationObserved','ObservationRecorded','AssertionInvalidated' } { foreach ($file in $event.Data.Evidence) { $references.Add($file) } }
+            { $_ -in 'AssertionObserved','RestorationObserved','ObservationRecorded','AssertionInvalidated','VideoBlocked' } { foreach ($file in $event.Data.Evidence) { $references.Add($file) } }
         }
     }
     if (-not $ForReview) {
@@ -1470,10 +1593,15 @@ function ConvertTo-PtReportState {
             }
         }
     )
+    $videoCoverage=Get-PtReportVideoCoverage -Metadata $metadata -Items $items -Events $events
     $restoration = @($events | Where-Object Type -eq 'RestorationObserved')
     $currentRestoration = @($restoration | Where-Object { $effectiveAttempts.Contains($_.AttemptId) })
     $finished = @($events | Where-Object Type -eq 'RunCompleted')
     $problems = [Collections.Generic.List[string]]::new()
+    if($videoCoverage -and -not $videoCoverage.Complete){
+        $problems.Add('Required PR video coverage is incomplete: '+(@($videoCoverage.Flows|Where-Object Status -In 'Missing','Blocked'|
+            ForEach-Object {"$($_.Id) ($($_.Status))"}) -join ', ')+'. Product verdicts remain separate.')
+    }
     if (@($items | Where-Object Verdict -ne 'PASS').Count) { $problems.Add('Inventory contains failed, blocked or unobserved/incomplete items.') }
     if (@($items | ForEach-Object Assertions | Where-Object Verdict -ne 'PASS').Count) {
         $problems.Add('Subassertion inventory contains non-passing Normal coverage.')
@@ -1499,6 +1627,7 @@ function ConvertTo-PtReportState {
         Restoration = $restoration; Events = $events; References = $references.ToArray()
         CurrentRestoration = $currentRestoration
         RejectedArtifacts = $rejections
+        VideoCoverage = $videoCoverage
         HistoricalRestorationFailures = @($restoration | Where-Object { -not $effectiveAttempts.Contains($_.AttemptId) -and $_.Data.Verdict -ne 'PASS' })
         Signoff = $(if ($ForReview) { 'NOT-VALIDATED' } elseif ($problems.Count) { 'WITHHELD' } else { 'APPROVED' }); SignoffReasons = $problems.ToArray()
         Completion = $(if ($finished.Count) { $finished[-1].Data } else { $null })
@@ -1569,6 +1698,7 @@ function Get-PtVerificationReview {
         }
         $Run | Add-Member -Force NoteProperty ReviewCache @{
             Source=$Run.EventCache; Sequence=0; Metadata=$metadata; Buckets=$buckets
+            VideoEvents=[Collections.Generic.List[object]]::new()
         }
     }
     $cache = $Run.ReviewCache
@@ -1578,6 +1708,10 @@ function Get-PtVerificationReview {
     $processed = $Run.EventCache.Count - $cache.Sequence
     for ($index=$cache.Sequence; $index -lt $Run.EventCache.Count; $index++) {
         $event = $Run.EventCache[$index]
+        if($event.Type -in 'AttemptStarted','StepEnded','VideoBlocked' -or
+            ($event.Type -eq 'ArtifactAdded' -and $event.Data.File.Kind -eq 'Video')){
+            $cache.VideoEvents.Add($event)
+        }
         $id = if ($event.ItemId) { $event.ItemId } elseif ($event.Type -in 'ItemCompleted','ItemReopened') { $event.Data.ItemId }
         if ($id -and $cache.Buckets.ContainsKey($id)) {
             $cache.Buckets[$id].Events.Add($event)
@@ -1587,7 +1721,9 @@ function Get-PtVerificationReview {
     $cache.Sequence=$Run.EventCache.Count
     $selected = if ($ItemId.Count) { @($cache.Metadata.Items | Where-Object Id -CIn $ItemId) } else { @($cache.Metadata.Items) }
     $recomputed=0
-    $rows = @(foreach ($item in $selected) {
+    # A PR-wide flow can span selected and unselected items; cache only dirty projections.
+    $projected=if($cache.Metadata.PSObject.Properties['VideoPolicy']){@($cache.Metadata.Items)}else{$selected}
+    foreach ($item in $projected) {
         $bucket=$cache.Buckets[$item.Id]
         if ($bucket.Dirty) {
             $metadata = [pscustomobject]@{ Items=@($bucket.Metadata); Inputs=@(); Scenario=$cache.Metadata.Scenario }
@@ -1596,6 +1732,11 @@ function Get-PtVerificationReview {
             $bucket.Dirty=$false
             $recomputed++
         }
+    }
+    $videoCoverage=Get-PtReportVideoCoverage -Metadata $cache.Metadata `
+        -Items @($cache.Metadata.Items|ForEach-Object {$cache.Buckets[$_.Id].State}) -Events $cache.VideoEvents.ToArray()
+    $rows = @(foreach ($item in $selected) {
+        $bucket=$cache.Buckets[$item.Id]
         $state=$bucket.State
         $attempts=@($bucket.Events | Where-Object { $_.Type -eq 'AttemptStarted' -and $_.Data.Kind -eq 'Normal' })
         $latest=if($attempts.Count){$attempts[-1].AttemptId}else{''}
@@ -1631,6 +1772,7 @@ function Get-PtVerificationReview {
         RunId=$Run.Id; Sequence=$cache.Sequence; IntegrityValidated=$false
         Purpose='Incremental review only; export/archive validation is required for signoff.'
         ProcessedEvents=$processed; RecomputedItems=$recomputed
+        VideoCoverage=$videoCoverage
         Counts=[pscustomobject]@{ Total=$rows.Count; Pass=@($rows|Where-Object Verdict -eq PASS).Count
             Fail=@($rows|Where-Object Verdict -eq FAIL).Count; Blocked=@($rows|Where-Object Verdict -eq BLOCKED).Count }
         Items=$rows
@@ -1771,6 +1913,19 @@ function Export-PtVerificationReport {
         if (@($state.Attempts | Where-Object Phase -eq 'Diagnostic').Count) {
             Add-PtReportStepTable $lines @($state.Steps | Where-Object Phase -eq 'Diagnostic') $state
         } else { $lines.Add('No non-item diagnostic contexts recorded.') }
+        if($state.VideoCoverage){
+            if(-not(Get-Command ConvertTo-PtVideoCoverageReport -ErrorAction Ignore)){. "$PSScriptRoot\pt-verification-render.ps1"}
+            $lines.Add((ConvertTo-PtVideoCoverageReport $state.VideoCoverage))
+            if($state.VideoCoverage.BlockerHistory.Count){
+                $lines.Add('## Video capture blocker history')
+                $lines.Add('')
+                foreach($blocker in $state.VideoCoverage.BlockerHistory){
+                    $links=@($blocker.Data.Evidence|ForEach-Object {Format-PtReportLink $_}) -join '; '
+                    $lines.Add("- Sequence $($blocker.Sequence), flow $(ConvertTo-PtReportCell $blocker.Data.FlowId), attempt $(ConvertTo-PtReportCell $blocker.AttemptId): $(ConvertTo-PtReportCell $blocker.Data.Category) - $(ConvertTo-PtReportCell $blocker.Data.Reason). $links")
+                }
+                $lines.Add('')
+            }
+        }
         if($state.RejectedArtifacts.Count){
             $lines.Add('')
             $lines.Add('## Rejected artifact reservations')

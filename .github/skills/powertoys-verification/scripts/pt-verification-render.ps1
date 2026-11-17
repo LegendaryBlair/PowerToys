@@ -33,6 +33,35 @@ function ConvertTo-PtMediaRangeLinks {
     $links -join '; '
 }
 
+function ConvertTo-PtVideoCoverageReport {
+    param([Parameter(Mandatory)]$Coverage)
+    function VideoText([string]$Text){
+        $escaped=[Net.WebUtility]::HtmlEncode($Text)
+        $escaped=[regex]::Replace($escaped,'[\\|`*_\[\]!~]|(?<!&)#',{param($m)'&#'+[int][char]$m.Value+';'})
+        $escaped.Replace("`r`n",'<br>').Replace("`n",'<br>').Replace("`r",'<br>')
+    }
+    $lines=[Collections.Generic.List[string]]::new()
+    $lines.Add('## PR video coverage')
+    $lines.Add('')
+    $lines.Add("**Video policy v$($Coverage.PolicyVersion)**: $(if($Coverage.Complete){'complete'}else{'incomplete'}). Separate from product verdicts; capture limitations do not assign product FAIL.")
+    $lines.Add('')
+    $lines.Add('| Flow | Video status | Covered assertions | Evidence / reason |')
+    $lines.Add('|---|---|---|---|')
+    foreach($flow in $Coverage.Flows){
+        $count=if($flow.Status -eq 'Exempt'){'Not applicable'}else{"$(@($flow.CoveredAssertions).Count)/$(@($flow.Assertions).Count)"}
+        $detail=VideoText $flow.Reason
+        if(@($flow.MediaRanges).Count){$detail+=' '+(ConvertTo-PtMediaRangeLinks $flow.MediaRanges)}
+        if($flow.Status -ne 'Exempt' -and @($flow.MissingAssertions).Count){$detail+='<br>Missing: '+(VideoText ($flow.MissingAssertions -join ', '))}
+        foreach($file in $flow.Evidence){
+            $path=($file.Path.Replace('\','/') -split '/'|ForEach-Object {[Uri]::EscapeDataString($_)}) -join '/'
+            $detail+=" [Blocker evidence]($path)"
+        }
+        $lines.Add("| $(VideoText $flow.Id): $(VideoText $flow.Description) | **$(VideoText $flow.Status)** | $count | $detail |")
+    }
+    $lines.Add('')
+    $lines -join "`n"
+}
+
 function ConvertTo-PtVerificationSummary {
     [CmdletBinding()]
     [OutputType([string])]
@@ -249,6 +278,14 @@ function ConvertTo-PtVerificationSummary {
     $lines.Add('')
     $lines.Add("Review the $(Link 'pre-flight trace' $DetailsName 'pre-flight'), $(Link 'structured results' $ResultsName) and $(Link 'integrity manifest' $ManifestName). Exact commands, raw observations and remaining artifacts are in the full traces, not repeated here.")
     $lines.Add('')
+    $videoCoverage=Get-Field $State 'VideoCoverage'
+    if($null -ne $videoCoverage){
+        $lines.Add((ConvertTo-PtVideoCoverageReport $videoCoverage))
+        if(@($videoCoverage.BlockerHistory).Count){
+            $lines.Add("**Video blocker history**: $(@($videoCoverage.BlockerHistory).Count) recorded dispositions. $(Link 'Complete history' $DetailsName 'video-capture-blocker-history'). Produced coverage supersedes a blocker without erasing it.")
+            $lines.Add('')
+        }
+    }
     $loadedStatistics = Get-Field $State 'ExecutionStatistics'
     $statistics = Get-Field $loadedStatistics 'Data'
     $statisticsReference = Get-Field $loadedStatistics 'Artifact'

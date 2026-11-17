@@ -17,6 +17,7 @@ param(
     [ValidateSet('A','B','InfrastructureAcceptance')][string]$Scenario = 'A',
     [Parameter(Mandatory)][object[]]$Items,
     [Parameter(Mandatory)][object[]]$Inputs,
+    [object[]]$VideoPlan,
     [Parameter(Mandatory)][scriptblock]$Preflight,
     [Parameter(Mandatory)][scriptblock]$Cases,
     [scriptblock]$Report,
@@ -31,6 +32,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if($ResumeRun -and -not $Resume){throw 'ResumeRun requires Resume.'}
+if($PSBoundParameters.ContainsKey('VideoPlan') -and $Scenario -ne 'B'){throw 'VideoPlan applies only to Scenario B.'}
 if (($NoFriction -and $Retrospective.Count) -or (-not $NoFriction -and -not $Retrospective.Count)) {
     throw 'Supply actual retrospective rows or an explicit NoFriction choice.'
 }
@@ -89,6 +91,13 @@ if ($Resume) {
         throw 'Resume requires stopped attempts; interrupted gestures require explicit recovery, not automatic continuation.'
     }
     $metadata = ConvertFrom-PtReportJson ([IO.File]::ReadAllText((Join-Path $run.Workspace 'run.json')))
+    if($PSBoundParameters.ContainsKey('VideoPlan')){
+        if(-not $metadata.PSObject.Properties['VideoPolicy'] -or $metadata.VideoPolicy.Version -ne 1 -or
+            (ConvertTo-Json -InputObject @(ConvertTo-PtReportVideoPlan $Items $VideoPlan) -Depth 20 -Compress) -cne
+            (ConvertTo-Json -InputObject @($metadata.VideoPolicy.Flows) -Depth 20 -Compress)){
+            throw 'Resume requires the original video plan; legacy runs cannot be retrofitted.'
+        }
+    }
     $planPath=Join-Path $run.Workspace 'run-resource-plan.json'
     if(Test-Path -LiteralPath $planPath){
         $originalPlan=ConvertFrom-PtReportJson ([IO.File]::ReadAllText($planPath))
@@ -102,7 +111,9 @@ if ($Resume) {
     }
 } else {
     $recordedInputs = @(Get-PtVerificationInputs -Skill $Skill -Inputs $Inputs)
-    $run = New-PtVerificationRun -Workspace $Workspace -Module $Module -Bits $Bits -Scenario $Scenario -Items $Items -Inputs $recordedInputs
+    $videoArguments=@{}
+    if($PSBoundParameters.ContainsKey('VideoPlan')){$videoArguments.VideoPlan=$VideoPlan}
+    $run = New-PtVerificationRun -Workspace $Workspace -Module $Module -Bits $Bits -Scenario $Scenario -Items $Items -Inputs $recordedInputs @videoArguments
     if($ResourcePlan){Write-PtReportText (Join-Path $run.Workspace 'run-resource-plan.json') (ConvertTo-Json $ResourcePlan -Depth 20)}
 }
 $rootError = $null

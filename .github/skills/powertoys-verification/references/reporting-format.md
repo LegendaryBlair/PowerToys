@@ -57,6 +57,17 @@ Explicit rejected-take history appears in details and is counted in the compact 
 It closes only unused artifact reservations, not errors, missing coverage or product
 failures. Baseline reproduction/acquisition and installation recovery remain separate
 from target assertion verdicts; after-only evidence must state its comparison limitation.
+
+**New Scenario B runs also report PR video coverage.** The frozen `VideoPolicy` v1 plan
+accounts for every assertion; each flow is Produced, Exempt, Blocked or Missing.
+Show covered/missing assertion IDs, relevant video cue links and exemption/blocker reasons.
+Produced means reviewed PASS/FAIL assertions link to completed Normal, non-synthetic
+capture ranges; it does not mean the product passed. A capture blocker requires recorded
+evidence and remains in history even after later coverage succeeds.
+Missing or Blocked required flows withhold overall signoff **without changing product
+assertion/item verdicts**. Reports and independent checks still proceed. Screenshot-only
+behavioral PASS is not complete video delivery. Scenario A and archives without the policy
+marker keep their prior rendering/gates; never retrofit sealed reports.
 - **`results.json`** and **`artifact-manifest.json`**: the structured record and
   integrity inventory. Mandatory integrity validation covers **both Markdown files**, results,
   the journal, input snapshots and every referenced artifact. The manifest records `DetailsPath`
@@ -184,7 +195,7 @@ The compact view follows the contract above and links to these sections.
 4. **PowerShell scriptlets > 3 lines**: write them to a separate `.ps1` in the artifacts folder and reference as ``script: `artifacts/L<line>/step-NN.ps1` `` in the cell. Keep the table cell to 1-3 lines.
 5. **`—` (em dash) is allowed for non-CLI steps** like "Read sign-off entry + diff", "Create validation folder", "Cleanup notepad". Don't fabricate a command for steps that were purely cognitive or file-system level.
 6. **Numbered steps must be contiguous** (1, 2, 3, ...). Don't skip numbers.
-7. **At least one screenshot or video per PASS item if the item is a user-visible behavioral test**. A finalized MP4 registered as `Video` can satisfy the visual-evidence gate without a screenshot. It must belong to a completed Normal producing step and support the reviewed PASS observation; history-only or synthetic product evidence does not qualify. Schema-only assertions need no visual evidence. Container validation is not playback, privacy or behavioral validation; see [PR visual evidence](visual-evidence.md).
+7. **Underlying behavioral evidence:** at least one Normal screenshot or video per user-visible PASS item. **New Scenario B runs additionally require planned video coverage**, so a screenshot alone cannot complete an eligible PR flow. Use justified nonvisual exemptions and evidence-backed capture blockers, not silent fallback. A finalized `Video` must originate in a completed Normal producing step and support reviewed observations; history-only or synthetic product evidence cannot establish fresh PASS. Container validation is not playback, privacy or behavioral validation; see [PR visual evidence](visual-evidence.md).
 
 ### Recorded-report rules
 

@@ -97,6 +97,7 @@ Use the same template with the PR-derived checklist, not a full frozen module in
 `$prItems` contains the explicit Description/Admin/Clarity/UserVisible and child assertions
 described below. The source paths and finite callbacks are prepared by the caller; this is
 composition guidance, not a ready-made build switch or a claim of live acceptance.
+Prepare `$videoPlan` using the contract below; it accounts for every assertion in `$prItems`.
 
 ```powershell
 $inputs = @(
@@ -110,6 +111,7 @@ if ($profilePath) {
 }
 & "$skill\templates\verification-run.ps1" -Skill $skill -Workspace $workspace `
     -Module $module -Bits $bits -Scenario B -Items $prItems -Inputs $inputs `
+    -VideoPlan $videoPlan `
     -ResourcePlan $resources -CleanupPlan $cleanupPlan `
     -Preflight $readOnlyChecks -Cases $driveAndReview -Report $report `
     -Retrospective $retrospective
@@ -129,6 +131,71 @@ Use the [scripted baseline lifecycle](baseline-installation.md) for authorized r
 replacement, with private state adapters before mutation. Record its sanitized selection,
 installation, reproduction and recovery outcomes separately; unsafe partial recovery
 gates dependent mutations, not report generation.
+
+### Video-first Scenario B plan
+
+New `New-PtVerificationRun -Scenario B` calls freeze `VideoPolicy.Version=1` in the
+integrity-covered metadata. The template accepts and forwards the same `-VideoPlan`.
+Without a supplied plan, each item becomes a Required flow covering all its assertions.
+This conservative default cannot be disabled by setting `UserVisible=false`: provide
+an explicit, justified exemption for genuinely nonvisual work instead of making a movie
+of internal tests. Scenario A and InfrastructureAcceptance do not accept this parameter.
+
+Each flow has `Id`, `Description`, `Requirement=Required|Exempt`, and `Assertions` containing
+exact `ItemId/AssertionId` references. Exempt also requires a concrete `Reason`. Every
+inventory assertion must appear exactly once across the plan; unknown, duplicate or omitted
+references are rejected before creating a workspace. A flow can group assertions across
+items, and many flows/assertions can use the same video. Exemptions concern video only:
+they never make a product assertion optional or waive its other validation.
+
+Example shape (use the actual IDs from the PR-derived inventory, including other claims):
+
+```powershell
+$videoPlan = @(
+    @{ Id='pick'; Description='I starts picking and selection returns to the editor'
+       Requirement='Required'; Assertions=@('PICK/activate','PICK/select') }
+    @{ Id='delete'; Description='Delete handles the claimed selection variants'
+       Requirement='Required'; Assertions=@('DELETE/single','DELETE/multiple','DELETE/repeat') }
+    @{ Id='unit'; Description='Internal input validation'
+       Requirement='Exempt'; Reason='Test-only internal validation with no visual or UX change.'
+       Assertions=@('UNIT/input-validation') }
+)
+```
+
+Default to all changed claims in the requested PR, not only the latest discussion topic.
+Review exemptions against the diff: convenience, duration pressure, existing screenshots
+or a missing baseline reproduction do not justify them. Quote an explicit caller exclusion
+when that is the reason. Resume retains the frozen plan; supplying a different plan or
+retrofitting a legacy run is rejected. Do not edit `run.json` to change the decision.
+
+Use the existing observation/judgment `-MediaRanges` below to establish Produced coverage.
+Every mapped Required assertion must have a reviewed PASS or FAIL judgment with a relevant
+range referencing an integrity-checked, non-synthetic Video from a completed Normal producing
+step in this run. Raw observations awaiting review, Diagnostic-only clips, unregistered
+movies and screenshots do not qualify. A shared same-run video can support several assertions;
+cross-attempt references still cannot establish a fresh product PASS by themselves.
+Rendering/combining older footage does not create new Normal observations.
+
+When recording is actually unavailable, record the observed obstacle through a Normal
+preflight/case attempt (a stopped review handle is also accepted):
+
+```powershell
+Add-PtVerificationVideoBlocker -Attempt $attempt -FlowId 'pick' -Category BLK-ENV `
+    -Reason 'Recorded session probe shows a disconnected input desktop; reconnect/unlock to capture I.' `
+    -Evidence @($sessionProbe)
+```
+
+The flow must be Required, the reason concrete, and evidence registered. `BLK-INCOMPLETE`
+is not a capture obstacle: unperformed video work stays Missing. A blocker never stops
+later driving or changes product judgments. It remains in history; complete later coverage
+changes the flow to Produced. Do not invent a blocker just to explain missing footage.
+
+`Get-PtVerificationReview` exposes **PR-wide** `VideoCoverage`, even when `-ItemId` filters
+the product rows; it caches all dirty item projections needed for that map. As before,
+unchanged items are not reprojected and the review does not validate artifact bytes.
+Exports validate the full evidence and withhold overall signoff for Missing or Blocked
+required flows while preserving independently supported product PASS/FAIL/BLOCKED results.
+Always export incomplete reports and continue independent verification.
 
 ### Video ranges and unused reservations
 
@@ -437,6 +504,9 @@ Complete-PtVerificationItem -Run $run -ItemId L1 -Reason 'Partial coverage; cann
 PASS requires explicit evidence; user-visible PASS additionally requires a Normal-path
 `Screenshot` (PNG/JPEG) or `Video` (finalized MP4) reference attached to a completed producing
 step and a PASS observation. Video alone is sufficient; an extra still is not mandatory.
+These are the underlying behavior gates. New Scenario B runs additionally enforce the
+[video plan](#video-first-scenario-b-plan): screenshots alone do not satisfy Required flows.
+Video coverage can also demonstrate a reviewed FAIL; Produced is not a product verdict.
 Image header and MP4 box checks reject malformed containers, but do not decode media or
 judge behavior. Review playback, actual frames, timing and independent observations.
 Use `-Synthetic` for generated fixtures; synthetic and history-only media cannot establish

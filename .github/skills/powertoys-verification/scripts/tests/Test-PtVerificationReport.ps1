@@ -90,6 +90,236 @@ function Invoke-PtVerificationReportAcceptance {
         Stop-PtVerificationAttempt $attempt -Reason 'Synthetic cleanup context completed'
     }
 
+    function PolicyRun([string]$Name,[object[]]$Items=@((Item 'L1' $true)),[object[]]$Plan) {
+        $arguments=@{Workspace="$Workspace\$Name";Module='OFFLINE video-policy acceptance';Bits='SYNTHETIC fixtures, not a product signoff'
+            Scenario='B';Items=$Items;Inputs=$inputs}
+        if($PSBoundParameters.ContainsKey('Plan')){$arguments.VideoPlan=$Plan}
+        New-PtVerificationRun @arguments
+    }
+    function PolicyImage($Attempt) {
+        # Controlled fixture references exercise the production gate; no product behavior is claimed.
+        Invoke-PtVerificationStep $Attempt -Name 'Offline image fixture' -Command 'Import controlled PNG fixture' -Action {
+            Add-PtVerificationArtifact $Attempt $png Screenshot 'OFFLINE fixture only'
+        }
+    }
+    function PolicyVideo($Attempt,[switch]$Synthetic) {
+        Invoke-PtVerificationStep $Attempt -Name 'Offline video fixture' -Command 'Import controlled MP4 fixture' -Action {
+            Add-PtVerificationArtifact $Attempt $mp4 Video 'OFFLINE fixture only' -Synthetic:$Synthetic
+        }
+    }
+    function PolicyJudgment($Attempt,[string]$Id,$Image,$Video,[switch]$NoRange,[string]$Verdict='PASS') {
+        $arguments=@{Attempt=$Attempt;AssertionId=$Id;Verdict=$Verdict
+            Category=$(if($Verdict -eq 'FAIL'){'product'}else{'offline comparison'});Reason='OFFLINE controlled observation'
+            Evidence=@($Image)}
+        if($Video){
+            $arguments.Evidence+=@($Video)
+            if(-not $NoRange){$arguments.MediaRanges=@(@{Path=$Video.Path;Label='Observed action';StartSeconds=0.1;EndSeconds=0.9})}
+        }
+        Add-PtVerificationAssertion @arguments
+    }
+
+    Check 'Video plans are frozen, exhaustive and default to required even for nonvisual flags' {
+        $plan=@(@{Id='flow';Description='Shared story';Requirement='Required';Assertions=@('L1/opens','L1/content')})
+        $run=PolicyRun 'video-frozen' -Plan $plan
+        $plan[0].Description='caller mutation'
+        $state=Get-PtReportState $run
+        Require ($state.Metadata.VideoPolicy.Version -eq 1 -and $state.VideoCoverage.Flows[0].Description -eq 'Shared story') 'Video plan was not frozen'
+        foreach($bad in @(
+            @(@{Id='x';Description='Missing';Requirement='Required';Assertions=@('L1/opens')}),
+            @(@{Id='x';Description='Duplicate';Requirement='Required';Assertions=@('L1/opens','L1/opens','L1/content')}),
+            @(@{Id='x';Description='Unknown';Requirement='Required';Assertions=@('L1/opens','L1/unknown')}),
+            @(@{Id='x';Description='No reason';Requirement='Exempt';Reason=' ';Assertions=@('L1/opens','L1/content')})
+        )){
+            Reject {PolicyRun ('bad-plan-'+[guid]::NewGuid().ToString('N')) -Plan $bad} 'video|Video'
+        }
+        Reject {PolicyRun 'empty-video-plan' -Plan @()} 'Video plan'
+        Reject {New-PtVerificationRun -Workspace "$Workspace\a-plan" -Module offline -Bits offline -Scenario A -Items @((Item L1)) -Inputs $inputs -VideoPlan $plan} 'only.*Scenario B'
+        $nonvisual=PolicyRun 'unexplained-nonvisual' -Items @((Item L1))
+        Require ((Get-PtReportState $nonvisual).VideoCoverage.Flows[0].Status -eq 'Missing') 'UserVisible=false silently waived video classification'
+    }
+
+    Check 'Screenshot-only PR results stay PASS but video delivery is Missing or explicitly Blocked' {
+        $run=PolicyRun 'video-screenshot-only'
+        Preflight $run
+        $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline successful behavior'
+        $image=PolicyImage $a
+        foreach($id in 'opens','content'){PolicyJudgment $a $id $image}
+        Stop-PtVerificationAttempt $a -Reason observed
+        Complete-PtVerificationItem $run L1 -Reason observed
+        $review=Get-PtVerificationReview $run
+        Require ($review.Items[0].Verdict -eq 'PASS' -and $review.VideoCoverage.Flows[0].Status -eq 'Missing') 'Video changed the product verdict or screenshot satisfied video'
+        Reject {Add-PtVerificationVideoBlocker $a unknown BLK-ENV 'Offline obstacle' @($image)} 'required flow'
+        Reject {Add-PtVerificationVideoBlocker $a L1 BLK-INCOMPLETE 'Did not record' @($image)} 'Missing'
+        Add-PtVerificationVideoBlocker $a L1 BLK-ENV "$unicode owner's capture" @($image)
+        $review=Get-PtVerificationReview $run
+        Require ($review.VideoCoverage.Flows[0].Status -eq 'Blocked' -and $review.Items[0].Assertions[0].Verdict -eq 'PASS') 'Capture obstacle changed an assertion judgment'
+        Require ((Get-PtVerificationReview $run).RecomputedItems -eq 0) 'Unchanged policy review reprojected items'
+        Cleanup $run
+        $export=Complete-PtVerificationRun $run -Retrospective @(@{
+            Source='ENVIRONMENT';Severity='LOW';Friction='Synthetic capture obstacle';Cost='No live work';SuggestedFix='Offline test fixture'
+        })
+        Require ($export.Signoff -eq 'WITHHELD' -and (Get-PtReportState $run).Items[0].Verdict -eq 'PASS') 'Missing/blocked video did not independently hold signoff'
+        $report=[IO.File]::ReadAllText($export.Report)
+        Require ($report.Contains('PR video coverage') -and $report.Contains('**Blocked**') -and -not $report.Contains('<tag>')) 'Video coverage/escaping missing in compact report'
+        Require ($report.Contains('owner&#39;s capture') -and -not $report.Contains('owner&&#35;39;s')) 'Video blocker text was double-escaped'
+        Require ([IO.File]::ReadAllText($export.Details).Contains('Video capture blocker history')) 'Detailed blocker history missing'
+    }
+
+    Check 'One real-path video can cover twelve assertions and supersede a retained capture blocker' {
+        $item=Item L1 $true
+        $item.Assertions=@(1..12|ForEach-Object {@{Id="c$_";Description="Offline condition $_"}})
+        $run=PolicyRun 'video-twelve' @($item)
+        Preflight $run
+        $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline shared flow'
+        $image=PolicyImage $a
+        Add-PtVerificationVideoBlocker $a L1 BLK-ENV 'Earlier offline unavailable capture' @($image)
+        $video=PolicyVideo $a
+        foreach($id in $item.Assertions.Id){PolicyJudgment $a $id $image $video}
+        Stop-PtVerificationAttempt $a -Reason observed
+        Complete-PtVerificationItem $run L1 -Reason observed
+        Cleanup $run
+        $review=Get-PtVerificationReview $run
+        Require ($review.VideoCoverage.Complete -and $review.VideoCoverage.Flows[0].Status -eq 'Produced') 'Shared video did not cover all claims'
+        Require ($review.VideoCoverage.Flows[0].CoveredAssertions.Count -eq 12 -and $review.VideoCoverage.Flows[0].MediaRanges.Count -eq 1) 'Coverage was capped or identical ranges duplicated'
+        Require ($review.VideoCoverage.BlockerHistory.Count -eq 1) 'Recovered blocker history was erased'
+        $export=Complete-PtVerificationRun $run -NoFriction
+        Require ($export.Signoff -eq 'APPROVED') 'Produced coverage still held signoff'
+        $state=Get-PtReportState $run
+        $before=ConvertTo-Json $state -Depth 60 -Compress
+        & {param($s); Set-StrictMode -Version Latest; . "$PSScriptRoot\..\pt-verification-render.ps1"
+            ConvertTo-PtVerificationSummary $s details.md results.json artifact-manifest.json|Out-Null
+        } $state
+        Require ((ConvertTo-Json $state -Depth 60 -Compress) -ceq $before) 'Video renderer mutated supplied state'
+        Move-Item $run.Workspace "$Workspace\video-twelve-moved"
+        Require (Test-PtVerificationArchive "$Workspace\video-twelve-moved").Valid 'Policy/ranges did not survive relocation'
+    }
+
+    Check 'Missing a second changed feature is visible even when the first has a video' {
+        $run=PolicyRun 'video-feature-gap' -Plan @(
+            @{Id='pick';Description='I shortcut';Requirement='Required';Assertions=@('L1/opens')},
+            @{Id='delete';Description='Delete shortcut';Requirement='Required';Assertions=@('L1/content')}
+        )
+        Preflight $run
+        $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline partial video'
+        $image=PolicyImage $a;$video=PolicyVideo $a
+        PolicyJudgment $a opens $image $video
+        PolicyJudgment $a content $image
+        Stop-PtVerificationAttempt $a -Reason observed
+        Complete-PtVerificationItem $run L1 -Reason observed
+        Cleanup $run
+        $state=Get-PtReportState $run
+        Require ($state.VideoCoverage.Flows[0].Status -eq 'Produced' -and $state.VideoCoverage.Flows[1].Status -eq 'Missing') 'One feature video covered an unrelated missing feature'
+        Require ($state.VideoCoverage.Flows[1].MissingAssertions[0] -eq 'L1/content') 'Missing claim identity lost'
+        Require ((Complete-PtVerificationRun $run -NoFriction).Signoff -eq 'WITHHELD') 'Incomplete feature coverage approved'
+    }
+
+    Check 'Justified nonvisual exemption needs no video and never waives behavioral coverage' {
+        foreach($verdict in 'PASS','FAIL'){
+            $run=PolicyRun "video-exempt-$verdict" @((Item L1)) @(
+                @{Id='unit';Description='Internal arithmetic tests';Requirement='Exempt';Reason='Test-only arithmetic assertions have no UI or UX change.';Assertions=@('L1/opens','L1/content')}
+            )
+            Preflight $run
+            $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline nonvisual test'
+            Invoke-PtVerificationStep $a -Name 'Offline test' -Command 'No product interaction' -Action {'fixture'}|Out-Null
+            $proof=Add-PtVerificationArtifact $a $fixture Evidence 'OFFLINE fixture'
+            PolicyJudgment $a opens $proof -Verdict $verdict
+            PolicyJudgment $a content $proof
+            Reject {Add-PtVerificationVideoBlocker $a unit BLK-ENV 'Wrong classification' @($proof)} 'required flow'
+            Stop-PtVerificationAttempt $a -Reason observed
+            Complete-PtVerificationItem $run L1 -Reason observed
+            Cleanup $run
+            $export=Complete-PtVerificationRun $run -NoFriction
+            $state=Get-PtReportState $run
+            Require ($state.VideoCoverage.Flows[0].Status -eq 'Exempt' -and $state.Items[0].Verdict -eq $verdict) 'Exemption changed product result'
+            Require (($export.Signoff -eq 'APPROVED') -eq ($verdict -eq 'PASS')) 'Exemption waived a product failure'
+        }
+    }
+
+    Check 'PR-wide video review includes unselected items and shared same-run capture provenance' {
+        $run=PolicyRun 'video-cross-item' @((Item L1 $true),(Item L2 $true)) @(
+            @{Id='shared';Description='One captured story';Requirement='Required'
+                Assertions=@('L1/opens','L1/content','L2/opens','L2/content')}
+        )
+        Preflight $run
+        $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline owner'
+        $image=PolicyImage $a;$video=PolicyVideo $a
+        foreach($id in 'opens','content'){PolicyJudgment $a $id $image $video}
+        Stop-PtVerificationAttempt $a -Reason observed
+        Complete-PtVerificationItem $run L1 -Reason observed
+        $b=Start-PtVerificationAttempt $run -ItemId L2 -Kind Normal -Name 'Offline independent observation'
+        $secondImage=PolicyImage $b
+        $shared=Add-PtVerificationArtifact $b (Resolve-PtReportPath $run $video.Path) Video 'Same-run supporting capture'
+        Require $shared.ReferenceOnly 'Cross-attempt provenance was lost'
+        Reject {Add-PtVerificationVideoBlocker $b shared BLK-ENV 'Old reference only' @($shared)} 'fresh observed'
+        foreach($id in 'opens','content'){PolicyJudgment $b $id $secondImage $shared}
+        Stop-PtVerificationAttempt $b -Reason observed
+        Complete-PtVerificationItem $run L2 -Reason observed
+        $review=Get-PtVerificationReview $run -ItemId L1
+        Require ($review.Items.Count -eq 1 -and $review.VideoCoverage.Flows[0].CoveredAssertions.Count -eq 4) 'Filtered review lost PR-wide coverage'
+        Require ((Get-PtVerificationReview $run -ItemId L1).RecomputedItems -eq 0) 'Unchanged cross-item review reprojected state'
+        Cleanup $run
+        Require ((Complete-PtVerificationRun $run -NoFriction).Signoff -eq 'APPROVED') 'Same-run supporting footage changed fresh product observations'
+    }
+
+    Check 'Diagnostic, synthetic, unmapped and unfinished videos cannot satisfy the PR video gate' {
+        foreach($mode in 'diagnostic','synthetic','no-step','no-range'){
+            $run=PolicyRun "video-origin-$mode"
+            $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline origin check'
+            $image=PolicyImage $a
+            if($mode -eq 'diagnostic'){
+                $diag=Start-PtVerificationAttempt $run -ItemId L1 -Kind Diagnostic -Name 'Offline historical clip'
+                $old=PolicyVideo $diag
+                Stop-PtVerificationAttempt $diag -Reason done
+                $video=Add-PtVerificationArtifact $a (Resolve-PtReportPath $run $old.Path) Video 'Offline reference'
+                Reject {Add-PtVerificationVideoBlocker $diag L1 BLK-ENV 'Diagnostic only' @($old)} 'Normal'
+            }elseif($mode -eq 'no-step'){
+                $video=Add-PtVerificationArtifact $a $mp4 Video 'Offline video with no producing step'
+            }else{$video=PolicyVideo $a -Synthetic:($mode -eq 'synthetic')}
+            foreach($id in 'opens','content'){PolicyJudgment $a $id $image $video -NoRange:($mode -eq 'no-range')}
+            Stop-PtVerificationAttempt $a -Reason observed
+            Require ((Get-PtVerificationReview $run).VideoCoverage.Flows[0].Status -eq 'Missing') "Video bypassed $mode restriction"
+        }
+        $run=PolicyRun 'video-unfinished'
+        $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline unfinished producer'
+        $image=PolicyImage $a
+        $activeVideo=Invoke-PtVerificationStep $a -Name 'Producing video' -Command 'Offline active producer fixture' -Action {
+            $video=Add-PtVerificationArtifact $a $mp4 Video 'Offline active step'
+            foreach($id in 'opens','content'){PolicyJudgment $a $id $image $video}
+            Require ((Get-PtVerificationReview $run).VideoCoverage.Flows[0].Status -eq 'Missing') 'Active producer counted as completed video'
+            $video
+        }
+        Require ((Get-PtVerificationReview $run).VideoCoverage.Flows[0].Status -eq 'Produced') 'Completed producer did not update incremental coverage'
+        PolicyJudgment $a opens $image $activeVideo -Verdict FAIL
+        Require ((Get-PtVerificationReview $run).VideoCoverage.Flows[0].Status -eq 'Produced') 'A demonstrated product failure lost its video coverage'
+    }
+
+    Check 'Scenario A and pre-policy Scenario B retain screenshot-only compatibility' {
+        foreach($scenario in 'A','legacy-B'){
+            $run=New-PtVerificationRun -Workspace "$Workspace\video-compat-$scenario" -Module 'OFFLINE compatibility fixture' `
+                -Bits 'SYNTHETIC, not a product signoff' -Scenario A -Items @((Item L1 $true)) -Inputs $inputs
+            if($scenario -eq 'legacy-B'){
+                # Construct an old-format fixture before any observations; never rewrite a real archive.
+                $metadata=ConvertFrom-PtReportJson ([IO.File]::ReadAllText("$($run.Workspace)\run.json"))
+                $metadata.Scenario='B'
+                [IO.File]::WriteAllText("$($run.Workspace)\run.json",($metadata|ConvertTo-Json -Depth 30))
+                [IO.File]::WriteAllText("$($run.Workspace)\events.jsonl",'')
+                $run.Sequence=0;$run.LastHash='';$run.EventCache=$null;$run.JournalLength=-1L;$run.JournalWriteTicks=-1L
+                Add-PtReportEvent $run RunStarted @{Metadata=Get-PtReportFileReference $run 'run.json' Inventory 'Legacy fixture'}
+            }
+            Preflight $run
+            $a=Start-PtVerificationAttempt $run -ItemId L1 -Kind Normal -Name 'Offline screenshot coverage'
+            $image=PolicyImage $a
+            foreach($id in 'opens','content'){PolicyJudgment $a $id $image}
+            Stop-PtVerificationAttempt $a -Reason observed
+            Complete-PtVerificationItem $run L1 -Reason observed
+            Cleanup $run
+            $export=Complete-PtVerificationRun $run -NoFriction
+            Require ($export.Signoff -eq 'APPROVED' -and $null -eq (Get-PtReportState $run).VideoCoverage) 'Policy was retroactively applied'
+            Require (-not [IO.File]::ReadAllText($export.Report).Contains('PR video coverage')) 'Legacy rendering changed'
+            Require (Test-PtVerificationArchive $run.Workspace).Valid 'Legacy archive failed validation'
+        }
+    }
+
     Check 'Definitions only when dot-sourced; validates explicit inventory, real inputs and safe paths' {
         Require ($null -eq (Get-PtActiveVerificationAttempt)) 'Ambient context must be opt-in'
         Reject { NewRun 'bad-empty' @() } 'empty|inventory'

@@ -13,13 +13,41 @@ and the existing [recording/report workflow](recording-workflow.md). This guide 
 media selection, capture coordination, presentation and publication requirements.
 It does not replace those documents' ownership rules, verdicts or evidence gates.
 
+## Video-first requirement for Scenario B
+
+Produce a reviewed video for each changed visual or user-interaction behavior in the
+requested PR scope, without waiting for the user to request a recording. This includes
+layout/text/style changes, navigation, shortcuts, selection, focus and window behavior.
+For static changes, show the real entry into the affected view and hold the relevant
+result. Screenshots remain useful for precise comparisons, but do not replace required
+video. Never encode a screenshot slideshow or unrelated static window to satisfy the gate.
+
+Classify actual impact, not PR labels. Tests, internal changes or performance-only work
+with no observable UX change are Exempt with a concrete reason and appropriate nonvisual
+validation. Performance work that changes visible responsiveness can require both a
+demonstration and separate benchmarks; edited video is not a performance measurement.
+An explicit caller request to omit video can be recorded as an exemption, quoting that
+scope. Convenience, a large assertion count or already having screenshots is not a reason.
+
+An eligible recording that cannot be made safely is **Blocked**, not Exempt. Record the
+actual environment/tool/privacy/preservation obstacle and fallback evidence, continue
+independent verification and always produce the report. Do not force input into a locked
+desktop, weaken ownership guards or retry indefinitely. No baseline reproduction is
+required to record the target: produce an explicitly after-only video when needed.
+
+Read and freeze the [video plan](recording-workflow.md#video-first-scenario-b-plan) before
+driving. New Scenario B runs enforce **Produced / Exempt / Blocked / Missing** separately
+from product judgments. A missing required recording cannot silently become completed
+visual evidence merely because screenshots exist. Scenario A and pre-policy archives
+retain their original evidence rules.
+
 ## Required sequence
 
-1. Define the PR claim, expected result and independent observer.
+1. Define all changed claims, expected results, independent observers and video flow coverage.
 2. Resolve the real binaries and the comparison conditions.
-3. Choose the smallest sufficient media: screenshot, sequence or recording.
+3. Plan short recordings for visual/UX flows; declare justified nonvisual exemptions.
 4. Declare ownership, preservation, capture region and cleanup before mutation.
-5. Capture real actions, retaining original media and independent observations.
+5. Record during the real verification actions, retaining raw media and independent observations.
 6. Restore and verify state at the end of live interaction.
 7. Prepare a self-explanatory presentation; validate content, timing and provenance.
 8. Archive locally for human review, then publish only explicitly approved assets.
@@ -61,6 +89,13 @@ More than ten assertions may share a small number of videos. One assertion can l
 multiple ranges (for example before and after), and several assertions can share a range.
 Use labeled `MediaRanges` on observations; reviewed judgments inherit those mappings.
 Labels identify the action/result and side, not just "video 1".
+Default to all changed claims in the requested PR, not only the latest discussion topic.
+For example, an I-shortcut demonstration does not also demonstrate a Delete change.
+Account for meaningful claimed variants such as single and multiple selection; footage
+of repeated single-item deletion must not be described as multi-selection deletion.
+Supporting unchanged interactions should not consume the entire presentation budget
+while a changed feature is omitted. A focused subset must be explicitly scoped and
+must not be presented as complete PR coverage.
 
 ## 2. Establish genuine comparison conditions
 
@@ -95,14 +130,16 @@ Labels identify the action/result and side, not just "video 1".
 
 ## 3. Select media and capture surface
 
-| Claim | Preferred evidence |
+| Claim | Required/default evidence for Scenario B |
 |---|---|
-| Static layout, text, style or final geometry | Matched PNGs, usually before and after |
-| Several discrete states | A short, ordered screenshot sequence with captions |
-| Dragging, animation, timing, flicker or transient UI | A short MP4 with timestamped frames and action observations |
-| Non-visual output or internal behavior | Functional tests and structured results; visuals only when they add information |
+| Static layout, text, style or final geometry | Short real navigation/reveal video and held result; matched PNGs may supplement |
+| Several discrete states or interaction changes | Real action-to-result recording with readable cues; screenshots may supplement |
+| Dragging, animation, timing, flicker or transient UI | Real MP4 with sufficient observed cadence, timestamped frames and independent observations |
+| Non-visual output or internal behavior with no UX change | Justified video exemption; functional tests, benchmarks or structured results as appropriate |
 
-A reviewed video alone can satisfy `UserVisible=true`; no extra screenshot is required.
+A reviewed required video needs no extra screenshot. Each mapped assertion needs a
+relevant `MediaRanges` link in its reviewed observation/judgment; one clip can serve many.
+Capture actual failures too: Produced video is not synonymous with a product PASS.
 Register a finalized MP4 as `Video`, not generic `Evidence`, and associate it with the
 completed Normal producing step and reviewed assertion. The recorder checks MP4 box
 structure (`ftyp`, `moov`, nonempty `mdat`), not codecs, decoded frames or behavioral truth.
@@ -136,7 +173,10 @@ activation or input. Preserve module-specific file/reload boundaries; do not edi
 JSON to bypass a Settings binding or user-flow failure. Preserve clipboard formats
 when the flow can change them. Keep recovery payloads private, outside publishable media.
 
-Check interactive-desktop availability and integrity levels before injected input.
+Check interactive-desktop and capture availability early, before expensive preparation
+where practical, using a recorded read-only probe. Complete an owned capture/readiness
+check before the meaningful actions, not after all interaction and cleanup have finished.
+Check integrity levels before injected input.
 Guard the exact target HWND immediately before the action. Resolve physical coordinates
 from current bounds and hit-test them; do not reuse coordinates from another run.
 
@@ -150,6 +190,9 @@ establishes that the selected tool route works.
 ## 5. Capture while driving the UI
 
 ### Screenshots
+
+Use these as supplementary evidence or an explicitly reported fallback when video is
+blocked, not the normal completion route for an eligible Scenario B flow.
 
 Capture a settled, meaningful state, with the intended control fully visible.
 Check capture quality immediately. A screenshot call can restore or foreground a
@@ -368,6 +411,10 @@ document its absence; do not fabricate a comparison.
 
 - Use readable captions, a visible pointer/action cue and enough time to inspect results.
   Usually a short focused clip is better than a long recording of setup.
+- Cover every planned changed behavior. Honor an explicit duration cap by trimming idle
+  setup/holds, combining related flows or using multiple clips when the request permits.
+  Never silently omit another feature to meet a cap. Keep unshown claims visible in the
+  coverage table; no universal clip count or fixed 30-second limit applies.
 - Prefer genuine baseline failure plus matched target success for reproducible bugs.
   Keep non-reproduction/acquisition limitations explicit in after-only videos.
   Duration follows the meaningful actions and reading time, not an assertion count
@@ -424,6 +471,9 @@ Use two explicit artifacts, not one archive that is edited after hashing:
 Register video/bundle observations during the producing Normal attempt. Use the existing
 exporter for canonical `report.md`, `details.md`, `results.json` and the artifact manifest;
 do not replace verdict generation. An HTML review page is a derived presentation.
+Delivery edits can combine authentic, identity-matched footage from multiple recorded
+flows/sessions, with source hashes, time mapping and differences disclosed. They do not
+create new live observations or turn historical/Diagnostic evidence into a fresh PASS.
 
 Privacy review includes commands, arguments, stdout/stderr, JSON/JSONL, UIA metadata,
 logs and source snapshots as well as pixels/audio. Token-pattern matching alone is not

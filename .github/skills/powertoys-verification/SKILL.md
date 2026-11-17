@@ -1,6 +1,6 @@
 ---
 name: powertoys-verification
-description: "Verify PowerToys behavior end-to-end with the winapp CLI across two scenarios: (A) a module's release checklist against the installed build; (B) PR validation — derive each PR's checklist from its description + diff, then drive it against the installed build (a merged/shipped PR, or a whole release/hotfix set) or by building + sideloading the module when the PR isn't in the build yet (unmerged or not-yet-released). Drive each item via UIA invoke / Named Events / settings.json edits / clipboard / GPO / SendInput, and emit a structured PASS / FAIL / BLOCKED verdict per item with evidence (FAIL distinguishes product defects from stale/ambiguous checklist items). Use when asked to verify a module checklist, validate a PR, sign off a release/hotfix's PRs, or QA installed/sideloaded PowerToys bits. Combines generic winapp ui mechanics (references/winapp-ui-testing.md) with PT-specific recipes, per-scenario playbooks (references/scenarios/), and the helper .ps1 files shipped with this skill."
+description: "Verify PowerToys with the winapp CLI: (A) module release checklists against installed builds; (B) PR/release/hotfix validation from description and diff using shipped bits or an isolated build. Require real video for changed visual/UX PR claims, with supplementary screenshots, justified nonvisual exemptions and evidence-backed capture blockers. Drive UIA, named events or guarded input and emit PASS/FAIL/BLOCKED with independent observations, state restoration and portable reports; distinguish product defects from stale/ambiguous checklist items. Use when asked to verify a module checklist, validate a PR, sign off a release/hotfix, or QA installed/sideloaded PowerToys. Includes PT-specific recipes, scenario playbooks and helper scripts."
 license: Complete terms in LICENSE.txt
 ---
 
@@ -29,6 +29,8 @@ specific checklist.
 For unattended PR requests, use the [Scenario B batch procedure](references/scenarios/pr-validation.md#unattended-batch-procedure).
 PR numbers and unattended intent are sufficient; preparation, failure isolation, recovery handoff,
 archival and draft-only publication defaults are defined there.
+**Scenario B is video-first:** record each changed visual/UX claim unless genuinely nonvisual
+or concretely blocked. Screenshots supplement video; they do not silently replace it.
 
 ## Required reads (in order)
 
@@ -36,6 +38,8 @@ archival and draft-only publication defaults are defined there.
    **"bits under test" contract** (installed-and-immutable, vs build-and-sideload for a PR whose code
    isn't in the build under test), and the verdict-vocabulary mapping. Then read the **one** matching
    scenario doc: `references/scenarios/module-checklist.md` (A) · `pr-validation.md` (B).
+   For B, also read [PR visual evidence](references/visual-evidence.md) and freeze its
+   [video plan](references/recording-workflow.md#video-first-scenario-b-plan) before runtime driving.
 2. **`references/winapp-toolchain.md`**, then **`references/winapp-ui-testing.md`** — resolve the latest official stable CLI before a new run unless an explicit version is pinned; read matching release-tag documentation and actual command help/schema. Keep that tool identity fixed during execution. The bundled UI mechanics doc supplies PT integration, not a permanently current copy of upstream CLI syntax.
 3. **This `SKILL.md`** — the shared engine: the 3-bucket drive-technique selector (Step 2), classification taxonomy, critical pitfalls, helper-script catalog.
 4. **`references/modules/<module>.md` IF IT EXISTS** — per-module entry-paths, item-by-item recipes, common BLOCKED traps, fixture lists, source citations. **Always check `references/modules/` first.** If no profile exists, use this skill plus source/runtime discovery; keep findings in the run artifacts instead of automatically creating a profile.
@@ -308,12 +312,14 @@ in [recording-workflow.md](references/recording-workflow.md), rather than writin
 per run. This includes mandatory **§G Retrospective**, with source, severity, cost and a concrete
 fix for every friction, or an explicit `Everything was smooth — no friction encountered.`
 
-For visual PR claims, use [PR visual evidence](references/visual-evidence.md): a reviewed Normal
-`Video` can replace a screenshot, frame bundles retain their relative paths, and sanitized
-delivery copies have separate integrity records from the immutable private archive.
-Map many assertions to shared video time ranges rather than one video per assertion.
-For bugfixes, use the [scripted comparison baseline](references/baseline-installation.md);
-non-reproduction does not block safe target capture or reporting.
+For Scenario B visual/UX claims, **produce reviewed video**, including static UI changes.
+Use [PR visual evidence](references/visual-evidence.md) and the frozen video plan; account for
+every changed claim, not just the most recently discussed feature. Map shared flows to
+`MediaRanges`; report **Produced / Exempt / Blocked / Missing** separately from product results.
+Only justified nonvisual work (or an explicit caller exclusion) is Exempt; capture obstacles
+are Blocked. Missing/blocked required video withholds complete signoff, not other checks/reporting.
+Preserve raw frames and separate delivery integrity. Baseline non-reproduction must not block
+the target video; use the [scripted baseline lifecycle](references/baseline-installation.md).
 
 Every executing agent must also produce the
 [agent-origin execution statistics](references/reporting-format.md#agent-origin-execution-statistics):

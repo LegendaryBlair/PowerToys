@@ -117,7 +117,33 @@ try{
     Require ($global:PtStatisticsFixture.Cleaned -and $global:PtStatisticsFixture.ReportCalled) 'Failed execution skipped cleanup or reporting'
     $failedState=Get-PtReportState (Open-PtVerificationRun "$Workspace\failed")
     Require (@($failedState.Attempts|Where-Object {-not $_.Complete}).Count -eq 0) 'Report failure left an open attempt that blocks later report-only repair'
-    Write-PtReportText "$Workspace\results.json" '{"ReportAfterCleanup":"PASS","StatisticsCutoff":"PASS","UnavailableDuration":"PASS","InlineStatistics":"PASS","LatestStatistics":"PASS","SelfContainedResults":"PASS","IntegrityCovered":"PASS","TamperingRefused":"PASS","CrossRunStatisticsRefusedBeforeSealing":"PASS","InvalidTotalsRefusedBeforeSealing":"PASS","RestorationScopePreserved":"PASS","PrimaryAndReportingErrorsPreserved":"PASS"}'
+    # The intentionally failed fixture retains its resource context for recovery.
+    $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
+    $global:PtStatisticsFixture.FailCase=$false;$global:PtStatisticsFixture.FailReport=$false
+    $policyOptions=@{}+$options
+    $policyOptions.Scenario='B'
+    $policyOptions.VideoPlan=@(@{Id='internal';Description='Offline statistics integration'
+        Requirement='Exempt';Reason='Synthetic internal reporting test; no visual or UX change.';Assertions=@('I1/value')})
+    & "$skill\templates\verification-run.ps1" @policyOptions -Workspace "$Workspace\video-exempt"|Out-Null
+    $policyState=Get-PtReportState (Open-PtVerificationRun "$Workspace\video-exempt")
+    Require ($policyState.Signoff -eq 'APPROVED' -and $policyState.Metadata.VideoPolicy.Version -eq 1 -and
+        $policyState.VideoCoverage.Flows[0].Status -eq 'Exempt') 'Template did not forward the frozen video plan'
+    $policyOptions.Remove('VideoPlan')
+    & "$skill\templates\verification-run.ps1" @policyOptions -Workspace "$Workspace\video-default"|Out-Null
+    $defaultState=Get-PtReportState (Open-PtVerificationRun "$Workspace\video-default")
+    Require ($defaultState.Items[0].Verdict -eq 'PASS' -and $defaultState.Signoff -eq 'WITHHELD' -and
+        $defaultState.VideoCoverage.Flows[0].Status -eq 'Missing') 'Template bypassed the default video gate or changed product verdicts'
+    $resumePlan=@(@{Id='internal';Description='Offline resume policy';Requirement='Exempt'
+        Reason='Only internal fixture data';Assertions=@('I1/value')})
+    $resumeRun=New-PtVerificationRun -Workspace "$Workspace\video-resume" -Module $options.Module -Bits $options.Bits `
+        -Scenario B -Items $items -Inputs @(Get-PtVerificationInputs -Skill $skill -Inputs $options.Inputs) -VideoPlan $resumePlan
+    $resumePlan[0].Reason='Changed after initialization'
+    $policyOptions.VideoPlan=$resumePlan
+    $failure=$null
+    try{& "$skill\templates\verification-run.ps1" @policyOptions -Workspace $resumeRun.Workspace -Resume|Out-Null}catch{$failure=$_}
+    Require ($failure.Exception.Message -match 'original video plan') 'Resume accepted a changed video plan'
+    Require (-not(Test-Path "$($resumeRun.Workspace)\resource-session.json")) 'Changed video plan reached runtime resource setup'
+    Write-PtReportText "$Workspace\results.json" '{"ReportAfterCleanup":"PASS","StatisticsCutoff":"PASS","UnavailableDuration":"PASS","InlineStatistics":"PASS","LatestStatistics":"PASS","SelfContainedResults":"PASS","IntegrityCovered":"PASS","TamperingRefused":"PASS","CrossRunStatisticsRefusedBeforeSealing":"PASS","InvalidTotalsRefusedBeforeSealing":"PASS","RestorationScopePreserved":"PASS","PrimaryAndReportingErrorsPreserved":"PASS","VideoPlanForwarded":"PASS","DefaultVideoHold":"PASS","FrozenVideoResume":"PASS"}'
 }finally{
     $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
     Remove-Variable PtStatisticsFixture -Scope Global
