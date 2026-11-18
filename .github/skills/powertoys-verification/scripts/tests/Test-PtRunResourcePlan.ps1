@@ -115,6 +115,20 @@ Check 'Declared clipboard resources must use the clipboard phase' {
     $clipboard=@{Schema='PtRunResources.v1';Resources=@(@{Id='clipboard';Kind='Clipboard';RestoreStep='files'})}
     Reject {Assert-PtRunResourcePlan $clipboard $steps} 'Clipboard-phase'
 }
+Check 'Disposable clipboard policy requires a reason and is frozen before access' {
+    $cleanup=@(@{Id='clipboard';Phase='Clipboard';DependsOn=@();Action={};Verify={$true}})
+    $resource=@{Id='clipboard';Kind='Clipboard';RestoreStep='clipboard';Policy='Disposable'}
+    $clipboard=@{Schema='PtRunResources.v1';Resources=@($resource)}
+    Reject {Assert-PtRunResourcePlan $clipboard $cleanup} 'policy reason'
+    $resource.Reason='Caller explicitly declared this test clipboard disposable'
+    Assert-PtRunResourcePlan $clipboard $cleanup
+    $resource.Policy='IgnoreAllCleanup'
+    Reject {Assert-PtRunResourcePlan $clipboard $cleanup} 'policy must be'
+    $resource.Policy='Preserve'
+    Assert-PtRunResourcePlan $clipboard $cleanup
+    $clipboard.Resources+=@(@{Id='second';Kind='Clipboard';RestoreStep='clipboard'})
+    Reject {Assert-PtRunResourcePlan $clipboard $cleanup} 'exactly one clipboard policy'
+}
 Check 'A no-clipboard resource session blocks capture before starting a keeper' {
     function Get-PtNativeWindow {}
     $run=New-PtVerificationRun -Workspace "$Workspace\no-clipboard" -Module 'Wiring fixture' `
@@ -126,5 +140,18 @@ Check 'A no-clipboard resource session blocks capture before starting a keeper' 
     Reject {New-PtClipboardSession $run.Workspace} 'not declared'
     Require (@(Get-ChildItem $run.Workspace -Filter 'clipboard-session-*').Count -eq 0) 'A keeper started for undeclared clipboard use'
     $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
+}
+Check 'A preserve resource plan cannot be silently changed to disposable at capture' {
+    function Get-PtNativeWindow {}
+    $run=New-PtVerificationRun -Workspace "$Workspace\preserve-policy" -Module 'Wiring fixture' `
+        -Bits 'Offline declaration only' -Scenario InfrastructureAcceptance `
+        -Items @(@{Id='I1';Description='Resource contract';Admin='NO';Clarity='CLEAR';UserVisible=$false;Assertions=@(@{Id='a';Description='Frozen clipboard policy'})}) `
+        -Inputs @(Get-PtVerificationInputs -Skill $skill -Inputs @(@{Name='test.ps1';Role='Checklist';Path=$PSCommandPath}))
+    New-PtResourceSession $run -ResourcePlan @{Schema='PtRunResources.v1';Resources=@(
+        @{Id='clipboard';Kind='Clipboard';Policy='Preserve';RestoreStep='clipboard'})}|Out-Null
+    try{
+        Reject {New-PtClipboardSession $run.Workspace -Policy Disposable -Reason 'Unapproved override'} 'differs from the original resource plan'
+        Require (@(Get-ChildItem $run.Workspace -Filter 'clipboard-session-*').Count -eq 0) 'Policy rejection accessed clipboard'
+    }finally{$global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}}
 }
 "PASS: $($results.Count) resource wiring groups; no Settings or clipboard access. $Workspace"

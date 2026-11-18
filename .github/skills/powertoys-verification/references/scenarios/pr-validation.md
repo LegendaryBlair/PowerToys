@@ -128,8 +128,16 @@ relevant batch closeout in the archive location for unresolved resource obligati
 recorded identities and protect their processes, files and recovery material. Follow
 [independent-run safety](../session-safety.md#independent-runs-and-interrupted-work): do not adopt
 an earlier run's baseline, interpret missing processes as successful restoration, or attempt
-unrelated recovery. If resource readiness cannot be established, block only operations that
-depend on it. Carry unresolved obligations into the new batch's closeout with their source-report
+unrelated recovery. Block only a demonstrated dependency: identify the current resource or
+process generation, the proposed operation and how it would disturb the unresolved resource.
+An old receipt or an absent former process is not by itself a reason to block all Runner
+transitions. Historical recovery can remain unresolved while independent current operations
+proceed. For a caller-declared disposable test clipboard, select the
+[Disposable policy](../clipboard-guard.md#select-the-policy-before-clipboard-access);
+do not create a preservation keeper or require original-content restoration. Retiring a
+previously preserved original instead requires explicit discard authority and its recorded
+disposition, not a silent change to the earlier policy.
+Carry unresolved obligations into the new batch's closeout with their source-report
 and recovery-record locations and protected resource identities; keep private payloads out of
 the handoff. These records inform preflight, not automatic rollback or permission to release resources.
 

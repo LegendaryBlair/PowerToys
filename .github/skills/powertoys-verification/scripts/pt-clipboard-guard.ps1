@@ -67,13 +67,55 @@ function Assert-PtClipboardRestored {
     Assert-PtProcessRelease -ProcessId @()
 }
 
+function Assert-PtClipboardResolved {
+    <#.SYNOPSIS
+    Distinguish restored data from an explicit no-preservation/discard disposition.
+    #>
+    param([Parameter(Mandatory)]$Guard)
+    if(-not (Test-PtClipboardResolved $Guard)){
+        throw 'Clipboard obligation is not resolved; restore it or explicitly authorize discarding its original.'
+    }
+    Assert-PtProcessRelease -ProcessId @()
+}
+
+function Complete-PtClipboardSession {
+    <#.SYNOPSIS
+    Apply the declared clipboard policy and close only its keeper, without clearing the current clipboard.
+    #>
+    param([Parameter(Mandatory)]$Guard,[switch]$DiscardOriginal,[string]$Reason)
+    $ErrorActionPreference='Stop'
+    if($DiscardOriginal -and [string]::IsNullOrWhiteSpace($Reason)){throw 'DiscardOriginal requires an explicit policy reason.'}
+    if(-not $DiscardOriginal -and $PSBoundParameters.ContainsKey('Reason')){throw 'Reason requires DiscardOriginal.'}
+    $keeper=$null
+    try{
+        if($Guard.PSObject.Properties['PipeName']){
+            $keeper=Get-Process -Id $Guard.ProcessId -ErrorAction SilentlyContinue
+            if($Guard.Disposed -is [bool] -and $Guard.Disposed){
+                Assert-PtClipboardResolved $Guard
+                if($keeper -and $keeper.StartTime.ToUniversalTime().Ticks -eq $Guard.ProcessStartTicks -and
+                    -not $keeper.WaitForExit(5000)){throw 'Clipboard keeper did not exit after disposal; no forced termination attempted.'}
+                return
+            }
+            if(-not $keeper){throw 'Clipboard keeper is unavailable; its unresolved original cannot be recovered from the receipt.'}
+            if($keeper.StartTime.ToUniversalTime().Ticks -ne $Guard.ProcessStartTicks){throw 'Clipboard keeper identity changed; no cleanup was requested.'}
+        }
+        if($DiscardOriginal){
+            if(-not (Test-PtClipboardResolved $Guard)){$Guard.Discard($Reason)}
+        }
+        elseif(-not (Test-PtClipboardResolved $Guard)){$Guard.Restore()}
+        Assert-PtClipboardResolved $Guard
+        $Guard.Dispose()
+        if($keeper -and -not $keeper.WaitForExit(5000)){throw 'Clipboard keeper did not exit after disposal; no forced termination attempted.'}
+    }finally{if($keeper){$keeper.Dispose()}}
+}
+
 function Invoke-PtClipboardWrite {
     <#.SYNOPSIS
-    Execute once, seal the resulting sequence before lock acquisition, and confirm without replay.
+    Execute publication once, seal and confirm, then run optional observation outside the write transaction.
     #>
     param([Parameter(Mandatory)]$Guard,[Parameter(Mandatory)][int]$WriterProcessId,
         [Parameter(Mandatory)][long]$WriterStartTicks,[Parameter(Mandatory)][scriptblock]$Action,
-        [object[]]$ArgumentList=@())
+        [object[]]$ArgumentList=@(),[scriptblock]$Observe,[object[]]$ObservationArgumentList=@())
     $ErrorActionPreference='Stop'
     Initialize-PtClipboardGuard
     $process=Get-Process -Id $WriterProcessId -ErrorAction Stop
@@ -90,4 +132,5 @@ function Invoke-PtClipboardWrite {
     $Guard.SealWrite($sequence)
     $null=$Guard.ConfirmWrite()
     $output
+    if($Observe){& $Observe @ObservationArgumentList}
 }

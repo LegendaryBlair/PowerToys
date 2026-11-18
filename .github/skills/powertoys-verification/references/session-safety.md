@@ -38,6 +38,11 @@ Every non-Settings resource maps `RestoreStep` to a real cleanup step with both 
 and `Verify`; Clipboard requires phase `Clipboard`, and Window requires explicit
 `Ownership=Borrowed/Owned`. A Settings resource requires its known positive HWND and
 uses the template's built-in adapter, not a substitute cleanup callback.
+Declare at most one clipboard resource. Its optional `Policy` defaults to `Preserve`;
+`Disposable` requires a nonblank `Reason` recording the caller's authority. For example:
+`@{Id='clipboard';Kind='Clipboard';Policy='Disposable';Reason=$callerAuthority;RestoreStep='clipboard'}`.
+Use `Complete-PtClipboardSession` in that cleanup step and `Test-PtClipboardResolved` in
+its verifier, not `$guard.Restored`: authorized non-preservation is not byte restoration.
 For a case that explicitly restarts PowerToys, a main Settings resource can declare
 `AllowRunnerRestart=$true` before capture. This preserves supported logical UI state across
 the authorized replacement instead of promising that the original HWND survives. It does
@@ -78,7 +83,7 @@ Settings HWND and run-local file/UI comparisons.
 | `Register-PtCreatedProcessWindows -Creation` | Repeated sibling discovery for one resolved creation. Retains verified existing owned records and registers only new HWNDs; rejects changed process identity, conflicting ownership and a live HWND with a closed record. Does not close anything or adopt a borrowed process. |
 | `Close-PtTrackedWindow -Identity` | In an active resource session, require explicit ownership and satisfied clipboard dependencies before WM_CLOSE. Reject an unowned same-process sibling. |
 | `Invoke-PtOwnedWindowReopen -Identity -Creation -ResolveHwnd` | Close a launch-owned window, observe process exit, launch a new instance and resolve its new HWND. Does not close/recreate borrowed Settings or adopt a packaged shared host. |
-| `Assert-PtProcessRelease -ProcessId` | Refuse owner/writer release while a registered clipboard obligation is unresolved. The lifecycle helper checks before disable; restart passes through the same check. |
+| `Assert-PtProcessRelease -ProcessId` | Refuse only the specified protected owner/writer PIDs while their preservation obligation is unresolved. Disposable or explicitly discarded clipboard originals do not block release; unrelated obligations remain enforced. |
 | `Complete-PtResourceSession -Attempt` | Record actual owned-window/process absence, borrowed identity preservation, clipboard status and fresh Settings comparison in Normal Cleanup. No automatic close, kill or full-desktop success claim. |
 
 Declare the PowerToys extension executable before a Command Palette test that can activate it,
@@ -196,8 +201,8 @@ and evidence; the plan throws after collecting all outcomes if anything remains 
 ```powershell
 $plan = @(
     @{ Id='clipboard'; Phase='Clipboard'; DependsOn=@(); Arguments=@($guard)
-       Action={param($g) $g.Restore(); Assert-PtClipboardRestored $g}
-       Verify={param($g) $g.Restored -is [bool] -and $g.Restored} }
+       Action={param($g) Complete-PtClipboardSession $g}
+       Verify={param($g) Test-PtClipboardResolved $g} }
     @{ Id='writer'; Phase='Quiesce'; DependsOn=@('clipboard'); Arguments=@($lifecycle)
        Action={param($s) Set-PtModuleEnabled $s $false | Out-Null}
        Verify={param($s) (Get-PtModuleLifecycleState $s.Profile).Status -eq 'Disabled'} }
@@ -206,10 +211,13 @@ $plan = @(
 # and final comparisons; the two steps alone are not a complete restoration plan.
 ```
 
-Live clipboard payload stays in memory; only obligation metadata is persisted. Register
-intended writers **before** copying with `Invoke-PtClipboardWrite`. Shared-desktop runs
-use `New-PtClipboardSession`'s separate STA keeper and sealed-action confirmation.
-Disposal is refused until restoration. After ordinary controller exit, open the original
+Preserved clipboard payload stays in memory; only obligation metadata is persisted.
+Explicit Disposable policy captures no original and starts no keeper. Register intended
+writers **before** copying with `Invoke-PtClipboardWrite`; put target assertions and reporting
+in its post-publication `Observe` callback or a later step.
+Preserve-mode disposal requires restoration or explicit, reasoned `DiscardedByPolicy`.
+Completion records that distinction without setting `Restored=true` for discarded data.
+After ordinary controller exit, open the original
 resource session and reconnect with `Connect-PtClipboardSession -ReceiptPath`; only a
 still-live keeper can supply the original. A receipt alone cannot resurrect memory lost
 when the keeper itself was terminated. See the [clipboard contract](clipboard-guard.md).
@@ -223,7 +231,15 @@ Returning from `finally` without an error is not proof of restoration.
 
 If cleanup fails, preserve the original snapshots and identify the unresolved resource in
 that run's report/error. The sequential caller must resolve it before further work that
-depends on the resource; independent work need not be blocked. The next module performs
+actually depends on the resource; independent work must continue. Before blocking a Runner
+transition, name the exact current process generation or shared state it would affect and
+the operation that would disturb it. Do not infer this dependency merely from the existence
+of an old unresolved receipt, an observer exception or another run's failed cleanup.
+Absent old processes do not prove historical restoration, but their history alone is not
+a present process-release conflict. Retain the old outcome and assess current readiness.
+An explicitly disposable clipboard or authorized discard is not an outstanding
+preservation dependency; unrelated file/window/setting obligations remain intact.
+The next module performs
 its own normal preflight. It does not read another run's state digests, import its baseline
 or automatically roll back changes made between runs. Earlier reports remain unchanged.
 

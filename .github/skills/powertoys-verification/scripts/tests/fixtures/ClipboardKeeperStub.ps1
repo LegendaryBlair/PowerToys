@@ -8,7 +8,8 @@ Import-PtClipboardNativeStub
 function Capture {
     $native=[PtClipboard.ClipboardGuard]::new(1)
     $proxy=[pscustomobject]@{Native=$native;RequireRestorationBeforeDispose=$false}
-    foreach($name in 'Restored','ExpectedSequence','PendingWriteState','PendingSequence','FormatCount','BitmapFromPng','OriginalWriterProcessId'){
+    foreach($name in 'Restored','ExpectedSequence','PendingWriteState','PendingSequence','FormatCount','BitmapFromPng','OriginalWriterProcessId',
+        'Policy','PolicyReason','Disposition','DiscardReason'){
         $proxy|Add-Member ScriptProperty $name ([scriptblock]::Create("`$this.Native.$name"))
     }
     $proxy|Add-Member ScriptMethod BeginWrite {param($writer,$ticks)
@@ -19,6 +20,8 @@ function Capture {
         $this.Native.SealWrite($sequence);[PtClipboardNativeStub]::OpenFailures=1000
     }
     $proxy|Add-Member ScriptMethod ConfirmWrite {$this.Native.ConfirmWrite()}
+    $proxy|Add-Member ScriptMethod FailWrite {$this.Native.FailWrite()}
+    $proxy|Add-Member ScriptMethod Discard {param($reason) $this.Native.Discard($reason)}
     $proxy|Add-Member ScriptMethod Restore {
         [PtClipboardNativeStub]::OpenFailures=0;$this.Native.Restore()
         if([PtClipboardNativeStub]::FormatCount -ne 2 -or [PtClipboardNativeStub]::Bytes(13)[0] -ne 65){

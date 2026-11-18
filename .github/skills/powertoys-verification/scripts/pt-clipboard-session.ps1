@@ -7,6 +7,7 @@ function Get-PtClipboardKeeperState {
     param($Guard)
     if(-not $Guard){return $null}
     [pscustomobject]@{Restored=$Guard.Restored;ExpectedSequence=$Guard.ExpectedSequence
+        Policy=$Guard.Policy;PolicyReason=$Guard.PolicyReason;Disposition=$Guard.Disposition;DiscardReason=$Guard.DiscardReason
         PendingWriteState=$Guard.PendingWriteState;PendingSequence=$Guard.PendingSequence
         FormatCount=$Guard.FormatCount;BitmapFromPng=$Guard.BitmapFromPng;OriginalWriterProcessId=$Guard.OriginalWriterProcessId}
 }
@@ -97,6 +98,12 @@ function Start-PtClipboardKeeperLoop {
                     AssertUnchanged {$guard.AssertUnchanged()}
                     AcceptWrite {$result=$guard.AcceptWrite([uint32]$request.Sequence,[int]$request.WriterProcessId)}
                     Restore {$guard.Restore();$receipt.Phase='Restored'}
+                    Discard {
+                        if($request.DiscardOriginal -isnot [bool] -or -not $request.DiscardOriginal -or
+                            [string]::IsNullOrWhiteSpace($request.Reason)){throw 'Discard requires explicit original-discard authority and a reason.'}
+                        $guard.Discard([string]$request.Reason)
+                        $receipt.Phase=if($guard.Restored){'Restored'}else{'DiscardedByPolicy'}
+                    }
                     Dispose {$guard.Dispose();$receipt.Phase='Disposed';$finished=$true}
                     default {throw 'Unsupported clipboard keeper command.'}
                 }
@@ -176,6 +183,7 @@ function Connect-PtClipboardSession {
     $session=[pscustomobject]@{Id=$record.Id;Path=$record.Path;PipeName=$record.PipeName
         ProcessId=$record.ProcessId;ProcessStartTicks=$record.ProcessStartTicks
         Restored=$false;ExpectedSequence=0;PendingWriteState='None';PendingSequence=0;FormatCount=0;BitmapFromPng=$false
+        Policy='Preserve';PolicyReason=$null;Disposition='Pending';DiscardReason=$null
         OriginalWriterProcessId=0;Disposed=$false;KeeperErrors=@()}
     $session|Add-Member ScriptMethod Refresh {Invoke-PtClipboardSessionRequest $this Status|Out-Null}
     $session|Add-Member ScriptMethod AssertUnchanged {Invoke-PtClipboardSessionRequest $this AssertUnchanged|Out-Null}
@@ -185,6 +193,7 @@ function Connect-PtClipboardSession {
     $session|Add-Member ScriptMethod ConfirmWrite {Invoke-PtClipboardSessionRequest $this ConfirmWrite}
     $session|Add-Member ScriptMethod AcceptWrite {param($sequence,$writer) Invoke-PtClipboardSessionRequest $this AcceptWrite @{Sequence=$sequence;WriterProcessId=$writer}}
     $session|Add-Member ScriptMethod Restore {Invoke-PtClipboardSessionRequest $this Restore|Out-Null}
+    $session|Add-Member ScriptMethod Discard {param($reason) Invoke-PtClipboardSessionRequest $this Discard @{DiscardOriginal=$true;Reason=$reason}|Out-Null}
     $session|Add-Member ScriptMethod Dispose {if(-not $this.Disposed){Invoke-PtClipboardSessionRequest $this Dispose|Out-Null;$this.Disposed=$true}}
     $session.Refresh()
     $resources=Get-PtActiveResourceSession
@@ -202,17 +211,33 @@ function Connect-PtClipboardSession {
 
 function New-PtClipboardSession {
     <#.SYNOPSIS
-    Capture in a separate STA process so an ordinary controller exception cannot discard the original.
+    Preserve through a separate STA keeper by default; explicitly disposable sessions capture no original.
     #>
-    param([Parameter(Mandatory)][string]$Workspace)
+    param([Parameter(Mandatory)][string]$Workspace,
+        [ValidateSet('Preserve','Disposable')][string]$Policy='Preserve',[string]$Reason)
     $ErrorActionPreference='Stop'
     $resources=Get-PtActiveResourceSession
     if($resources -and $resources.ResourcePlan -and -not @($resources.ResourcePlan.Resources|Where-Object Kind -EQ 'Clipboard').Count){
         throw 'Clipboard access is not declared in the run resource plan.'
     }
+    if($resources -and $resources.ResourcePlan){
+        $declarations=@($resources.ResourcePlan.Resources|Where-Object Kind -EQ 'Clipboard')
+        if($declarations.Count -ne 1){throw 'Declare exactly one clipboard policy for this session.'}
+        $declaredPolicy=if($declarations[0].Policy){$declarations[0].Policy}else{'Preserve'}
+        if($PSBoundParameters.ContainsKey('Policy') -and $Policy -ine $declaredPolicy){throw 'Clipboard policy differs from the original resource plan.'}
+        if($PSBoundParameters.ContainsKey('Reason') -and $Reason -cne $declarations[0].Reason){throw 'Clipboard policy reason differs from the original resource plan.'}
+        $Policy=$declaredPolicy;$Reason=$declarations[0].Reason
+    }
+    if($Policy -notin 'Preserve','Disposable'){throw 'Unknown clipboard policy.'}
+    if($Policy -eq 'Disposable' -and [string]::IsNullOrWhiteSpace($Reason)){throw 'Disposable clipboard requires an explicit policy reason.'}
     Initialize-PtClipboardGuard
     $directory=(Get-Item -LiteralPath $Workspace -ErrorAction Stop).FullName
     Assert-PtReportNoLink $directory
+    if($Policy -eq 'Disposable'){
+        $guard=[PtClipboard.ClipboardGuard]::CreateDisposable($Reason)
+        if($resources){Add-PtClipboardObligation -Guard $guard -OwnerProcessId $PID}
+        return $guard
+    }
     $id=[guid]::NewGuid().ToString('N')
     $receipt=Join-Path $directory "clipboard-session-$id.json"
     $start=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -ErrorAction Stop).Source)

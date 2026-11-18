@@ -57,6 +57,10 @@ namespace PtClipboard
         private bool disposed;
         public uint ExpectedSequence { get; private set; }
         public bool Restored { get; private set; }
+        public string Policy { get; private set; } = "Preserve";
+        public string PolicyReason { get; private set; }
+        public string Disposition { get; private set; } = "Pending";
+        public string DiscardReason { get; private set; }
         public int FormatCount { get { return entries.Count; } }
         public bool BitmapFromPng { get; private set; }
         public int OriginalWriterProcessId { get; private set; }
@@ -80,7 +84,7 @@ namespace PtClipboard
         private void Lock()
         {
             if (disposed) throw new ObjectDisposedException(nameof(ClipboardGuard));
-            if (!NativeWindow.IsWindow(owner)) throw new InvalidOperationException("Clipboard owner window no longer exists.");
+            if (Policy != "Disposable" && !NativeWindow.IsWindow(owner)) throw new InvalidOperationException("Clipboard owner window no longer exists.");
             var clock = Stopwatch.StartNew();
             while (!OpenClipboard(owner))
             {
@@ -98,7 +102,7 @@ namespace PtClipboard
                 // Retry lock acquisition only. The action is never replayed, and Check still
                 // rejects a changed sequence after acquiring the clipboard.
                 Thread.Sleep(10);
-                if (!NativeWindow.IsWindow(owner)) throw new InvalidOperationException("Clipboard owner window no longer exists.");
+                if (Policy != "Disposable" && !NativeWindow.IsWindow(owner)) throw new InvalidOperationException("Clipboard owner window no longer exists.");
             }
         }
 
@@ -134,6 +138,17 @@ namespace PtClipboard
         }
 
         public ClipboardGuard(long ownerHwnd) : this(ownerHwnd, IntPtr.Zero, 0) { }
+
+        private ClipboardGuard(string reason)
+        {
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Disposable clipboard requires an explicit policy reason.", nameof(reason));
+            Policy = "Disposable";
+            PolicyReason = reason;
+            Disposition = "NotPreserved";
+            ExpectedSequence = GetClipboardSequenceNumber();
+        }
+
+        public static ClipboardGuard CreateDisposable(string reason) { return new ClipboardGuard(reason); }
 
         public ClipboardGuard(long ownerHwnd, IntPtr pngBitmap, uint expectedSequence)
         {
@@ -184,6 +199,7 @@ namespace PtClipboard
         private void Check()
         {
             if (Restored) throw new InvalidOperationException("Clipboard guard already restored.");
+            if (Disposition == "DiscardedByPolicy") throw new InvalidOperationException("Clipboard original was discarded by policy.");
             if (GetClipboardSequenceNumber() != ExpectedSequence) throw new InvalidOperationException("Clipboard conflict: unacknowledged write.");
         }
 
@@ -296,6 +312,7 @@ namespace PtClipboard
 
         public void Restore()
         {
+            if (Policy == "Disposable") throw new InvalidOperationException("Disposable clipboard has no original to restore; complete the session without restoration.");
             Lock();
             var allocated = new List<IntPtr>();
             bool emptied = false;
@@ -339,14 +356,31 @@ namespace PtClipboard
             }
             PendingWriteState = "None";
             Restored = true;
+            Disposition = "Restored";
+        }
+
+        public void Discard(string reason)
+        {
+            if (disposed) throw new ObjectDisposedException(nameof(ClipboardGuard));
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Discard requires an explicit policy reason.", nameof(reason));
+            if (Restored || Disposition == "DiscardedByPolicy") return;
+            ReleaseSnapshot();
+            DiscardReason = reason;
+            Disposition = "DiscardedByPolicy";
+        }
+
+        private void ReleaseSnapshot()
+        {
+            foreach (var entry in entries) if (entry.Bitmap != IntPtr.Zero) DeleteObject(entry.Bitmap);
+            entries.Clear();
         }
 
         public void Dispose()
         {
             if (disposed) return;
-            if (RequireRestorationBeforeDispose && !Restored)
+            if (RequireRestorationBeforeDispose && !Restored && Policy != "Disposable" && Disposition != "DiscardedByPolicy")
                 throw new InvalidOperationException("Restore the registered clipboard guard before disposal.");
-            foreach (var entry in entries) if (entry.Bitmap != IntPtr.Zero) DeleteObject(entry.Bitmap);
+            ReleaseSnapshot();
             disposed = true;
         }
 

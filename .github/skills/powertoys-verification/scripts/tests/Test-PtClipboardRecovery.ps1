@@ -83,6 +83,66 @@ Check 'Action failure after writing stays ambiguous rather than being promoted t
     Reject {$g.Restore()} 'unacknowledged write'
     Require ([PtClipboardNativeStub]::Bytes(13)[0] -eq 90) 'Ambiguous action was overwritten'
 }
+Check 'Post-publication observer failure does not poison the confirmed write or restoration' {
+    $g=Guard;$script:count=0;$script:observed=0
+    Reject {Invoke-PtClipboardWrite $g $PID $start -Action {
+        $script:count++;[PtClipboardNativeStub]::Write(90,$PID)
+    } -Observe {
+        param($expected)
+        $script:observed++
+        Require ($g.PendingWriteState -ceq 'None' -and [PtClipboardNativeStub]::Bytes(13)[0] -eq $expected) 'Observer ran before publication confirmation'
+        throw 'observer failed'
+    } -ObservationArgumentList @(90)} 'observer failed'
+    Require ($script:count -eq 1 -and $script:observed -eq 1 -and $g.PendingWriteState -ceq 'None') 'Observer failure changed transaction state or replayed publication'
+    Complete-PtClipboardSession $g
+    Require ($g.Restored -and [PtClipboardNativeStub]::Bytes(13)[0] -eq 65) 'Observer error prevented safe restoration'
+}
+Check 'Post-publication observation cannot authorize overwriting a foreign clipboard write' {
+    $g=Guard
+    Reject {Invoke-PtClipboardWrite $g $PID $start -Action {[PtClipboardNativeStub]::Write(90,$PID)} -Observe {
+        [PtClipboardNativeStub]::Write(88,123456)
+        throw 'observer failed after foreign write'
+    }} 'observer failed'
+    Require ($g.PendingWriteState -ceq 'None') 'Observer rewrote publication status'
+    Reject {Complete-PtClipboardSession $g} 'unacknowledged'
+    Require ([PtClipboardNativeStub]::EmptyCalls -eq 0 -and [PtClipboardNativeStub]::Bytes(13)[0] -eq 88) 'Observer failure overwrote foreign clipboard data'
+    Complete-PtClipboardSession $g -DiscardOriginal -Reason 'Synthetic fixture original may be discarded, not restored over foreign data'
+}
+Check 'Disposable policy captures no payload and failed publication cannot strand cleanup or the next case' {
+    Reject {[PtClipboard.ClipboardGuard]::CreateDisposable(' ')} 'policy reason'
+    $g=[PtClipboard.ClipboardGuard]::CreateDisposable('Caller authorized disposable test clipboard')
+    Require ($g.FormatCount -eq 0 -and [PtClipboardNativeStub]::OpenCalls -eq 0 -and [PtClipboardNativeStub]::GetCalls -eq 0) 'Disposable mode captured clipboard payload'
+    Reject {Invoke-PtClipboardWrite $g $PID $start -Action {[PtClipboardNativeStub]::Write(90,$PID);throw 'publication failed'}} 'publication failed'
+    [PtClipboardNativeStub]::Write(88,123456)
+    Reject {$g.Restore()} 'no original'
+    $locks=[PtClipboardNativeStub]::OpenCalls
+    Complete-PtClipboardSession $g
+    Require (-not $g.Restored -and $g.Disposition -ceq 'NotPreserved' -and $g.PendingWriteState -ceq 'ActionFailed') 'Disposable cleanup falsified restoration or erased failure'
+    Require ([PtClipboardNativeStub]::EmptyCalls -eq 0 -and [PtClipboardNativeStub]::OpenCalls -eq $locks -and
+        [PtClipboardNativeStub]::Bytes(13)[0] -eq 88) 'Disposable cleanup touched current clipboard'
+    $next=[PtClipboard.ClipboardGuard]::CreateDisposable('Same authorized disposable session; new case')
+    Invoke-PtClipboardWrite $next $PID $start -Action {[PtClipboardNativeStub]::Write(91,$PID)}
+    Complete-PtClipboardSession $next
+    Require ([PtClipboardNativeStub]::Bytes(13)[0] -eq 91) 'Previous failure blocked independent next case'
+}
+Check 'Preserved originals require explicit discard authority and never claim restoration on discard' {
+    $g=Guard
+    Reject {Invoke-PtClipboardWrite $g $PID $start -Action {[PtClipboardNativeStub]::Write(90,$PID);throw 'publication failed'}} 'publication failed'
+    [PtClipboardNativeStub]::Write(88,123456)
+    Reject {Complete-PtClipboardSession $g} 'unacknowledged'
+    Reject {Complete-PtClipboardSession $g -DiscardOriginal} 'policy reason'
+    Reject {Complete-PtClipboardSession $g -Reason 'Not an authorization switch'} 'requires DiscardOriginal'
+    Require ($g.FormatCount -eq 2) 'Original was discarded without explicit authority'
+    $locks=[PtClipboardNativeStub]::OpenCalls
+    Complete-PtClipboardSession $g -DiscardOriginal -Reason 'Caller explicitly permits losing the saved fixture clipboard'
+    Complete-PtClipboardSession $g
+    Assert-PtClipboardResolved $g
+    Reject {Assert-PtClipboardRestored $g} 'not complete'
+    Require (-not $g.Restored -and $g.Disposition -ceq 'DiscardedByPolicy' -and $g.FormatCount -eq 0 -and
+        $g.PendingWriteState -ceq 'ActionFailed' -and $g.DiscardReason -match 'explicitly permits') 'Discard lost its honest disposition or original failure'
+    Require ([PtClipboardNativeStub]::OpenCalls -eq $locks -and [PtClipboardNativeStub]::EmptyCalls -eq 0 -and
+        [PtClipboardNativeStub]::Bytes(13)[0] -eq 88) 'Discard overwrote current clipboard'
+}
 Check 'Action failure before writing can restore the unchanged original' {
     $g=Guard
     Reject {Invoke-PtClipboardWrite $g $PID $start -Action {throw 'before write'}} 'before write'

@@ -20,7 +20,7 @@ Do not load helpers from another worktree to fill an unresolved dependency.
 | File and directory restoration | `pt-state-snapshot.ps1`, `pt-directory-snapshot.ps1` | Reuse snapshot shape. Explicit `-ExpectedState` adds guarded existing-file rollback; directory rollback handles owned existence changes. Legacy unguarded calls are not concurrency-safe. |
 | Private environment preservation | `pt-environment-variables-state.ps1` | Module-specific encrypted raw-value/type and file baselines; use the common recorder/cleanup with [privacy-safe integration](environment-variables-fixtures.md#wip-run-integration), not a separate report system. |
 | Environment Variables UI adapters | `pt-environment-variables-ui.ps1` | Module-scoped rows, guarded modal operations and private complete-value observations; [API and privacy boundary](environment-variables-fixtures.md#reusable-ui-adapters). Reuses common UIA/identity/ownership, never assigns product verdicts. |
-| Clipboard preservation | `pt-clipboard-guard.ps1`/`.cs`, `pt-clipboard-session.ps1` | Native preservation, sealed pending writes and a separate STA keeper across ordinary controller exit; no private payload on disk. Formats-only inspection is not backup. |
+| Clipboard policy | `pt-clipboard-guard.ps1`/`.cs`, `pt-clipboard-session.ps1` | Preserve by default through an STA keeper; explicitly Disposable sessions capture no original and start no keeper. Publication is sealed before observation; explicit discard is not restoration. No private payload on disk. |
 | Scoped passive capture | `Save-PtPassiveScreenshot -WindowIdentity` | Reuse capture API with an optional physical union for owner/popup identities; no separate CP capture wrapper. |
 | Owned control capture | `Save-PtOwnedControlScreenshot` in `pt-owned-capture.ps1` | Full outward-rounded control bounds, exact window subtree and pre/post runtime identity/geometry. Caller supplies a known opaque owned backdrop; pixels still require semantic review. |
 | Task View transition | `Invoke-PtTaskViewScope` in `pt-shell-transition.ps1` | Require an initially absent surface, actual localized title, Explorer identity and current class. Retain the transition on failure; never dismiss unrelated Shell UI. |
@@ -259,10 +259,12 @@ inside each run.
 For taskbar slot routing use the [non-pinned taskbar fixtures](taskbar-fixtures.md).
 For SG use its [composed flows](modules/shortcut-guide/composed-flows.md), keeping
 the chosen entry/close route and input ownership explicit.
-For copy/paste/sampling use the [clipboard guard](clipboard-guard.md). Restore and check
-`Assert-PtClipboardRestored` before **every** writer/guard-owner shutdown. This is an explicit
-caller gate, not an automatic feature of module lifecycle; retain the provider after a
-failed clipboard restore rather than hiding the failure with a process restart.
+For copy/paste/sampling use the [clipboard policy](clipboard-guard.md). Complete the declared
+policy with `Complete-PtClipboardSession` before dependent writer/guard-owner shutdown.
+Preserve mode requires restoration unless the caller explicitly authorizes discarding the
+saved original; Disposable mode needs neither a backup nor original-content restoration.
+`Assert-PtClipboardRestored` remains strict; use `Assert-PtClipboardResolved` for policy-aware
+release. Retain failures without turning unrelated process transitions into recovery work.
 
 ## Targeted helper acceptance
 

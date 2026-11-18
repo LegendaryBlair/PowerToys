@@ -128,7 +128,7 @@ finally{
     if($cleanupErrors.Count){
         if($testError){$testError.Exception.Data['CleanupFailures']=@($cleanupErrors)}
         else{$testError=[InvalidOperationException]::new(($cleanupErrors -join '; '))}
-        [Console]::Error.WriteLine("Restoration unresolved: $($cleanupErrors -join '; '). Do not rerun or claim restoration. Reconnect using restoration-status.json's keeper receipt; never terminate an unresolved keeper.")
+        [Console]::Error.WriteLine("Restoration unresolved: $($cleanupErrors -join '; '). Only dependent reruns are blocked; independent checks may continue. Reconnect using restoration-status.json's keeper receipt to restore or explicitly authorize discard. No automatic keeper termination or restoration claim.")
     }
 }
 if($testError){throw $testError}

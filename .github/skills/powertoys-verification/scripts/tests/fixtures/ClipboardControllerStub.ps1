@@ -1,4 +1,5 @@
-param([Parameter(Mandatory)][string]$Workspace)
+param([Parameter(Mandatory)][string]$Workspace,
+    [ValidateSet('ConfirmationPending','ActionFailed')][string]$FailureMode='ConfirmationPending')
 $ErrorActionPreference='Stop'
 . "$PSScriptRoot\..\..\pt-clipboard-session.ps1"
 # Exercise the real public launcher, replacing only its child host with the native-free fixture.
@@ -9,6 +10,10 @@ $body=$body.Replace($boundary,('"'+$PSScriptRoot+'\ClipboardKeeperStub.ps1"'))
 Set-Item Function:\New-PtClipboardSession ([scriptblock]::Create($body))
 $session=New-PtClipboardSession $Workspace
 $session.BeginWrite($session.ProcessId,$session.ProcessStartTicks)
+if($FailureMode -eq 'ActionFailed'){
+    $session.FailWrite()
+    exit 37
+}
 $session.SealWrite(101)
 try{$session.ConfirmWrite();throw 'Expected injected confirmation failure'}catch{
     if($_.Exception.Message -notmatch 'OpenClipboard'){throw}

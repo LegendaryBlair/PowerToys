@@ -61,8 +61,8 @@ or concretely blocked. Screenshots supplement video; they do not silently replac
 | `scripts/pt-text-extractor-state.ps1` | Private durable OCR originals, declared preference writes, exact file rollback and recreated-Settings cache writeback; see [Text Extractor state boundaries](references/modules/text-extractor.md#helper-boundaries). |
 | `scripts/pt-environment-variables-state.ps1` | Module-specific private DPAPI journal, exact file/HKCU raw-kind restoration and owned-variable UI guards. Use the WIP recorder/ownership adapters with the [private fixture integration](references/environment-variables-fixtures.md#wip-run-integration). |
 | `scripts/pt-environment-variables-ui.ps1` | Scoped owned rows/menus, target-checked draft input/commit/cancel and private Applied/native full-value reads. Reuse these [UI adapters](references/environment-variables-fixtures.md#reusable-ui-adapters) instead of generating a new locator/reader per case; observations are not product verdicts. |
-| `scripts/pt-clipboard-guard.ps1` + `.cs` | Shared in-memory clipboard preservation and explicit restore-before-shutdown gate; STA required. See [clipboard guard](references/clipboard-guard.md). |
-| `scripts/pt-clipboard-session.ps1` | Separate STA keeper and metadata-only reconnect receipt; retains the original across ordinary controller exit, not keeper termination. Composed writes seal their sequence before confirmation. |
+| `scripts/pt-clipboard-guard.ps1` + `.cs` | Policy-aware clipboard publication, post-publication observation and explicit cleanup/discard. Preserve mode uses STA capture; Disposable mode captures no original. See [clipboard policy](references/clipboard-guard.md). |
+| `scripts/pt-clipboard-session.ps1` | Preserve by default through a separate STA keeper and metadata-only receipt. Explicit Disposable mode starts no keeper. `Complete-PtClipboardSession` distinguishes restored contents from authorized discard. |
 | `scripts/pt-shared-events.ps1` | `Invoke-PtSharedEvent`, `Test-PtSharedEvent`, `Get-PtSharedEventCatalog` — 56-entry friendly-name map for PT Named Events (CmdPal.Show, AOT.Pin, PowerLauncher.Invoke, LightSwitch.Toggle, ZoomIt.Draw, ...). The deterministic, foreground-free, UIPI-immune way to trigger a module. |
 | `scripts/pt-sendinput-chord.ps1` | `Send-PtChord`, `Invoke-PtHeldKeys`, `Wait-PtHotkeyAccepted` — no-delay activation by default, optional recorder pacing, left/right extended keys, and release in `finally`. Prefer Named Events unless the binding/input itself is under test. |
 | `scripts/pt-foreground-guard.ps1` | Exact-HWND guards plus explicit `Restore-PtForegroundAfterShell` for a test-opened Start/Search transition. Ordinary guards never dismiss UI automatically. |
@@ -111,6 +111,10 @@ Environment Variables uses the same recorder and run-local cleanup with its
 Do not mix the former Color Picker recorder/identity/lifecycle wrappers with these APIs.
 Capture Settings navigation/placement and establish window ownership before changing them;
 no native snapshot certifies page/IME state or another run's unresolved cleanup.
+Use Disposable clipboard policy when the caller explicitly permits losing that session's
+contents; never extend that permission to other state. Block later work only for a demonstrated
+current resource dependency, not merely an old recovery receipt. See
+[clipboard policy](references/clipboard-guard.md) and [independent-run safety](references/session-safety.md#independent-runs-and-interrupted-work).
 Declare and track headless helper/provider processes too: use `Start-PtOwnedProcess` for
 dedicated launches or `Invoke-PtOwnedProcessActivation` for a declared indirect activation,
 and verify their exit through `Stop-PtOwnedProcess` plus final resource completion.

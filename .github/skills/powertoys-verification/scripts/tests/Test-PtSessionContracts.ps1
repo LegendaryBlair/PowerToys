@@ -203,6 +203,46 @@ Check 'Clipboard owner/writer release is gated, restored guards clear it, resume
     Reject {Assert-PtProcessRelease @(26)} 'clipboard obligation'
     Assert-PtProcessRelease @(25)
 }
+Check 'Explicit clipboard disposition releases only its obligation without claiming restoration' {
+    $run=Session
+    $guard=[pscustomobject]@{Restored=$false;Disposition='Pending';DiscardReason=$null}
+    Add-PtClipboardObligation $guard 10
+    Protect-PtClipboardWriter $guard 25
+    $unrelated=[pscustomobject]@{Restored=$false}
+    Add-PtClipboardObligation $unrelated 26
+    Reject {Assert-PtProcessRelease @(25)} 'protects PID\(s\) 25'
+    Assert-PtProcessRelease @(99)
+    $guard.Disposition='DiscardedByPolicy'
+    Reject {Assert-PtProcessRelease @(25)} 'clipboard obligation'
+    $guard.DiscardReason='Caller authorized discarding only this synthetic original'
+    Assert-PtProcessRelease @(10,25)
+    Reject {Assert-PtProcessRelease @(26)} 'clipboard obligation'
+    Require (-not (Get-PtActiveResourceSession).Obligations[0].Restored) 'Discard was mislabeled as restoration'
+    $global:PtActiveResourceSession=$null;$global:PtLiveResourceGuards=@{}
+    Open-PtResourceSession $run|Out-Null
+    Assert-PtProcessRelease @(25)
+    Reject {Assert-PtProcessRelease @(26)} 'clipboard obligation'
+}
+Check 'Disposable clipboard does not block owned process teardown or independent subsequent runs' {
+    $run=Session
+    $creation=Start-PtOwnedProcess disposable-fixture.exe
+    $guard=[pscustomobject]@{Restored=$false;Policy='Disposable';PolicyReason='Explicit disposable fixture session';Disposition='NotPreserved'}
+    Add-PtClipboardObligation $guard 10
+    Protect-PtClipboardWriter $guard $creation.ProcessId
+    Stop-PtOwnedProcess $creation -RequestExit {param($identity) $script:processes.Remove($identity.processId)}|Out-Null
+    $attempt=Start-PtVerificationAttempt $run -Context Cleanup -Name 'Disposable cleanup' -Kind Normal
+    try{
+        $rows=@(Complete-PtResourceSession $attempt)
+        $row=@($rows|Where-Object Resource -Like 'clipboard-*')[0]
+        Require ($row.Status -eq 'PASS' -and -not $row.Restored -and $row.Reason -match 'not captured or restored') 'Completion falsely certified restored contents'
+    }finally{Stop-PtVerificationAttempt $attempt -Reason 'Policy-aware release, not clipboard restoration'}
+    $old=Session
+    Add-PtClipboardObligation ([pscustomobject]@{Restored=$false}) 10
+    Reject {Assert-PtProcessRelease @(10)} 'clipboard obligation'
+    $next=Session
+    Assert-PtProcessRelease @(10)
+    Require ($old.Id -ne $next.Id -and (Get-PtActiveResourceSession).Obligations.Count -eq 0) 'New independent run inherited a historical global block'
+}
 Check 'Unresolved launches remain visible at final resource completion' {
     $run=Session
     Reject {Start-PtOwnedProcess failed.exe} 'Synthetic launch'

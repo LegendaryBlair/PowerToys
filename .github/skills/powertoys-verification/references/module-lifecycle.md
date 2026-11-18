@@ -111,6 +111,10 @@ Before a transition it also refuses visible UI owned by the module; the case mus
 close only a surface it explicitly owns.
 Under an active resource session, it also checks clipboard owner/writer release obligations
 before Toggle. Runner-hosted modules check the Runner PID; restart uses the same disable gate.
+These are resource-specific preservation dependencies, not a global recovery lock.
+Disposable or explicitly discarded clipboard originals do not block release. When an earlier
+run has unresolved cleanup, identify the live owner/writer or other state this transition
+would actually affect; an old receipt or unrelated absent process alone is not a blocker.
 
 ```powershell
 $snapshot = Get-PtModuleLifecycleSnapshot -Profile $profile `

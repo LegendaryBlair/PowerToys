@@ -371,6 +371,10 @@ function Assert-PtRunResourcePlan {
             $step=@($CleanupPlan|Where-Object Id -CEQ $resource.RestoreStep)
             if($step.Count -ne 1){throw "Resource $($resource.Id) has no matching cleanup Action/Verify step."}
             if($resource.Kind -eq 'Clipboard' -and $step[0].Phase -cne 'Clipboard'){throw 'Clipboard resources require a Clipboard-phase restore step.'}
+            if($resource.Kind -eq 'Clipboard'){
+                if($null -ne $resource.Policy -and $resource.Policy -cnotin 'Preserve','Disposable'){throw 'Clipboard policy must be Preserve or Disposable.'}
+                if($resource.Policy -ceq 'Disposable' -and [string]::IsNullOrWhiteSpace($resource.Reason)){throw 'Disposable clipboard requires an explicit policy reason.'}
+            }
             if($resource.Kind -eq 'Window' -and $resource.Ownership -cnotin 'Borrowed','Owned'){
                 throw 'Window resources must explicitly declare Borrowed or Owned.'
             }
@@ -392,6 +396,7 @@ function Assert-PtRunResourcePlan {
         @($SettingsHwnd|Where-Object {-not $handles.Contains($_)}).Count)){
         throw 'SettingsHwnd must match the resource plan; do not omit a borrowed Settings baseline.'
     }
+    if(@($Plan.Resources|Where-Object Kind -EQ 'Clipboard').Count -gt 1){throw 'Declare exactly one clipboard policy for this session.'}
 }
 
 function Register-PtCreatedWindow {
@@ -497,6 +502,17 @@ function Register-PtFixtureWindowOwnership {
     Register-PtOwnedWindowRecord $session $Identity 'Case' (Get-PtReportHash ([IO.File]::ReadAllBytes($ReceiptPath))) $scope|Out-Null
 }
 
+function Test-PtClipboardResolved {
+    <#.SYNOPSIS
+    Check completion of preservation policy, not equality of clipboard contents.
+    #>
+    param([Parameter(Mandatory)]$Guard)
+    ($Guard.Restored -is [bool] -and $Guard.Restored) -or
+        ($Guard.Disposition -ceq 'DiscardedByPolicy' -and -not [string]::IsNullOrWhiteSpace($Guard.DiscardReason)) -or
+        ($Guard.Policy -ceq 'Disposable' -and $Guard.Disposition -ceq 'NotPreserved' -and
+            -not [string]::IsNullOrWhiteSpace($Guard.PolicyReason))
+}
+
 function Add-PtClipboardObligation {
     param([Parameter(Mandatory)]$Guard,[Parameter(Mandatory)][int]$OwnerProcessId)
     $session=Get-PtActiveResourceSession
@@ -505,6 +521,8 @@ function Add-PtClipboardObligation {
     $id=[guid]::NewGuid().ToString('N')
     $session.Obligations+=@([pscustomobject]@{Id=$id;Kind='Clipboard';OwnerProcessId=$OwnerProcessId
         WriterProcessIds=@();Restored=$false
+        Policy=$(if($Guard.Policy){$Guard.Policy}else{'Preserve'});PolicyReason=$Guard.PolicyReason
+        Disposition=$(if($Guard.Disposition){$Guard.Disposition}else{'Pending'});DiscardReason=$Guard.DiscardReason
         RecoveryReceipt=$(if($Guard.PSObject.Properties['PipeName']){$Guard.Path}else{$null})
         KeeperStartTicks=$(if($Guard.PSObject.Properties['PipeName']){$Guard.ProcessStartTicks}else{$null})})
     $global:PtLiveResourceGuards[$id]=$Guard
@@ -535,12 +553,19 @@ function Assert-PtProcessRelease {
     Assert-PtResourceSession $session
     foreach($obligation in $session.Obligations){
         $live=$global:PtLiveResourceGuards[$obligation.Id]
-        if($live -and $live.Restored -is [bool] -and $live.Restored){
-            $obligation.Restored=$true;Save-PtResourceSession $session
+        if($live -and (Test-PtClipboardResolved $live)){
+            $obligation.Restored=($live.Restored -is [bool] -and $live.Restored)
+            foreach($name in 'Policy','PolicyReason','Disposition','DiscardReason'){
+                if($live.PSObject.Properties[$name]){$obligation|Add-Member NoteProperty $name $live.$name -Force}
+            }
+            Save-PtResourceSession $session
         }
-        if(-not $obligation.Restored -and @($ProcessId|Where-Object {
+        $affected=@($ProcessId|Where-Object {
             $_ -eq $obligation.OwnerProcessId -or $_ -in $obligation.WriterProcessIds
-        }).Count){throw 'Process release refused: unresolved clipboard obligation.'}
+        })
+        if(-not (Test-PtClipboardResolved $obligation) -and $affected.Count){
+            throw "Process release refused: unresolved clipboard obligation $($obligation.Id) protects PID(s) $($affected -join ', '). Unrelated processes are not blocked."
+        }
     }
 }
 
@@ -690,8 +715,12 @@ function Complete-PtResourceSession {
     }
     foreach($record in $session.Obligations){
         Assert-PtProcessRelease -ProcessId @() # Refresh completed live guards without releasing anything.
-        $rows+=@([pscustomobject]@{Resource="clipboard-$($record.Id)";Status=$(if($record.Restored){'PASS'}else{'BLOCKED'})
-            Reason='Clipboard obligation; in-memory data is never placed in this receipt.'})
+        $reason=if($record.Restored){'Original clipboard restored.'}
+            elseif($record.Disposition -eq 'DiscardedByPolicy'){"Original clipboard discarded, not restored: $($record.DiscardReason)"}
+            elseif($record.Policy -eq 'Disposable'){"Disposable clipboard was not captured or restored: $($record.PolicyReason)"}
+            else{'Clipboard preservation remains unresolved; only dependent releases are blocked.'}
+        $rows+=@([pscustomobject]@{Resource="clipboard-$($record.Id)";Status=$(if(Test-PtClipboardResolved $record){'PASS'}else{'BLOCKED'})
+            Restored=$record.Restored;Disposition=$record.Disposition;Reason=$reason})
     }
     foreach($record in $session.Settings){
         $valid=$false;$reason='Settings supported UI-state comparison; unsupported state is explicitly excluded.'
@@ -718,7 +747,11 @@ function Complete-PtResourceSession {
     Write-PtReportText $file (ConvertTo-Json -InputObject $rows -Depth 8)
     $evidence=Add-PtVerificationArtifact -Attempt $Attempt -Path $file -Kind Restoration -Description 'Ownership/dependency completion, not arbitrary desktop equality'
     $verdict=if(@($rows|Where-Object Status -ne 'PASS').Count){'BLOCKED'}else{'PASS'}
-    Add-PtVerificationRestoration -Attempt $Attempt -Verdict $verdict -Reason 'Recorded ownership and release obligations only; Settings and file comparisons remain separately required.' -Evidence @($evidence)
+    $reason='Recorded ownership and release obligations only; Settings and file comparisons remain separately required.'
+    if(@($session.Obligations|Where-Object {$_.Disposition -eq 'DiscardedByPolicy' -or $_.Policy -eq 'Disposable'}).Count){
+        $reason+=' Clipboard preservation was explicitly waived; this does not certify its contents as restored.'
+    }
+    Add-PtVerificationRestoration -Attempt $Attempt -Verdict $verdict -Reason $reason -Evidence @($evidence)
     if($verdict -ne 'PASS'){throw 'Resource session has unresolved ownership or restoration obligations.'}
     $rows
 }
