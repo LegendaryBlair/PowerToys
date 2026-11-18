@@ -16,14 +16,19 @@
 
 Prepare [baselines](#fixtures-and-restoration) and a compatible-integrity owned target.
 Never pin or change opacity on borrowed windows.
+Before target-directed actions, use `Assert-PtAlwaysOnTopExecutionReady` with the exact
+target identity and relevant peer PIDs: `RequireInput` checks input readiness and
+`RequireForeground` requires that target in the foreground. This ordinary same-integrity
+check does not establish support for mixed-integrity test variants.
 
 | Intent | Entry | Destination / guard |
 |---|---|---|
 | Configure | [Settings entry](settings.md#entry-paths), `AutomationId=AlwaysOnTopNavItem` | Snapshot before navigation; confirm page content. |
-| Configured binding | Foreground owned target; complete current chord | Separate delivery, native state and composition. |
+| Configured binding | Foreground owned target; guarded `Send-PtChord` using the complete current binding | Separate delivery, native state and composition. |
 | Window menu | Enable option; open target's real title-bar system menu | Check Alt+Space launcher conflicts; no guessed command IDs. |
 | Downstream diagnosis | Matching shared event, same foreground guard | Not binding coverage or listener-readiness proof. |
-| Palette integration | Extension's Always On Top Settings command; [palette profile](command-palette.md) | Preserve query/history/favorites/provider lifetime first; not a pin action. |
+| Palette integration | Extension's Always On Top Settings command; resolve its actual title/subtitle using the [palette profile](command-palette.md) | Preserve query/history/favorites/provider lifetime first; favorites and locale are separate conditions, not a pin action. |
+| Update check | Shared [Settings controls](settings.md#control-locator-and-interaction-index) | Preserve enablement; check only, with no install/download or automatic-update preference change. |
 
 ## UI state-transition map
 
@@ -51,32 +56,56 @@ dismissal does not undo live edits.
 
 ## Control locator and interaction index
 
-Inspect the exact HWND with `Invoke-PtWinApp`; rediscover type/Name/ID/parent/pattern
-on other builds/locales. `x:Uid` is not a selector. Re-resolve after transitions and
-never choose the first repeated control.
+The first column identifies the control for a human; English labels are examples, not
+locale-independent selectors. Inspect the exact HWND with `Invoke-PtWinApp` and match the
+current UIA type, Name, AutomationId and supported pattern. Card anchors below identify the
+relevant settings region; their source names are not guaranteed UIA AutomationIds.
+`x:Uid` is not a selector. The `>` notation describes a scoped search, not executable CSS
+or a guaranteed direct-child relationship. Require a unique match and re-resolve after transitions.
 
-| Interaction | UI state & scope | Control locator | How to interact |
-|---|---|---|---|
-| Select page | Navigation | `AutomationId=AlwaysOnTopNavItem` | Realize; supported Select/Invoke; inspect content. |
-| Toggle enablement | Enable card | Owner `AlwaysOnTopEnableToggleControlHeaderText`; `Button` Name `Always On Top`, TogglePattern | ScrollItemPattern before [Resident lifecycle](../module-lifecycle.md), including cleanup. No kill/relaunch. |
-| Expand activation | Enabled page | Owner `AlwaysOnTopActivationShortcut`; local Button with ExpandCollapsePattern | Expand; distinguish the same-caption shortcut EditButton. |
-| Edit shortcut | Pin/increase/decrease row | Owner ID `LayoutRoot` AND actual Name; child `Button` ID `EditButton` | [Recorder](../shortcut-recorder.md): both `WithinAutomationId` and `WithinName`; snapshot, Save/Cancel, read and drive bindings. |
-| Toggle highlighting | Expanded border card | Owner `AlwaysOnTopFrameEnabled`; `Button` Name `Show a border around the pinned window`, TogglePattern | Distinguish the same-caption expander; retain pinned target for live change. |
-| Select color mode | Highlighting on | Owner `AlwaysOnTopFrameColorMode`; `ComboBox` Name `Color mode` | `Select-PtComboBoxItem`: actual `Custom color` / `Windows default` option. |
-| Set custom color | Custom mode | Owner `AlwaysOnTopFrameColor`; unique Button; flyout hex `Edit` | Invoke; rediscover hex Name/ID and ValuePattern. Live RGB/ARGB edit; Escape dismisses. |
-| Set border slider | Highlighting on | Owners `AlwaysOnTopFrameThickness` / `AlwaysOnTopFrameOpacity`; Sliders `Thickness (px)` / `Opacity (%)` | Realize; RangeValuePattern within actual range; live, no Save. |
-| Toggle option | Corners/Game Mode/menu card | Actual localized `CheckBox` Name | Toggle/read; corners require Windows 11; preference is not fullscreen proof. |
-| Toggle sound | Enabled sound card | `Button` Name `Play a sound when pinning a window`, TogglePattern | Toggle/read; rediscover localized Name. Audio is a separate observation. |
-| Edit exclusions | Expanded exclusions | Owner `AlwaysOnTopExcludedApps`; unique multiline `Edit` | ValuePattern; preserve private original; collision-checked owned executable only. |
-| Send command | Owned eligible foreground | Non-UI: exact identity/current chord | Guarded `Send-PtChord`; events keep the foreground guard. |
-| Invoke window menu | Real title-bar system menu | Fresh owner; localized `MenuItem` | Inspect/invoke/reopen check state; no index/internal-message substitute. |
-| Read target | Owned window | Non-UI: `Get-PtAlwaysOnTopWindowState` identity | Marker/style/alpha availability/frame/DPI; not pixels or verdict. |
-| Check execution | Before effects | `Assert-PtAlwaysOnTopExecutionReady`, exact target/peer PIDs | Session/integrity/desktop; `RequireInput` for input availability, `RequireForeground` before target-directed input. |
-| Invoke palette Settings | Installed extension; baseline saved | Actual title/subtitle/Settings command | Palette profile; favorites and locale are distinct conditions. |
-| Check updates | Enablement baseline saved | [Settings controls](settings.md#control-locator-and-interaction-index) | Check only; no install/download or automatic-update preference change. |
+**Settings window.** Except for the navigation item, start on the Always On Top Settings
+page. Scroll the relevant card into view and expand its section before locating child controls.
+Check actual control availability; module enablement, highlighting and custom-color mode are
+prerequisites, not additional named states in the transition map. Read on/off values before
+changing them, and toggle only when the requested value differs.
+
+For the three shortcut Edit buttons, use the [shortcut recorder](../shortcut-recorder.md)
+with both `WithinAutomationId=LayoutRoot` and the row's actual `WithinName`. Preserve the
+original binding, distinguish Save from Cancel, then read back and exercise the binding
+when required by the checklist.
+
+| Control (English label / purpose) | Scoped UIA locator | Interaction / commit behavior |
+|---|---|---|
+| Always On Top navigation item | Settings navigation > `AutomationId=AlwaysOnTopNavItem`; inspect its supported selection/action pattern. | Scroll into view, then Select/Invoke as supported. Confirm page content before using its controls. |
+| Always On Top - enable switch | Enable card (anchor `AlwaysOnTopEnableToggleControlHeaderText`) > `ControlType=Button`, `Name=Always On Top`, supporting TogglePattern. | Use ScrollItemPattern to bring it into view, including during cleanup. Toggle through the [resident lifecycle](../module-lifecycle.md) flow; no kill/relaunch substitute. |
+| Activation shortcut - expand section | Activation card (anchor `AlwaysOnTopActivationShortcut`) > Button supporting ExpandCollapsePattern; not its shortcut EditButton. | With the module enabled, expand to reveal the nested settings. Expansion does not edit the shortcut. |
+| Activation shortcut - Edit | Parent `AutomationId=LayoutRoot`, `Name=Activation shortcut` > `ControlType=Button`, `AutomationId=EditButton`. | Invoke the scoped button and operate the shortcut dialog. Save commits; Cancel discards the draft. |
+| Increase opacity - Edit | Parent `AutomationId=LayoutRoot`, `Name=Increase opacity` > `ControlType=Button`, `AutomationId=EditButton`. | Invoke and edit this binding only. Save commits; Cancel discards. This changes the shortcut, not the target window's opacity. |
+| Decrease opacity - Edit | Parent `AutomationId=LayoutRoot`, `Name=Decrease opacity` > `ControlType=Button`, `AutomationId=EditButton`. | Invoke and edit this binding only. Save commits; Cancel discards. This changes the shortcut, not the target window's opacity. |
+| Show a border around the pinned window | Border card (anchor `AlwaysOnTopFrameEnabled`) > `ControlType=Button`, matching accessible Name, supporting TogglePattern; not the same-caption expander. | Toggle/read the highlighting setting. Retain an owned pinned target when observing the live border change. |
+| Color mode | Color-mode card (anchor `AlwaysOnTopFrameColorMode`) > `ControlType=ComboBox`, `Name=Color mode`. | With highlighting enabled, use `Select-PtComboBoxItem` for the actual Custom color or Windows default option. |
+| Color - open picker | Custom-color card (anchor `AlwaysOnTopFrameColor`) > its uniquely identified Button. | With highlighting enabled and Custom color selected, Invoke to open the color flyout. |
+| Hexadecimal color input | Current color flyout > `ControlType=Edit`; discover the hex field's actual Name/AutomationId and ValuePattern. | Set the RGB/ARGB value through ValuePattern. Edits apply live; Escape dismisses the flyout without undoing them. |
+| Thickness (px) - border thickness | Thickness card (anchor `AlwaysOnTopFrameThickness`) > `ControlType=Slider`, `Name=Thickness (px)`. | With highlighting enabled, set RangeValuePattern within the reported range. Applies live; no Save. |
+| Opacity (%) - border opacity | Border-opacity card (anchor `AlwaysOnTopFrameOpacity`) > `ControlType=Slider`, `Name=Opacity (%)`. | With highlighting enabled, set RangeValuePattern within the reported range. Applies live; this is not whole-window opacity. |
+| Enable rounded corners | Expanded border section > CheckBox matching the current localized label. | Available on Windows 11. Toggle/read the option; observe the rendered corners separately. |
+| Do not activate when Game Mode is on | Expanded activation section > CheckBox matching the current localized label. | Toggle/read the preference. This does not establish that the real fullscreen/Game Mode condition is active. |
+| Show Always on Top in the title bar context menu | Expanded activation section > CheckBox matching the current localized label; inspect the actual checkbox inside any description wrapper. | Toggle/read the preference. Open the target window's real menu separately to observe the entry. |
+| Play a sound when pinning a window | Sound card > `ControlType=Button`, matching accessible Name, supporting TogglePattern. | With the module enabled, toggle/read the preference. Actual audio requires a separate observation. |
+| Excluded apps - application list | Expanded exclusions section (anchor `AlwaysOnTopExcludedApps`) > its unique multiline `ControlType=Edit`. | Preserve the private original; use ValuePattern to edit only a test-owned executable entry after checking for collisions with existing entries or unrelated apps. |
+
+**Target window's system menu.** Enable its menu-integration setting first and identify the
+actual popup belonging to the owned target; this is not a Settings-window control.
+
+| Control (English label / purpose) | Scoped UIA locator | Interaction / commit behavior |
+|---|---|---|
+| Always On Top menu item | Current target-owned title-bar menu > `ControlType=MenuItem` with the observed localized AOT caption. | Inspect/invoke the real item; reopen to inspect its check state. Do not select by item index or substitute an internal command message. |
 
 ### Read-out notes
 
+- `Get-PtAlwaysOnTopWindowState` reads the exact target identity's pin marker, window styles,
+  alpha availability, physical frame and DPI. It returns observations, not painted pixels
+  or a verdict; compare those facts with the checklist's assertions.
 - Use `Read-PtSharedFileText`; missing/schema/read errors are not defaults. Scalar
   `properties` keys `frame-enabled`, `frame-thickness`, `frame-color`,
   `frame-accent-color`, `frame-opacity`, `round-corners-enabled`, `sound-enabled`,
